@@ -268,18 +268,16 @@ async function getChatResponseAPI(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const baseRequest: any = {
-    model: "claude-opus-5",
-    // Opus 5 runs adaptive thinking by default and thinking tokens count
-    // against max_tokens, so the old 1024 ceiling would truncate replies
-    // mid-sentence. 4096 leaves room to think and still answer concisely —
-    // brevity comes from the system prompt, not from starving the budget.
+    // Haiku is deliberate for the chat path: the system prompt does the
+    // steering, so we want speed and low cost per turn over reasoning depth.
     //
-    // We deliberately do NOT disable thinking: with thinking off, the model
-    // can emit a tool call as visible text instead of a tool_use block, which
-    // would silently break save_customer_details lead extraction. Lowering
-    // effort is the safe way to keep this route fast and cheap.
+    // Haiku 4.5 is NOT configured like the 4.6+ models — it has no adaptive
+    // thinking, and `output_config.effort` is rejected outright. Leave both
+    // off: omitting `thinking` simply means no thinking, which is what a
+    // latency-sensitive widget wants. Tool use (save_customer_details) is
+    // unaffected and still works.
+    model: "claude-haiku-4-5",
     max_tokens: 4096,
-    output_config: { effort: "low" },
     system: enableTools ? systemPrompt + TOOL_INSTRUCTION : systemPrompt,
     messages: recentMessages,
   };
