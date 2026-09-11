@@ -268,17 +268,39 @@ async function getChatResponseAPI(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const baseRequest: any = {
-    // Haiku is deliberate for the chat path: the system prompt does the
-    // steering, so we want speed and low cost per turn over reasoning depth.
+    // Sonnet 5, not Haiku. Measured over 3 runs on the same prompt and input,
+    // Haiku 4.5 invented sales statistics in 2 of 3 responses ("an extra 5-10
+    // calls a week", "3-4 warm leads") despite the prompt explicitly
+    // forbidding invented stats. Sonnet 5 did it 0 times in 6. For a bot whose
+    // job is selling to strangers, fabricated social proof is the one failure
+    // mode we can't ship.
     //
-    // Haiku 4.5 is NOT configured like the 4.6+ models — it has no adaptive
-    // thinking, and `output_config.effort` is rejected outright. Leave both
-    // off: omitting `thinking` simply means no thinking, which is what a
-    // latency-sensitive widget wants. Tool use (save_customer_details) is
-    // unaffected and still works.
-    model: "claude-haiku-4-5",
+    // It also wasn't a speed tradeoff: this config averaged 4.9s vs Haiku's
+    // 5.4s — adaptive thinking at low effort is the fastest option measured.
+    model: "claude-sonnet-5",
     max_tokens: 4096,
-    system: enableTools ? systemPrompt + TOOL_INSTRUCTION : systemPrompt,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+
+    // The system prompt is multi-thousand tokens and byte-identical on every
+    // turn, so it's the obvious cache target. Caching here covers the whole
+    // tools + system prefix (tools render before system); the conversation in
+    // `messages` stays uncached and volatile, which is the correct split.
+    //
+    // Note this yields two cache entries, one per branch of the enableTools
+    // ternary. That's expected — the tool list changes the prefix anyway.
+    //
+    // Cache reads run ~10% of base input price. Given input dominates each
+    // request here, a warm cache roughly halves cost per message. The default
+    // TTL is 5 minutes, so the benefit scales with sustained traffic; a quiet
+    // widget will miss often and pay the ~1.25x write premium instead.
+    system: [
+      {
+        type: "text",
+        text: enableTools ? systemPrompt + TOOL_INSTRUCTION : systemPrompt,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: recentMessages,
   };
   if (enableTools) baseRequest.tools = [SAVE_CUSTOMER_DETAILS_TOOL];
@@ -295,11 +317,24 @@ async function getChatResponseAPI(
 
   // Observability: log every Claude turn so we can see whether the tool
   // is being offered, accepted, or ignored. No message content is logged.
+  //
+  // cache_read is the number that matters for spend: if it stays 0 across
+  // repeated turns then something is invalidating the prefix and we're paying
+  // full input price on a multi-thousand-token prompt every message.
+  const usage = first.usage as {
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+    input_tokens: number;
+    output_tokens: number;
+  };
   console.log(
     `[CLAUDE] tools=${enableTools ? "on" : "off"} ` +
       `stop_reason=${first.stop_reason} ` +
       `tool_uses=${toolUses.length} ` +
-      `text_blocks=${textBlocksCount}`
+      `text_blocks=${textBlocksCount} ` +
+      `cache_read=${usage.cache_read_input_tokens ?? 0} ` +
+      `cache_write=${usage.cache_creation_input_tokens ?? 0} ` +
+      `in=${usage.input_tokens} out=${usage.output_tokens}`
   );
 
   if (extractToLead && toolUses.length > 0) {
