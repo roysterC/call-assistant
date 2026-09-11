@@ -185,11 +185,21 @@ export async function POST(req: NextRequest) {
             email: lead.email,
             phone,
             source: "website",
-            notes: lead.summary || null,
+            // The marker's summary is "what this lead wants", which is `issue`
+            // — the column the leads table renders. It used to go to `notes`,
+            // an internal field nothing displays, so every website lead showed
+            // a blank issue while phone leads showed theirs. Capped at 500 to
+            // match applyCustomerDetails() in lib/claude.ts.
+            issue: lead.summary?.trim().slice(0, 500) || null,
           },
           update: {
             name: existing?.name || lead.name || null,
             email: existing?.email || lead.email || null,
+            // Same fill-in-null-fields behaviour as name/email above: a lead
+            // first created by another channel (a phone call, say) with no
+            // issue recorded picks one up from the chat summary.
+            issue:
+              existing?.issue || lead.summary?.trim().slice(0, 500) || null,
           },
         });
         updateData.leadId = upserted.id;
