@@ -268,8 +268,18 @@ async function getChatResponseAPI(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const baseRequest: any = {
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1024,
+    model: "claude-opus-5",
+    // Opus 5 runs adaptive thinking by default and thinking tokens count
+    // against max_tokens, so the old 1024 ceiling would truncate replies
+    // mid-sentence. 4096 leaves room to think and still answer concisely —
+    // brevity comes from the system prompt, not from starving the budget.
+    //
+    // We deliberately do NOT disable thinking: with thinking off, the model
+    // can emit a tool call as visible text instead of a tool_use block, which
+    // would silently break save_customer_details lead extraction. Lowering
+    // effort is the safe way to keep this route fast and cheap.
+    max_tokens: 4096,
+    output_config: { effort: "low" },
     system: enableTools ? systemPrompt + TOOL_INSTRUCTION : systemPrompt,
     messages: recentMessages,
   };
