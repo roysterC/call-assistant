@@ -213,7 +213,7 @@ export default function InsightsPage() {
                       dataKey="conversations"
                       stroke={CHART_SERIES[0]}
                       strokeWidth={2}
-                      dot={false}
+                      dot={data.daily.length === 1}
                       name="Conversations"
                     />
                     <Line
@@ -222,7 +222,7 @@ export default function InsightsPage() {
                       dataKey="leads"
                       stroke={CHART_SERIES[1]}
                       strokeWidth={2}
-                      dot={false}
+                      dot={data.daily.length === 1}
                       name="Leads"
                     />
                   </LineChart>
