@@ -254,6 +254,56 @@ async function getChatResponseCLI(
   });
 }
 
+// --- Chat model selection ---
+
+/**
+ * Per-model request parameters for the chat path.
+ *
+ * These travel with the model on purpose: the two are not interchangeable.
+ * Haiku 4.5 has no adaptive thinking and rejects `output_config.effort`
+ * outright (400), while Sonnet 5 wants both. Swapping only the model string
+ * would either error or silently run Sonnet at default effort, so the shape
+ * is bound to the choice.
+ *
+ * Quality note, measured over 3 runs each on the same prompt and input:
+ * Haiku invented sales statistics in 2 of 3 responses ("an extra 5-10 calls a
+ * week", "3-4 warm leads") despite the prompt forbidding invented stats.
+ * Sonnet did it 0 times in 6, and was fractionally faster (4.9s vs 5.4s).
+ *
+ * Haiku is the default while we're testing, because dev traffic is sporadic
+ * enough that most requests cold-start and pay the cache-write premium, where
+ * the cheaper base rate actually tells. Go to Sonnet before this faces
+ * prospects — fabricated social proof is not something to ship.
+ */
+const CHAT_MODELS = {
+  "claude-haiku-4-5": {
+    model: "claude-haiku-4-5",
+    // No `thinking` and no `output_config` — both are rejected on this model.
+  },
+  "claude-sonnet-5": {
+    model: "claude-sonnet-5",
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+  },
+} as const;
+
+type ChatModelName = keyof typeof CHAT_MODELS;
+
+/** Change this one line to switch models (or set CHAT_MODEL in .env). */
+const DEFAULT_CHAT_MODEL: ChatModelName = "claude-haiku-4-5";
+
+function resolveChatModel() {
+  const fromEnv = process.env.CHAT_MODEL as ChatModelName | undefined;
+  if (fromEnv && fromEnv in CHAT_MODELS) return CHAT_MODELS[fromEnv];
+  if (fromEnv) {
+    console.warn(
+      `[CLAUDE] Unknown CHAT_MODEL "${fromEnv}", falling back to ${DEFAULT_CHAT_MODEL}. ` +
+        `Known: ${Object.keys(CHAT_MODELS).join(", ")}`
+    );
+  }
+  return CHAT_MODELS[DEFAULT_CHAT_MODEL];
+}
+
 // --- Anthropic API method (production) ---
 
 async function getChatResponseAPI(
@@ -268,19 +318,9 @@ async function getChatResponseAPI(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const baseRequest: any = {
-    // Sonnet 5, not Haiku. Measured over 3 runs on the same prompt and input,
-    // Haiku 4.5 invented sales statistics in 2 of 3 responses ("an extra 5-10
-    // calls a week", "3-4 warm leads") despite the prompt explicitly
-    // forbidding invented stats. Sonnet 5 did it 0 times in 6. For a bot whose
-    // job is selling to strangers, fabricated social proof is the one failure
-    // mode we can't ship.
-    //
-    // It also wasn't a speed tradeoff: this config averaged 4.9s vs Haiku's
-    // 5.4s — adaptive thinking at low effort is the fastest option measured.
-    model: "claude-sonnet-5",
+    // Model plus its required per-model params — see CHAT_MODELS above.
+    ...resolveChatModel(),
     max_tokens: 4096,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "low" },
 
     // The system prompt is multi-thousand tokens and byte-identical on every
     // turn, so it's the obvious cache target. Caching here covers the whole
@@ -328,7 +368,8 @@ async function getChatResponseAPI(
     output_tokens: number;
   };
   console.log(
-    `[CLAUDE] tools=${enableTools ? "on" : "off"} ` +
+    `[CLAUDE] model=${first.model} ` +
+      `tools=${enableTools ? "on" : "off"} ` +
       `stop_reason=${first.stop_reason} ` +
       `tool_uses=${toolUses.length} ` +
       `text_blocks=${textBlocksCount} ` +
