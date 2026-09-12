@@ -16,6 +16,7 @@ import { ContactPanel } from "@/components/conversations/contact-panel";
 import { MessageBubble } from "@/components/conversations/message-bubble";
 import { apiFetch } from "@/lib/api-fetch";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
 
 type Channel = "whatsapp" | "website" | "instagram" | "facebook";
 
@@ -42,7 +43,12 @@ interface ConversationSummary {
 
 interface DetailMessage {
   id: string;
-  role: "user" | "assistant";
+  /**
+   * "agent" is an operator reply typed in this inbox. It was missing here
+   * while the API had been returning it and MessageBubble had been styling it
+   * for some time — the type said the green "You" bubble was unreachable.
+   */
+  role: "user" | "assistant" | "agent";
   content: string;
   createdAt: string;
 }
@@ -76,8 +82,49 @@ interface ConversationDetail {
   handle?: string | null;
   /** ISO timestamp of the last persona reset, or null if never reset. */
   personaResetAt?: string | null;
-  /** "bot" | "requested" | "human" — website conversations only. */
+  /**
+   * "bot" | "human" — website conversations only. ("requested" was the
+   * visitor-initiated state, retired with the "Talk to a person" button.)
+   */
   handoffState?: string;
+}
+
+/** Which side of the thread a role sits on. "agent" is us, same as the bot. */
+function isUserSide(role: string): boolean {
+  return role === "user";
+}
+
+function isSameDay(a: string, b: string): boolean {
+  const x = new Date(a);
+  const y = new Date(b);
+  return (
+    x.getFullYear() === y.getFullYear() &&
+    x.getMonth() === y.getMonth() &&
+    x.getDate() === y.getDate()
+  );
+}
+
+/**
+ * "Today" / "Yesterday" / a date, for the separators between days.
+ *
+ * Relative words first because most of what an operator reads is recent, and
+ * "Today" answers the question faster than a date they have to compare against
+ * one they half-remember.
+ */
+function dayLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  if (isSameDay(dateStr, today.toISOString())) return "Today";
+  if (isSameDay(dateStr, yesterday.toISOString())) return "Yesterday";
+  return d.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    // A year only when it isn't this one — "12 Sep" is enough until it isn't.
+    year: d.getFullYear() === today.getFullYear() ? undefined : "numeric",
+  });
 }
 
 type Filter = "all" | "unread" | "recent" | "starred";
@@ -413,53 +460,75 @@ export default function ConversationsPage() {
           mobileView === "list" ? "flex" : "hidden md:flex"
         )}
       >
-        <div className="p-3 border-b border-border shrink-0">
-          <h2 className="font-semibold text-sm mb-3">Conversations</h2>
-
-          {/* Channel tabs */}
-          <div className="flex gap-1 mb-2">
-            {visibleChannelTabs.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setChannelFilter(tab.value)}
-                className={cn(
-                  "flex-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors",
-                  channelFilter === tab.value
-                    ? "bg-white/10 text-white"
-                    : "text-muted-foreground hover:text-white hover:bg-white/5"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div className="p-3 border-b border-border shrink-0 space-y-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="font-semibold text-sm">Conversations</h2>
+            {!loading && conversations.length > 0 && (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {conversations.length}
+              </span>
+            )}
           </div>
 
-          {/* Filter tabs */}
-          <div className="flex gap-1 mb-3 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search conversations"
+              aria-label="Search conversations"
+              className="pl-8 h-8 text-xs"
+            />
+          </div>
+
+          {/*
+            Two filters, one look.
+
+            These are different axes — which channel, and what state — but they
+            used to advertise themselves as different *kinds* of control: the
+            channel row was a grey segmented bar, the state row blue pills, and
+            each row ended in a button labelled "All", so the panel opened with
+            two identical words meaning two different things. Same treatment for
+            both now, and the channel one says what its "all" covers.
+
+            The channel row only appears when there is a choice to make.
+          */}
+          {visibleChannelTabs.length > 2 && (
+            <div className="flex gap-1 p-0.5 rounded-lg bg-background">
+              {visibleChannelTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setChannelFilter(tab.value)}
+                  aria-pressed={channelFilter === tab.value}
+                  className={cn(
+                    "flex-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors",
+                    channelFilter === tab.value
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {tab.value === "all" ? "All channels" : tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-1 flex-wrap">
             {FILTER_TABS.map((tab) => (
               <button
                 key={tab.value}
                 onClick={() => setFilter(tab.value)}
+                aria-pressed={filter === tab.value}
                 className={cn(
                   "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
                   filter === tab.value
-                    ? "bg-blue-600/20 text-blue-400"
-                    : "text-muted-foreground hover:text-white hover:bg-white/5"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 )}
               >
                 {tab.label}
               </button>
             ))}
-          </div>
-
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="pl-8 h-8 text-xs bg-white/5 border-border"
-            />
           </div>
         </div>
 
@@ -469,10 +538,19 @@ export default function ConversationsPage() {
               <div className="animate-spin w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full" />
             </div>
           ) : conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-              <MessageCircle className="w-6 h-6 text-slate-600 mb-2" />
-              <p className="text-xs text-muted-foreground">No conversations found</p>
-            </div>
+            <EmptyState
+              icon={MessageCircle}
+              title={
+                search || filter !== "all" || channelFilter !== "all"
+                  ? "Nothing matches"
+                  : "No conversations yet"
+              }
+              hint={
+                search || filter !== "all" || channelFilter !== "all"
+                  ? "Try a different search or clear the filters."
+                  : "Chats from your website and connected channels land here."
+              }
+            />
           ) : (
             conversations.map((conv) => (
               <ConversationListItem
@@ -526,20 +604,63 @@ export default function ConversationsPage() {
                 <ArrowLeft className="w-4 h-4" />
               </Button>
 
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-sm truncate">
-                  {activeConversation.contactName ||
-                    activeConversation.lead?.name ||
-                    activeConversation.visitorEmail ||
-                    activeConversation.phoneNumber ||
-                    "Unknown"}
-                </h3>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {activeConversation.channel === "website"
-                    ? activeConversation.site?.name || "Website"
-                    : activeConversation.phoneNumber}
-                </p>
-              </div>
+              {/*
+                The same avatar and channel badge the list row carries. Without
+                them the header was two lines of plain text, so moving from the
+                list into a thread lost every visual cue about who this is and
+                where they came from.
+              */}
+              {(() => {
+                const title =
+                  activeConversation.contactName ||
+                  activeConversation.lead?.name ||
+                  activeConversation.visitorEmail ||
+                  activeConversation.phoneNumber ||
+                  "Unknown";
+                const meta = CHANNEL_META[activeConversation.channel];
+                const ChannelIcon = meta?.icon;
+                return (
+                  <>
+                    <div className="relative shrink-0">
+                      <div
+                        className={cn(
+                          "w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold",
+                          avatarColorFor(title)
+                        )}
+                      >
+                        {initialsFor(
+                          activeConversation.contactName ||
+                            activeConversation.lead?.name ||
+                            null,
+                          activeConversation.phoneNumber
+                        )}
+                      </div>
+                      {meta && ChannelIcon && (
+                        <span
+                          className={cn(
+                            "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-card",
+                            meta.bg
+                          )}
+                          title={meta.label}
+                        >
+                          <ChannelIcon className="w-2.5 h-2.5 text-white" />
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm truncate">
+                        {title}
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {activeConversation.channel === "website"
+                          ? activeConversation.site?.name || "Website"
+                          : activeConversation.phoneNumber}
+                      </p>
+                    </div>
+                  </>
+                );
+              })()}
 
               <Button
                 variant="ghost"
@@ -552,23 +673,55 @@ export default function ConversationsPage() {
               </Button>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1.5">
               {activeConversation.messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                  <MessageCircle className="w-6 h-6 text-slate-600 mb-2" />
-                  <p className="text-xs text-muted-foreground">
-                    No messages yet in this conversation.
-                  </p>
+                <div className="h-full flex items-center justify-center">
+                  <EmptyState
+                    icon={MessageCircle}
+                    title="No messages yet"
+                    hint="Nothing has been said in this conversation."
+                  />
                 </div>
               ) : (
-                activeConversation.messages.map((msg) => (
-                  <MessageBubble
-                    key={msg.id}
-                    role={msg.role}
-                    content={msg.content}
-                    createdAt={msg.createdAt}
-                  />
-                ))
+                activeConversation.messages.map((msg, i) => {
+                  const prev = activeConversation.messages[i - 1];
+                  // A thread can span weeks, and without a marker every
+                  // message reads as though it arrived just now — "09:14" says
+                  // nothing about which day.
+                  const showDay =
+                    !prev || !isSameDay(prev.createdAt, msg.createdAt);
+                  // Consecutive messages from one side are one turn, so only
+                  // the last of a run gets the pointed corner.
+                  const next = activeConversation.messages[i + 1];
+                  const showTail =
+                    !next ||
+                    isUserSide(next.role) !== isUserSide(msg.role) ||
+                    !isSameDay(msg.createdAt, next.createdAt);
+
+                  return (
+                    <div key={msg.id} className={showDay ? "pt-3" : undefined}>
+                      {showDay && (
+                        <div
+                          className="flex items-center gap-3 pb-3"
+                          role="separator"
+                          aria-label={dayLabel(msg.createdAt)}
+                        >
+                          <span className="h-px flex-1 bg-border" />
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {dayLabel(msg.createdAt)}
+                          </span>
+                          <span className="h-px flex-1 bg-border" />
+                        </div>
+                      )}
+                      <MessageBubble
+                        role={msg.role}
+                        content={msg.content}
+                        createdAt={msg.createdAt}
+                        showTail={showTail}
+                      />
+                    </div>
+                  );
+                })
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -580,14 +733,27 @@ export default function ConversationsPage() {
               are a separate piece of work rather than a disabled-looking box
               that silently does nothing.
             */}
+            {/*
+              "requested" is gone: visitors can no longer ask for a person, so
+              the only way off "bot" is an operator choosing to take over. The
+              dot makes the state readable without parsing the sentence.
+            */}
             {selectedChannel === "website" && (
-              <div className="border-t border-border px-3 pt-2 flex items-center justify-between gap-3 bg-card">
-                <span className="text-xs text-muted-foreground">
-                  {activeConversation.handoffState === "human"
-                    ? "You are handling this conversation. The bot is paused."
-                    : activeConversation.handoffState === "requested"
-                    ? "Visitor asked for a person. The bot is paused."
-                    : "The bot is answering this conversation."}
+              <div className="border-t border-border px-3 py-2 flex items-center justify-between gap-3 bg-card">
+                <span className="text-xs text-muted-foreground flex items-center gap-2 min-w-0">
+                  <span
+                    className={cn(
+                      "w-1.5 h-1.5 rounded-full shrink-0",
+                      activeConversation.handoffState === "bot"
+                        ? "bg-blue-500"
+                        : "bg-emerald-500"
+                    )}
+                  />
+                  <span className="truncate">
+                    {activeConversation.handoffState === "bot"
+                      ? "The bot is answering this conversation."
+                      : "You are handling this conversation. The bot is paused."}
+                  </span>
                 </span>
                 <Button
                   variant="outline"
@@ -616,10 +782,14 @@ export default function ConversationsPage() {
                 <input
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
-                  placeholder="Reply as a team member..."
+                  placeholder={
+                    activeConversation.handoffState === "bot"
+                      ? "Reply as a team member — this pauses the bot"
+                      : "Reply as a team member…"
+                  }
                   aria-label="Reply to this conversation"
                   disabled={replying}
-                  className="flex-1 px-3 py-2 text-sm bg-background border border-border rounded-lg text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+                  className="flex-1 px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
                 />
                 <Button type="submit" size="sm" disabled={replying || !reply.trim()}>
                   {replying ? "Sending..." : "Send"}

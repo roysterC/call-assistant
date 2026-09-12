@@ -85,17 +85,12 @@ export function ContactPanel({
             {initials}
           </div>
         )}
-        <h3 className="font-semibold text-white">{displayName}</h3>
-        {conversation.handle && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            @{conversation.handle}
-          </p>
-        )}
-        {conversation.phoneNumber && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {conversation.phoneNumber}
-          </p>
-        )}
+        {/*
+          Name and status only. The handle and phone number that used to sit
+          here are listed again, with icons, in the Contact block immediately
+          below — the panel opened by telling you the same two things twice.
+        */}
+        <h3 className="font-semibold text-foreground">{displayName}</h3>
 
         <div className="flex items-center gap-2 mt-3">
           <Badge
@@ -134,13 +129,13 @@ export function ContactPanel({
             {conversation.handle && (
               <div className="flex items-center gap-2.5 text-sm">
                 <AtSign className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-slate-300">{conversation.handle}</span>
+                <span className="text-foreground/80">{conversation.handle}</span>
               </div>
             )}
             {conversation.phoneNumber && (
               <div className="flex items-center gap-2.5 text-sm">
                 <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-slate-300">
+                <span className="text-foreground/80">
                   {conversation.phoneNumber}
                 </span>
               </div>
@@ -148,7 +143,7 @@ export function ContactPanel({
             {conversation.lead?.email && (
               <div className="flex items-center gap-2.5 text-sm">
                 <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-slate-300">
+                <span className="text-foreground/80">
                   {conversation.lead.email}
                 </span>
               </div>
@@ -156,7 +151,7 @@ export function ContactPanel({
             {conversation.lead?.company && (
               <div className="flex items-center gap-2.5 text-sm">
                 <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-slate-300">
+                <span className="text-foreground/80">
                   {conversation.lead.company}
                 </span>
               </div>
@@ -164,7 +159,7 @@ export function ContactPanel({
           </div>
         </div>
 
-        <Separator className="bg-white/10" />
+        <Separator className="bg-border" />
 
         {conversation.lead && (
           <div>
@@ -180,7 +175,7 @@ export function ContactPanel({
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Source</span>
-                <span className="text-slate-300 flex items-center gap-1.5">
+                <span className="text-foreground/80 flex items-center gap-1.5">
                   <MessageCircle className="w-3 h-3" />
                   {conversation.lead.source}
                 </span>
@@ -189,7 +184,7 @@ export function ContactPanel({
           </div>
         )}
 
-        <Separator className="bg-white/10" />
+        <Separator className="bg-border" />
 
         <div>
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
@@ -197,13 +192,13 @@ export function ContactPanel({
           </h4>
           <div className="flex items-center gap-2.5 text-sm">
             <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-slate-300">
+            <span className="text-foreground/80">
               Joined {format(new Date(conversation.createdAt), "MMM d, yyyy")}
             </span>
           </div>
         </div>
 
-        <Separator className="bg-white/10" />
+        <Separator className="bg-border" />
 
         {/* AI controls — manual override for the bot's behaviour on this
             conversation. Reset persona = ignore everything before NOW

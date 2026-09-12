@@ -6,9 +6,19 @@ interface MessageBubbleProps {
   role: "user" | "assistant" | "agent";
   content: string;
   createdAt: string;
+  /**
+   * False when the previous message was from the same side, so a run of
+   * replies reads as one turn instead of a stack of separate cards.
+   */
+  showTail?: boolean;
 }
 
-export function MessageBubble({ role, content, createdAt }: MessageBubbleProps) {
+export function MessageBubble({
+  role,
+  content,
+  createdAt,
+  showTail = true,
+}: MessageBubbleProps) {
   const isUser = role === "user";
   const isAgent = role === "agent";
 
@@ -19,30 +29,38 @@ export function MessageBubble({ role, content, createdAt }: MessageBubbleProps) 
         the bot sent — otherwise a transcript reads as one voice and it is
         impossible to see where a handoff happened.
       */}
-      {isAgent && (
+      {isAgent && showTail && (
         <span className="text-[10px] font-medium text-emerald-400 mb-0.5 px-1">
           You
         </span>
       )}
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm",
-          isUser && "bg-blue-600 text-white rounded-br-md",
+          // Two caps, not one. The percentage keeps the bubble from touching
+          // the far edge on a narrow pane; the character measure stops a long
+          // reply running to 90-odd characters a line on a wide one, which is
+          // well past readable and was how every bot answer rendered.
+          "max-w-[75%] [max-inline-size:52ch] rounded-2xl px-4 py-2.5 text-sm",
+          isUser && "bg-blue-600 text-white",
+          isUser && (showTail ? "rounded-br-md" : "rounded-br-2xl"),
           isAgent &&
-            "bg-emerald-500/10 text-slate-100 border border-emerald-500/40 rounded-bl-md",
-          !isUser &&
-            !isAgent &&
-            "bg-white/5 text-slate-200 border border-border rounded-bl-md"
+            "bg-emerald-500/10 text-foreground border border-emerald-500/40",
+          // The bot's bubble was bg-white/5 — barely a shade off the pane
+          // behind it, so replies read as loose text rather than messages.
+          !isUser && !isAgent && "bg-muted text-foreground border border-border",
+          !isUser && (showTail ? "rounded-bl-md" : "rounded-bl-2xl")
         )}
       >
-        <p className="whitespace-pre-wrap break-words">{content}</p>
+        <p className="whitespace-pre-wrap break-words leading-relaxed">
+          {content}
+        </p>
         <p
           className={cn(
-            "text-[10px] mt-1",
-            isUser ? "text-blue-200" : "text-muted-foreground"
+            "text-[10px] mt-1 tabular-nums",
+            isUser ? "text-blue-100/80" : "text-muted-foreground"
           )}
         >
-          {format(new Date(createdAt), "h:mm a")}
+          {format(new Date(createdAt), "HH:mm")}
         </p>
       </div>
     </div>

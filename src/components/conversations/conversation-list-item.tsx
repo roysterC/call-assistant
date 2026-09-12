@@ -94,10 +94,10 @@ export function ConversationListItem({
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-b border-white/5",
+        "w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-b border-border/60",
         isActive
           ? "bg-blue-600/15 border-l-2 border-l-blue-500"
-          : "hover:bg-white/5"
+          : "hover:bg-accent/50"
       )}
     >
       <div className="relative shrink-0">
@@ -124,7 +124,7 @@ export function ConversationListItem({
         {badge && ChannelIcon && (
           <div
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-[#161b22]",
+              "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-card",
               badge.bg
             )}
             title={badge.label}
@@ -139,7 +139,7 @@ export function ConversationListItem({
           <span
             className={cn(
               "text-sm truncate",
-              !isRead ? "font-semibold text-white" : "font-medium text-slate-300"
+              !isRead ? "font-semibold text-foreground" : "font-medium text-foreground/80"
             )}
           >
             {primaryName}
@@ -165,7 +165,7 @@ export function ConversationListItem({
           <p
             className={cn(
               "text-xs truncate",
-              !isRead ? "text-slate-300" : "text-muted-foreground"
+              !isRead ? "text-foreground/80" : "text-muted-foreground"
             )}
           >
             {lastMessage || "No messages yet"}
