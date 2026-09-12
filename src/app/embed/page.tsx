@@ -394,7 +394,8 @@ function EmbedContent() {
     if (!isOpen || sending || !siteId || !sessionId) return;
 
     let cancelled = false;
-    const timer = setInterval(async () => {
+
+    const poll = async () => {
       if (typeof document !== "undefined" && document.hidden) return;
       try {
         const res = await fetch(
@@ -431,11 +432,22 @@ function EmbedContent() {
       } catch {
         /* transient network failure — the next tick tries again */
       }
-    }, 6000);
+    };
+
+    const timer = setInterval(poll, 6000);
+
+    // Ticks are skipped while the tab is hidden, so catch up the moment it
+    // comes back rather than leaving the visitor looking at a stale transcript
+    // for up to a full interval after they return.
+    const onVisible = () => {
+      if (!document.hidden) poll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       cancelled = true;
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [isOpen, sending, siteId, sessionId, config]);
 
