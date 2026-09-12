@@ -48,23 +48,55 @@ function EmbedContent() {
   const [sessionId, setSessionId] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load config + session
+  // Load config + restore any prior transcript.
+  //
+  // The iframe is torn down on every page navigation, so without this the
+  // visitor saw an empty panel and a fresh greeting while the server carried
+  // on appending to the same conversation — the bot would then refer back to
+  // things they could no longer see. The sessionId in localStorage is what
+  // ties the two together.
   useEffect(() => {
     if (!siteId) return;
-    setSessionId(getSessionId(siteId));
-    fetch(`/api/website-chat/config?siteId=${siteId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) {
-          console.error("[Widget] Config error:", data.error);
+    const sid = getSessionId(siteId);
+    setSessionId(sid);
+
+    const configReq = fetch(
+      `/api/website-chat/config?siteId=${encodeURIComponent(siteId)}`
+    ).then((r) => r.json());
+
+    // History is best-effort: a failure here should degrade to a fresh-looking
+    // conversation, never block the widget from loading.
+    const historyReq = fetch(
+      `/api/website-chat/history?siteId=${encodeURIComponent(
+        siteId
+      )}&sessionId=${encodeURIComponent(sid)}`
+    )
+      .then((r) => (r.ok ? r.json() : { messages: [] }))
+      .catch(() => ({ messages: [] }));
+
+    Promise.all([configReq, historyReq])
+      .then(([cfg, hist]) => {
+        if (cfg.error) {
+          console.error("[Widget] Config error:", cfg.error);
           return;
         }
-        setConfig(data);
-        if (data.greeting) {
-          setMessages([
-            { id: "greeting", role: "assistant", content: data.greeting },
-          ]);
-        }
+        setConfig(cfg);
+
+        const restored: Message[] = (hist?.messages ?? []).map(
+          (m: { id: string; role: string; content: string }) => ({
+            id: m.id,
+            role: m.role === "user" ? "user" : "assistant",
+            content: m.content,
+          })
+        );
+
+        // Keep the greeting as the opener so a returning visitor sees the
+        // same conversation they left, rather than one that starts mid-air.
+        const opener: Message[] = cfg.greeting
+          ? [{ id: "greeting", role: "assistant", content: cfg.greeting }]
+          : [];
+
+        setMessages([...opener, ...restored]);
       })
       .catch((err) => console.error("[Widget] Failed to load config:", err));
   }, [siteId]);
