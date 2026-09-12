@@ -7,6 +7,7 @@ import { Star, Phone, Mail, Building2, Calendar, MessageCircle, AtSign, RotateCc
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { avatarColorFor, initialsFor } from "@/lib/channels";
+import { leadStatus, STATUS_BADGE } from "@/lib/status-styles";
 
 interface ContactPanelProps {
   conversation: {
@@ -26,6 +27,8 @@ interface ContactPanelProps {
       email: string | null;
       phone: string;
       company: string | null;
+      /** One-line summary of what they want. See the Lead Info section. */
+      issue: string | null;
       status: string;
       source: string;
     } | null;
@@ -164,14 +167,37 @@ export function ContactPanel({
         {conversation.lead && (
           <div>
             <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Lead Info
+              Lead info
             </h4>
             <div className="space-y-2.5">
+              {/*
+                What they actually want, in the panel next to the transcript.
+                It was only on the leads table, so answering "what is this
+                person after" meant leaving the conversation to go and look —
+                or reading the thread back. Full text rather than truncated:
+                it is capped at 500 characters at the point it is written, and
+                this column has the room.
+              */}
+              {conversation.lead.issue && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground block mb-1">
+                    Issue
+                  </span>
+                  <p className="text-foreground/80 leading-relaxed whitespace-pre-wrap break-words">
+                    {conversation.lead.issue}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Status</span>
-                <Badge variant="outline" className="text-[10px]">
-                  {conversation.lead.status}
-                </Badge>
+                {(() => {
+                  const s = leadStatus(conversation.lead.status);
+                  return (
+                    <span className={cn(STATUS_BADGE, s.className)}>
+                      {s.label}
+                    </span>
+                  );
+                })()}
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Source</span>
