@@ -34,6 +34,10 @@ export async function GET(req: NextRequest) {
         quickReplies: true,
         brandColor: true,
         enabled: true,
+        proactiveEnabled: true,
+        proactiveMessage: true,
+        proactiveDelaySeconds: true,
+        proactiveCooldownHours: true,
         organizationId: true,
       },
     });

@@ -298,6 +298,17 @@ model WebsiteConfig {
   brandColor     String   @default("#2563eb")
   allowedOrigins Json     @default("[]")
   enabled        Boolean  @default(true)
+
+  // Proactive teaser: a small prompt that appears beside the collapsed
+  // launcher after a delay, to open a conversation rather than waiting to be
+  // found. Off by default — an unsolicited popup on a client's site is their
+  // decision to make, not a default we impose.
+  proactiveEnabled       Boolean @default(false)
+  proactiveMessage       String?
+  proactiveDelaySeconds  Int     @default(15)
+  // Hours before the same visitor may be shown it again. 0 means once only.
+  proactiveCooldownHours Int     @default(24)
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   conversations  WebsiteConversation[]

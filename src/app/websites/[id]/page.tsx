@@ -23,6 +23,10 @@ interface Site {
   brandColor: string;
   allowedOrigins: string[];
   enabled: boolean;
+  proactiveEnabled: boolean;
+  proactiveMessage: string | null;
+  proactiveDelaySeconds: number;
+  proactiveCooldownHours: number;
   _count: { conversations: number };
 }
 
@@ -70,6 +74,10 @@ export default function WebsiteEditPage() {
         brandColor: site.brandColor,
         allowedOrigins: site.allowedOrigins,
         enabled: site.enabled,
+        proactiveEnabled: site.proactiveEnabled,
+        proactiveMessage: site.proactiveMessage,
+        proactiveDelaySeconds: site.proactiveDelaySeconds,
+        proactiveCooldownHours: site.proactiveCooldownHours,
       };
       // Only super-admins are allowed to change the system prompt.
       if (isSuperAdmin) {
@@ -310,6 +318,80 @@ export default function WebsiteEditPage() {
               rows={4}
               className="mt-1"
             />
+          </div>
+
+          {/* Proactive teaser */}
+          <div className="rounded-lg border border-slate-700/60 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium">Proactive message</label>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Shows a prompt beside the launcher after a delay. Skipped for
+                  visitors who have already started a conversation.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={site.proactiveEnabled}
+                onChange={(e) =>
+                  setSite({ ...site, proactiveEnabled: e.target.checked })
+                }
+                className="w-4 h-4 shrink-0 ml-3"
+              />
+            </div>
+
+            {site.proactiveEnabled && (
+              <>
+                <Input
+                  value={site.proactiveMessage || ""}
+                  onChange={(e) =>
+                    setSite({ ...site, proactiveMessage: e.target.value })
+                  }
+                  placeholder="Missing calls while you're on site? Ask me anything."
+                />
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-400">
+                      Delay (seconds)
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={site.proactiveDelaySeconds}
+                      onChange={(e) =>
+                        setSite({
+                          ...site,
+                          proactiveDelaySeconds: Number(e.target.value) || 0,
+                        })
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-400">
+                      Show again after (hours, 0 = once only)
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={site.proactiveCooldownHours}
+                      onChange={(e) =>
+                        setSite({
+                          ...site,
+                          proactiveCooldownHours: Number(e.target.value) || 0,
+                        })
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                {!site.proactiveMessage?.trim() && (
+                  <p className="text-xs text-amber-500">
+                    Enabled but no message set — nothing will be shown.
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           <div>

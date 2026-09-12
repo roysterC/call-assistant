@@ -15,6 +15,10 @@ const TENANT_FIELDS = [
   "brandColor",
   "allowedOrigins",
   "enabled",
+  "proactiveEnabled",
+  "proactiveMessage",
+  "proactiveDelaySeconds",
+  "proactiveCooldownHours",
 ];
 // Fields only super-admins can edit
 const SUPER_ADMIN_FIELDS = ["systemPrompt"];

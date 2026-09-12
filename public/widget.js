@@ -21,6 +21,8 @@
   var PANEL_WIDTH = 380;
   var PANEL_HEIGHT = 600;
   var BUBBLE = 72;
+  var TEASER_WIDTH = 320;
+  var TEASER_HEIGHT = 150;
   var EDGE = 20;
 
   var origin = new URL(script.src).origin;
@@ -29,7 +31,8 @@
   iframe.title = "Chat";
   iframe.setAttribute("allow", "clipboard-write");
 
-  var isOpen = false;
+  // "bubble" | "teaser" | "open" — what the embed page wants to present.
+  var state = "bubble";
   var scrollLock = null;
 
   function isMobile() {
@@ -37,8 +40,9 @@
   }
 
   function currentMode() {
-    if (!isOpen) return "bubble";
-    return isMobile() ? "fullscreen" : "panel";
+    if (state === "open") return isMobile() ? "fullscreen" : "panel";
+    if (state === "teaser") return "teaser";
+    return "bubble";
   }
 
   function baseStyle() {
@@ -83,6 +87,21 @@
       s.borderRadius = "16px";
       s.boxShadow = "0 10px 30px rgba(0,0,0,0.15)";
       s.transition = "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease";
+    } else if (mode === "teaser") {
+      // The teaser card and launcher carry their own rounding and shadow, so
+      // the iframe itself must be a plain transparent rectangle — a radius or
+      // shadow here would frame the empty space around them.
+      s.top = "auto";
+      s.left = "auto";
+      s.right = EDGE + "px";
+      s.bottom = EDGE + "px";
+      s.width = TEASER_WIDTH + "px";
+      s.height = TEASER_HEIGHT + "px";
+      s.maxWidth = "calc(100vw - " + EDGE + "px)";
+      s.maxHeight = "calc(100vh - " + EDGE + "px)";
+      s.borderRadius = "0";
+      s.boxShadow = "none";
+      s.transition = "none";
     } else {
       s.top = "auto";
       s.left = "auto";
@@ -145,13 +164,20 @@
     if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
     if (!e.data || e.data.type !== "doai:resize") return;
 
-    // The embed page reports whether it is open; the parent decides the
-    // geometry, since only it can see the host viewport. `open` is inferred
-    // from the requested size when absent, so an older embed page still works.
-    isOpen =
-      typeof e.data.open === "boolean"
-        ? e.data.open
-        : Number(e.data.width) > BUBBLE;
+    // The embed page reports which state it wants; the parent decides the
+    // geometry, since only it can see the host viewport. Both older shapes are
+    // still understood — an `open` boolean, or bare width/height.
+    if (
+      e.data.state === "bubble" ||
+      e.data.state === "teaser" ||
+      e.data.state === "open"
+    ) {
+      state = e.data.state;
+    } else if (typeof e.data.open === "boolean") {
+      state = e.data.open ? "open" : "bubble";
+    } else {
+      state = Number(e.data.width) > BUBBLE ? "open" : "bubble";
+    }
 
     applyGeometry();
   });
@@ -163,10 +189,10 @@
   });
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", function () {
-      if (isOpen && isMobile()) applyGeometry();
+      if (state === "open" && isMobile()) applyGeometry();
     });
     window.visualViewport.addEventListener("scroll", function () {
-      if (isOpen && isMobile()) applyGeometry();
+      if (state === "open" && isMobile()) applyGeometry();
     });
   }
 })();

@@ -13,6 +13,40 @@ interface Config {
   quickReplies: string[];
   brandColor: string;
   enabled: boolean;
+  proactiveEnabled: boolean;
+  proactiveMessage: string | null;
+  proactiveDelaySeconds: number;
+  proactiveCooldownHours: number;
+}
+
+/**
+ * Whether this visitor may be shown the teaser again.
+ *
+ * A proactive prompt that reappears on every page of a site is an irritation,
+ * not an invitation, so the last time it was shown is recorded and honoured.
+ * A cooldown of 0 means show it once and never again. Storage failures (private
+ * browsing, blocked cookies) fall through to allowing it — showing a teaser one
+ * extra time is a far smaller cost than never showing it at all.
+ */
+function teaserAllowed(siteId: string, cooldownHours: number): boolean {
+  try {
+    const raw = localStorage.getItem(`doai-teaser-${siteId}`);
+    if (!raw) return true;
+    if (cooldownHours <= 0) return false;
+    const last = Number(raw);
+    if (!Number.isFinite(last)) return true;
+    return Date.now() - last > cooldownHours * 3_600_000;
+  } catch {
+    return true;
+  }
+}
+
+function markTeaserShown(siteId: string) {
+  try {
+    localStorage.setItem(`doai-teaser-${siteId}`, String(Date.now()));
+  } catch {
+    /* storage unavailable — the teaser simply isn't rate limited */
+  }
 }
 
 interface Message {
@@ -42,15 +76,22 @@ type WidgetMode = "bubble" | "panel" | "fullscreen";
  * width/height are still sent so an older cached widget.js, which sizes the
  * iframe from them directly and ignores `open`, keeps working.
  */
-function postResizeToParent(open: boolean) {
+type WidgetState = "bubble" | "teaser" | "open";
+
+const STATE_SIZE: Record<WidgetState, { width: number; height: number }> = {
+  bubble: { width: 72, height: 72 },
+  // Room for the teaser card stacked above the launcher. The iframe is
+  // transparent here, so this rectangle does swallow clicks on whatever sits
+  // beneath it — kept as tight as the content allows for that reason.
+  teaser: { width: 320, height: 150 },
+  open: { width: 380, height: 600 },
+};
+
+function postResizeToParent(state: WidgetState) {
   if (window.parent !== window) {
+    const size = STATE_SIZE[state];
     window.parent.postMessage(
-      {
-        type: "doai:resize",
-        open,
-        width: open ? 380 : 72,
-        height: open ? 600 : 72,
-      },
+      { type: "doai:resize", state, open: state === "open", ...size },
       "*"
     );
   }
@@ -67,6 +108,8 @@ function EmbedContent() {
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string>("");
   const [mode, setMode] = useState<WidgetMode>("bubble");
+  const [showTeaser, setShowTeaser] = useState(false);
+  const [hasPriorHistory, setHasPriorHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load config + restore any prior transcript.
@@ -118,14 +161,38 @@ function EmbedContent() {
           : [];
 
         setMessages([...opener, ...restored]);
+        setHasPriorHistory(restored.some((m) => m.role === "user"));
       })
       .catch((err) => console.error("[Widget] Failed to load config:", err));
   }, [siteId]);
 
-  // Notify parent of open/closed state
+  // Notify parent of the presentation state
   useEffect(() => {
-    postResizeToParent(isOpen);
-  }, [isOpen]);
+    postResizeToParent(isOpen ? "open" : showTeaser ? "teaser" : "bubble");
+  }, [isOpen, showTeaser]);
+
+  // Proactive teaser.
+  //
+  // Deliberately suppressed for anyone who has already talked to us: a visitor
+  // returning mid-conversation being asked "can I help?" reads as the bot
+  // having forgotten them. Opening the chat cancels it for the same reason.
+  useEffect(() => {
+    if (!config?.proactiveEnabled) return;
+    const message = config.proactiveMessage?.trim();
+    if (!message) return;
+    if (isOpen || hasPriorHistory) return;
+    if (!teaserAllowed(siteId, config.proactiveCooldownHours)) return;
+
+    const delayMs = Math.max(0, config.proactiveDelaySeconds) * 1000;
+    const timer = setTimeout(() => {
+      setShowTeaser(true);
+      // Recorded on show, not on dismiss — a visitor who ignores it has still
+      // been asked, and shouldn't be asked again on the next page.
+      markTeaserShown(siteId);
+    }, delayMs);
+
+    return () => clearTimeout(timer);
+  }, [config, isOpen, hasPriorHistory, siteId]);
 
   // The parent reports back which shape it settled on. Only used for styling
   // — the host page already controls the iframe's size outright, so a hostile
@@ -145,6 +212,15 @@ function EmbedContent() {
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  // The embed page renders inside the CRM's root layout, which paints a dark
+  // body. That never showed while the bubble and panel covered the iframe
+  // edge to edge, but the teaser leaves transparent gaps — without this it
+  // would sit on a black rectangle over the client's page.
+  useEffect(() => {
+    document.documentElement.style.background = "transparent";
+    document.body.style.background = "transparent";
   }, []);
 
   // Auto-scroll
@@ -271,15 +347,48 @@ function EmbedContent() {
   const onBrand = readableTextOn(brandColor);
 
   if (!isOpen) {
-    return (
+    const launcher = (
       <button
         onClick={() => setIsOpen(true)}
-        className="w-full h-full rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
+        className={`rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform ${
+          showTeaser ? "w-[72px] h-[72px] shrink-0" : "w-full h-full"
+        }`}
         style={{ backgroundColor: brandColor, color: onBrand.color }}
         aria-label="Open chat"
       >
         <MessageCircle className="w-6 h-6" />
       </button>
+    );
+
+    if (!showTeaser) return launcher;
+
+    return (
+      <div className="w-full h-full flex flex-col items-end justify-end gap-2">
+        <div className="relative">
+          <button
+            onClick={() => {
+              setShowTeaser(false);
+              setIsOpen(true);
+            }}
+            className="max-w-[260px] text-left bg-white text-slate-800 text-sm rounded-2xl rounded-br-md border border-slate-200 shadow-lg px-3.5 py-2.5 hover:bg-slate-50 transition-colors"
+          >
+            {config.proactiveMessage}
+          </button>
+          {/*
+            Dismiss sits at the card's top-left, not top-right: the card is
+            right-aligned to the iframe edge, so a right-hand badge would be
+            clipped by the iframe boundary.
+          */}
+          <button
+            onClick={() => setShowTeaser(false)}
+            aria-label="Dismiss message"
+            className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-slate-600 text-white flex items-center justify-center shadow hover:bg-slate-700 transition-colors"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+        {launcher}
+      </div>
     );
   }
 
