@@ -616,7 +616,7 @@ export default function OrganizationDetailPage() {
                 </div>
                 <div>
                   <label className="text-xs font-medium">
-                    Access Token
+                    Access token
                   </label>
                   <Input
                     type="password"
@@ -687,7 +687,7 @@ export default function OrganizationDetailPage() {
                 </div>
                 <div>
                   <label className="text-xs font-medium">
-                    Page Access Token
+                    Page access token
                   </label>
                   <Input
                     type="password"
@@ -726,8 +726,8 @@ export default function OrganizationDetailPage() {
               </label>
               <p className="text-sm text-muted-foreground mt-1">
                 Vapi assistant prompts live in the Vapi dashboard. Inbound
-                calls route to this org via the org&apos;s Phone Numbers
-                (managed in the Phone Numbers section above).
+                calls route to this org via the org&apos;s phone numbers
+                (managed in the section above).
               </p>
               <a
                 href="https://dashboard.vapi.ai"
@@ -804,7 +804,7 @@ export default function OrganizationDetailPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <Phone className="w-5 h-5" />
-            Phone Numbers
+            Phone numbers
           </CardTitle>
           <Button size="sm" onClick={() => setPhoneDialog(true)}>
             <Plus className="w-4 h-4 mr-2" />
@@ -867,7 +867,7 @@ export default function OrganizationDetailPage() {
           </CardTitle>
           <Button size="sm" onClick={() => setWebsiteDialog(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Add Website
+            Add website
           </Button>
         </CardHeader>
         <CardContent className="p-0">
