@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Save, Trash2, Copy, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
+import { readableTextOn } from "@/lib/contrast";
 
 interface Site {
   id: string;
@@ -241,6 +242,41 @@ export default function WebsiteEditPage() {
                 className="flex-1"
               />
             </div>
+            {/*
+              Live preview of the header as the visitor will see it. The widget
+              picks its own readable foreground, so the point here is to show
+              what that choice looks like — and to flag a colour whose contrast
+              is poor enough that neither foreground reads well.
+            */}
+            {(() => {
+              const c = readableTextOn(site.brandColor);
+              return (
+                <div className="mt-2 flex items-center gap-3">
+                  <div
+                    className="px-3 py-1.5 rounded-md text-xs font-semibold"
+                    style={{
+                      backgroundColor: site.brandColor,
+                      color: c.color,
+                    }}
+                  >
+                    {site.botName || "Assistant"}
+                  </div>
+                  <span
+                    className={`text-xs ${
+                      c.meetsAA ? "text-slate-400" : "text-amber-500"
+                    }`}
+                  >
+                    {c.meetsAA
+                      ? `Contrast ${c.ratio.toFixed(1)}:1 — passes AA${
+                          c.meetsAAA ? " and AAA" : ""
+                        }`
+                      : `Contrast ${c.ratio.toFixed(
+                          1
+                        )}:1 — below the 4.5:1 minimum, text may be hard to read`}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           <div>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageCircle, X, Send } from "lucide-react";
+import { readableTextOn } from "@/lib/contrast";
 
 interface Config {
   siteId: string;
@@ -228,13 +229,17 @@ function EmbedContent() {
   }
 
   const brandColor = config.brandColor || "#2563eb";
+  // Text sitting on brandColor was hardcoded white, so a pale brand colour
+  // rendered an unreadable widget on the client's own site. Pick the readable
+  // foreground instead of assuming one.
+  const onBrand = readableTextOn(brandColor);
 
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="w-full h-full rounded-full flex items-center justify-center text-white shadow-lg hover:scale-105 transition-transform"
-        style={{ backgroundColor: brandColor }}
+        className="w-full h-full rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
+        style={{ backgroundColor: brandColor, color: onBrand.color }}
         aria-label="Open chat"
       >
         <MessageCircle className="w-6 h-6" />
@@ -246,8 +251,8 @@ function EmbedContent() {
     <div className="w-full h-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-2xl">
       {/* Header */}
       <div
-        className="px-4 py-3 flex items-center justify-between text-white"
-        style={{ backgroundColor: brandColor }}
+        className="px-4 py-3 flex items-center justify-between"
+        style={{ backgroundColor: brandColor, color: onBrand.color }}
       >
         <div>
           <p className="font-semibold text-sm">{config.botName}</p>
@@ -255,7 +260,15 @@ function EmbedContent() {
         </div>
         <button
           onClick={() => setIsOpen(false)}
-          className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center"
+          className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+          // A white hover veil is invisible on a pale header already carrying
+          // dark text, so the overlay follows the text colour.
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = onBrand.hoverOverlay;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+          }}
           aria-label="Close chat"
         >
           <X className="w-4 h-4" />
@@ -274,11 +287,13 @@ function EmbedContent() {
             <div
               className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${
                 msg.role === "user"
-                  ? "text-white rounded-br-md"
+                  ? "rounded-br-md"
                   : "bg-white text-slate-800 border border-slate-200 rounded-bl-md"
               }`}
               style={
-                msg.role === "user" ? { backgroundColor: brandColor } : {}
+                msg.role === "user"
+                  ? { backgroundColor: brandColor, color: onBrand.color }
+                  : {}
               }
             >
               {msg.content || (
@@ -344,8 +359,8 @@ function EmbedContent() {
         <button
           type="submit"
           disabled={sending || !input.trim()}
-          className="w-9 h-9 rounded-lg text-white flex items-center justify-center disabled:opacity-50"
-          style={{ backgroundColor: brandColor }}
+          className="w-9 h-9 rounded-lg flex items-center justify-center disabled:opacity-50"
+          style={{ backgroundColor: brandColor, color: onBrand.color }}
           aria-label="Send"
         >
           <Send className="w-4 h-4" />
