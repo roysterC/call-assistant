@@ -171,6 +171,49 @@
     document.addEventListener("DOMContentLoaded", mount);
   }
 
+  // Instant, bypassing any CSS scroll-behavior on the host page. Note that
+  // "auto" would NOT do this — it resolves to whatever the page set, which on
+  // a site with `html { scroll-behavior: smooth }` is another smooth scroll.
+  function jumpTo(el) {
+    try {
+      el.scrollIntoView({ behavior: "instant", block: "center" });
+    } catch (err) {
+      // Older engines reject the "instant" enum value outright.
+      el.scrollIntoView();
+    }
+  }
+
+  /**
+   * Scroll the visitor to the target, and make sure it actually happened.
+   *
+   * Smooth scrolling is the nicer motion over the long distances this usually
+   * covers, but it is an animation, and animations do not always run — it was
+   * observed silently doing nothing on a visible, focused page, leaving the
+   * button dead. That is the worst outcome for this feature: the visitor asked
+   * for a person, got no person, and now the alternative does nothing either.
+   *
+   * So the smooth scroll is attempted, then verified, and corrected with a
+   * plain jump if the element is still off screen. An abrupt arrival is a far
+   * smaller cost than a button that appears broken.
+   */
+  function scrollElementIntoView(el) {
+    var reduce =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduce) {
+      jumpTo(el);
+      return;
+    }
+
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(function () {
+      var r = el.getBoundingClientRect();
+      var onScreen = r.top < window.innerHeight && r.bottom > 0;
+      if (!onScreen) jumpTo(el);
+    }, 700);
+  }
+
   // Send the visitor to the client's own booking or contact form.
   //
   // The iframe is cross-origin and cannot touch the host page itself. This
@@ -196,7 +239,7 @@
     }
 
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      scrollElementIntoView(el);
       // Focusing the first field is what makes this feel like an anchor rather
       // than a jump — the visitor lands ready to type. Deferred so focus does
       // not fight the smooth scroll.
