@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,11 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { STATUS_BADGE } from "@/lib/status-styles";
+import { plural } from "@/lib/plural";
+import { cn } from "@/lib/utils";
 
 interface Org {
   id: string;
@@ -138,7 +143,23 @@ export default function OrganizationDetailPage() {
     allowedOrigins: "",
   });
 
-  async function load() {
+
+  // Both wrapped so the effect below can depend on them honestly. They were
+  // plain functions, re-created every render, so listing them as dependencies
+  // would have refetched on every render — which is why the dependency was
+  // omitted and the lint rule suppressed rather than satisfied.
+  const loadWebsites = useCallback(async (organizationId: string) => {
+    try {
+      const res = await fetch(`/api/websites?asOrg=${organizationId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setWebsites(data.sites || []);
+    } catch (err) {
+      console.error("Failed to load websites:", err);
+    }
+  }, []);
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/organizations/${params.id}`);
@@ -149,23 +170,12 @@ export default function OrganizationDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function loadWebsites(organizationId: string) {
-    try {
-      const res = await fetch(`/api/websites?asOrg=${organizationId}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setWebsites(data.sites || []);
-    } catch (err) {
-      console.error("Failed to load websites:", err);
-    }
-  }
+  }, [params.id, loadWebsites]);
 
   async function createWebsite() {
     if (!org) return;
     if (!websiteForm.siteId || !websiteForm.name || !websiteForm.systemPrompt) {
-      alert("Site ID, Display Name and System Prompt are required");
+      alert("Site ID, display name and system prompt are required");
       return;
     }
     setCreatingSite(true);
@@ -227,7 +237,7 @@ export default function OrganizationDetailPage() {
 
   useEffect(() => {
     load();
-  }, [params.id]);
+  }, [load]);
 
   // Single Save button at the top of the page persists everything in one
   // shot: org-level fields (name/plan/anthropic key/enabled) PLUS all the
@@ -387,60 +397,70 @@ export default function OrganizationDetailPage() {
   if (!org) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Organization not found</p>
+        <p className="text-muted-foreground">Organisation not found</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/admin/organizations")}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{org.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
-                {org.slug}
-              </code>
-              <span className="ml-3">
-                {org._count.leads} leads · {org._count.calls} calls ·{" "}
-                {org._count.websites} sites
-              </span>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() =>
-              router.push(`/?asOrg=${org.id}`)
-            }
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            View as org
-          </Button>
-          <Button variant="outline" onClick={deleteOrg}>
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete
-          </Button>
-          <Button onClick={save} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </div>
+      <div className="flex items-start gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Back to organisations"
+          className="mt-0.5"
+          onClick={() => router.push("/admin/organizations")}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <PageHeader
+          className="flex-1"
+          title={org.name}
+          actions={
+            <>
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/?asOrg=${org.id}`)}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                View as org
+              </Button>
+              <Button variant="outline" onClick={deleteOrg}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+              <Button onClick={save} disabled={saving}>
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </>
+          }
+        />
       </div>
+
+      {/*
+        The slug, the volumes and — the point of putting it here — whether this
+        org is enabled at all. That last one previously lived only in a toggle
+        further down the page, so a disabled client looked exactly like a live
+        one until you scrolled.
+      */}
+      <p className="text-sm text-muted-foreground -mt-3 ml-12 flex items-center gap-3 flex-wrap">
+        <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
+          {org.slug}
+        </code>
+        <span className="capitalize">{org.planTier} plan</span>
+        <span>{plural(org._count.leads, "lead")}</span>
+        <span>{plural(org._count.calls, "call")}</span>
+        <span>{plural(org._count.websites, "site")}</span>
+        <span className={org.enabled ? "text-emerald-400" : "text-red-400"}>
+          {org.enabled ? "Enabled" : "Disabled"}
+        </span>
+      </p>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Organization</CardTitle>
+          <CardTitle className="text-base">Organisation</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -493,7 +513,7 @@ export default function OrganizationDetailPage() {
       {org.settings && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Features & Prompts</CardTitle>
+            <CardTitle className="text-base">Features and prompts</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-3">
@@ -780,7 +800,7 @@ export default function OrganizationDetailPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
             <Phone className="w-5 h-5" />
             Phone Numbers
           </CardTitle>
@@ -803,8 +823,12 @@ export default function OrganizationDetailPage() {
             <TableBody>
               {org.phoneNumbers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-sm">
-                    No phone numbers registered
+                  <TableCell colSpan={5} className="p-0">
+                    <EmptyState
+                      icon={Phone}
+                      title="No phone numbers registered"
+                      hint="Add the WhatsApp or voice number this client answers on."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -812,8 +836,8 @@ export default function OrganizationDetailPage() {
                   <TableRow key={p.id}>
                     <TableCell className="font-mono text-sm">{p.number}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px]">
-                        {p.channel}
+                      <Badge variant="outline" className="text-[10px] capitalize">
+                        {p.channel === "vapi" ? "Voice" : p.channel}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground font-mono">
@@ -835,7 +859,7 @@ export default function OrganizationDetailPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
             <Globe className="w-5 h-5" />
             Websites
           </CardTitle>
@@ -859,11 +883,12 @@ export default function OrganizationDetailPage() {
             <TableBody>
               {websites.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-center py-8 text-muted-foreground text-sm"
-                  >
-                    No websites configured for this org yet
+                  <TableCell colSpan={6} className="p-0">
+                    <EmptyState
+                      icon={Globe}
+                      title="No websites yet"
+                      hint="Each site gets its own chatbot, prompt and embed snippet."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -889,12 +914,16 @@ export default function OrganizationDetailPage() {
                       {w._count.conversations}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={w.enabled ? "default" : "secondary"}
-                        className="text-[10px]"
+                      <span
+                        className={cn(
+                          STATUS_BADGE,
+                          w.enabled
+                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            : "bg-red-500/15 text-red-400 border-red-500/30"
+                        )}
                       >
-                        {w.enabled ? "enabled" : "disabled"}
-                      </Badge>
+                        {w.enabled ? "Enabled" : "Disabled"}
+                      </span>
                     </TableCell>
                     <TableCell className="flex items-center gap-1 justify-end pr-4">
                       <Button
@@ -928,7 +957,7 @@ export default function OrganizationDetailPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
             <UsersIcon className="w-5 h-5" />
             Users
           </CardTitle>
@@ -949,8 +978,12 @@ export default function OrganizationDetailPage() {
             <TableBody>
               {org.users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground text-sm">
-                    No users yet
+                  <TableCell colSpan={3} className="p-0">
+                    <EmptyState
+                      icon={UsersIcon}
+                      title="No users yet"
+                      hint="Nobody at this client can sign in until you add one."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -960,7 +993,7 @@ export default function OrganizationDetailPage() {
                     <TableCell className="text-sm">{u.name || "—"}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[10px]">
-                        {u.role}
+                        {u.role === "superAdmin" ? "Super admin" : u.role}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -975,7 +1008,7 @@ export default function OrganizationDetailPage() {
       <Dialog open={phoneDialog} onOpenChange={setPhoneDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Phone Number</DialogTitle>
+            <DialogTitle>Add phone number</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -1061,7 +1094,7 @@ export default function OrganizationDetailPage() {
       <Dialog open={websiteDialog} onOpenChange={setWebsiteDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add Website</DialogTitle>
+            <DialogTitle>Add website</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -1085,7 +1118,7 @@ export default function OrganizationDetailPage() {
               </p>
             </div>
             <div>
-              <label className="text-xs font-medium">Display Name</label>
+              <label className="text-xs font-medium">Display name</label>
               <Input
                 value={websiteForm.name}
                 onChange={(e) =>
@@ -1120,7 +1153,7 @@ export default function OrganizationDetailPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium">System Prompt</label>
+              <label className="text-xs font-medium">System prompt</label>
               <Textarea
                 value={websiteForm.systemPrompt}
                 onChange={(e) =>
@@ -1168,7 +1201,7 @@ export default function OrganizationDetailPage() {
                 !websiteForm.systemPrompt
               }
             >
-              {creatingSite ? "Creating..." : "Create"}
+              {creatingSite ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1178,7 +1211,7 @@ export default function OrganizationDetailPage() {
       <Dialog open={userDialog} onOpenChange={setUserDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add User</DialogTitle>
+            <DialogTitle>Add user</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>

@@ -21,9 +21,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Building2, Plus } from "lucide-react";
 import { format } from "date-fns";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { STATUS_BADGE } from "@/lib/status-styles";
+import { cn } from "@/lib/utils";
 
 interface Organization {
   id: string;
@@ -87,20 +90,18 @@ export default function OrganizationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Organizations</h1>
-          <p className="text-muted-foreground mt-1">
-            Super-admin view of all client organizations
-          </p>
-        </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          New Organization
-        </Button>
-      </div>
+      <PageHeader
+        title="Organisations"
+        description="Super-admin view of all client organisations"
+        actions={
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            New organisation
+          </Button>
+        }
+      />
 
-      <Card>
+      <Card className="py-0">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -108,10 +109,10 @@ export default function OrganizationsPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Plan</TableHead>
-                <TableHead>Users</TableHead>
-                <TableHead>Leads</TableHead>
-                <TableHead>Calls</TableHead>
-                <TableHead>Sites</TableHead>
+                <TableHead className="text-right">Users</TableHead>
+                <TableHead className="text-right">Leads</TableHead>
+                <TableHead className="text-right">Calls</TableHead>
+                <TableHead className="text-right">Sites</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
@@ -125,9 +126,18 @@ export default function OrganizationsPage() {
                 </TableRow>
               ) : orgs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12">
-                    <Building2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-muted-foreground">No organizations yet</p>
+                  <TableCell colSpan={9} className="p-0">
+                    <EmptyState
+                      icon={Building2}
+                      title="No organisations yet"
+                      hint="Each client gets one. Everything else in the CRM is scoped to it."
+                      action={
+                        <Button size="sm" onClick={() => setDialogOpen(true)}>
+                          <Plus className="w-4 h-4 mr-1.5" />
+                          New organisation
+                        </Button>
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -143,21 +153,44 @@ export default function OrganizationsPage() {
                         {org.slug}
                       </code>
                     </TableCell>
-                    <TableCell className="text-sm">{org.planTier}</TableCell>
-                    <TableCell className="text-sm">{org._count.users}</TableCell>
-                    <TableCell className="text-sm">{org._count.leads}</TableCell>
-                    <TableCell className="text-sm">{org._count.calls}</TableCell>
-                    <TableCell className="text-sm">{org._count.websites}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={org.enabled ? "default" : "secondary"}
-                        className="text-[10px]"
-                      >
-                        {org.enabled ? "enabled" : "disabled"}
-                      </Badge>
+                    <TableCell className="text-sm capitalize">
+                      {org.planTier}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(org.createdAt), "MMM d, yyyy")}
+                    {/*
+                      Counts right-aligned and tabular. Four numeric columns
+                      left-aligned in proportional figures is four ragged edges
+                      you have to read digit by digit to compare.
+                    */}
+                    <TableCell className="text-sm text-right tabular-nums">
+                      {org._count.users}
+                    </TableCell>
+                    <TableCell className="text-sm text-right tabular-nums">
+                      {org._count.leads}
+                    </TableCell>
+                    <TableCell className="text-sm text-right tabular-nums">
+                      {org._count.calls}
+                    </TableCell>
+                    <TableCell className="text-sm text-right tabular-nums">
+                      {org._count.websites}
+                    </TableCell>
+                    <TableCell>
+                      {/*
+                        Disabled is the state a super-admin is scanning for, and
+                        the secondary Badge made it the quieter of the two.
+                      */}
+                      <span
+                        className={cn(
+                          STATUS_BADGE,
+                          org.enabled
+                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            : "bg-red-500/15 text-red-400 border-red-500/30"
+                        )}
+                      >
+                        {org.enabled ? "Enabled" : "Disabled"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {format(new Date(org.createdAt), "d MMM yyyy")}
                     </TableCell>
                   </TableRow>
                 ))
@@ -170,9 +203,9 @@ export default function OrganizationsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Organization</DialogTitle>
+            <DialogTitle>Create organisation</DialogTitle>
             <DialogDescription>
-              Set up a new client organization
+              Set up a new client organisation
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -206,7 +239,7 @@ export default function OrganizationsPage() {
               onClick={createOrg}
               disabled={creating || !form.name || !form.slug}
             >
-              {creating ? "Creating..." : "Create"}
+              {creating ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
         </DialogContent>
