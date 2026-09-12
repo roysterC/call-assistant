@@ -373,11 +373,13 @@ function EmbedContent() {
   // close. Without this a keyboard user opens the chat and their focus is
   // still on a button that no longer exists.
   useEffect(() => {
+    // Focused directly rather than inside requestAnimationFrame: effects run
+    // after the DOM is committed, so the target already exists, and rAF is
+    // throttled in a hidden tab — which would silently skip focus entirely.
     if (isOpen && !wasOpen.current) {
-      // After paint, so the input actually exists to receive focus.
-      requestAnimationFrame(() => inputRef.current?.focus());
+      inputRef.current?.focus();
     } else if (!isOpen && wasOpen.current) {
-      requestAnimationFrame(() => launcherRef.current?.focus());
+      launcherRef.current?.focus();
     }
     wasOpen.current = isOpen;
   }, [isOpen]);
