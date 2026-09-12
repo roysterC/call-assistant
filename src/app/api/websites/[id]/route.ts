@@ -19,6 +19,12 @@ const TENANT_FIELDS = [
   "proactiveMessage",
   "proactiveDelaySeconds",
   "proactiveCooldownHours",
+  "launcherPosition",
+  "launcherOffset",
+  "launcherLabel",
+  "launcherIcon",
+  "theme",
+  "fontFamily",
 ];
 // Fields only super-admins can edit
 const SUPER_ADMIN_FIELDS = ["systemPrompt"];

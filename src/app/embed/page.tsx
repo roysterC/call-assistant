@@ -13,11 +13,79 @@ interface Config {
   quickReplies: string[];
   brandColor: string;
   enabled: boolean;
+  launcherPosition: "left" | "right";
+  launcherOffset: number;
+  launcherLabel: string | null;
+  launcherIcon: string | null;
+  theme: "light" | "dark" | "auto";
+  fontFamily: string;
   proactiveEnabled: boolean;
   proactiveMessage: string | null;
   proactiveDelaySeconds: number;
   proactiveCooldownHours: number;
 }
+
+/**
+ * Only stacks that need no network request — the widget sits on someone
+ * else's page and shouldn't pull a font file to render a chat bubble. "inter"
+ * reuses the variable the host document already defines.
+ */
+const FONT_STACKS: Record<string, string> = {
+  system:
+    'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  inter: 'var(--font-sans), ui-sans-serif, system-ui, sans-serif',
+  serif: 'ui-serif, Georgia, Cambria, "Times New Roman", serif',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+};
+
+interface Palette {
+  panel: string;
+  msgArea: string;
+  botBubble: string;
+  botText: string;
+  botBorder: string;
+  inputBg: string;
+  inputText: string;
+  inputBorder: string;
+  chipBg: string;
+  chipText: string;
+  chipBorder: string;
+  subtle: string;
+}
+
+// Written as explicit palettes rather than Tailwind `dark:` variants: the
+// embed page renders inside the CRM's root layout, which carries the `dark`
+// class permanently, so every dark: variant would be on regardless of what
+// the client configured.
+const LIGHT: Palette = {
+  panel: "#ffffff",
+  msgArea: "#f8fafc",
+  botBubble: "#ffffff",
+  botText: "#1e293b",
+  botBorder: "#e2e8f0",
+  inputBg: "#ffffff",
+  inputText: "#0f172a",
+  inputBorder: "#e2e8f0",
+  chipBg: "#ffffff",
+  chipText: "#334155",
+  chipBorder: "#cbd5e1",
+  subtle: "#f1f5f9",
+};
+
+const DARK: Palette = {
+  panel: "#0f172a",
+  msgArea: "#020617",
+  botBubble: "#1e293b",
+  botText: "#e2e8f0",
+  botBorder: "#334155",
+  inputBg: "#0f172a",
+  inputText: "#f1f5f9",
+  inputBorder: "#334155",
+  chipBg: "#1e293b",
+  chipText: "#cbd5e1",
+  chipBorder: "#475569",
+  subtle: "#1e293b",
+};
 
 /**
  * Whether this visitor may be shown the teaser again.
@@ -87,11 +155,49 @@ const STATE_SIZE: Record<WidgetState, { width: number; height: number }> = {
   open: { width: 380, height: 600 },
 };
 
-function postResizeToParent(state: WidgetState) {
+const LAUNCHER_CIRCLE = 72;
+const LAUNCHER_PILL_HEIGHT = 56;
+
+/**
+ * A labelled launcher is a pill rather than a circle, so the collapsed iframe
+ * has to be sized to match.
+ *
+ * Estimated rather than measured: the parent must size the iframe before the
+ * button can render into it, so measuring would need a two-pass layout and a
+ * visible reflow. Being a little generous is harmless — the pill simply sits
+ * roomier than it strictly needs to.
+ */
+function launcherSize(label?: string | null) {
+  const text = label?.trim();
+  if (!text) return { width: LAUNCHER_CIRCLE, height: LAUNCHER_CIRCLE };
+  return {
+    width: Math.min(260, 64 + text.length * 8),
+    height: LAUNCHER_PILL_HEIGHT,
+  };
+}
+
+interface Placement {
+  position: "left" | "right";
+  offset: number;
+  bubbleWidth: number;
+  bubbleHeight: number;
+}
+
+function postResizeToParent(state: WidgetState, p: Placement) {
   if (window.parent !== window) {
-    const size = STATE_SIZE[state];
+    const size =
+      state === "bubble"
+        ? { width: p.bubbleWidth, height: p.bubbleHeight }
+        : STATE_SIZE[state];
     window.parent.postMessage(
-      { type: "doai:resize", state, open: state === "open", ...size },
+      {
+        type: "doai:resize",
+        state,
+        open: state === "open",
+        position: p.position,
+        offset: p.offset,
+        ...size,
+      },
       "*"
     );
   }
@@ -166,10 +272,32 @@ function EmbedContent() {
       .catch((err) => console.error("[Widget] Failed to load config:", err));
   }, [siteId]);
 
-  // Notify parent of the presentation state
+  // Notify parent of the presentation state and placement. Placement is
+  // config-driven, so it can only be sent once the config has loaded — the
+  // parent holds sensible defaults until then.
   useEffect(() => {
-    postResizeToParent(isOpen ? "open" : showTeaser ? "teaser" : "bubble");
-  }, [isOpen, showTeaser]);
+    const size = launcherSize(config?.launcherLabel);
+    postResizeToParent(isOpen ? "open" : showTeaser ? "teaser" : "bubble", {
+      position: config?.launcherPosition === "left" ? "left" : "right",
+      offset:
+        typeof config?.launcherOffset === "number" && config.launcherOffset >= 0
+          ? config.launcherOffset
+          : 20,
+      bubbleWidth: size.width,
+      bubbleHeight: size.height,
+    });
+  }, [isOpen, showTeaser, config]);
+
+  // "auto" follows the visitor's OS setting, which the iframe can read
+  // directly — it is a real document, not a shadow root.
+  const [prefersDark, setPrefersDark] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    setPrefersDark(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setPrefersDark(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   // Proactive teaser.
   //
@@ -345,32 +473,71 @@ function EmbedContent() {
   // rendered an unreadable widget on the client's own site. Pick the readable
   // foreground instead of assuming one.
   const onBrand = readableTextOn(brandColor);
+  const isDark =
+    config.theme === "dark" || (config.theme === "auto" && prefersDark);
+  const pal = isDark ? DARK : LIGHT;
+  const fontFamily = FONT_STACKS[config.fontFamily] ?? FONT_STACKS.system;
+  const launcherText = config.launcherLabel?.trim() || "";
 
   if (!isOpen) {
+    const size = launcherSize(config.launcherLabel);
     const launcher = (
       <button
         onClick={() => setIsOpen(true)}
-        className={`rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform ${
-          showTeaser ? "w-[72px] h-[72px] shrink-0" : "w-full h-full"
+        className={`rounded-full flex items-center justify-center gap-2 px-4 shadow-lg hover:scale-105 transition-transform ${
+          showTeaser ? "shrink-0" : "w-full h-full"
         }`}
-        style={{ backgroundColor: brandColor, color: onBrand.color }}
-        aria-label="Open chat"
+        style={{
+          backgroundColor: brandColor,
+          color: onBrand.color,
+          fontFamily,
+          // In teaser mode the launcher is one item in a taller iframe, so it
+          // needs explicit dimensions; on its own it just fills the iframe the
+          // parent already sized for it.
+          ...(showTeaser ? { width: size.width, height: size.height } : {}),
+        }}
+        aria-label={launcherText || "Open chat"}
       >
-        <MessageCircle className="w-6 h-6" />
+        {config.launcherIcon ? (
+          <span className="text-xl leading-none shrink-0">
+            {config.launcherIcon}
+          </span>
+        ) : (
+          <MessageCircle className="w-6 h-6 shrink-0" />
+        )}
+        {launcherText && (
+          <span className="text-sm font-medium whitespace-nowrap">
+            {launcherText}
+          </span>
+        )}
       </button>
     );
 
     if (!showTeaser) return launcher;
 
     return (
-      <div className="w-full h-full flex flex-col items-end justify-end gap-2">
+      <div
+        className={`w-full h-full flex flex-col justify-end gap-2 ${
+          config.launcherPosition === "left" ? "items-start" : "items-end"
+        }`}
+      >
         <div className="relative">
           <button
             onClick={() => {
               setShowTeaser(false);
               setIsOpen(true);
             }}
-            className="max-w-[260px] text-left bg-white text-slate-800 text-sm rounded-2xl rounded-br-md border border-slate-200 shadow-lg px-3.5 py-2.5 hover:bg-slate-50 transition-colors"
+            className={`max-w-[260px] text-left text-sm rounded-2xl border shadow-lg px-3.5 py-2.5 transition-opacity hover:opacity-90 ${
+              config.launcherPosition === "left"
+                ? "rounded-bl-md"
+                : "rounded-br-md"
+            }`}
+            style={{
+              backgroundColor: pal.botBubble,
+              color: pal.botText,
+              borderColor: pal.botBorder,
+              fontFamily,
+            }}
           >
             {config.proactiveMessage}
           </button>
@@ -382,7 +549,9 @@ function EmbedContent() {
           <button
             onClick={() => setShowTeaser(false)}
             aria-label="Dismiss message"
-            className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-slate-600 text-white flex items-center justify-center shadow hover:bg-slate-700 transition-colors"
+            className={`absolute -top-2 w-6 h-6 rounded-full bg-slate-600 text-white flex items-center justify-center shadow hover:bg-slate-700 transition-colors ${
+              config.launcherPosition === "left" ? "-right-2" : "-left-2"
+            }`}
           >
             <X className="w-3 h-3" />
           </button>
@@ -396,9 +565,10 @@ function EmbedContent() {
     // Full-screen fills a square iframe, so its own rounding would show
     // transparent notches at the corners.
     <div
-      className={`w-full h-full flex flex-col bg-white overflow-hidden ${
+      className={`w-full h-full flex flex-col overflow-hidden ${
         mode === "fullscreen" ? "" : "rounded-2xl shadow-2xl"
       }`}
+      style={{ backgroundColor: pal.panel, fontFamily }}
     >
       {/* Header */}
       <div
@@ -440,7 +610,10 @@ function EmbedContent() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50">
+      <div
+        className="flex-1 overflow-y-auto p-3 space-y-2.5"
+        style={{ backgroundColor: pal.msgArea }}
+      >
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -450,14 +623,16 @@ function EmbedContent() {
           >
             <div
               className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${
-                msg.role === "user"
-                  ? "rounded-br-md"
-                  : "bg-white text-slate-800 border border-slate-200 rounded-bl-md"
+                msg.role === "user" ? "rounded-br-md" : "border rounded-bl-md"
               }`}
               style={
                 msg.role === "user"
                   ? { backgroundColor: brandColor, color: onBrand.color }
-                  : {}
+                  : {
+                      backgroundColor: pal.botBubble,
+                      color: pal.botText,
+                      borderColor: pal.botBorder,
+                    }
               }
             >
               {msg.content || (
@@ -477,13 +652,21 @@ function EmbedContent() {
       {config.quickReplies &&
         config.quickReplies.length > 0 &&
         !messages.some((m) => m.role === "user") && (
-          <div className="px-3 pb-2 flex flex-wrap gap-1.5 bg-slate-50">
+          <div
+            className="px-3 pb-2 flex flex-wrap gap-1.5"
+            style={{ backgroundColor: pal.msgArea }}
+          >
             {config.quickReplies.map((reply, i) => (
               <button
                 key={i}
                 onClick={() => sendMessage(reply)}
                 disabled={sending}
-                className="text-xs px-2.5 py-1.5 rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="text-xs px-2.5 py-1.5 rounded-full border hover:opacity-80 transition-opacity disabled:opacity-50"
+                style={{
+                  backgroundColor: pal.chipBg,
+                  color: pal.chipText,
+                  borderColor: pal.chipBorder,
+                }}
               >
                 {reply}
               </button>
@@ -497,15 +680,15 @@ function EmbedContent() {
           e.preventDefault();
           sendMessage(input);
         }}
-        className="p-3 border-t border-slate-200 flex gap-2 bg-white"
-        style={
-          mode === "fullscreen"
-            ? {
-                // Keep the input clear of the home indicator.
-                paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
-              }
-            : undefined
-        }
+        className="p-3 border-t flex gap-2"
+        style={{
+          backgroundColor: pal.panel,
+          borderColor: pal.inputBorder,
+          // Keep the input clear of the home indicator.
+          ...(mode === "fullscreen"
+            ? { paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }
+            : {}),
+        }}
       >
         <input
           value={input}
@@ -526,7 +709,12 @@ function EmbedContent() {
           }}
           placeholder="Type a message..."
           disabled={sending}
-          className="flex-1 px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+          className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 disabled:opacity-50"
+          style={{
+            backgroundColor: pal.subtle,
+            color: pal.inputText,
+            borderColor: pal.inputBorder,
+          }}
         />
         <button
           type="submit"

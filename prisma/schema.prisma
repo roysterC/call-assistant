@@ -299,6 +299,18 @@ model WebsiteConfig {
   allowedOrigins Json     @default("[]")
   enabled        Boolean  @default(true)
 
+  // Launcher presentation. Position and offset exist mainly to get out of the
+  // way of whatever else already lives in a client's bottom-right corner —
+  // cookie banners, back-to-top buttons, other vendors' widgets.
+  launcherPosition String  @default("right") // "right" | "left"
+  launcherOffset   Int     @default(20)      // px from the bottom and side
+  launcherLabel    String?                   // e.g. "Chat with us" — pill instead of a circle
+  launcherIcon     String?                   // single emoji; null uses the default chat glyph
+
+  // Panel theme. "auto" follows the visitor's OS setting.
+  theme      String @default("light") // "light" | "dark" | "auto"
+  fontFamily String @default("system") // see FONT_STACKS in the embed page
+
   // Proactive teaser: a small prompt that appears beside the collapsed
   // launcher after a delay, to open a conversation rather than waiting to be
   // found. Off by default — an unsolicited popup on a client's site is their

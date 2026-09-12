@@ -27,6 +27,12 @@ interface Site {
   proactiveMessage: string | null;
   proactiveDelaySeconds: number;
   proactiveCooldownHours: number;
+  launcherPosition: "left" | "right";
+  launcherOffset: number;
+  launcherLabel: string | null;
+  launcherIcon: string | null;
+  theme: "light" | "dark" | "auto";
+  fontFamily: string;
   _count: { conversations: number };
 }
 
@@ -78,6 +84,12 @@ export default function WebsiteEditPage() {
         proactiveMessage: site.proactiveMessage,
         proactiveDelaySeconds: site.proactiveDelaySeconds,
         proactiveCooldownHours: site.proactiveCooldownHours,
+        launcherPosition: site.launcherPosition,
+        launcherOffset: site.launcherOffset,
+        launcherLabel: site.launcherLabel,
+        launcherIcon: site.launcherIcon,
+        theme: site.theme,
+        fontFamily: site.fontFamily,
       };
       // Only super-admins are allowed to change the system prompt.
       if (isSuperAdmin) {
@@ -285,6 +297,119 @@ export default function WebsiteEditPage() {
                 </div>
               );
             })()}
+          </div>
+
+          {/* Launcher & theme */}
+          <div className="rounded-lg border border-slate-700/60 p-3 space-y-3">
+            <p className="text-sm font-medium">Launcher &amp; theme</p>
+
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="text-xs text-slate-400">Position</label>
+                <select
+                  value={site.launcherPosition}
+                  onChange={(e) =>
+                    setSite({
+                      ...site,
+                      launcherPosition: e.target.value as "left" | "right",
+                    })
+                  }
+                  className="mt-1 w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+                >
+                  <option value="right">Bottom right</option>
+                  <option value="left">Bottom left</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-slate-400">
+                  Edge offset (px)
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={site.launcherOffset}
+                  onChange={(e) =>
+                    setSite({
+                      ...site,
+                      launcherOffset: Number(e.target.value) || 0,
+                    })
+                  }
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              Move it out of the way of cookie banners, back-to-top buttons or
+              another vendor&apos;s widget.
+            </p>
+
+            <div className="flex gap-3">
+              <div className="w-24">
+                <label className="text-xs text-slate-400">Icon</label>
+                <Input
+                  value={site.launcherIcon || ""}
+                  onChange={(e) =>
+                    setSite({ ...site, launcherIcon: e.target.value || null })
+                  }
+                  placeholder="💬"
+                  maxLength={4}
+                  className="mt-1 text-center"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-slate-400">
+                  Label (optional — makes it a pill)
+                </label>
+                <Input
+                  value={site.launcherLabel || ""}
+                  onChange={(e) =>
+                    setSite({ ...site, launcherLabel: e.target.value || null })
+                  }
+                  placeholder="Chat with us"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="text-xs text-slate-400">Theme</label>
+                <select
+                  value={site.theme}
+                  onChange={(e) =>
+                    setSite({
+                      ...site,
+                      theme: e.target.value as "light" | "dark" | "auto",
+                    })
+                  }
+                  className="mt-1 w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+                >
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="auto">Follow visitor&apos;s device</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-slate-400">Font</label>
+                <select
+                  value={site.fontFamily}
+                  onChange={(e) =>
+                    setSite({ ...site, fontFamily: e.target.value })
+                  }
+                  className="mt-1 w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+                >
+                  <option value="system">System default</option>
+                  <option value="inter">Inter</option>
+                  <option value="serif">Serif</option>
+                  <option value="mono">Monospace</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              Fonts are limited to stacks already on the visitor&apos;s device —
+              the widget won&apos;t download a font file onto a client&apos;s
+              page.
+            </p>
           </div>
 
           <div>

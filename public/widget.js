@@ -35,6 +35,12 @@
   var state = "bubble";
   var scrollLock = null;
 
+  // Placement and collapsed size are config-driven, so they arrive from the
+  // embed page (which is what loads the config) rather than being decided
+  // here. These are the defaults until that first message lands.
+  var placement = { position: "right", offset: EDGE };
+  var collapsedSize = { width: BUBBLE, height: BUBBLE };
+
   function isMobile() {
     return window.innerWidth < MOBILE_BREAKPOINT;
   }
@@ -75,45 +81,50 @@
       s.borderRadius = "0";
       s.boxShadow = "none";
       s.transition = "none";
-    } else if (mode === "panel") {
-      s.top = "auto";
-      s.left = "auto";
-      s.right = EDGE + "px";
-      s.bottom = EDGE + "px";
-      s.width = PANEL_WIDTH + "px";
-      s.height = PANEL_HEIGHT + "px";
-      s.maxWidth = "calc(100vw - " + EDGE + "px)";
-      s.maxHeight = "calc(100vh - " + EDGE + "px)";
-      s.borderRadius = "16px";
-      s.boxShadow = "0 10px 30px rgba(0,0,0,0.15)";
-      s.transition = "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease";
-    } else if (mode === "teaser") {
-      // The teaser card and launcher carry their own rounding and shadow, so
-      // the iframe itself must be a plain transparent rectangle — a radius or
-      // shadow here would frame the empty space around them.
-      s.top = "auto";
-      s.left = "auto";
-      s.right = EDGE + "px";
-      s.bottom = EDGE + "px";
-      s.width = TEASER_WIDTH + "px";
-      s.height = TEASER_HEIGHT + "px";
-      s.maxWidth = "calc(100vw - " + EDGE + "px)";
-      s.maxHeight = "calc(100vh - " + EDGE + "px)";
-      s.borderRadius = "0";
-      s.boxShadow = "none";
-      s.transition = "none";
     } else {
+      // Everything other than full-screen is anchored to the configured
+      // corner. Position is set on one axis and explicitly cleared on the
+      // other, so switching sides at runtime doesn't leave a stale offset
+      // pinning it to both.
+      var off = placement.offset;
       s.top = "auto";
-      s.left = "auto";
-      s.right = EDGE + "px";
-      s.bottom = EDGE + "px";
-      s.width = BUBBLE + "px";
-      s.height = BUBBLE + "px";
-      s.maxWidth = "calc(100vw - " + EDGE + "px)";
-      s.maxHeight = "calc(100vh - " + EDGE + "px)";
-      s.borderRadius = "9999px";
-      s.boxShadow = "0 10px 30px rgba(0,0,0,0.15)";
-      s.transition = "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease";
+      s.bottom = off + "px";
+      if (placement.position === "left") {
+        s.left = off + "px";
+        s.right = "auto";
+      } else {
+        s.right = off + "px";
+        s.left = "auto";
+      }
+      s.maxWidth = "calc(100vw - " + off + "px)";
+      s.maxHeight = "calc(100vh - " + off + "px)";
+
+      if (mode === "panel") {
+        s.width = PANEL_WIDTH + "px";
+        s.height = PANEL_HEIGHT + "px";
+        s.borderRadius = "16px";
+        s.boxShadow = "0 10px 30px rgba(0,0,0,0.15)";
+        s.transition =
+          "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease";
+      } else if (mode === "teaser") {
+        // The teaser card and launcher carry their own rounding and shadow, so
+        // the iframe itself must be a plain transparent rectangle — a radius or
+        // shadow here would frame the empty space around them.
+        s.width = TEASER_WIDTH + "px";
+        s.height = TEASER_HEIGHT + "px";
+        s.borderRadius = "0";
+        s.boxShadow = "none";
+        s.transition = "none";
+      } else {
+        // A labelled launcher is a pill, not a circle, so the embed page sends
+        // the size it actually needs rather than us assuming 72x72.
+        s.width = collapsedSize.width + "px";
+        s.height = collapsedSize.height + "px";
+        s.borderRadius = "9999px";
+        s.boxShadow = "0 10px 30px rgba(0,0,0,0.15)";
+        s.transition =
+          "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease";
+      }
     }
 
     setScrollLock(mode === "fullscreen");
@@ -177,6 +188,17 @@
       state = e.data.open ? "open" : "bubble";
     } else {
       state = Number(e.data.width) > BUBBLE ? "open" : "bubble";
+    }
+
+    if (e.data.position === "left" || e.data.position === "right") {
+      placement.position = e.data.position;
+    }
+    if (typeof e.data.offset === "number" && e.data.offset >= 0) {
+      placement.offset = e.data.offset;
+    }
+    if (state === "bubble" && Number(e.data.width) > 0) {
+      collapsedSize.width = Number(e.data.width);
+      collapsedSize.height = Number(e.data.height) || BUBBLE;
     }
 
     applyGeometry();
