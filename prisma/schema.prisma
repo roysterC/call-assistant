@@ -332,6 +332,22 @@ model WebsiteConfig {
   // Hours before the same visitor may be shown it again. 0 means once only.
   proactiveCooldownHours Int     @default(24)
 
+  // Where the widget sends someone who wants a person.
+  //
+  // This replaced a "Talk to a person" button. That button promised a human on
+  // a product whose whole premise is that nobody is watching the chats — a
+  // visitor asking for someone got silence. Pointing them at the booking or
+  // contact form the client already has is a promise the site can actually
+  // keep.
+  //
+  // ctaSelector is a CSS selector on the *host* page (e.g. "#book-a-demo"):
+  // widget.js scrolls to it and focuses the first field. ctaUrl is the
+  // fallback for pages where that element doesn't exist. Both null means no
+  // button — better to offer nothing than a control that goes nowhere.
+  ctaLabel    String?
+  ctaSelector String?
+  ctaUrl      String?
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   conversations  WebsiteConversation[]

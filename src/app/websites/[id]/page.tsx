@@ -36,6 +36,9 @@ interface Site {
   theme: "light" | "dark" | "auto";
   fontFamily: string;
   hideBranding: boolean;
+  ctaLabel: string | null;
+  ctaSelector: string | null;
+  ctaUrl: string | null;
   organization?: { planTier: string };
   _count: { conversations: number };
 }
@@ -95,6 +98,9 @@ export default function WebsiteEditPage() {
         theme: site.theme,
         fontFamily: site.fontFamily,
         hideBranding: site.hideBranding,
+        ctaLabel: site.ctaLabel,
+        ctaSelector: site.ctaSelector,
+        ctaUrl: site.ctaUrl,
       };
       // Only super-admins are allowed to change the system prompt.
       if (isSuperAdmin) {
@@ -107,10 +113,18 @@ export default function WebsiteEditPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Save failed");
+      if (!res.ok) {
+        // Surface what the server objected to. The CTA fields are validated
+        // server-side, and "Failed to save" gives no clue which one is wrong.
+        const detail = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        throw new Error(detail || "Save failed");
+      }
     } catch (err) {
       console.error("Save error:", err);
-      alert("Failed to save");
+      alert(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -478,6 +492,84 @@ export default function WebsiteEditPage() {
               rows={4}
               className="mt-1"
             />
+          </div>
+
+          {/*
+            Where the widget sends someone who wants a person. There is no
+            "talk to a human" button — nobody watches the chats, so offering
+            one promises something the product does not do. This points at the
+            form the client already staffs instead.
+          */}
+          <div className="rounded-lg border border-slate-700/60 p-3 space-y-3">
+            <div>
+              <label className="text-sm font-medium">
+                &ldquo;Talk to us&rdquo; button
+              </label>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Appears once the visitor has sent a message. Scrolls them to a
+                form on your page rather than waiting for a person who
+                isn&apos;t there. Leave the label blank to hide it.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400">Button label</label>
+              <Input
+                value={site.ctaLabel || ""}
+                onChange={(e) =>
+                  setSite({ ...site, ctaLabel: e.target.value || null })
+                }
+                placeholder="Book a call with the team"
+                maxLength={40}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400">
+                Element on your page (CSS selector)
+              </label>
+              <Input
+                value={site.ctaSelector || ""}
+                onChange={(e) =>
+                  setSite({ ...site, ctaSelector: e.target.value || null })
+                }
+                placeholder="#booking-form"
+                className="mt-1 font-mono text-xs"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                The widget scrolls here and focuses the first field. It never
+                clicks anything.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400">
+                Fallback link (used when that element isn&apos;t on the page)
+              </label>
+              <Input
+                value={site.ctaUrl || ""}
+                onChange={(e) =>
+                  setSite({ ...site, ctaUrl: e.target.value || null })
+                }
+                placeholder="/contact"
+                className="mt-1"
+              />
+            </div>
+
+            {!site.ctaLabel?.trim() && (
+              <p className="text-xs text-amber-400/80">
+                No label set — the button is hidden.
+              </p>
+            )}
+            {site.ctaLabel?.trim() &&
+              !site.ctaSelector?.trim() &&
+              !site.ctaUrl?.trim() && (
+                <p className="text-xs text-amber-400/80">
+                  Add a selector or a link, or the button stays hidden — it has
+                  nowhere to send anyone.
+                </p>
+              )}
           </div>
 
           {/* Proactive teaser */}

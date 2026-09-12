@@ -23,6 +23,13 @@ interface Config {
   proactiveMessage: string | null;
   proactiveDelaySeconds: number;
   proactiveCooldownHours: number;
+  /**
+   * Where to send a visitor who wants a person. The parent page does the
+   * scrolling — see openCTA(). No label means no button.
+   */
+  ctaLabel: string | null;
+  ctaSelector: string | null;
+  ctaUrl: string | null;
   /** Attribution, resolved server-side from the org's plan. */
   branding?: { show: boolean; label?: string; url?: string };
 }
@@ -126,7 +133,23 @@ interface Message {
   content: string;
 }
 
-type HandoffState = "bot" | "requested" | "human";
+/**
+ * Who is answering. Only an operator taking over from the CRM moves this off
+ * "bot" — visitors cannot request a person, so there is no pending state.
+ */
+type HandoffState = "bot" | "human";
+
+/**
+ * Narrows whatever the API returned. The column is an unconstrained string, so
+ * a cast here would assert rather than convert — the mistake that let an
+ * unexpected role reach the model and fail every request after a handback.
+ *
+ * "requested" is the retired visitor-initiated state. No rows carry it, but a
+ * stale one should read as "a person has this", never silently as "bot".
+ */
+function toHandoffState(value: unknown): HandoffState {
+  return value === "human" || value === "requested" ? "human" : "bot";
+}
 
 function getSessionId(siteId: string): string {
   const key = `doai-chat-session-${siteId}`;
@@ -282,7 +305,7 @@ function EmbedContent() {
             content: m.content,
           })
         );
-        if (hist?.handoffState) setHandoff(hist.handoffState as HandoffState);
+        if (hist?.handoffState) setHandoff(toHandoffState(hist.handoffState));
 
         // Keep the greeting as the opener so a returning visitor sees the
         // same conversation they left, rather than one that starts mid-air.
@@ -407,7 +430,7 @@ function EmbedContent() {
         const data = await res.json();
         if (cancelled) return;
 
-        if (data.handoffState) setHandoff(data.handoffState as HandoffState);
+        if (data.handoffState) setHandoff(toHandoffState(data.handoffState));
 
         const restored: Message[] = (data.messages ?? []).map(
           (m: { id: string; role: string; content: string }) => ({
@@ -451,27 +474,28 @@ function EmbedContent() {
     };
   }, [isOpen, sending, siteId, sessionId, config]);
 
-  const requestHandoff = useCallback(async () => {
-    if (!siteId || !sessionId) return;
-    setHandoff("requested");
-    try {
-      const res = await fetch("/api/website-chat/handoff", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteId, sessionId }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.handoffState) setHandoff(data.handoffState as HandoffState);
-      } else {
-        // Don't leave the visitor believing a person was called when nothing
-        // was recorded.
-        setHandoff("bot");
-      }
-    } catch {
-      setHandoff("bot");
-    }
-  }, [siteId, sessionId]);
+  /**
+   * Hand the visitor over to the client's own booking or contact form.
+   *
+   * This replaced a "Talk to a person" button, which promised something the
+   * product does not provide: nobody watches the chats, so asking for a human
+   * got silence. A form the client already staffs is a promise the site keeps.
+   *
+   * The panel closes first. On mobile it covers the screen, and scrolling the
+   * page behind it would move the visitor somewhere they cannot see.
+   */
+  const openCTA = useCallback(() => {
+    if (!config || window.parent === window) return;
+    setIsOpen(false);
+    window.parent.postMessage(
+      {
+        type: "doai:cta",
+        selector: config.ctaSelector,
+        url: config.ctaUrl,
+      },
+      "*"
+    );
+  }, [config]);
 
   // Move focus into the panel on open and hand it back to the launcher on
   // close. Without this a keyboard user opens the chat and their focus is
@@ -563,7 +587,7 @@ function EmbedContent() {
         // JSON through the SSE parser and leaving an empty bubble behind.
         if (!res.headers.get("content-type")?.includes("text/event-stream")) {
           const data = await res.json().catch(() => null);
-          if (data?.handoffState) setHandoff(data.handoffState as HandoffState);
+          if (data?.handoffState) setHandoff(toHandoffState(data.handoffState));
           setMessages((prev) => prev.filter((m) => m.id !== assistantId));
           return;
         }
@@ -910,18 +934,27 @@ function EmbedContent() {
         )}
 
       {/*
-        Handoff control. Only offered once the visitor has actually said
-        something: the handoff endpoint needs a conversation to flag, and
-        asking for a person before saying anything is an odd thing to offer.
+        Route to the client's own booking or contact form.
+
+        Only offered once the visitor has said something — a call to action
+        before they have asked anything is a popup, not an offer — and only
+        when the client has configured somewhere for it to go. A button that
+        leads nowhere is worse than no button.
+
+        The status line below it is for the other direction: an operator who
+        takes the conversation over from the CRM. That still happens, it is
+        just never something the visitor can request.
       */}
       {handoff === "bot" ? (
+        config.ctaLabel &&
+        (config.ctaSelector || config.ctaUrl) &&
         messages.some((m) => m.role === "user") && (
           <button
-            onClick={requestHandoff}
+            onClick={openCTA}
             className="px-3 pb-1.5 text-[11px] text-left underline underline-offset-2 hover:opacity-80 transition-opacity"
             style={{ color: pal.chipText, backgroundColor: pal.msgArea }}
           >
-            Talk to a person
+            {config.ctaLabel}
           </button>
         )
       ) : (
@@ -930,9 +963,7 @@ function EmbedContent() {
           className="px-3 py-1.5 text-[11px]"
           style={{ backgroundColor: pal.msgArea, color: pal.chipText }}
         >
-          {handoff === "requested"
-            ? "Someone from the team has been notified. Their reply will appear here."
-            : "You're now talking to the team."}
+          You&apos;re now talking to the team.
         </div>
       )}
 

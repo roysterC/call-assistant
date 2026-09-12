@@ -171,8 +171,86 @@
     document.addEventListener("DOMContentLoaded", mount);
   }
 
+  // Send the visitor to the client's own booking or contact form.
+  //
+  // The iframe is cross-origin and cannot touch the host page itself. This
+  // script can — it runs in the page — so the iframe asks and this does the
+  // work. That asymmetry is the whole reason the handler lives here.
+  //
+  // It scrolls and focuses; it never clicks. A selector is set by a client in
+  // their dashboard and points at their own markup, but "activate whatever
+  // this matches" is a much bigger capability than this feature needs — one
+  // typo aimed at a submit button, a delete control, or a payment action and
+  // the widget fires it on the visitor's behalf. Scrolling and focusing are
+  // inert: the visitor still decides.
+  function openCTA(selector, url) {
+    var el = null;
+    if (selector) {
+      // An invalid selector throws rather than returning null, and a bad value
+      // saved in config must not take the whole widget down with it.
+      try {
+        el = document.querySelector(selector);
+      } catch (err) {
+        el = null;
+      }
+    }
+
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Focusing the first field is what makes this feel like an anchor rather
+      // than a jump — the visitor lands ready to type. Deferred so focus does
+      // not fight the smooth scroll.
+      setTimeout(function () {
+        var field =
+          typeof el.querySelector === "function"
+            ? el.querySelector(
+                "input:not([type=hidden]):not([disabled]), textarea, select"
+              )
+            : null;
+        var target = field || el;
+        if (typeof target.focus === "function") {
+          // Without preventScroll the browser re-jumps to the field, undoing
+          // the centred position we just scrolled to.
+          try {
+            target.focus({ preventScroll: true });
+          } catch (err) {
+            target.focus();
+          }
+        }
+      }, 400);
+      return;
+    }
+
+    // Nothing matched — either the form lives on another page or the selector
+    // is stale. The URL is the fallback so the button always leads somewhere.
+    if (!url) return;
+    // Protocol check: this value arrives from stored config, and assigning a
+    // "javascript:" URL to location executes it in the client's page. The API
+    // rejects those on write; this is the second lock, because the widget is
+    // the thing actually doing the navigating.
+    var parsed;
+    try {
+      parsed = new URL(url, window.location.href);
+    } catch (err) {
+      return;
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
+    window.location.href = parsed.href;
+  }
+
   window.addEventListener("message", function (e) {
     if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
+
+    if (e.data && e.data.type === "doai:cta") {
+      // Deferred a frame: the embed collapses itself on the same click, and
+      // that resize has to land first or we scroll the host page while it is
+      // still locked behind a full-screen panel.
+      setTimeout(function () {
+        openCTA(e.data.selector, e.data.url);
+      }, 0);
+      return;
+    }
+
     if (!e.data || e.data.type !== "doai:resize") return;
 
     // The embed page reports which state it wants; the parent decides the

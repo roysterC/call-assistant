@@ -63,3 +63,33 @@ export function corsHeaders(origin: string | null): Record<string, string> {
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
+
+/**
+ * Whether a widget CTA destination is safe for the host page to navigate to.
+ *
+ * This one is load-bearing. The value is stored config that widget.js assigns
+ * to `location` inside the *client's* page, so a "javascript:" URL saved here
+ * is stored XSS on their site, executing with their origin — and the widget is
+ * the thing that would fire it. widget.js re-checks the protocol for the same
+ * reason; neither check is redundant, because either layer alone can be
+ * bypassed by a row written before it existed.
+ *
+ * Relative paths and fragments ("/contact", "#book") are allowed and common —
+ * the widget resolves them against the host page. Anything carrying an
+ * explicit scheme must be http or https: that rejects javascript:, data:,
+ * vbscript: and file: while leaving ordinary links alone.
+ */
+export function isSafeCTAUrl(url: string): boolean {
+  // Browsers ignore control characters and whitespace when resolving a scheme,
+  // so "java\nscript:alert(1)" navigates. Strip them before testing or the
+  // check reads a scheme that the browser will not.
+  // eslint-disable-next-line no-control-regex
+  const cleaned = url.replace(/[\u0000-\u0020]/g, "");
+  if (!cleaned) return false;
+
+  const scheme = cleaned.match(/^([a-z][a-z0-9+.-]*):/i);
+  if (!scheme) return true; // relative path or fragment
+
+  const protocol = scheme[1].toLowerCase();
+  return protocol === "http" || protocol === "https";
+}

@@ -5,6 +5,7 @@ import {
   requireSuperAdmin,
   isErrorResponse,
 } from "@/lib/tenant";
+import { isSafeCTAUrl } from "@/lib/website-chat";
 
 // Fields any org user (member/admin) can edit
 const TENANT_FIELDS = [
@@ -26,6 +27,9 @@ const TENANT_FIELDS = [
   "theme",
   "fontFamily",
   "hideBranding",
+  "ctaLabel",
+  "ctaSelector",
+  "ctaUrl",
 ];
 // Fields only super-admins can edit
 // chatModel is a pricing lever, not a customer preference — a plan decides
@@ -92,6 +96,36 @@ export async function PUT(
     const updateData: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) updateData[key] = body[key];
+    }
+
+    // The CTA fields are the one place a stored string is handed to the host
+    // page as a navigation target, so they are validated on the way in rather
+    // than trusted. Blank means "not configured" — the widget hides the button
+    // — so empty strings normalise to null instead of leaving a dead control.
+    for (const key of ["ctaLabel", "ctaSelector", "ctaUrl"] as const) {
+      if (!(key in updateData)) continue;
+      const raw = updateData[key];
+      if (raw === null || raw === undefined || raw === "") {
+        updateData[key] = null;
+        continue;
+      }
+      if (typeof raw !== "string") {
+        return NextResponse.json(
+          { error: `${key} must be text` },
+          { status: 400 }
+        );
+      }
+      const trimmed = raw.trim().slice(0, key === "ctaLabel" ? 40 : 500);
+      if (key === "ctaUrl" && !isSafeCTAUrl(trimmed)) {
+        return NextResponse.json(
+          {
+            error:
+              "ctaUrl must be an http(s) address, a path like /contact, or an anchor like #book",
+          },
+          { status: 400 }
+        );
+      }
+      updateData[key] = trimmed || null;
     }
 
     // If the request attempted restricted fields we stripped, tell the client.

@@ -47,6 +47,9 @@ export async function GET(req: NextRequest) {
         proactiveMessage: true,
         proactiveDelaySeconds: true,
         proactiveCooldownHours: true,
+        ctaLabel: true,
+        ctaSelector: true,
+        ctaUrl: true,
         organizationId: true,
       },
     });
