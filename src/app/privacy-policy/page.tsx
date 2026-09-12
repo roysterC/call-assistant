@@ -38,7 +38,7 @@ export default function PrivacyPolicyPage() {
             For the purposes of UK GDPR and the EU GDPR, the Data Controller
             is:
           </p>
-          <address className="mt-2 not-italic text-sm text-slate-300">
+          <address className="mt-2 not-italic text-sm text-foreground/80">
             DOAI Systems
             <br />
             United Kingdom

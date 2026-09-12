@@ -134,12 +134,12 @@ export default function OrganizationsPage() {
                 orgs.map((org) => (
                   <TableRow
                     key={org.id}
-                    className="cursor-pointer hover:bg-white/5"
+                    className="cursor-pointer hover:bg-accent/50"
                     onClick={() => router.push(`/admin/organizations/${org.id}`)}
                   >
                     <TableCell className="font-medium">{org.name}</TableCell>
                     <TableCell>
-                      <code className="text-xs bg-white/5 px-1.5 py-0.5 rounded">
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                         {org.slug}
                       </code>
                     </TableCell>

@@ -50,8 +50,8 @@ export function MessageBubble({
           isUser && (showTail ? "rounded-br-md" : "rounded-br-2xl"),
           isAgent &&
             "bg-emerald-500/10 text-foreground border border-emerald-500/40",
-          // The bot's bubble was bg-white/5 — barely a shade off the pane
-          // behind it, so replies read as loose text rather than messages.
+          // The bot's bubble used to be a 5%-white wash, barely a shade off the
+          // pane behind it, so replies read as loose text rather than messages.
           !isUser && !isAgent && "bg-muted text-foreground border border-border",
           !isUser && (showTail ? "rounded-bl-md" : "rounded-bl-2xl")
         )}

@@ -136,12 +136,12 @@ function WebsitesPageInner() {
                 sites.map((site) => (
                   <TableRow
                     key={site.id}
-                    className="cursor-pointer hover:bg-white/5"
+                    className="cursor-pointer hover:bg-accent/50"
                     onClick={() => router.push(`/websites/${site.id}${navSuffix}`)}
                   >
                     <TableCell className="font-medium">{site.name}</TableCell>
                     <TableCell>
-                      <code className="text-xs bg-white/5 px-1.5 py-0.5 rounded">
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                         {site.siteId}
                       </code>
                     </TableCell>

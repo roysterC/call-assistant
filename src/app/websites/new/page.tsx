@@ -141,7 +141,7 @@ export default function NewWebsitePage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex gap-2 items-start">
-              <code className="flex-1 bg-white/5 p-3 rounded text-xs text-slate-300 break-all">
+              <code className="flex-1 bg-muted p-3 rounded text-xs text-foreground/80 break-all">
                 {snippet}
               </code>
               <Button
@@ -193,7 +193,7 @@ export default function NewWebsitePage() {
           <div key={label} className="flex-1">
             <div
               className={`h-1 rounded-full ${
-                i <= step ? "bg-emerald-500" : "bg-white/10"
+                i <= step ? "bg-emerald-500" : "bg-accent"
               }`}
             />
             <p
@@ -332,7 +332,7 @@ export default function NewWebsitePage() {
                   placeholder="/contact  — or a full link to your booking page"
                 />
                 <details className="group">
-                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-slate-300 select-none">
+                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground/80 select-none">
                     The form is on this page already?
                   </summary>
                   <div className="mt-2">

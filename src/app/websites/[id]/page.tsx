@@ -180,7 +180,7 @@ export default function WebsiteEditPage() {
           <div>
             <h1 className="text-2xl font-bold">{site.name}</h1>
             <p className="text-sm text-muted-foreground">
-              <code className="bg-white/5 px-1.5 py-0.5 rounded text-xs">
+              <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
                 {site.siteId}
               </code>
               <span className="ml-3">
@@ -211,7 +211,7 @@ export default function WebsiteEditPage() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 items-start">
-            <code className="flex-1 bg-white/5 p-3 rounded text-xs text-slate-300 break-all">
+            <code className="flex-1 bg-muted p-3 rounded text-xs text-foreground/80 break-all">
               {`<script src="${typeof window !== "undefined" ? window.location.origin : ""}/widget.js" data-site-id="${site.siteId}" async></script>`}
             </code>
             <Button variant="outline" size="sm" onClick={copyEmbed}>

@@ -53,7 +53,7 @@ export default function DataDeletionPage() {
                 roy.cheung@doaisystems.co.uk
               </a>{" "}
               with the subject line{" "}
-              <code className="text-xs bg-white/5 px-1.5 py-0.5 rounded">
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                 Data deletion request
               </code>
               .

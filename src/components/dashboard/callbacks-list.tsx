@@ -29,7 +29,7 @@ export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {
           callbacks.map((cb) => (
             <div
               key={cb.id}
-              className="flex items-center gap-4 p-3 rounded-xl border border-white/5 bg-white/[0.02]"
+              className="flex items-center gap-4 p-3 rounded-xl border border-border/60 bg-white/[0.02]"
             >
               <div className="w-9 h-9 bg-amber-500/15 rounded-full flex items-center justify-center shrink-0">
                 <CalendarClock className="w-4 h-4 text-amber-400" />
@@ -43,7 +43,7 @@ export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {
                     {cb.status}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
+                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <CalendarClock className="w-3 h-3" />
                     {format(new Date(cb.scheduledAt), "MMM d, h:mm a")}

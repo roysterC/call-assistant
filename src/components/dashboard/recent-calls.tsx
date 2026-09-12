@@ -31,7 +31,7 @@ export function RecentCalls({ calls }: { calls: Call[] }) {
           calls.map((call) => (
             <div
               key={call.id}
-              className="flex items-start gap-4 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/5 transition-colors"
+              className="flex items-start gap-4 p-3 rounded-xl border border-border/60 bg-white/[0.02] hover:bg-accent/50 transition-colors"
             >
               <div className="w-9 h-9 bg-blue-600/15 rounded-full flex items-center justify-center shrink-0">
                 <Phone className="w-4 h-4 text-blue-400" />
@@ -51,7 +51,7 @@ export function RecentCalls({ calls }: { calls: Call[] }) {
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">
                   {call.summary || "No summary available"}
                 </p>
-                <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-600">
+                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {formatDuration(call.duration)}

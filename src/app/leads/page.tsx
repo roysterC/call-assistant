@@ -275,7 +275,7 @@ export default function LeadsPage() {
                           >
                             <ChannelIcon className="w-3 h-3 text-white" />
                           </div>
-                          <span className="text-xs text-slate-300">
+                          <span className="text-xs text-foreground/80">
                             {channelMeta.label}
                           </span>
                         </div>

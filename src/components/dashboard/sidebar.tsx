@@ -67,7 +67,15 @@ interface OrgSummary {
   slug: string;
 }
 
-export function Sidebar() {
+export function Sidebar({
+  open = false,
+  onNavigate,
+}: {
+  /** Drawer state below md. Ignored from md up, where the rail is static. */
+  open?: boolean;
+  /** Close the drawer after a tap that navigates. */
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const asOrg = searchParams.get("asOrg");
@@ -143,7 +151,18 @@ export function Sidebar() {
   const navSuffix = asOrg ? `?asOrg=${asOrg}` : "";
 
   return (
-    <aside className="w-64 bg-card text-white flex flex-col min-h-screen border-r border-border">
+    <aside
+      className={cn(
+        "w-64 bg-card text-foreground flex flex-col border-r border-border shrink-0",
+        // Off-canvas below md, static beside the content from md up. It used to
+        // be neither: a permanent 256px column that took two thirds of a phone
+        // screen and left the conversation list a sliver — which is also why
+        // the conversations page's own mobile layout never got to run.
+        "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transition-transform duration-200 md:static md:w-64 md:max-w-none md:translate-x-0 md:transition-none",
+        open ? "translate-x-0" : "-translate-x-full",
+        "overflow-y-auto md:min-h-screen"
+      )}
+    >
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
@@ -165,7 +184,7 @@ export function Sidebar() {
         {isSuperAdmin && orgs.length > 0 && (
           <div className="mt-3">
             <DropdownMenu>
-              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs text-slate-300 bg-white/5 hover:bg-white/10 border border-border">
+              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs text-foreground/80 bg-muted hover:bg-accent border border-border">
                 <span className="flex items-center gap-1.5">
                   <Building2 className="w-3 h-3" />
                   Switch org
@@ -202,11 +221,12 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href + navSuffix}
+                onClick={onNavigate}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
                   isActive
                     ? "bg-blue-600/15 text-blue-400 border border-blue-500/20"
-                    : "text-muted-foreground hover:text-white hover:bg-white/5"
+                    : "text-muted-foreground hover:text-white hover:bg-accent/50"
                 )}
               >
                 <item.icon
@@ -220,11 +240,12 @@ export function Sidebar() {
         {isSuperAdmin && (
           <Link
             href={`/admin/organizations${navSuffix}`}
+            onClick={onNavigate}
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mt-4 border-t border-border pt-4",
               pathname?.startsWith("/admin")
                 ? "text-amber-400"
-                : "text-muted-foreground hover:text-amber-400 hover:bg-white/5"
+                : "text-muted-foreground hover:text-amber-400 hover:bg-accent/50"
             )}
           >
             <Shield className="w-4 h-4" />
@@ -237,7 +258,7 @@ export function Sidebar() {
       <div className="p-3 border-t border-border">
         {user ? (
           <DropdownMenu>
-            <DropdownMenuTrigger className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-white/5">
+            <DropdownMenuTrigger className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent/50">
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-semibold">
                 {(user.name || user.email || "?")[0].toUpperCase()}
               </div>

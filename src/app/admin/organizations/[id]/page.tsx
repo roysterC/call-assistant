@@ -406,7 +406,7 @@ export default function OrganizationDetailPage() {
           <div>
             <h1 className="text-2xl font-bold">{org.name}</h1>
             <p className="text-sm text-muted-foreground">
-              <code className="bg-white/5 px-1.5 py-0.5 rounded text-xs">
+              <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
                 {org.slug}
               </code>
               <span className="ml-3">
@@ -880,7 +880,7 @@ export default function OrganizationDetailPage() {
                       </button>
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs bg-white/5 px-1.5 py-0.5 rounded">
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                         {w.siteId}
                       </code>
                     </TableCell>
@@ -1278,7 +1278,7 @@ export default function OrganizationDetailPage() {
             <DialogTitle>User created</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-foreground/80">
               Share these credentials with{" "}
               <strong>{userJustCreated?.email}</strong>. This password won&apos;t
               be shown again.

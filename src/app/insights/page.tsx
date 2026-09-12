@@ -319,7 +319,7 @@ export default function InsightsPage() {
                         key={r.referrer}
                         className="flex items-center justify-between gap-3 text-sm"
                       >
-                        <span className="truncate text-slate-300">
+                        <span className="truncate text-foreground/80">
                           {r.referrer}
                         </span>
                         <span className="text-muted-foreground shrink-0">
