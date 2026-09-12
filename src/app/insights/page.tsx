@@ -14,6 +14,13 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-fetch";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  CHART_GRID,
+  CHART_SERIES,
+  CHART_TICK,
+  CHART_TOOLTIP,
+} from "@/lib/chart-theme";
 
 interface Analytics {
   range: { days: number; timezone: string };
@@ -57,7 +64,7 @@ function Stat({
         >
           {value}
         </p>
-        {hint && <p className="text-xs text-slate-500 mt-1">{hint}</p>}
+        {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
       </CardContent>
     </Card>
   );
@@ -117,19 +124,16 @@ export default function InsightsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Website chat insights</h1>
-          <p className="text-sm text-muted-foreground">
-            Last {data.range.days} days · times shown in {data.range.timezone}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {data.sites.length > 1 && (
+      <PageHeader
+        title="Website chat insights"
+        description={`Last ${data.range.days} days · times shown in ${data.range.timezone}`}
+        actions={
+          <>
+            {data.sites.length > 1 && (
             <select
               value={siteId}
               onChange={(e) => setSiteId(e.target.value)}
-              className="h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+              className="h-9 rounded-md border border-border bg-transparent px-2 text-sm"
             >
               <option value="">All sites</option>
               {data.sites.map((s) => (
@@ -139,21 +143,25 @@ export default function InsightsPage() {
               ))}
             </select>
           )}
-          <div className="flex rounded-md border border-slate-700 overflow-hidden">
-            {RANGES.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                className={`px-3 h-9 text-sm ${
-                  days === d ? "bg-white/10" : "hover:bg-white/5"
-                }`}
-              >
-                {d}d
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+            <div className="flex rounded-md border border-border overflow-hidden">
+              {RANGES.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDays(d)}
+                  aria-pressed={days === d}
+                  className={`px-3 h-9 text-sm transition-colors ${
+                    days === d
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  }`}
+                >
+                  {d}d
+                </button>
+              ))}
+            </div>
+          </>
+        }
+      />
 
       {empty ? (
         <Card>
@@ -203,21 +211,16 @@ export default function InsightsPage() {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.daily}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="day" stroke="#64748b" fontSize={11} />
-                    <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                    <XAxis dataKey="day" tick={CHART_TICK} tickLine={false} axisLine={false} minTickGap={24} />
+                    <YAxis tick={CHART_TICK} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
                     <Tooltip
-                      contentStyle={{
-                        background: "#0f172a",
-                        border: "1px solid #334155",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
+                      contentStyle={CHART_TOOLTIP}
                     />
                     <Line
                       type="monotone"
                       dataKey="conversations"
-                      stroke="#38bdf8"
+                      stroke={CHART_SERIES[0]}
                       strokeWidth={2}
                       dot={false}
                       name="Conversations"
@@ -225,7 +228,7 @@ export default function InsightsPage() {
                     <Line
                       type="monotone"
                       dataKey="leads"
-                      stroke="#10b981"
+                      stroke={CHART_SERIES[1]}
                       strokeWidth={2}
                       dot={false}
                       name="Leads"
@@ -245,32 +248,35 @@ export default function InsightsPage() {
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={hourly}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="label" stroke="#64748b" fontSize={10} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={CHART_TICK}
+                        tickLine={false}
+                        axisLine={false}
+                        interval={2}
+                      />
                       <YAxis
-                        stroke="#64748b"
-                        fontSize={11}
+                        tick={CHART_TICK}
+                        tickLine={false}
+                        axisLine={false}
+                        width={40}
                         allowDecimals={false}
                       />
                       <Tooltip
-                        contentStyle={{
-                          background: "#0f172a",
-                          border: "1px solid #334155",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
+                        contentStyle={CHART_TOOLTIP}
                         labelFormatter={(h) => `${h}:00`}
                       />
                       <Bar
                         dataKey="count"
-                        fill="#38bdf8"
+                        fill={CHART_SERIES[0]}
                         radius={[3, 3, 0, 0]}
                         name="Conversations"
                       />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Bars outside {data.businessHours.startHour}:00–
                   {data.businessHours.endHour}:00 are enquiries that would
                   otherwise have waited until the next working day.
@@ -295,7 +301,7 @@ export default function InsightsPage() {
                         <span className="truncate text-slate-300">
                           {r.referrer}
                         </span>
-                        <span className="text-slate-400 shrink-0">
+                        <span className="text-muted-foreground shrink-0">
                           {r.count}
                         </span>
                       </div>

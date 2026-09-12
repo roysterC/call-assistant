@@ -10,31 +10,47 @@ interface StatCardProps {
   trend?: "up" | "down" | "neutral";
 }
 
-export function StatCard({ title, value, subtitle, icon: Icon, trend }: StatCardProps) {
+/**
+ * A single headline number.
+ *
+ * The label used to be `text-slate-500`, which measures 3.6:1 against the card
+ * — under the 4.5:1 AA floor for text this size. On the first screen a client
+ * sees, the words naming each number were the least readable thing on it. They
+ * now use the muted token, at 8.3:1.
+ */
+export function StatCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  trend,
+}: StatCardProps) {
   return (
-    <Card className="border-white/10 bg-[#161b22]">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-slate-500">{title}</p>
-            <p className="text-3xl font-bold mt-1 text-white">{value}</p>
-            {subtitle && (
-              <p
-                className={cn(
-                  "text-xs mt-1",
-                  trend === "up" && "text-emerald-400",
-                  trend === "down" && "text-red-400",
-                  (!trend || trend === "neutral") && "text-slate-500"
-                )}
-              >
-                {subtitle}
-              </p>
-            )}
-          </div>
-          <div className="w-10 h-10 bg-blue-600/15 rounded-xl flex items-center justify-center">
-            <Icon className="w-5 h-5 text-blue-400" />
+    <Card className="gap-0 transition-colors hover:ring-foreground/20">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <div className="w-9 h-9 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Icon className="w-[18px] h-[18px] text-muted-foreground" />
           </div>
         </div>
+        {/* Tabular figures stop the numbers jittering sideways as they tick
+            over, which is what made four cards in a row look unaligned. */}
+        <p className="text-3xl font-semibold mt-2 tabular-nums tracking-tight text-foreground">
+          {value}
+        </p>
+        {subtitle && (
+          <p
+            className={cn(
+              "text-xs mt-1.5",
+              trend === "up" && "text-emerald-400",
+              trend === "down" && "text-red-400",
+              (!trend || trend === "neutral") && "text-muted-foreground"
+            )}
+          >
+            {subtitle}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

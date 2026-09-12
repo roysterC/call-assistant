@@ -10,6 +10,7 @@ import {
   originsFromUrl,
   type SiteProfile,
 } from "@/lib/prompt-template";
+import { isSafeCTAUrl } from "@/lib/website-chat";
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req);
@@ -53,6 +54,9 @@ export async function POST(req: NextRequest) {
       allowedOrigins,
       siteUrl,
       profile,
+      ctaLabel,
+      ctaSelector,
+      ctaUrl,
     } = body;
 
     if (!name) {
@@ -104,6 +108,31 @@ export async function POST(req: NextRequest) {
         ? allowedOrigins
         : originsFromUrl(siteUrl || "");
 
+    // Same reasoning as origins above: onboarding is when the client is
+    // actually looking at their own page, so it is the cheapest moment to ask
+    // where the widget should send someone. Validated here as well as on the
+    // editor's PUT — this route can create a site without ever touching that
+    // one, so a check living only there would be no check at all.
+    const cta = { label: ctaLabel, selector: ctaSelector, url: ctaUrl };
+    for (const [key, value] of Object.entries(cta)) {
+      if (value === null || value === undefined || value === "") continue;
+      if (typeof value !== "string") {
+        return NextResponse.json(
+          { error: `cta ${key} must be text` },
+          { status: 400 }
+        );
+      }
+    }
+    if (typeof ctaUrl === "string" && ctaUrl.trim() && !isSafeCTAUrl(ctaUrl.trim())) {
+      return NextResponse.json(
+        {
+          error:
+            "ctaUrl must be an http(s) address, a path like /contact, or an anchor like #book",
+        },
+        { status: 400 }
+      );
+    }
+
     const org = await prisma.organization.findUnique({
       where: { id: organizationId },
       select: { id: true },
@@ -126,6 +155,9 @@ export async function POST(req: NextRequest) {
         quickReplies: quickReplies || [],
         brandColor: brandColor || "#2563eb",
         allowedOrigins: origins,
+        ctaLabel: ctaLabel?.trim().slice(0, 40) || null,
+        ctaSelector: ctaSelector?.trim().slice(0, 500) || null,
+        ctaUrl: ctaUrl?.trim().slice(0, 500) || null,
       },
     });
 

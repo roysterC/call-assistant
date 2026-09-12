@@ -18,6 +18,7 @@ import {
   Send,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface TeamMember {
   name: string;
@@ -132,18 +133,16 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <p className="text-muted-foreground mt-1">
-            Your organization profile and enabled features
-          </p>
-        </div>
-        <Button onClick={handleSave} disabled={saving}>
-          <Save className="w-4 h-4 mr-2" />
-          {saving ? "Saving..." : "Save Changes"}
-        </Button>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Your organisation profile and enabled features"
+        actions={
+          <Button onClick={handleSave} disabled={saving}>
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        }
+      />
 
       {/* Business Info — always visible */}
       <Card>

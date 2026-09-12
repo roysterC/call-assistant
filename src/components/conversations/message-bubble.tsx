@@ -32,14 +32,14 @@ export function MessageBubble({ role, content, createdAt }: MessageBubbleProps) 
             "bg-emerald-500/10 text-slate-100 border border-emerald-500/40 rounded-bl-md",
           !isUser &&
             !isAgent &&
-            "bg-white/5 text-slate-200 border border-white/10 rounded-bl-md"
+            "bg-white/5 text-slate-200 border border-border rounded-bl-md"
         )}
       >
         <p className="whitespace-pre-wrap break-words">{content}</p>
         <p
           className={cn(
             "text-[10px] mt-1",
-            isUser ? "text-blue-200" : "text-slate-500"
+            isUser ? "text-blue-200" : "text-muted-foreground"
           )}
         >
           {format(new Date(createdAt), "h:mm a")}

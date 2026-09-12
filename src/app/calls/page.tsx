@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Call {
   id: string;
@@ -59,12 +61,10 @@ export default function CallsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Call History</h1>
-        <p className="text-muted-foreground mt-1">
-          All calls handled by your AI assistant
-        </p>
-      </div>
+      <PageHeader
+        title="Call history"
+        description="All calls handled by your AI assistant"
+      />
 
       <Card>
         <CardContent className="p-0">
@@ -88,9 +88,12 @@ export default function CallsPage() {
                 </TableRow>
               ) : calls.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12">
-                    <Phone className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-muted-foreground">No calls recorded yet</p>
+                  <TableCell colSpan={6} className="p-0">
+                    <EmptyState
+                      icon={Phone}
+                      title="No calls recorded yet"
+                      hint="Every call your assistant answers is logged here with a summary and how the caller sounded."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (

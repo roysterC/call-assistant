@@ -40,6 +40,6 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
 
 function SidebarFallback() {
   return (
-    <aside className="w-64 bg-[#161b22] border-r border-white/10" aria-hidden />
+    <aside className="w-64 bg-card border-r border-border" aria-hidden />
   );
 }

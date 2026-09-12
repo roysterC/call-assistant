@@ -16,13 +16,13 @@ interface Callback {
 
 export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {
   return (
-    <Card className="border-white/10 bg-[#161b22]">
+    <Card className="border-border bg-card">
       <CardHeader>
         <CardTitle className="text-lg text-white">Upcoming Callbacks</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {callbacks.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-8">
+          <p className="text-sm text-muted-foreground text-center py-8">
             No pending callbacks
           </p>
         ) : (
@@ -39,7 +39,7 @@ export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {
                   <span className="font-medium text-sm text-white">
                     {cb.lead.name || cb.lead.phone}
                   </span>
-                  <Badge variant="outline" className="text-[10px] border-white/10 text-slate-400">
+                  <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">
                     {cb.status}
                   </Badge>
                 </div>
@@ -54,7 +54,7 @@ export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {
                   </span>
                 </div>
                 {cb.notes && (
-                  <p className="text-xs text-slate-500 mt-1 truncate">
+                  <p className="text-xs text-muted-foreground mt-1 truncate">
                     {cb.notes}
                   </p>
                 )}

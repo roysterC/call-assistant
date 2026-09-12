@@ -75,15 +75,15 @@ export default function AccountSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-slate-400">Name</label>
+            <label className="text-xs font-medium text-muted-foreground">Name</label>
             <p className="text-sm mt-1">{session?.user?.name || "—"}</p>
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-400">Email</label>
+            <label className="text-xs font-medium text-muted-foreground">Email</label>
             <p className="text-sm mt-1">{session?.user?.email || "—"}</p>
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-400">Role</label>
+            <label className="text-xs font-medium text-muted-foreground">Role</label>
             <p className="text-sm mt-1 capitalize">
               {session?.user?.role || "member"}
             </p>
@@ -120,7 +120,7 @@ export default function AccountSettingsPage() {
                 minLength={8}
                 className="mt-1"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-muted-foreground mt-1">
                 Minimum 8 characters
               </p>
             </div>

@@ -83,35 +83,47 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/*
+ * The app runs dark permanently, and it used to run two dark palettes at once:
+ * these tokens were the stock neutral greys, while the dashboard, sidebar and
+ * conversation pane hardcoded a blue-tinted set (#0d1117 / #161b22 / white/10)
+ * in 39 places. A card on the dashboard and a card on the leads page were
+ * visibly different colours, which is the sort of thing that reads as unfinished
+ * long before anyone can say why.
+ *
+ * The hardcoded set won — it is what the product actually looks like — so it
+ * now lives here as tokens and nothing hardcodes a hex. Converted to oklch to
+ * match the format of the rest of the file; the source hex is noted on each.
+ */
 .dark {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.1763 0.014 258.36); /* #0d1117 */
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.2202 0.0157 256.82); /* #161b22 */
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.2202 0.0157 256.82);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --secondary: oklch(0.2666 0.015 256.8); /* #21262d */
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  --muted: oklch(0.2458 0.0153 256.81); /* #1c2128 */
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --accent: oklch(0.2666 0.015 256.8);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
+  --chart-1: oklch(0.7 0.14 254);
+  --chart-2: oklch(0.75 0.16 162);
+  --chart-3: oklch(0.78 0.15 78);
+  --chart-4: oklch(0.7 0.16 16);
+  --chart-5: oklch(0.66 0.15 300);
+  --sidebar: oklch(0.2202 0.0157 256.82);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent: oklch(0.2666 0.015 256.8);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);

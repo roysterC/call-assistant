@@ -533,7 +533,7 @@ export default function OrganizationDetailPage() {
               />
             </div>
 
-            <div className="border-t border-white/10 pt-5">
+            <div className="border-t border-border pt-5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 WhatsApp system prompt
               </label>
@@ -549,14 +549,14 @@ export default function OrganizationDetailPage() {
                 placeholder="Leave empty to auto-generate from business name + services + hours."
                 className="mt-1 font-mono text-xs"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-muted-foreground mt-1">
                 When empty, the WhatsApp bot auto-builds a prompt from this
                 org&apos;s business info.
               </p>
             </div>
 
             {/* Instagram Direct Messages (Meta Graph API) */}
-            <div className="border-t border-white/10 pt-5">
+            <div className="border-t border-border pt-5">
               <label className="text-sm font-medium">
                 Instagram (Meta Graph API)
               </label>
@@ -628,7 +628,7 @@ export default function OrganizationDetailPage() {
             </div>
 
             {/* Facebook Messenger (Meta Graph API) */}
-            <div className="border-t border-white/10 pt-5">
+            <div className="border-t border-border pt-5">
               <label className="text-sm font-medium">
                 Facebook Messenger (Meta Graph API)
               </label>
@@ -698,11 +698,11 @@ export default function OrganizationDetailPage() {
               />
             </div>
 
-            <div className="border-t border-white/10 pt-5">
+            <div className="border-t border-border pt-5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Voice agent (Vapi)
               </label>
-              <p className="text-sm text-slate-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Vapi assistant prompts live in the Vapi dashboard. Inbound
                 calls route to this org via the org&apos;s Phone Numbers
                 (managed in the Phone Numbers section above).
@@ -816,7 +816,7 @@ export default function OrganizationDetailPage() {
                         {p.channel}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-400 font-mono">
+                    <TableCell className="text-xs text-muted-foreground font-mono">
                       {p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "—"}
                     </TableCell>
                     <TableCell className="text-sm">{p.label || "—"}</TableCell>
@@ -1079,7 +1079,7 @@ export default function OrganizationDetailPage() {
                 placeholder="client-abc"
                 className="mt-1"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-muted-foreground mt-1">
                 Lowercase letters, numbers, dashes only. Appears in the embed
                 tag.
               </p>
@@ -1150,7 +1150,7 @@ export default function OrganizationDetailPage() {
                 className="mt-1"
                 placeholder="https://client.com&#10;https://www.client.com"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-muted-foreground mt-1">
                 Leave empty to allow any origin. Supports *.example.com.
               </p>
             </div>
@@ -1238,7 +1238,7 @@ export default function OrganizationDetailPage() {
                   Generate
                 </Button>
               </div>
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-muted-foreground mt-1">
                 You&apos;ll share this password with them directly. They can
                 change it after signing in.
               </p>
@@ -1348,7 +1348,7 @@ function FeatureToggle({
     <div className="flex items-center justify-between gap-4">
       <div>
         <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-slate-500">{description}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
       </div>
       <Button
         variant={enabled ? "default" : "outline"}

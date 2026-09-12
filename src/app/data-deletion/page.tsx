@@ -11,16 +11,16 @@ const LAST_UPDATED = "24 April 2026";
 
 export default function DataDeletionPage() {
   return (
-    <div className="min-h-screen bg-[#0d1117] text-slate-100 px-6 py-12">
+    <div className="min-h-screen bg-background text-slate-100 px-6 py-12">
       <article className="mx-auto max-w-3xl space-y-6">
-        <header className="space-y-2 border-b border-white/10 pb-6">
-          <p className="text-xs uppercase tracking-wider text-slate-400">
+        <header className="space-y-2 border-b border-border pb-6">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">
             DOAI Systems
           </p>
           <h1 className="text-3xl font-semibold">
             Data deletion instructions
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted-foreground">
             Last updated: {LAST_UPDATED}
           </p>
         </header>
@@ -193,7 +193,7 @@ export default function DataDeletionPage() {
           </p>
         </section>
 
-        <footer className="border-t border-white/10 pt-6 mt-10 text-sm text-slate-400">
+        <footer className="border-t border-border pt-6 mt-10 text-sm text-muted-foreground">
           <Link className="hover:underline" href="/privacy-policy">
             Privacy Policy
           </Link>{" "}

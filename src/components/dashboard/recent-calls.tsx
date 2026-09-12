@@ -18,13 +18,13 @@ interface Call {
 
 export function RecentCalls({ calls }: { calls: Call[] }) {
   return (
-    <Card className="border-white/10 bg-[#161b22]">
+    <Card className="border-border bg-card">
       <CardHeader>
         <CardTitle className="text-lg text-white">Recent Calls</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {calls.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-8">
+          <p className="text-sm text-muted-foreground text-center py-8">
             No calls yet. Calls will appear here once your AI assistant starts taking calls.
           </p>
         ) : (
@@ -42,13 +42,13 @@ export function RecentCalls({ calls }: { calls: Call[] }) {
                     {call.lead?.name || call.phoneNumber}
                   </span>
                   {call.lead?.company && (
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-muted-foreground">
                       {call.lead.company}
                     </span>
                   )}
                   <SentimentBadge sentiment={call.sentiment} />
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5 truncate">
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
                   {call.summary || "No summary available"}
                 </p>
                 <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-600">

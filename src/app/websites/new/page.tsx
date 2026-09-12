@@ -18,6 +18,9 @@ interface Form {
   description: string;
   services: string;
   nextStep: string;
+  ctaLabel: string;
+  ctaSelector: string;
+  ctaUrl: string;
   avoid: string;
   tone: "friendly" | "professional" | "direct";
   discussPricing: boolean;
@@ -34,6 +37,9 @@ const EMPTY: Form = {
   description: "",
   services: "",
   nextStep: "",
+  ctaLabel: "",
+  ctaSelector: "",
+  ctaUrl: "",
   avoid: "",
   tone: "friendly",
   discussPricing: false,
@@ -89,6 +95,9 @@ export default function NewWebsitePage() {
             .map((s) => s.trim())
             .filter(Boolean),
           brandColor: form.brandColor,
+          ctaLabel: form.ctaLabel.trim() || null,
+          ctaSelector: form.ctaSelector.trim() || null,
+          ctaUrl: form.ctaUrl.trim() || null,
           // The prompt is generated server-side from these — clients never
           // write raw prompt text.
           profile: {
@@ -151,7 +160,7 @@ export default function NewWebsitePage() {
                 )}
               </Button>
             </div>
-            <p className="text-xs text-slate-500 mt-3">
+            <p className="text-xs text-muted-foreground mt-3">
               It will only run on {origins.join(" and ")} — add more domains in
               settings if you need them.
             </p>
@@ -189,7 +198,7 @@ export default function NewWebsitePage() {
             />
             <p
               className={`text-xs mt-1.5 ${
-                i === step ? "text-slate-200" : "text-slate-500"
+                i === step ? "text-slate-200" : "text-muted-foreground"
               }`}
             >
               {label}
@@ -216,7 +225,7 @@ export default function NewWebsitePage() {
                   className="mt-1"
                 />
                 {siteId && (
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Embed id: <code>{siteId}</code>
                   </p>
                 )}
@@ -235,7 +244,7 @@ export default function NewWebsitePage() {
                   Stated rather than hidden: this is the setting that stops
                   anyone else embedding the same bot on their own site.
                 */}
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   {origins.length
                     ? `The chat will only run on ${origins.join(" and ")}.`
                     : "The chat will only run on the domain you enter here."}
@@ -266,7 +275,7 @@ export default function NewWebsitePage() {
                   rows={3}
                   className="mt-1"
                 />
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   The more specific this is, the less the bot has to guess.
                 </p>
               </div>
@@ -293,6 +302,64 @@ export default function NewWebsitePage() {
                   className="mt-1"
                 />
               </div>
+              {/*
+                Sits with "what should someone do next" because it is the same
+                question asked twice: that field tells the bot what to say, this
+                one gives the visitor a button that takes them there. Asking now
+                is the point — this is the one moment the client is looking at
+                their own page and knows where the form lives.
+              */}
+              <div className="rounded-lg border border-border p-3 space-y-3">
+                <div>
+                  <label className="text-sm font-medium">
+                    Button to your booking or contact form
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Shown once someone has sent a message. There is no
+                    &ldquo;talk to a human&rdquo; option — this sends them
+                    somewhere you&apos;ll actually see them. Leave blank to skip.
+                  </p>
+                </div>
+                <Input
+                  value={form.ctaLabel}
+                  onChange={(e) => set("ctaLabel", e.target.value)}
+                  placeholder="Book a call with the team"
+                  maxLength={40}
+                />
+                <Input
+                  value={form.ctaUrl}
+                  onChange={(e) => set("ctaUrl", e.target.value)}
+                  placeholder="/contact  — or a full link to your booking page"
+                />
+                <details className="group">
+                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-slate-300 select-none">
+                    The form is on this page already?
+                  </summary>
+                  <div className="mt-2">
+                    <Input
+                      value={form.ctaSelector}
+                      onChange={(e) => set("ctaSelector", e.target.value)}
+                      placeholder="#booking-form"
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      The id of the section, written with a{" "}
+                      <code className="text-muted-foreground">#</code> in front. The
+                      chat scrolls there instead of loading a new page — it never
+                      clicks anything for the visitor.
+                    </p>
+                  </div>
+                </details>
+                {form.ctaLabel.trim() &&
+                  !form.ctaUrl.trim() &&
+                  !form.ctaSelector.trim() && (
+                    <p className="text-xs text-amber-400/80">
+                      Add a link or a section id, or the button stays hidden —
+                      it has nowhere to send anyone.
+                    </p>
+                  )}
+              </div>
+
               <div>
                 <label className="text-sm font-medium">
                   Anything it must not say?
@@ -312,7 +379,7 @@ export default function NewWebsitePage() {
                     onChange={(e) =>
                       set("tone", e.target.value as Form["tone"])
                     }
-                    className="mt-1 w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+                    className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
                   >
                     <option value="friendly">Friendly</option>
                     <option value="professional">Professional</option>
@@ -339,7 +406,7 @@ export default function NewWebsitePage() {
                 Let it discuss pricing
               </label>
               {!form.discussPricing && (
-                <p className="text-xs text-slate-500 -mt-2">
+                <p className="text-xs text-muted-foreground -mt-2">
                   It will decline price questions and point people to you — safer
                   than letting it guess a number.
                 </p>
@@ -376,7 +443,7 @@ export default function NewWebsitePage() {
                   </div>
                   <span
                     className={`text-xs ${
-                      contrast.meetsAA ? "text-slate-400" : "text-amber-500"
+                      contrast.meetsAA ? "text-muted-foreground" : "text-amber-500"
                     }`}
                   >
                     {contrast.meetsAA

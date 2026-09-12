@@ -303,7 +303,7 @@ export default function WebsiteEditPage() {
                   </div>
                   <span
                     className={`text-xs ${
-                      c.meetsAA ? "text-slate-400" : "text-amber-500"
+                      c.meetsAA ? "text-muted-foreground" : "text-amber-500"
                     }`}
                   >
                     {c.meetsAA
@@ -320,12 +320,12 @@ export default function WebsiteEditPage() {
           </div>
 
           {/* Launcher & theme */}
-          <div className="rounded-lg border border-slate-700/60 p-3 space-y-3">
+          <div className="rounded-lg border border-border p-3 space-y-3">
             <p className="text-sm font-medium">Launcher &amp; theme</p>
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-xs text-slate-400">Position</label>
+                <label className="text-xs text-muted-foreground">Position</label>
                 <select
                   value={site.launcherPosition}
                   onChange={(e) =>
@@ -334,14 +334,14 @@ export default function WebsiteEditPage() {
                       launcherPosition: e.target.value as "left" | "right",
                     })
                   }
-                  className="mt-1 w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+                  className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
                 >
                   <option value="right">Bottom right</option>
                   <option value="left">Bottom left</option>
                 </select>
               </div>
               <div className="flex-1">
-                <label className="text-xs text-slate-400">
+                <label className="text-xs text-muted-foreground">
                   Edge offset (px)
                 </label>
                 <Input
@@ -358,14 +358,14 @@ export default function WebsiteEditPage() {
                 />
               </div>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Move it out of the way of cookie banners, back-to-top buttons or
               another vendor&apos;s widget.
             </p>
 
             <div className="flex gap-3">
               <div className="w-24">
-                <label className="text-xs text-slate-400">Icon</label>
+                <label className="text-xs text-muted-foreground">Icon</label>
                 <Input
                   value={site.launcherIcon || ""}
                   onChange={(e) =>
@@ -377,7 +377,7 @@ export default function WebsiteEditPage() {
                 />
               </div>
               <div className="flex-1">
-                <label className="text-xs text-slate-400">
+                <label className="text-xs text-muted-foreground">
                   Label (optional — makes it a pill)
                 </label>
                 <Input
@@ -393,7 +393,7 @@ export default function WebsiteEditPage() {
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-xs text-slate-400">Theme</label>
+                <label className="text-xs text-muted-foreground">Theme</label>
                 <select
                   value={site.theme}
                   onChange={(e) =>
@@ -402,7 +402,7 @@ export default function WebsiteEditPage() {
                       theme: e.target.value as "light" | "dark" | "auto",
                     })
                   }
-                  className="mt-1 w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+                  className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
                 >
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
@@ -410,13 +410,13 @@ export default function WebsiteEditPage() {
                 </select>
               </div>
               <div className="flex-1">
-                <label className="text-xs text-slate-400">Font</label>
+                <label className="text-xs text-muted-foreground">Font</label>
                 <select
                   value={site.fontFamily}
                   onChange={(e) =>
                     setSite({ ...site, fontFamily: e.target.value })
                   }
-                  className="mt-1 w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+                  className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
                 >
                   <option value="system">System default</option>
                   <option value="inter">Inter</option>
@@ -425,7 +425,7 @@ export default function WebsiteEditPage() {
                 </select>
               </div>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Fonts are limited to stacks already on the visitor&apos;s device —
               the widget won&apos;t download a font file onto a client&apos;s
               page.
@@ -434,13 +434,13 @@ export default function WebsiteEditPage() {
             {(() => {
               const mayHide = planMayHideBranding(site.organization?.planTier);
               return (
-                <div className="pt-3 border-t border-slate-700/60">
+                <div className="pt-3 border-t border-border">
                   <label className="flex items-center justify-between gap-3">
                     <span>
                       <span className="text-sm font-medium">
                         Hide &ldquo;Powered by&rdquo;
                       </span>
-                      <span className="block text-xs text-slate-400 mt-0.5">
+                      <span className="block text-xs text-muted-foreground mt-0.5">
                         {mayHide
                           ? "Removes the attribution from the bottom of the chat."
                           : "Available on higher plans. The toggle is ignored until then."}
@@ -500,12 +500,12 @@ export default function WebsiteEditPage() {
             one promises something the product does not do. This points at the
             form the client already staffs instead.
           */}
-          <div className="rounded-lg border border-slate-700/60 p-3 space-y-3">
+          <div className="rounded-lg border border-border p-3 space-y-3">
             <div>
               <label className="text-sm font-medium">
                 &ldquo;Talk to us&rdquo; button
               </label>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Appears once the visitor has sent a message. Scrolls them to a
                 form on your page rather than waiting for a person who
                 isn&apos;t there. Leave the label blank to hide it.
@@ -513,7 +513,7 @@ export default function WebsiteEditPage() {
             </div>
 
             <div>
-              <label className="text-xs text-slate-400">Button label</label>
+              <label className="text-xs text-muted-foreground">Button label</label>
               <Input
                 value={site.ctaLabel || ""}
                 onChange={(e) =>
@@ -526,7 +526,7 @@ export default function WebsiteEditPage() {
             </div>
 
             <div>
-              <label className="text-xs text-slate-400">
+              <label className="text-xs text-muted-foreground">
                 Element on your page (CSS selector)
               </label>
               <Input
@@ -537,14 +537,14 @@ export default function WebsiteEditPage() {
                 placeholder="#booking-form"
                 className="mt-1 font-mono text-xs"
               />
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] text-muted-foreground mt-1">
                 The widget scrolls here and focuses the first field. It never
                 clicks anything.
               </p>
             </div>
 
             <div>
-              <label className="text-xs text-slate-400">
+              <label className="text-xs text-muted-foreground">
                 Fallback link (used when that element isn&apos;t on the page)
               </label>
               <Input
@@ -573,11 +573,11 @@ export default function WebsiteEditPage() {
           </div>
 
           {/* Proactive teaser */}
-          <div className="rounded-lg border border-slate-700/60 p-3 space-y-3">
+          <div className="rounded-lg border border-border p-3 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <label className="text-sm font-medium">Proactive message</label>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Shows a prompt beside the launcher after a delay. Skipped for
                   visitors who have already started a conversation.
                 </p>
@@ -603,7 +603,7 @@ export default function WebsiteEditPage() {
                 />
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-xs text-slate-400">
+                    <label className="text-xs text-muted-foreground">
                       Delay (seconds)
                     </label>
                     <Input
@@ -620,7 +620,7 @@ export default function WebsiteEditPage() {
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="text-xs text-slate-400">
+                    <label className="text-xs text-muted-foreground">
                       Show again after (hours, 0 = once only)
                     </label>
                     <Input
@@ -684,7 +684,7 @@ export default function WebsiteEditPage() {
               onChange={(e) =>
                 setSite({ ...site, chatModel: e.target.value || null })
               }
-              className="w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+              className="w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
             >
               <option value="">
                 Plan default — best the organisation&apos;s plan allows
@@ -696,12 +696,12 @@ export default function WebsiteEditPage() {
                 Sonnet 5 — ~2.5x cost, does not invent statistics
               </option>
             </select>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Re-checked against the organisation&apos;s plan on every request,
               so a choice above its tier is ignored rather than honoured — and a
               downgrade takes effect immediately. Starter allows Haiku only.
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Measured over 3 runs each: Haiku invented sales statistics in 2,
               Sonnet in 0 of 6. Prefer Sonnet for anything customer-facing.
             </p>

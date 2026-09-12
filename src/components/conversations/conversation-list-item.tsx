@@ -144,13 +144,13 @@ export function ConversationListItem({
           >
             {primaryName}
           </span>
-          <span className="text-[10px] text-slate-500 shrink-0">
+          <span className="text-[10px] text-muted-foreground shrink-0">
             {formatRelativeTime(lastMessageAt)}
           </span>
         </div>
 
         {showHandleSecondary && (
-          <div className="text-[11px] text-slate-500 truncate -mt-0.5">
+          <div className="text-[11px] text-muted-foreground truncate -mt-0.5">
             @{handle}
           </div>
         )}
@@ -165,7 +165,7 @@ export function ConversationListItem({
           <p
             className={cn(
               "text-xs truncate",
-              !isRead ? "text-slate-300" : "text-slate-500"
+              !isRead ? "text-slate-300" : "text-muted-foreground"
             )}
           >
             {lastMessage || "No messages yet"}

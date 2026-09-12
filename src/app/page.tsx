@@ -4,13 +4,32 @@ import { useEffect, useState } from "react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { RecentCalls } from "@/components/dashboard/recent-calls";
 import { CallbacksList } from "@/components/dashboard/callbacks-list";
-import { Phone, Users, Clock, PhoneIncoming } from "lucide-react";
+import {
+  Phone,
+  Users,
+  Clock,
+  PhoneIncoming,
+  PieChart as PieChartIcon,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { plural } from "@/lib/plural";
+import {
+  CHART_AXIS,
+  CHART_GRID,
+  CHART_SERIES,
+  CHART_TICK,
+  CHART_TOOLTIP,
+  SENTIMENT_COLORS,
+} from "@/lib/chart-theme";
 import {
   PieChart,
   Pie,
   Cell,
   LineChart,
   Line,
+  CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
@@ -50,13 +69,6 @@ interface Callback {
   notes: string | null;
   lead: { name: string | null; phone: string; company: string | null };
 }
-
-const SENTIMENT_COLORS: Record<string, string> = {
-  positive: "#34d399",
-  neutral: "#94a3b8",
-  negative: "#f87171",
-  unknown: "#64748b",
-};
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -98,119 +110,181 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
-        <p className="text-slate-500 mt-1">
-          Overview of your AI call assistant activity
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Dashboard"
+        description="Overview of your AI call assistant activity"
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Calls Today"
+          title="Calls today"
           value={stats?.callsToday || 0}
-          subtitle={`${stats?.callsThisWeek || 0} this week`}
+          subtitle={`${plural(stats?.callsThisWeek || 0, "call")} this week`}
           icon={PhoneIncoming}
         />
         <StatCard
-          title="Total Calls"
+          title="Total calls"
           value={stats?.totalCalls || 0}
-          subtitle={`${stats?.callsThisMonth || 0} this month`}
+          subtitle={`${plural(stats?.callsThisMonth || 0, "call")} this month`}
           icon={Phone}
         />
         <StatCard
-          title="Leads Captured"
+          title="Leads captured"
           value={stats?.totalLeads || 0}
-          subtitle={`${stats?.newLeads || 0} new this week`}
+          subtitle={`${plural(stats?.newLeads || 0, "new lead")} this week`}
           icon={Users}
-          trend="up"
+          // Only call it growth when something actually grew — a green "0 new
+          // leads this week" is worse than no colour at all.
+          trend={(stats?.newLeads || 0) > 0 ? "up" : "neutral"}
         />
         <StatCard
-          title="Avg Duration"
+          title="Avg duration"
           value={formatDuration(stats?.avgDuration || 0)}
-          subtitle={`${stats?.pendingCallbacks || 0} callbacks pending`}
+          subtitle={`${plural(
+            stats?.pendingCallbacks || 0,
+            "callback"
+          )} pending`}
           icon={Clock}
         />
       </div>
 
       {/* Charts Row: Sentiment + Call Volume */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Sentiment Distribution */}
-        <div className="rounded-xl border border-white/10 bg-[#161b22] p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">Sentiment Distribution</h3>
-          {stats?.sentimentDistribution && stats.sentimentDistribution.length > 0 ? (
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.sentimentDistribution}
-                    dataKey="count"
-                    nameKey="sentiment"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={70}
-                    paddingAngle={2}
-                    label={({ name, value }) => `${name} (${value})`}
-                  >
-                    {stats.sentimentDistribution.map((entry) => (
-                      <Cell
-                        key={entry.sentiment}
-                        fill={SENTIMENT_COLORS[entry.sentiment] || "#64748b"}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#0d1117", borderColor: "rgba(255,255,255,0.1)" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500 text-center py-12">No call data yet</p>
-          )}
-        </div>
+        <Card className="gap-0">
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="text-sm font-medium">
+              Sentiment distribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {stats?.sentimentDistribution &&
+            stats.sentimentDistribution.length > 0 ? (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={stats.sentimentDistribution}
+                      dataKey="count"
+                      nameKey="sentiment"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={48}
+                      outerRadius={72}
+                      paddingAngle={2}
+                      stroke="none"
+                      label={({ name, value }) => `${name} (${value})`}
+                      labelLine={false}
+                      // The default label font inherits the SVG's, which is
+                      // larger than anything else on the card and made a
+                      // two-slice chart look like a billboard.
+                      style={{ fontSize: 11, fill: CHART_AXIS }}
+                    >
+                      {stats.sentimentDistribution.map((entry) => (
+                        <Cell
+                          key={entry.sentiment}
+                          fill={SENTIMENT_COLORS[entry.sentiment] || CHART_AXIS}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={CHART_TOOLTIP} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState
+                icon={PieChartIcon}
+                title="No sentiment yet"
+                hint="Once calls come through, this shows how callers sounded — positive, neutral or negative."
+                className="h-52 py-0"
+              />
+            )}
+          </CardContent>
+        </Card>
 
         {/* Call Volume (last 30 days) */}
-        <div className="lg:col-span-2 rounded-xl border border-white/10 bg-[#161b22] p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">Call Volume (Last 30 Days)</h3>
-          {stats?.callVolume && stats.callVolume.length > 0 ? (
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={stats.callVolume}>
-                  <XAxis
-                    dataKey="day"
-                    tickFormatter={(d) => {
-                      try { return format(new Date(d), "MMM d"); } catch { return d; }
-                    }}
-                    tick={{ fontSize: 11, fill: "#94a3b8" }}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#0d1117", borderColor: "rgba(255,255,255,0.1)" }}
-                    labelFormatter={(d) => {
-                      try { return format(new Date(d), "MMM d, yyyy"); } catch { return d; }
-                    }}
-                    formatter={(value) => [value, "Calls"]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#60a5fa"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, fill: "#60a5fa" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500 text-center py-12">No call data yet</p>
-          )}
-        </div>
+        <Card className="lg:col-span-2 gap-0">
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="text-sm font-medium">
+              Call volume
+              <span className="text-muted-foreground font-normal ml-2">
+                last 30 days
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {stats?.callVolume && stats.callVolume.length > 0 ? (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={stats.callVolume}
+                    margin={{ top: 4, right: 8, bottom: 0, left: -20 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={CHART_GRID}
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="day"
+                      tickFormatter={(d) => {
+                        try {
+                          return format(new Date(d), "MMM d");
+                        } catch {
+                          return d;
+                        }
+                      }}
+                      tick={CHART_TICK}
+                      tickLine={false}
+                      axisLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={24}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={CHART_TICK}
+                      tickLine={false}
+                      axisLine={false}
+                      width={40}
+                    />
+                    <Tooltip
+                      contentStyle={CHART_TOOLTIP}
+                      cursor={{ stroke: CHART_GRID }}
+                      labelFormatter={(d) => {
+                        try {
+                          return format(new Date(d), "MMM d, yyyy");
+                        } catch {
+                          return d;
+                        }
+                      }}
+                      formatter={(value) => [value, "Calls"]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke={CHART_SERIES[0]}
+                      strokeWidth={2}
+                      // A single day of data draws no line at all — a lone
+                      // point needs a dot or the chart looks empty, which is
+                      // exactly how it looked.
+                      dot={stats.callVolume.length === 1}
+                      activeDot={{ r: 4, fill: CHART_SERIES[0] }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState
+                icon={Phone}
+                title="No calls yet"
+                hint="Daily call counts appear here as soon as your assistant starts taking calls."
+                className="h-52 py-0"
+              />
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Recent Calls + Callbacks */}

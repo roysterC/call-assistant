@@ -13,9 +13,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Globe, Copy, Check } from "lucide-react";
+import { Globe, Copy, Check, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Site {
   id: string;
@@ -77,19 +79,18 @@ function WebsitesPageInner() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Websites</h1>
-          <p className="text-muted-foreground mt-1">
-            Embeddable chatbots for your websites
-          </p>
-        </div>
-        <Button onClick={() => router.push(`/websites/new${navSuffix}`)}>
-          Add website
-        </Button>
-      </div>
+      <PageHeader
+        title="Websites"
+        description="Embeddable chatbots for your websites"
+        actions={
+          <Button onClick={() => router.push(`/websites/new${navSuffix}`)}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            Add website
+          </Button>
+        }
+      />
 
-      <Card>
+      <Card className="py-0">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -112,15 +113,23 @@ function WebsitesPageInner() {
                 </TableRow>
               ) : sites.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
-                    <Globe className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-muted-foreground">
-                      No chatbot set up yet
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Contact your account manager at DOAI to configure a
-                      chatbot for your website.
-                    </p>
+                  <TableCell colSpan={7} className="p-0">
+                    <EmptyState
+                      icon={Globe}
+                      title="No chatbot set up yet"
+                      hint="Add a website to generate a chatbot and the one-line snippet that puts it on your page."
+                      action={
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            router.push(`/websites/new${navSuffix}`)
+                          }
+                        >
+                          <Plus className="w-4 h-4 mr-1.5" />
+                          Add website
+                        </Button>
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ) : (

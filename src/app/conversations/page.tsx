@@ -15,6 +15,7 @@ import { ConversationListItem } from "@/components/conversations/conversation-li
 import { ContactPanel } from "@/components/conversations/contact-panel";
 import { MessageBubble } from "@/components/conversations/message-bubble";
 import { apiFetch } from "@/lib/api-fetch";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Channel = "whatsapp" | "website" | "instagram" | "facebook";
 
@@ -407,12 +408,12 @@ export default function ConversationsPage() {
       {/* LEFT PANEL */}
       <aside
         className={cn(
-          "flex-col bg-[#161b22] border-r border-white/10 shrink-0",
+          "flex-col bg-card border-r border-border shrink-0",
           "w-full md:w-72 lg:w-80 xl:w-[22rem]",
           mobileView === "list" ? "flex" : "hidden md:flex"
         )}
       >
-        <div className="p-3 border-b border-white/10 shrink-0">
+        <div className="p-3 border-b border-border shrink-0">
           <h2 className="font-semibold text-sm mb-3">Conversations</h2>
 
           {/* Channel tabs */}
@@ -425,7 +426,7 @@ export default function ConversationsPage() {
                   "flex-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors",
                   channelFilter === tab.value
                     ? "bg-white/10 text-white"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                    : "text-muted-foreground hover:text-white hover:bg-white/5"
                 )}
               >
                 {tab.label}
@@ -443,7 +444,7 @@ export default function ConversationsPage() {
                   "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
                   filter === tab.value
                     ? "bg-blue-600/20 text-blue-400"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                    : "text-muted-foreground hover:text-white hover:bg-white/5"
                 )}
               >
                 {tab.label}
@@ -452,12 +453,12 @@ export default function ConversationsPage() {
           </div>
 
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search..."
-              className="pl-8 h-8 text-xs bg-white/5 border-white/10"
+              className="pl-8 h-8 text-xs bg-white/5 border-border"
             />
           </div>
         </div>
@@ -470,7 +471,7 @@ export default function ConversationsPage() {
           ) : conversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
               <MessageCircle className="w-6 h-6 text-slate-600 mb-2" />
-              <p className="text-xs text-slate-500">No conversations found</p>
+              <p className="text-xs text-muted-foreground">No conversations found</p>
             </div>
           ) : (
             conversations.map((conv) => (
@@ -502,9 +503,12 @@ export default function ConversationsPage() {
         )}
       >
         {!selectedId ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8">
-            <MessageCircle className="w-10 h-10 mb-3 text-slate-600" />
-            <p className="text-sm">Select a conversation</p>
+          <div className="flex-1 flex items-center justify-center">
+            <EmptyState
+              icon={MessageCircle}
+              title="Select a conversation"
+              hint="Pick someone from the list to read the thread and reply."
+            />
           </div>
         ) : loadingDetail ? (
           <div className="flex-1 flex items-center justify-center">
@@ -512,7 +516,7 @@ export default function ConversationsPage() {
           </div>
         ) : activeConversation ? (
           <>
-            <header className="px-3 md:px-4 py-3 border-b border-white/10 flex items-center gap-2 shrink-0">
+            <header className="px-3 md:px-4 py-3 border-b border-border flex items-center gap-2 shrink-0">
               <Button
                 variant="ghost"
                 size="sm"
@@ -530,7 +534,7 @@ export default function ConversationsPage() {
                     activeConversation.phoneNumber ||
                     "Unknown"}
                 </h3>
-                <p className="text-[11px] text-slate-500 truncate">
+                <p className="text-[11px] text-muted-foreground truncate">
                   {activeConversation.channel === "website"
                     ? activeConversation.site?.name || "Website"
                     : activeConversation.phoneNumber}
@@ -552,7 +556,7 @@ export default function ConversationsPage() {
               {activeConversation.messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
                   <MessageCircle className="w-6 h-6 text-slate-600 mb-2" />
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     No messages yet in this conversation.
                   </p>
                 </div>
@@ -577,8 +581,8 @@ export default function ConversationsPage() {
               that silently does nothing.
             */}
             {selectedChannel === "website" && (
-              <div className="border-t border-white/10 px-3 pt-2 flex items-center justify-between gap-3 bg-[#161b22]">
-                <span className="text-xs text-slate-400">
+              <div className="border-t border-border px-3 pt-2 flex items-center justify-between gap-3 bg-card">
+                <span className="text-xs text-muted-foreground">
                   {activeConversation.handoffState === "human"
                     ? "You are handling this conversation. The bot is paused."
                     : activeConversation.handoffState === "requested"
@@ -607,7 +611,7 @@ export default function ConversationsPage() {
             {selectedChannel === "website" && (
               <form
                 onSubmit={sendReply}
-                className="border-t border-white/10 p-3 flex gap-2 bg-[#161b22]"
+                className="border-t border-border p-3 flex gap-2 bg-card"
               >
                 <input
                   value={reply}
@@ -615,7 +619,7 @@ export default function ConversationsPage() {
                   placeholder="Reply as a team member..."
                   aria-label="Reply to this conversation"
                   disabled={replying}
-                  className="flex-1 px-3 py-2 text-sm bg-[#0d1117] border border-white/10 rounded-lg text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+                  className="flex-1 px-3 py-2 text-sm bg-background border border-border rounded-lg text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
                 />
                 <Button type="submit" size="sm" disabled={replying || !reply.trim()}>
                   {replying ? "Sending..." : "Send"}
@@ -626,20 +630,23 @@ export default function ConversationsPage() {
         ) : null}
       </section>
 
-      {/* RIGHT PANEL */}
-      <aside className="hidden xl:flex xl:flex-col xl:w-80 2xl:w-96 border-l border-white/10 bg-[#161b22] shrink-0">
-        {contactPanelData ? (
+      {/*
+        RIGHT PANEL — only once there is a contact to show.
+
+        It used to render "No contact selected" beside the message pane's
+        "Select a conversation": two empty states, side by side, saying the same
+        thing twice, which made the screen read as half-broken rather than
+        simply idle. One prompt, in the pane the eye goes to first.
+      */}
+      {contactPanelData && (
+        <aside className="hidden xl:flex xl:flex-col xl:w-80 2xl:w-96 border-l border-border bg-card shrink-0">
           <ContactPanel
             conversation={contactPanelData}
             onToggleStar={toggleStar}
             onResetPersona={resetPersona}
           />
-        ) : (
-          <div className="flex items-center justify-center h-full w-full text-slate-600">
-            <p className="text-xs">No contact selected</p>
-          </div>
-        )}
-      </aside>
+        </aside>
+      )}
 
       {/* Contact panel slide-over */}
       {contactPanelOpen && contactPanelData && (
@@ -649,8 +656,8 @@ export default function ConversationsPage() {
             onClick={() => setContactPanelOpen(false)}
             aria-label="Close contact panel"
           />
-          <div className="w-80 max-w-[85vw] bg-[#161b22] border-l border-white/10 flex flex-col animate-in slide-in-from-right">
-            <div className="px-3 py-2.5 border-b border-white/10 flex items-center justify-between shrink-0">
+          <div className="w-80 max-w-[85vw] bg-card border-l border-border flex flex-col animate-in slide-in-from-right">
+            <div className="px-3 py-2.5 border-b border-border flex items-center justify-between shrink-0">
               <h3 className="font-semibold text-sm">Contact Details</h3>
               <Button
                 variant="ghost"

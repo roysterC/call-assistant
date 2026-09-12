@@ -30,6 +30,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { CalendarClock, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const OUTCOMES: Array<{ value: string; label: string }> = [
   { value: "converted", label: "Converted" },
@@ -133,12 +135,10 @@ export default function CallbacksPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Callbacks</h1>
-        <p className="text-muted-foreground mt-1">
-          Scheduled follow-up calls with customers
-        </p>
-      </div>
+      <PageHeader
+        title="Callbacks"
+        description="Scheduled follow-up calls with customers"
+      />
 
       <div className="flex gap-2">
         {["pending", "completed", "missed"].map((status) => (
@@ -177,9 +177,16 @@ export default function CallbacksPage() {
                 </TableRow>
               ) : callbacks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
-                    <CalendarClock className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-muted-foreground">No {filter} callbacks</p>
+                  <TableCell colSpan={8} className="p-0">
+                    <EmptyState
+                      icon={CalendarClock}
+                      title={`No ${filter} callbacks`}
+                      hint={
+                        filter === "pending"
+                          ? "When a caller asks for a call back, it lands here with the time they wanted."
+                          : `Callbacks you mark as ${filter} will be listed here.`
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ) : (

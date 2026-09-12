@@ -143,8 +143,8 @@ export function Sidebar() {
   const navSuffix = asOrg ? `?asOrg=${asOrg}` : "";
 
   return (
-    <aside className="w-64 bg-[#161b22] text-white flex flex-col min-h-screen border-r border-white/10">
-      <div className="p-6 border-b border-white/10">
+    <aside className="w-64 bg-card text-white flex flex-col min-h-screen border-r border-border">
+      <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
             <Bot className="w-5 h-5" />
@@ -155,7 +155,7 @@ export function Sidebar() {
                 session?.user?.organizationName ||
                 "Call Assistant"}
             </h1>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               {isSuperAdmin && asOrg ? "viewing as super-admin" : "AI CRM"}
             </p>
           </div>
@@ -165,12 +165,12 @@ export function Sidebar() {
         {isSuperAdmin && orgs.length > 0 && (
           <div className="mt-3">
             <DropdownMenu>
-              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10">
+              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs text-slate-300 bg-white/5 hover:bg-white/10 border border-border">
                 <span className="flex items-center gap-1.5">
                   <Building2 className="w-3 h-3" />
                   Switch org
                 </span>
-                <span className="text-slate-500 truncate">
+                <span className="text-muted-foreground truncate">
                   {activeOrg?.slug || "—"}
                 </span>
               </DropdownMenuTrigger>
@@ -184,7 +184,7 @@ export function Sidebar() {
                     className="flex flex-col items-start"
                   >
                     <span className="text-sm">{o.name}</span>
-                    <span className="text-[10px] text-slate-500">{o.slug}</span>
+                    <span className="text-[10px] text-muted-foreground">{o.slug}</span>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -206,7 +206,7 @@ export function Sidebar() {
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
                   isActive
                     ? "bg-blue-600/15 text-blue-400 border border-blue-500/20"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                    : "text-muted-foreground hover:text-white hover:bg-white/5"
                 )}
               >
                 <item.icon
@@ -221,10 +221,10 @@ export function Sidebar() {
           <Link
             href={`/admin/organizations${navSuffix}`}
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mt-4 border-t border-white/10 pt-4",
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mt-4 border-t border-border pt-4",
               pathname?.startsWith("/admin")
                 ? "text-amber-400"
-                : "text-slate-500 hover:text-amber-400 hover:bg-white/5"
+                : "text-muted-foreground hover:text-amber-400 hover:bg-white/5"
             )}
           >
             <Shield className="w-4 h-4" />
@@ -234,7 +234,7 @@ export function Sidebar() {
       </nav>
 
       {/* User menu */}
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3 border-t border-border">
         {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-white/5">
@@ -243,7 +243,7 @@ export function Sidebar() {
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-sm truncate">{user.name || user.email}</p>
-                <p className="text-[10px] text-slate-500 truncate">
+                <p className="text-[10px] text-muted-foreground truncate">
                   {user.email}
                 </p>
               </div>
@@ -251,7 +251,7 @@ export function Sidebar() {
             <DropdownMenuContent side="top" align="start" className="w-56">
               <div className="px-2 py-1.5 text-xs">
                 <p className="font-medium">{user.name || user.email}</p>
-                <p className="text-[10px] text-slate-500">{user.role}</p>
+                <p className="text-[10px] text-muted-foreground">{user.role}</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => (window.location.href = "/settings/account")}>
@@ -267,7 +267,7 @@ export function Sidebar() {
         ) : (
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="w-2 h-2 bg-slate-600 rounded-full" />
-            <span className="text-xs text-slate-500">Not signed in</span>
+            <span className="text-xs text-muted-foreground">Not signed in</span>
           </div>
         )}
       </div>

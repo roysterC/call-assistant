@@ -193,7 +193,7 @@ export default function OrganizationsPage() {
                 placeholder="acme-corp"
                 className="mt-1"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-muted-foreground mt-1">
                 Lowercase alphanumeric with dashes
               </p>
             </div>

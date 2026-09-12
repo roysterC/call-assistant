@@ -22,6 +22,8 @@ import {
   type Channel,
 } from "@/lib/channels";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface SocialContact {
   channel: "instagram" | "facebook";
@@ -160,46 +162,63 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Leads</h1>
-        <p className="text-muted-foreground mt-1">
-          Customer contacts captured across all channels
-        </p>
-      </div>
+      <PageHeader
+        title="Leads"
+        description="Customer contacts captured across all channels"
+      />
 
-      <Card>
+      <Card className="py-0">
         <CardContent className="p-0">
+          {/*
+            The Email column is gone, and with it the horizontal scrollbar.
+
+            For a website lead the Contact cell's second line already *is* the
+            email — displayIdentifier() returns it — so every row printed the
+            same address twice, and those duplicated ~180px were what pushed
+            the table past the width of the page. Phone leads keep their email:
+            it moved into the contact cell alongside the number.
+          */}
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Contact</TableHead>
                 <TableHead>Channel</TableHead>
-                <TableHead>Email</TableHead>
                 <TableHead>Company</TableHead>
                 <TableHead>Issue</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Calls</TableHead>
+                <TableHead className="text-right">Calls</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={7} className="text-center py-12">
                     <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : leads.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
-                    <Users className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-muted-foreground">No leads captured yet</p>
+                  <TableCell colSpan={7} className="p-0">
+                    <EmptyState
+                      icon={Users}
+                      title="No leads captured yet"
+                      hint="A lead appears here as soon as someone leaves their details on a call or in a chat."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
                 leads.map((lead) => {
                   const name = displayName(lead);
                   const identifier = displayIdentifier(lead);
+                  // The dropped Email column's job. The identifier is already
+                  // the email for website leads, so appending it again would
+                  // just reinstate the duplication in a smaller font; a phone
+                  // lead that also has an email gets both.
+                  const secondary =
+                    lead.email && lead.email !== identifier
+                      ? `${identifier} · ${lead.email}`
+                      : identifier;
                   const channel = sourceToChannel(lead.source);
                   const channelMeta = CHANNEL_META[channel];
                   const ChannelIcon = channelMeta.icon;
@@ -241,7 +260,7 @@ export default function LeadsPage() {
                               {name}
                             </div>
                             <div className="text-xs text-muted-foreground truncate">
-                              {identifier}
+                              {secondary}
                             </div>
                           </div>
                         </div>
@@ -262,10 +281,9 @@ export default function LeadsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {lead.email || "—"}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {lead.company || "—"}
+                        {lead.company || (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell
                         className={`text-sm text-muted-foreground cursor-pointer ${
