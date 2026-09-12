@@ -133,6 +133,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    /*
+     * Refuse while the chatbot feature is off for this organisation.
+     *
+     * Without this the whole setup succeeded and produced a dead widget: the
+     * site was created, a prompt generated, the embed snippet handed over —
+     * and then /api/website-chat/config answered 404 "Site not found or
+     * disabled" to every visitor. A client's developer reads that as a wrong
+     * site id and comes back asking what they typed wrong, when the real
+     * answer is that nobody switched their account on.
+     *
+     * Blocking applies to super-admins too. They are the ones who enable the
+     * feature, so hitting this means the step was skipped, and the message
+     * says which step.
+     */
+    const settings = await prisma.organizationSettings.findUnique({
+      where: { organizationId },
+      select: { chatbotEnabled: true },
+    });
+    if (!settings?.chatbotEnabled) {
+      return NextResponse.json(
+        {
+          error:
+            "The website chatbot is not enabled for this organisation. Turn it on under Features and prompts first — a site created now would serve a widget that cannot load.",
+        },
+        { status: 409 }
+      );
+    }
+
     const org = await prisma.organization.findUnique({
       where: { id: organizationId },
       select: { id: true },
