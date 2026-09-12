@@ -36,11 +36,16 @@ export function MessageBubble({
       )}
       <div
         className={cn(
-          // Two caps, not one. The percentage keeps the bubble from touching
-          // the far edge on a narrow pane; the character measure stops a long
-          // reply running to 90-odd characters a line on a wide one, which is
-          // well past readable and was how every bot answer rendered.
-          "max-w-[75%] [max-inline-size:52ch] rounded-2xl px-4 py-2.5 text-sm",
+          // Whichever is smaller. The percentage keeps the bubble off the far
+          // edge on a narrow pane; the character measure stops a long reply
+          // running to 90-odd characters a line on a wide one, which is well
+          // past readable and was how every bot answer rendered.
+          //
+          // min() rather than two classes: max-w and max-inline-size are the
+          // same property, so declaring both does not apply both — the later
+          // one in the generated CSS simply wins, and the percentage was being
+          // dropped.
+          "max-w-[min(75%,52ch)] rounded-2xl px-4 py-2.5 text-sm",
           isUser && "bg-blue-600 text-white",
           isUser && (showTail ? "rounded-br-md" : "rounded-br-2xl"),
           isAgent &&
