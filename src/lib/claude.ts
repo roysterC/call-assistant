@@ -423,14 +423,28 @@ async function getChatResponseAPI(
         { role: "user", content: toolResults as any },
       ],
     });
-    console.log(
-      `[CLAUDE] follow-up stop_reason=${followUp.stop_reason}`
-    );
-
     const followText = (followUp.content as ContentBlock[]).find(
       (b): b is TextBlock => b.type === "text"
     );
-    return followText?.text || "Sorry, I was unable to generate a response.";
+
+    // Claude often writes its reply alongside the tool call in the first
+    // response, then returns nothing but an end_turn after the tool result —
+    // it has already said its piece. Falling straight through to the error
+    // string there threw away a perfectly good reply and showed the visitor
+    // "Sorry, I was unable to generate a response" on the exact turn we
+    // captured their details, which is the worst possible moment for it.
+    const firstText = firstContent.find(
+      (b): b is TextBlock => b.type === "text"
+    );
+    const resolved = followText?.text || firstText?.text;
+
+    console.log(
+      `[CLAUDE] follow-up stop_reason=${followUp.stop_reason} ` +
+        `follow_text=${followText ? "y" : "n"} ` +
+        `used=${followText?.text ? "follow-up" : firstText?.text ? "first-turn" : "none"}`
+    );
+
+    return resolved || "Sorry, I was unable to generate a response.";
   }
 
   const textBlock = firstContent.find(
