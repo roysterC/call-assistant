@@ -119,9 +119,12 @@ function markTeaserShown(siteId: string) {
 
 interface Message {
   id: string;
-  role: "user" | "assistant";
+  /** "agent" is a human operator replying from the CRM. */
+  role: "user" | "assistant" | "agent";
   content: string;
 }
+
+type HandoffState = "bot" | "requested" | "human";
 
 function getSessionId(siteId: string): string {
   const key = `doai-chat-session-${siteId}`;
@@ -219,6 +222,7 @@ function EmbedContent() {
   const [mode, setMode] = useState<WidgetMode>("bubble");
   const [showTeaser, setShowTeaser] = useState(false);
   const [hasPriorHistory, setHasPriorHistory] = useState(false);
+  const [handoff, setHandoff] = useState<HandoffState>("bot");
   // Screen readers get the finished reply once, rather than every token of a
   // streaming one — a live region attached to the streaming bubble itself
   // re-announces on each chunk and is unusable.
@@ -267,10 +271,16 @@ function EmbedContent() {
         const restored: Message[] = (hist?.messages ?? []).map(
           (m: { id: string; role: string; content: string }) => ({
             id: m.id,
-            role: m.role === "user" ? "user" : "assistant",
+            role:
+              m.role === "user"
+                ? "user"
+                : m.role === "agent"
+                ? "agent"
+                : "assistant",
             content: m.content,
           })
         );
+        if (hist?.handoffState) setHandoff(hist.handoffState as HandoffState);
 
         // Keep the greeting as the opener so a returning visitor sees the
         // same conversation they left, rather than one that starts mid-air.
@@ -368,6 +378,85 @@ function EmbedContent() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  /**
+   * While open, poll for messages an operator may have sent from the CRM.
+   *
+   * The widget has no push channel, so without this a human reply would sit
+   * unseen until the visitor reloaded the page. Suspended entirely while a
+   * reply is streaming — a poll landing mid-stream would replace the partial
+   * bubble with the server's view and the text would visibly jump — and while
+   * the tab is hidden, since nobody is reading it.
+   */
+  useEffect(() => {
+    if (!isOpen || sending || !siteId || !sessionId) return;
+
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      try {
+        const res = await fetch(
+          `/api/website-chat/history?siteId=${encodeURIComponent(
+            siteId
+          )}&sessionId=${encodeURIComponent(sessionId)}`
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (data.handoffState) setHandoff(data.handoffState as HandoffState);
+
+        const restored: Message[] = (data.messages ?? []).map(
+          (m: { id: string; role: string; content: string }) => ({
+            id: m.id,
+            role:
+              m.role === "user"
+                ? "user"
+                : m.role === "agent"
+                ? "agent"
+                : "assistant",
+            content: m.content,
+          })
+        );
+        const opener: Message[] = config?.greeting
+          ? [{ id: "greeting", role: "assistant", content: config.greeting }]
+          : [];
+        const next = [...opener, ...restored];
+        // Only adopt the server's view when it genuinely has more than we are
+        // showing, so a poll can never shorten the visible transcript.
+        setMessages((prev) => (next.length > prev.length ? next : prev));
+      } catch {
+        /* transient network failure — the next tick tries again */
+      }
+    }, 6000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isOpen, sending, siteId, sessionId, config]);
+
+  const requestHandoff = useCallback(async () => {
+    if (!siteId || !sessionId) return;
+    setHandoff("requested");
+    try {
+      const res = await fetch("/api/website-chat/handoff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteId, sessionId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.handoffState) setHandoff(data.handoffState as HandoffState);
+      } else {
+        // Don't leave the visitor believing a person was called when nothing
+        // was recorded.
+        setHandoff("bot");
+      }
+    } catch {
+      setHandoff("bot");
+    }
+  }, [siteId, sessionId]);
 
   // Move focus into the panel on open and hand it back to the launcher on
   // close. Without this a keyboard user opens the chat and their focus is
@@ -691,10 +780,23 @@ function EmbedContent() {
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex ${
-              msg.role === "user" ? "justify-end" : "justify-start"
+            className={`flex flex-col ${
+              msg.role === "user" ? "items-end" : "items-start"
             }`}
           >
+            {/*
+              A visitor who asked for a person needs to see, unambiguously,
+              that one has arrived — otherwise the handoff is invisible and
+              they assume they are still talking to the bot.
+            */}
+            {msg.role === "agent" && (
+              <span
+                className="text-[10px] font-medium mb-0.5 px-1"
+                style={{ color: pal.chipText }}
+              >
+                {config.name} team
+              </span>
+            )}
             <div
               className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words ${
                 msg.role === "user" ? "rounded-br-md" : "border rounded-bl-md"
@@ -705,7 +807,11 @@ function EmbedContent() {
                   : {
                       backgroundColor: pal.botBubble,
                       color: pal.botText,
-                      borderColor: pal.botBorder,
+                      // Human replies carry the brand colour on their border,
+                      // so they read as distinct from the bot at a glance
+                      // without needing a different bubble colour.
+                      borderColor:
+                        msg.role === "agent" ? brandColor : pal.botBorder,
                     }
               }
             >
@@ -762,6 +868,33 @@ function EmbedContent() {
             ))}
           </div>
         )}
+
+      {/*
+        Handoff control. Only offered once the visitor has actually said
+        something: the handoff endpoint needs a conversation to flag, and
+        asking for a person before saying anything is an odd thing to offer.
+      */}
+      {handoff === "bot" ? (
+        messages.some((m) => m.role === "user") && (
+          <button
+            onClick={requestHandoff}
+            className="px-3 pb-1.5 text-[11px] text-left underline underline-offset-2 hover:opacity-80 transition-opacity"
+            style={{ color: pal.chipText, backgroundColor: pal.msgArea }}
+          >
+            Talk to a person
+          </button>
+        )
+      ) : (
+        <div
+          role="status"
+          className="px-3 py-1.5 text-[11px]"
+          style={{ backgroundColor: pal.msgArea, color: pal.chipText }}
+        >
+          {handoff === "requested"
+            ? "Someone from the team has been notified. Their reply will appear here."
+            : "You're now talking to the team."}
+        </div>
+      )}
 
       {/* Input */}
       <form

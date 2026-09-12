@@ -116,6 +116,25 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Once a person is involved the bot stays quiet. The visitor's message is
+    // still stored and still surfaces in the inbox — they can keep typing
+    // while they wait — but generating a reply over a waiting human is the
+    // most irritating thing a widget can do, and it also spends tokens on a
+    // conversation nobody wants the model in.
+    if (conversation.handoffState !== "bot") {
+      await prisma.websiteConversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date(), isRead: false },
+      });
+      return new Response(
+        JSON.stringify({ handoffState: conversation.handoffState }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Load conversation history. Honour per-conversation persona reset
     // (see WhatsApp handler for rationale): if the admin set
     // personaResetAt after changing the site's system prompt, only feed

@@ -73,12 +73,15 @@ export async function GET(req: NextRequest) {
     // must not resolve through this one.
     const conversation = await prisma.websiteConversation.findFirst({
       where: { sessionId, siteId },
-      select: { id: true },
+      select: { id: true, handoffState: true },
     });
 
     // No prior conversation is the normal first-visit case, not an error.
     if (!conversation) {
-      return NextResponse.json({ messages: [] }, { headers });
+      return NextResponse.json(
+        { messages: [], handoffState: "bot" },
+        { headers }
+      );
     }
 
     // Take the most recent slice, then restore chronological order — a long
@@ -91,7 +94,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(
-      { messages: recent.reverse() },
+      { messages: recent.reverse(), handoffState: conversation.handoffState },
       { headers }
     );
   } catch (err) {

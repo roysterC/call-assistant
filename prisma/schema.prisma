@@ -237,6 +237,13 @@ model WhatsAppConversation {
   isRead         Boolean  @default(false)
   starred        Boolean  @default(false)
   lastMessageAt  DateTime @default(now())
+
+  // Human handoff. "bot" is the normal state; "requested" means the visitor
+  // asked for a person and the bot has stopped answering; "human" means an
+  // operator has actually replied. The bot stays silent in both non-bot
+  // states — answering over a waiting human is worse than a slow reply.
+  handoffState       String    @default("bot")
+  handoffRequestedAt DateTime?
   messages       WhatsAppMessage[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

@@ -108,6 +108,8 @@ export default function ConversationsPage() {
     useState<ConversationDetail | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<Channel>("whatsapp");
+  const [reply, setReply] = useState("");
+  const [replying, setReplying] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
   // `search` is what the user is typing right now; `searchDebounced` is
@@ -205,6 +207,38 @@ export default function ConversationsPage() {
       // Background refresh — swallow errors silently.
     }
   }, [selectedId, selectedChannel]);
+
+  /**
+   * Send an operator reply. This also takes the conversation over from the
+   * bot server-side, so the model stops answering the moment a person does.
+   */
+  const sendReply = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const text = reply.trim();
+      if (!text || !selectedId || replying) return;
+      setReplying(true);
+      try {
+        const res = await apiFetch(
+          `/api/conversations/${selectedId}/reply?channel=${selectedChannel}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: text }),
+          }
+        );
+        if (!res.ok) throw new Error("Reply failed");
+        setReply("");
+        await refetchActive();
+      } catch (err) {
+        console.error("Failed to send reply:", err);
+        alert("Failed to send reply");
+      } finally {
+        setReplying(false);
+      }
+    },
+    [reply, selectedId, selectedChannel, replying, refetchActive]
+  );
 
   // Poll every 15s for new messages on the list and on the active
   // conversation. Skips ticks when the tab is hidden so we don't spam the
@@ -495,6 +529,32 @@ export default function ConversationsPage() {
               )}
               <div ref={messagesEndRef} />
             </div>
+
+            {/*
+              Operator composer. Website only — WhatsApp, Instagram and
+              Facebook replies have to go back out through their own provider
+              APIs rather than just being written to the transcript, so they
+              are a separate piece of work rather than a disabled-looking box
+              that silently does nothing.
+            */}
+            {selectedChannel === "website" && (
+              <form
+                onSubmit={sendReply}
+                className="border-t border-white/10 p-3 flex gap-2 bg-[#161b22]"
+              >
+                <input
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  placeholder="Reply as a team member..."
+                  aria-label="Reply to this conversation"
+                  disabled={replying}
+                  className="flex-1 px-3 py-2 text-sm bg-[#0d1117] border border-white/10 rounded-lg text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+                />
+                <Button type="submit" size="sm" disabled={replying || !reply.trim()}>
+                  {replying ? "Sending..." : "Send"}
+                </Button>
+              </form>
+            )}
           </>
         ) : null}
       </section>
