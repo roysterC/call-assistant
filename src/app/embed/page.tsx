@@ -291,6 +291,20 @@ function EmbedContent() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          // Submit on Enter explicitly rather than relying on the form's
+          // implicit submission, which was not firing in practice — people
+          // expect Enter to send in a chat box, and having to reach for the
+          // button is the kind of friction that loses a conversation.
+          //
+          // isComposing guards IME input (Japanese, Chinese, Korean): Enter
+          // there confirms a candidate word and must not send the message.
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.shiftKey) return;
+            if (e.nativeEvent.isComposing) return;
+            e.preventDefault();
+            if (sending || !input.trim()) return; // mirror the Send button
+            sendMessage(input);
+          }}
           placeholder="Type a message..."
           disabled={sending}
           className="flex-1 px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
