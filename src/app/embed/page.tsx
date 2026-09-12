@@ -793,7 +793,22 @@ function EmbedContent() {
       className={`w-full h-full flex flex-col overflow-hidden ${
         mode === "fullscreen" ? "" : "rounded-2xl shadow-2xl"
       }`}
-      style={{ backgroundColor: pal.panel, fontFamily }}
+      /*
+        The scrollbar colours are set here rather than inherited.
+        globals.css defines them per palette, but this page renders inside the
+        CRM's root layout, which carries `dark` permanently — the same reason
+        the palettes above are explicit instead of Tailwind `dark:` variants.
+        Inheriting would give a client who chose a light widget a scrollbar
+        styled for a near-black panel.
+      */
+      style={
+        {
+          backgroundColor: pal.panel,
+          fontFamily,
+          "--scrollbar-thumb": pal.chipBorder,
+          "--scrollbar-thumb-hover": pal.chipText,
+        } as React.CSSProperties
+      }
     >
       {/* Header */}
       <div

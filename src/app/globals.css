@@ -73,6 +73,10 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+  /* Dark thumb on a light surface. The CRM never renders light, but the embed
+     widget does, and it shares this stylesheet. */
+  --scrollbar-thumb: oklch(0 0 0 / 20%);
+  --scrollbar-thumb-hover: oklch(0 0 0 / 32%);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -127,6 +131,10 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  /* Slightly stronger than --border (10%): a border only has to be noticed,
+     a scrollbar has to be grabbable. */
+  --scrollbar-thumb: oklch(1 0 0 / 16%);
+  --scrollbar-thumb-hover: oklch(1 0 0 / 28%);
 }
 
 @layer base {
@@ -138,5 +146,54 @@
   }
   html {
     @apply font-sans;
+  }
+
+  /*
+   * Scrollbars.
+   *
+   * The default ones are drawn by the OS and take no notice of the theme: a
+   * pale grey gutter and a chunky light thumb down the side of a near-black
+   * panel, which is the single loudest thing on the conversations list.
+   *
+   * Both syntaxes are needed and neither is redundant. `scrollbar-color` is
+   * the standard property — Firefox has only ever supported this, and it is
+   * what newer Chromium and Safari honour. The ::-webkit-scrollbar
+   * pseudo-elements cover the Chromium and Safari versions that predate it,
+   * and give control the standard property does not have (width, radius).
+   * Where both apply the standard one wins, which is why their colours match.
+   *
+   * Thumb only: the track stays transparent so no gutter is painted, and the
+   * bar simply appears over whatever is behind it.
+   */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 999px;
+    /* A transparent border with background-clip insets the thumb, so it reads
+       as a slim bar with breathing room rather than filling the channel. */
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+
+  /* Stops the two bars meeting in an odd little grey square. */
+  *::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }
