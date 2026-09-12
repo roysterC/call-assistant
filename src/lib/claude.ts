@@ -279,6 +279,16 @@ const CHAT_MODELS = {
   "claude-haiku-4-5": {
     model: "claude-haiku-4-5",
     // No `thinking` and no `output_config` — both are rejected on this model.
+    //
+    // Also expect cache_read/cache_write to stay 0 on this model: Haiku 4.5
+    // requires a 4096-token minimum cacheable prefix and our system prompt
+    // tokenizes to ~3970 here, so the cache_control marker below is silently
+    // ignored. No error, just no caching. (The same prompt is ~5546 tokens
+    // under Sonnet's tokenizer, comfortably over its 1024 minimum.)
+    //
+    // Don't pad the prompt to cross the threshold — for the sporadic traffic
+    // this default exists to serve, a cold Sonnet request costs more than an
+    // uncached Haiku one anyway.
   },
   "claude-sonnet-5": {
     model: "claude-sonnet-5",
