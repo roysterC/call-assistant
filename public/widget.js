@@ -190,6 +190,9 @@
       state = Number(e.data.width) > BUBBLE ? "open" : "bubble";
     }
 
+    if (typeof e.data.title === "string" && e.data.title) {
+      iframe.title = e.data.title;
+    }
     if (e.data.position === "left" || e.data.position === "right") {
       placement.position = e.data.position;
     }

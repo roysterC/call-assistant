@@ -181,6 +181,8 @@ interface Placement {
   offset: number;
   bubbleWidth: number;
   bubbleHeight: number;
+  /** Names the iframe for screen readers — "Chat" alone says very little. */
+  title?: string;
 }
 
 function postResizeToParent(state: WidgetState, p: Placement) {
@@ -196,6 +198,7 @@ function postResizeToParent(state: WidgetState, p: Placement) {
         open: state === "open",
         position: p.position,
         offset: p.offset,
+        title: p.title,
         ...size,
       },
       "*"
@@ -216,6 +219,15 @@ function EmbedContent() {
   const [mode, setMode] = useState<WidgetMode>("bubble");
   const [showTeaser, setShowTeaser] = useState(false);
   const [hasPriorHistory, setHasPriorHistory] = useState(false);
+  // Screen readers get the finished reply once, rather than every token of a
+  // streaming one — a live region attached to the streaming bubble itself
+  // re-announces on each chunk and is unusable.
+  const [announcement, setAnnouncement] = useState("");
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wasSending = useRef(false);
+  const wasOpen = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load config + restore any prior transcript.
@@ -285,6 +297,7 @@ function EmbedContent() {
           : 20,
       bubbleWidth: size.width,
       bubbleHeight: size.height,
+      title: config?.botName ? `Chat with ${config.botName}` : undefined,
     });
   }, [isOpen, showTeaser, config]);
 
@@ -355,6 +368,30 @@ function EmbedContent() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Move focus into the panel on open and hand it back to the launcher on
+  // close. Without this a keyboard user opens the chat and their focus is
+  // still on a button that no longer exists.
+  useEffect(() => {
+    if (isOpen && !wasOpen.current) {
+      // After paint, so the input actually exists to receive focus.
+      requestAnimationFrame(() => inputRef.current?.focus());
+    } else if (!isOpen && wasOpen.current) {
+      requestAnimationFrame(() => launcherRef.current?.focus());
+    }
+    wasOpen.current = isOpen;
+  }, [isOpen]);
+
+  // Announce a reply once it has finished streaming.
+  useEffect(() => {
+    if (wasSending.current && !sending) {
+      const last = messages[messages.length - 1];
+      if (last?.role === "assistant" && last.content) {
+        setAnnouncement(last.content);
+      }
+    }
+    wasSending.current = sending;
+  }, [sending, messages]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -483,8 +520,11 @@ function EmbedContent() {
     const size = launcherSize(config.launcherLabel);
     const launcher = (
       <button
+        ref={launcherRef}
         onClick={() => setIsOpen(true)}
-        className={`rounded-full flex items-center justify-center gap-2 px-4 shadow-lg hover:scale-105 transition-transform ${
+        aria-haspopup="dialog"
+        aria-expanded={false}
+        className={`rounded-full flex items-center justify-center gap-2 px-4 shadow-lg hover:scale-105 motion-reduce:hover:scale-100 motion-reduce:transition-none transition-transform ${
           showTeaser ? "shrink-0" : "w-full h-full"
         }`}
         style={{
@@ -565,6 +605,36 @@ function EmbedContent() {
     // Full-screen fills a square iframe, so its own rounding would show
     // transparent notches at the corners.
     <div
+      ref={panelRef}
+      role="dialog"
+      // Only the full-screen presentation is genuinely modal. The desktop
+      // panel sits in the corner and leaves the page usable behind it, so
+      // claiming aria-modal there would wrongly tell a screen reader the rest
+      // of the page had gone away.
+      aria-modal={mode === "fullscreen" ? true : undefined}
+      aria-label={`Chat with ${config.botName}`}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          setIsOpen(false);
+          return;
+        }
+        // Trap Tab only while modal. Trapping in the corner panel would strand
+        // a keyboard user inside a widget they never asked to be captured by.
+        if (e.key !== "Tab" || mode !== "fullscreen") return;
+        const focusables = panelRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusables || focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }}
       className={`w-full h-full flex flex-col overflow-hidden ${
         mode === "fullscreen" ? "" : "rounded-2xl shadow-2xl"
       }`}
@@ -611,6 +681,8 @@ function EmbedContent() {
 
       {/* Messages */}
       <div
+        role="log"
+        aria-label="Conversation"
         className="flex-1 overflow-y-auto p-3 space-y-2.5"
         style={{ backgroundColor: pal.msgArea }}
       >
@@ -636,16 +708,31 @@ function EmbedContent() {
               }
             >
               {msg.content || (
-                <span className="inline-flex gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
+                <span className="inline-flex gap-1" aria-label="Typing">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce motion-reduce:animate-none" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce motion-reduce:animate-none [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce motion-reduce:animate-none [animation-delay:300ms]" />
                 </span>
               )}
             </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
+      </div>
+
+      {/*
+        Off-screen announcer. Kept separate from the message list so a screen
+        reader hears each reply once, complete — attaching a live region to the
+        streaming bubble re-announces it on every token.
+      */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only absolute w-px h-px overflow-hidden whitespace-nowrap"
+        style={{ clip: "rect(0 0 0 0)" }}
+      >
+        {announcement}
       </div>
 
       {/* Quick replies (only show before any user message) */}
@@ -707,13 +794,28 @@ function EmbedContent() {
             if (sending || !input.trim()) return; // mirror the Send button
             sendMessage(input);
           }}
+          ref={inputRef}
           placeholder="Type a message..."
+          // A placeholder is not an accessible name — it disappears the moment
+          // anything is typed and some screen readers never announce it.
+          aria-label="Type a message"
           disabled={sending}
-          className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 disabled:opacity-50"
+          className="flex-1 px-3 py-2 text-sm border rounded-lg outline-none disabled:opacity-50"
           style={{
             backgroundColor: pal.subtle,
             color: pal.inputText,
             borderColor: pal.inputBorder,
+          }}
+          // The focus ring is drawn in the brand colour rather than left to a
+          // Tailwind default, so it stays visible on both light and dark
+          // panels whatever the client picked.
+          onFocus={(e) => {
+            e.currentTarget.style.boxShadow = `0 0 0 2px ${brandColor}`;
+            e.currentTarget.style.borderColor = brandColor;
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.boxShadow = "";
+            e.currentTarget.style.borderColor = pal.inputBorder;
           }}
         />
         <button
