@@ -747,7 +747,7 @@ export default function WebsiteEditPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center justify-between">
-              <span>System Prompt</span>
+              <span>System prompt</span>
               <Badge variant="outline" className="text-[10px]">
                 {site.systemPrompt.length} chars
               </Badge>
