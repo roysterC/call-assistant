@@ -18,6 +18,7 @@ interface Site {
   name: string;
   botName: string;
   systemPrompt: string;
+  chatModel: string | null;
   greeting: string | null;
   quickReplies: string[];
   brandColor: string;
@@ -94,6 +95,7 @@ export default function WebsiteEditPage() {
       // Only super-admins are allowed to change the system prompt.
       if (isSuperAdmin) {
         body.systemPrompt = site.systemPrompt;
+        body.chatModel = site.chatModel;
       }
 
       const res = await apiFetch(`/api/websites/${site.id}`, {
@@ -545,6 +547,42 @@ export default function WebsiteEditPage() {
           </div>
         </CardContent>
       </Card>
+
+      {isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Model</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <select
+              value={site.chatModel || ""}
+              onChange={(e) =>
+                setSite({ ...site, chatModel: e.target.value || null })
+              }
+              className="w-full h-9 rounded-md border border-slate-700 bg-transparent px-2 text-sm"
+            >
+              <option value="">
+                Plan default — best the organisation&apos;s plan allows
+              </option>
+              <option value="claude-haiku-4-5">
+                Haiku 4.5 — cheaper, weaker instruction-following
+              </option>
+              <option value="claude-sonnet-5">
+                Sonnet 5 — ~2.5x cost, does not invent statistics
+              </option>
+            </select>
+            <p className="text-xs text-slate-500">
+              Re-checked against the organisation&apos;s plan on every request,
+              so a choice above its tier is ignored rather than honoured — and a
+              downgrade takes effect immediately. Starter allows Haiku only.
+            </p>
+            <p className="text-xs text-slate-500">
+              Measured over 3 runs each: Haiku invented sales statistics in 2,
+              Sonnet in 0 of 6. Prefer Sonnet for anything customer-facing.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {isSuperAdmin && (
         <Card>

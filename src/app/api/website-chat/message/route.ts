@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getChatResponse } from "@/lib/claude";
+import { getChatResponse, resolveModelForSite } from "@/lib/claude";
 import {
   checkCORS,
   corsHeaders,
@@ -38,9 +38,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Load site config
+    // Load site config, plus the org's plan — the model choice is re-clamped
+    // against it on every request rather than trusted from the stored row, so
+    // a downgrade takes effect immediately.
     const site = await prisma.websiteConfig.findUnique({
       where: { siteId },
+      include: { organization: { select: { planTier: true } } },
     });
 
     if (!site || !site.enabled) {
@@ -140,6 +143,10 @@ export async function POST(req: NextRequest) {
     // a lead yet still rely on the marker flow below.
     const rawResponse = await getChatResponse(chatMessages, site.systemPrompt, {
       organizationId: site.organizationId,
+      chatModel: resolveModelForSite(
+        site.organization?.planTier,
+        site.chatModel
+      ),
       allowCLI: true,
       extractToLead: conversation.leadId
         ? { leadId: conversation.leadId }

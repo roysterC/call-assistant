@@ -311,6 +311,11 @@ model WebsiteConfig {
   theme      String @default("light") // "light" | "dark" | "auto"
   fontFamily String @default("system") // see FONT_STACKS in the embed page
 
+  // Which Claude model answers for this site. null means "best the plan
+  // allows". Always re-clamped against the org's planTier at request time, so
+  // a stored choice cannot outlive a downgrade.
+  chatModel String?
+
   // Proactive teaser: a small prompt that appears beside the collapsed
   // launcher after a delay, to open a conversation rather than waiting to be
   // found. Off by default — an unsolicited popup on a client's site is their

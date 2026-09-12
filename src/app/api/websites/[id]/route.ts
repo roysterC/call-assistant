@@ -27,7 +27,9 @@ const TENANT_FIELDS = [
   "fontFamily",
 ];
 // Fields only super-admins can edit
-const SUPER_ADMIN_FIELDS = ["systemPrompt"];
+// chatModel is a pricing lever, not a customer preference — a plan decides
+// what a site gets, and the request path re-clamps it regardless.
+const SUPER_ADMIN_FIELDS = ["systemPrompt", "chatModel"];
 
 export async function GET(
   req: NextRequest,

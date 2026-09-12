@@ -16,6 +16,11 @@ interface ChatOptions {
   organizationId?: string;
   allowCLI?: boolean;
   /**
+   * Model for this request, already clamped to the caller's plan by
+   * resolveModelForSite(). Overridden by CHAT_MODEL in the environment.
+   */
+  chatModel?: ChatModelName;
+  /**
    * Which messaging channel triggered this — used by the CLI path to
    * label the trailing instruction ("Be concise — this is a {channel}
    * message"). API path doesn't need it; the system prompt carries the
@@ -297,20 +302,79 @@ const CHAT_MODELS = {
   },
 } as const;
 
-type ChatModelName = keyof typeof CHAT_MODELS;
+export type ChatModelName = keyof typeof CHAT_MODELS;
+
+export const CHAT_MODEL_NAMES = Object.keys(CHAT_MODELS) as ChatModelName[];
 
 /** Change this one line to switch models (or set CHAT_MODEL in .env). */
 const DEFAULT_CHAT_MODEL: ChatModelName = "claude-haiku-4-5";
 
-function resolveChatModel() {
+/**
+ * Which models each plan may use, cheapest first.
+ *
+ * This is the pricing lever: without it a starter customer simply selects the
+ * expensive model in their own site settings. Unknown tiers deliberately fall
+ * back to the most restrictive list rather than the most permissive — a typo
+ * in a plan name should cost us nothing.
+ */
+export const PLAN_MODELS: Record<string, ChatModelName[]> = {
+  starter: ["claude-haiku-4-5"],
+  pro: ["claude-haiku-4-5", "claude-sonnet-5"],
+  // Bespoke arrangements get the full set.
+  custom: ["claude-haiku-4-5", "claude-sonnet-5"],
+};
+
+export function modelsForPlan(planTier: string | null | undefined) {
+  return PLAN_MODELS[planTier ?? ""] ?? PLAN_MODELS.starter;
+}
+
+/**
+ * Resolve the model for a request, clamped to the plan.
+ *
+ * Re-clamped on every request rather than validated only on save: a customer
+ * who downgrades must degrade to their new plan's model immediately, without
+ * anyone remembering to rewrite stored site rows.
+ */
+export function resolveModelForSite(
+  planTier: string | null | undefined,
+  requested: string | null | undefined
+): ChatModelName {
+  const allowed = modelsForPlan(planTier);
+  if (requested && (allowed as string[]).includes(requested)) {
+    return requested as ChatModelName;
+  }
+  // No explicit choice (or one the plan no longer permits) gets the best the
+  // plan allows — a paying customer shouldn't be quietly left on the cheap
+  // model because nobody ticked a box.
+  return allowed[allowed.length - 1];
+}
+
+/**
+ * Precedence: CHAT_MODEL in the environment, then the caller's plan-clamped
+ * choice, then the built-in default.
+ *
+ * The env var deliberately wins. It is an operator switch set in .env on the
+ * server — a level above any per-site setting — and it exists so the whole
+ * deployment can be moved between models without a rebuild. It is logged
+ * whenever it overrides a caller's choice so that never looks like a bug.
+ */
+function resolveChatModel(requested?: ChatModelName) {
   const fromEnv = process.env.CHAT_MODEL as ChatModelName | undefined;
-  if (fromEnv && fromEnv in CHAT_MODELS) return CHAT_MODELS[fromEnv];
+  if (fromEnv && fromEnv in CHAT_MODELS) {
+    if (requested && requested !== fromEnv) {
+      console.log(
+        `[CLAUDE] CHAT_MODEL=${fromEnv} overriding site model ${requested}`
+      );
+    }
+    return CHAT_MODELS[fromEnv];
+  }
   if (fromEnv) {
     console.warn(
       `[CLAUDE] Unknown CHAT_MODEL "${fromEnv}", falling back to ${DEFAULT_CHAT_MODEL}. ` +
         `Known: ${Object.keys(CHAT_MODELS).join(", ")}`
     );
   }
+  if (requested && requested in CHAT_MODELS) return CHAT_MODELS[requested];
   return CHAT_MODELS[DEFAULT_CHAT_MODEL];
 }
 
@@ -320,7 +384,8 @@ async function getChatResponseAPI(
   messages: ChatMessage[],
   systemPrompt: string,
   apiKey: string,
-  extractToLead?: LeadExtractionTarget
+  extractToLead?: LeadExtractionTarget,
+  chatModel?: ChatModelName
 ): Promise<string> {
   const anthropic = new Anthropic({ apiKey });
   const recentMessages = messages.slice(-30);
@@ -329,7 +394,7 @@ async function getChatResponseAPI(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const baseRequest: any = {
     // Model plus its required per-model params — see CHAT_MODELS above.
-    ...resolveChatModel(),
+    ...resolveChatModel(chatModel),
     max_tokens: 4096,
 
     // The system prompt is multi-thousand tokens and byte-identical on every
@@ -472,7 +537,8 @@ export async function getChatResponse(
         messages,
         systemPrompt,
         org.anthropicApiKeyOverride,
-        options.extractToLead
+        options.extractToLead,
+        options.chatModel
       );
     }
 
@@ -494,7 +560,8 @@ export async function getChatResponse(
       messages,
       systemPrompt,
       process.env.ANTHROPIC_API_KEY,
-      options?.extractToLead
+      options?.extractToLead,
+      options?.chatModel
     );
   }
 
