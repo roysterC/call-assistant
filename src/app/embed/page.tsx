@@ -31,9 +31,28 @@ function getSessionId(siteId: string): string {
   return sid;
 }
 
-function postResizeToParent(width: number, height: number) {
+/** How the parent is currently presenting the iframe. */
+type WidgetMode = "bubble" | "panel" | "fullscreen";
+
+/**
+ * Report open/closed to the parent and let it decide the geometry — only it
+ * can see the host page's viewport, which is what determines whether an open
+ * chat should be a panel or take the whole screen.
+ *
+ * width/height are still sent so an older cached widget.js, which sizes the
+ * iframe from them directly and ignores `open`, keeps working.
+ */
+function postResizeToParent(open: boolean) {
   if (window.parent !== window) {
-    window.parent.postMessage({ type: "doai:resize", width, height }, "*");
+    window.parent.postMessage(
+      {
+        type: "doai:resize",
+        open,
+        width: open ? 380 : 72,
+        height: open ? 600 : 72,
+      },
+      "*"
+    );
   }
 }
 
@@ -47,6 +66,7 @@ function EmbedContent() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string>("");
+  const [mode, setMode] = useState<WidgetMode>("bubble");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load config + restore any prior transcript.
@@ -102,14 +122,30 @@ function EmbedContent() {
       .catch((err) => console.error("[Widget] Failed to load config:", err));
   }, [siteId]);
 
-  // Notify parent of size changes
+  // Notify parent of open/closed state
   useEffect(() => {
-    if (isOpen) {
-      postResizeToParent(380, 600);
-    } else {
-      postResizeToParent(72, 72);
-    }
+    postResizeToParent(isOpen);
   }, [isOpen]);
+
+  // The parent reports back which shape it settled on. Only used for styling
+  // — the host page already controls the iframe's size outright, so a hostile
+  // host forcing a mode gains nothing it couldn't already do.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.source !== window.parent) return;
+      const data = e.data as { type?: string; mode?: string } | null;
+      if (data?.type !== "doai:mode") return;
+      if (
+        data.mode === "bubble" ||
+        data.mode === "panel" ||
+        data.mode === "fullscreen"
+      ) {
+        setMode(data.mode);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   // Auto-scroll
   useEffect(() => {
@@ -248,11 +284,26 @@ function EmbedContent() {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-2xl">
+    // Full-screen fills a square iframe, so its own rounding would show
+    // transparent notches at the corners.
+    <div
+      className={`w-full h-full flex flex-col bg-white overflow-hidden ${
+        mode === "fullscreen" ? "" : "rounded-2xl shadow-2xl"
+      }`}
+    >
       {/* Header */}
       <div
         className="px-4 py-3 flex items-center justify-between"
-        style={{ backgroundColor: brandColor, color: onBrand.color }}
+        style={{
+          backgroundColor: brandColor,
+          color: onBrand.color,
+          // Let the header colour run up under a notch or status bar rather
+          // than leaving a white strip above it.
+          paddingTop:
+            mode === "fullscreen"
+              ? "max(0.75rem, env(safe-area-inset-top))"
+              : undefined,
+        }}
       >
         <div>
           <p className="font-semibold text-sm">{config.botName}</p>
@@ -260,7 +311,11 @@ function EmbedContent() {
         </div>
         <button
           onClick={() => setIsOpen(false)}
-          className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+          // 28px is under the 44px minimum touch target, which matters far
+          // more on a phone than in a desktop corner panel.
+          className={`rounded-full flex items-center justify-center transition-colors ${
+            mode === "fullscreen" ? "w-11 h-11 -mr-2" : "w-7 h-7"
+          }`}
           // A white hover veil is invisible on a pale header already carrying
           // dark text, so the overlay follows the text colour.
           onMouseEnter={(e) => {
@@ -334,6 +389,14 @@ function EmbedContent() {
           sendMessage(input);
         }}
         className="p-3 border-t border-slate-200 flex gap-2 bg-white"
+        style={
+          mode === "fullscreen"
+            ? {
+                // Keep the input clear of the home indicator.
+                paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+              }
+            : undefined
+        }
       >
         <input
           value={input}

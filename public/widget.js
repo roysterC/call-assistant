@@ -12,31 +12,126 @@
     return;
   }
 
+  // Below this, an open chat takes the whole screen. A 380px panel inset by
+  // 20px on a 375px phone leaves ~355px of usable width wrapped in rounded
+  // corners and shadow — cramped, and it wastes the space where the keyboard
+  // is about to appear.
+  var MOBILE_BREAKPOINT = 640;
+
+  var PANEL_WIDTH = 380;
+  var PANEL_HEIGHT = 600;
+  var BUBBLE = 72;
+  var EDGE = 20;
+
   var origin = new URL(script.src).origin;
   var iframe = document.createElement("iframe");
   iframe.src = origin + "/embed?siteId=" + encodeURIComponent(siteId);
   iframe.title = "Chat";
   iframe.setAttribute("allow", "clipboard-write");
 
-  // Start collapsed (bubble size)
-  iframe.style.cssText = [
-    "position: fixed",
-    "bottom: 20px",
-    "right: 20px",
-    "width: 72px",
-    "height: 72px",
-    "max-width: calc(100vw - 20px)",
-    "max-height: calc(100vh - 20px)",
-    "border: 0",
-    "border-radius: 9999px",
-    "z-index: 2147483647",
-    "box-shadow: 0 10px 30px rgba(0,0,0,0.15)",
-    "background: transparent",
-    "color-scheme: normal",
-    "transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease",
-  ].join(";");
+  var isOpen = false;
+  var scrollLock = null;
+
+  function isMobile() {
+    return window.innerWidth < MOBILE_BREAKPOINT;
+  }
+
+  function currentMode() {
+    if (!isOpen) return "bubble";
+    return isMobile() ? "fullscreen" : "panel";
+  }
+
+  function baseStyle() {
+    iframe.style.position = "fixed";
+    iframe.style.border = "0";
+    iframe.style.zIndex = "2147483647";
+    iframe.style.background = "transparent";
+    iframe.style.colorScheme = "normal";
+  }
+
+  function applyGeometry() {
+    var mode = currentMode();
+    var s = iframe.style;
+    baseStyle();
+
+    if (mode === "fullscreen") {
+      // Pin to the visual viewport rather than the layout viewport, so the
+      // panel shrinks when the on-screen keyboard opens instead of the input
+      // sliding underneath it. Falls back to the layout viewport where
+      // visualViewport is unavailable.
+      var vv = window.visualViewport;
+      s.top = (vv ? vv.offsetTop : 0) + "px";
+      s.left = (vv ? vv.offsetLeft : 0) + "px";
+      s.right = "auto";
+      s.bottom = "auto";
+      s.width = (vv ? vv.width : window.innerWidth) + "px";
+      s.height = (vv ? vv.height : window.innerHeight) + "px";
+      s.maxWidth = "none";
+      s.maxHeight = "none";
+      s.borderRadius = "0";
+      s.boxShadow = "none";
+      s.transition = "none";
+    } else if (mode === "panel") {
+      s.top = "auto";
+      s.left = "auto";
+      s.right = EDGE + "px";
+      s.bottom = EDGE + "px";
+      s.width = PANEL_WIDTH + "px";
+      s.height = PANEL_HEIGHT + "px";
+      s.maxWidth = "calc(100vw - " + EDGE + "px)";
+      s.maxHeight = "calc(100vh - " + EDGE + "px)";
+      s.borderRadius = "16px";
+      s.boxShadow = "0 10px 30px rgba(0,0,0,0.15)";
+      s.transition = "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease";
+    } else {
+      s.top = "auto";
+      s.left = "auto";
+      s.right = EDGE + "px";
+      s.bottom = EDGE + "px";
+      s.width = BUBBLE + "px";
+      s.height = BUBBLE + "px";
+      s.maxWidth = "calc(100vw - " + EDGE + "px)";
+      s.maxHeight = "calc(100vh - " + EDGE + "px)";
+      s.borderRadius = "9999px";
+      s.boxShadow = "0 10px 30px rgba(0,0,0,0.15)";
+      s.transition = "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease";
+    }
+
+    setScrollLock(mode === "fullscreen");
+    tellIframe(mode);
+  }
+
+  // Full-screen chat over a host page that still scrolls behind it feels
+  // broken. Snapshot whatever the host had set so it can be handed back
+  // exactly — never assume it was the default.
+  function setScrollLock(on) {
+    var body = document.body;
+    if (!body) return;
+
+    if (on && !scrollLock) {
+      scrollLock = {
+        overflow: body.style.overflow,
+        touchAction: body.style.touchAction,
+      };
+      body.style.overflow = "hidden";
+      body.style.touchAction = "none";
+    } else if (!on && scrollLock) {
+      body.style.overflow = scrollLock.overflow;
+      body.style.touchAction = scrollLock.touchAction;
+      scrollLock = null;
+    }
+  }
+
+  // Tell the embed page which shape it is in, so it can drop its own rounded
+  // corners when full-screen — a rounded panel inside a square iframe shows
+  // transparent notches at the corners.
+  function tellIframe(mode) {
+    if (!iframe.contentWindow) return;
+    iframe.contentWindow.postMessage({ type: "doai:mode", mode: mode }, origin);
+  }
 
   function mount() {
+    applyGeometry();
     document.body.appendChild(iframe);
   }
 
@@ -46,15 +141,32 @@
     document.addEventListener("DOMContentLoaded", mount);
   }
 
-  // Resize iframe in response to messages from the embed page
   window.addEventListener("message", function (e) {
     if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
     if (!e.data || e.data.type !== "doai:resize") return;
 
-    var w = Number(e.data.width) || 72;
-    var h = Number(e.data.height) || 72;
-    iframe.style.width = w + "px";
-    iframe.style.height = h + "px";
-    iframe.style.borderRadius = w > 100 ? "16px" : "9999px";
+    // The embed page reports whether it is open; the parent decides the
+    // geometry, since only it can see the host viewport. `open` is inferred
+    // from the requested size when absent, so an older embed page still works.
+    isOpen =
+      typeof e.data.open === "boolean"
+        ? e.data.open
+        : Number(e.data.width) > BUBBLE;
+
+    applyGeometry();
   });
+
+  // Rotation, window resize, and the on-screen keyboard all change the shape
+  // an open chat should take.
+  window.addEventListener("resize", function () {
+    applyGeometry();
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", function () {
+      if (isOpen && isMobile()) applyGeometry();
+    });
+    window.visualViewport.addEventListener("scroll", function () {
+      if (isOpen && isMobile()) applyGeometry();
+    });
+  }
 })();
