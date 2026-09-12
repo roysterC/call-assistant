@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Save, Trash2, Copy, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { readableTextOn } from "@/lib/contrast";
+import { planMayHideBranding } from "@/lib/branding";
 
 interface Site {
   id: string;
@@ -34,6 +35,8 @@ interface Site {
   launcherIcon: string | null;
   theme: "light" | "dark" | "auto";
   fontFamily: string;
+  hideBranding: boolean;
+  organization?: { planTier: string };
   _count: { conversations: number };
 }
 
@@ -91,6 +94,7 @@ export default function WebsiteEditPage() {
         launcherIcon: site.launcherIcon,
         theme: site.theme,
         fontFamily: site.fontFamily,
+        hideBranding: site.hideBranding,
       };
       // Only super-admins are allowed to change the system prompt.
       if (isSuperAdmin) {
@@ -412,6 +416,35 @@ export default function WebsiteEditPage() {
               the widget won&apos;t download a font file onto a client&apos;s
               page.
             </p>
+
+            {(() => {
+              const mayHide = planMayHideBranding(site.organization?.planTier);
+              return (
+                <div className="pt-3 border-t border-slate-700/60">
+                  <label className="flex items-center justify-between gap-3">
+                    <span>
+                      <span className="text-sm font-medium">
+                        Hide &ldquo;Powered by&rdquo;
+                      </span>
+                      <span className="block text-xs text-slate-400 mt-0.5">
+                        {mayHide
+                          ? "Removes the attribution from the bottom of the chat."
+                          : "Available on higher plans. The toggle is ignored until then."}
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={site.hideBranding}
+                      disabled={!mayHide}
+                      onChange={(e) =>
+                        setSite({ ...site, hideBranding: e.target.checked })
+                      }
+                      className="w-4 h-4 shrink-0 disabled:opacity-40"
+                    />
+                  </label>
+                </div>
+              );
+            })()}
           </div>
 
           <div>

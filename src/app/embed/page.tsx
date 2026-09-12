@@ -23,6 +23,8 @@ interface Config {
   proactiveMessage: string | null;
   proactiveDelaySeconds: number;
   proactiveCooldownHours: number;
+  /** Attribution, resolved server-side from the org's plan. */
+  branding?: { show: boolean; label?: string; url?: string };
 }
 
 /**
@@ -963,6 +965,38 @@ function EmbedContent() {
           <Send className="w-4 h-4" />
         </button>
       </form>
+
+      {/*
+        Attribution. Whether it appears is decided server-side from the plan,
+        and because the widget lives in an iframe a client cannot CSS-hide it
+        from their own page — so removing it really is a paid feature rather
+        than an honour system.
+      */}
+      {config.branding?.show && (
+        <div
+          className="px-3 pb-2 text-center"
+          style={{ backgroundColor: pal.panel }}
+        >
+          {config.branding.url ? (
+            <a
+              href={config.branding.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] opacity-60 hover:opacity-100 transition-opacity"
+              style={{ color: pal.chipText }}
+            >
+              Powered by {config.branding.label}
+            </a>
+          ) : (
+            <span
+              className="text-[10px] opacity-60"
+              style={{ color: pal.chipText }}
+            >
+              Powered by {config.branding.label}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

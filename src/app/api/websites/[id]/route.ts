@@ -25,6 +25,7 @@ const TENANT_FIELDS = [
   "launcherIcon",
   "theme",
   "fontFamily",
+  "hideBranding",
 ];
 // Fields only super-admins can edit
 // chatModel is a pricing lever, not a customer preference — a plan decides
@@ -44,6 +45,9 @@ export async function GET(
       where: { id },
       include: {
         _count: { select: { conversations: true } },
+        // The editor needs the plan to know whether white-label is available
+        // to this org, so it can explain rather than silently ignore a toggle.
+        organization: { select: { planTier: true } },
       },
     });
     if (!site || site.organizationId !== ctx.organizationId) {

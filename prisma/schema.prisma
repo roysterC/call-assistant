@@ -317,6 +317,11 @@ model WebsiteConfig {
   // a stored choice cannot outlive a downgrade.
   chatModel String?
 
+  // White-label. Only honoured on plans permitted to remove attribution —
+  // re-checked server-side per request, so a downgrade restores it without
+  // anyone rewriting stored rows.
+  hideBranding Boolean @default(false)
+
   // Proactive teaser: a small prompt that appears beside the collapsed
   // launcher after a delay, to open a conversation rather than waiting to be
   // found. Off by default — an unsolicited popup on a client's site is their
