@@ -162,38 +162,67 @@ export default function DashboardPage() {
           <CardContent className="pt-4">
             {stats?.sentimentDistribution &&
             stats.sentimentDistribution.length > 0 ? (
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      isAnimationActive={false}
-                      data={stats.sentimentDistribution}
-                      dataKey="count"
-                      nameKey="sentiment"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={48}
-                      outerRadius={72}
-                      paddingAngle={2}
-                      stroke="none"
-                      label={({ name, value }) => `${name} (${value})`}
-                      labelLine={false}
-                      // The default label font inherits the SVG's, which is
-                      // larger than anything else on the card and made a
-                      // two-slice chart look like a billboard.
-                      style={{ fontSize: 11, fill: CHART_AXIS }}
+              <>
+                {/*
+                  Labels used to be drawn onto the slices. They needed a font
+                  size, the only way to set one was `style` on the <Pie>, and an
+                  inline style beats a presentation attribute — so its `fill`
+                  silently overrode every <Cell>, painting a "positive" slice
+                  the same grey as a "negative" one. A legend needs no styling
+                  on the chart at all, and reads better than text wedged against
+                  a donut.
+                */}
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        isAnimationActive={false}
+                        data={stats.sentimentDistribution}
+                        dataKey="count"
+                        nameKey="sentiment"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={44}
+                        outerRadius={66}
+                        paddingAngle={2}
+                        stroke="none"
+                      >
+                        {stats.sentimentDistribution.map((entry) => (
+                          <Cell
+                            key={entry.sentiment}
+                            fill={
+                              SENTIMENT_COLORS[entry.sentiment] || CHART_AXIS
+                            }
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={CHART_TOOLTIP} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-3">
+                  {stats.sentimentDistribution.map((entry) => (
+                    <li
+                      key={entry.sentiment}
+                      className="flex items-center gap-1.5 text-xs"
                     >
-                      {stats.sentimentDistribution.map((entry) => (
-                        <Cell
-                          key={entry.sentiment}
-                          fill={SENTIMENT_COLORS[entry.sentiment] || CHART_AXIS}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={CHART_TOOLTIP} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{
+                          backgroundColor:
+                            SENTIMENT_COLORS[entry.sentiment] || CHART_AXIS,
+                        }}
+                      />
+                      <span className="text-muted-foreground capitalize">
+                        {entry.sentiment}
+                      </span>
+                      <span className="text-foreground tabular-nums font-medium">
+                        {entry.count}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             ) : (
               <EmptyState
                 icon={PieChartIcon}
