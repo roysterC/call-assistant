@@ -130,19 +130,19 @@ export default function InsightsPage() {
         actions={
           <>
             {data.sites.length > 1 && (
-            <select
-              value={siteId}
-              onChange={(e) => setSiteId(e.target.value)}
-              className="h-9 rounded-md border border-border bg-transparent px-2 text-sm"
-            >
-              <option value="">All sites</option>
-              {data.sites.map((s) => (
-                <option key={s.siteId} value={s.siteId}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          )}
+              <select
+                value={siteId}
+                onChange={(e) => setSiteId(e.target.value)}
+                className="h-9 rounded-md border border-border bg-transparent px-2 text-sm"
+              >
+                <option value="">All sites</option>
+                {data.sites.map((s) => (
+                  <option key={s.siteId} value={s.siteId}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <div className="flex rounded-md border border-border overflow-hidden">
               {RANGES.map((d) => (
                 <button
@@ -211,13 +211,28 @@ export default function InsightsPage() {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.daily}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
-                    <XAxis dataKey="day" tick={CHART_TICK} tickLine={false} axisLine={false} minTickGap={24} />
-                    <YAxis tick={CHART_TICK} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={CHART_TOOLTIP}
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={CHART_GRID}
+                      vertical={false}
                     />
+                    <XAxis
+                      dataKey="day"
+                      tick={CHART_TICK}
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={24}
+                    />
+                    <YAxis
+                      tick={CHART_TICK}
+                      tickLine={false}
+                      axisLine={false}
+                      width={40}
+                      allowDecimals={false}
+                    />
+                    <Tooltip contentStyle={CHART_TOOLTIP} />
                     <Line
+                      isAnimationActive={false}
                       type="monotone"
                       dataKey="conversations"
                       stroke={CHART_SERIES[0]}
@@ -226,6 +241,7 @@ export default function InsightsPage() {
                       name="Conversations"
                     />
                     <Line
+                      isAnimationActive={false}
                       type="monotone"
                       dataKey="leads"
                       stroke={CHART_SERIES[1]}
@@ -248,7 +264,11 @@ export default function InsightsPage() {
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={hourly}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke={CHART_GRID}
+                        vertical={false}
+                      />
                       <XAxis
                         dataKey="label"
                         tick={CHART_TICK}
@@ -268,6 +288,7 @@ export default function InsightsPage() {
                         labelFormatter={(h) => `${h}:00`}
                       />
                       <Bar
+                        isAnimationActive={false}
                         dataKey="count"
                         fill={CHART_SERIES[0]}
                         radius={[3, 3, 0, 0]}

@@ -144,7 +144,7 @@ export default function DashboardPage() {
           value={formatDuration(stats?.avgDuration || 0)}
           subtitle={`${plural(
             stats?.pendingCallbacks || 0,
-            "callback"
+            "callback",
           )} pending`}
           icon={Clock}
         />
@@ -166,6 +166,7 @@ export default function DashboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
+                      isAnimationActive={false}
                       data={stats.sentimentDistribution}
                       dataKey="count"
                       nameKey="sentiment"
@@ -262,6 +263,7 @@ export default function DashboardPage() {
                       formatter={(value) => [value, "Calls"]}
                     />
                     <Line
+                      isAnimationActive={false}
                       type="monotone"
                       dataKey="count"
                       stroke={CHART_SERIES[0]}
