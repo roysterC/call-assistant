@@ -9,7 +9,6 @@ import {
   Save,
   Plus,
   Trash2,
-  Building2,
   Users,
   MessageSquare,
   MessageCircle,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface TeamMember {
   name: string;
@@ -80,7 +80,7 @@ export default function SettingsPage() {
             apiFetch("/api/phone-numbers?channel=whatsapp")
               .then((r) => r.json())
               .then((d) => setWhatsappNumbers(d.phoneNumbers || []))
-              .catch(() => setWhatsappNumbers([]))
+              .catch(() => setWhatsappNumbers([])),
           );
         }
         if (s.voiceEnabled) {
@@ -88,7 +88,7 @@ export default function SettingsPage() {
             apiFetch("/api/phone-numbers?channel=vapi")
               .then((r) => r.json())
               .then((d) => setVoiceNumbers(d.phoneNumbers || []))
-              .catch(() => setVoiceNumbers([]))
+              .catch(() => setVoiceNumbers([])),
           );
         }
         await Promise.allSettled(fetches);
@@ -131,6 +131,57 @@ export default function SettingsPage() {
     );
   }
 
+  // Built here rather than inline in the JSX so the five channels are declared
+  // once, in one shape, instead of five hand-written blocks that drifted apart.
+  const numberList = (nums: PhoneNumber[]) =>
+    nums
+      .map((p) => (p.label ? `${p.number} (${p.label})` : p.number))
+      .join(", ");
+
+  const channels: {
+    label: string;
+    icon: typeof MessageSquare;
+    enabled: boolean;
+    detail: string;
+    missing: string;
+  }[] = [
+    {
+      label: "Website chatbot",
+      icon: MessageSquare,
+      enabled: settings.chatbotEnabled,
+      detail: "",
+      missing: "Configured under Websites",
+    },
+    {
+      label: "WhatsApp",
+      icon: MessageCircle,
+      enabled: settings.whatsappEnabled,
+      detail: numberList(whatsappNumbers),
+      missing: "No number assigned yet — contact DOAI",
+    },
+    {
+      label: "Voice agent",
+      icon: Phone,
+      enabled: settings.voiceEnabled,
+      detail: numberList(voiceNumbers),
+      missing: "No number assigned yet — contact DOAI",
+    },
+    {
+      label: "Instagram",
+      icon: Camera,
+      enabled: settings.instagramEnabled,
+      detail: settings.instagramBusinessId || "",
+      missing: "No business account linked yet — contact DOAI",
+    },
+    {
+      label: "Facebook Messenger",
+      icon: Send,
+      enabled: settings.facebookEnabled,
+      detail: settings.facebookPageId || "",
+      missing: "No Page linked yet — contact DOAI",
+    },
+  ].filter((c) => c.enabled);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -147,14 +198,11 @@ export default function SettingsPage() {
       {/* Business Info — always visible */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Building2 className="w-5 h-5" />
-            Business Information
-          </CardTitle>
+          <CardTitle className="text-base">Business information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <label className="text-sm font-medium">Business Name</label>
+            <label className="text-sm font-medium">Business name</label>
             <Input
               value={settings.businessName}
               onChange={(e) =>
@@ -166,210 +214,144 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Website Chatbot — badge only */}
-      {settings.chatbotEnabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5" />
-                Website Chatbot
-              </span>
-              <Badge variant="default">Enabled</Badge>
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      )}
+      {/*
+        One card, one row per channel.
 
-      {/* WhatsApp — badge + number(s) */}
-      {settings.whatsappEnabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2">
-                <MessageCircle className="w-5 h-5" />
-                WhatsApp
-              </span>
-              <Badge variant="default">Enabled</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {whatsappNumbers.length > 0 ? (
-              <ul className="space-y-1">
-                {whatsappNumbers.map((p) => (
-                  <li
-                    key={p.id}
-                    className="text-sm font-mono flex items-center gap-2"
-                  >
-                    <span>{p.number}</span>
-                    {p.label && (
-                      <span className="text-xs text-muted-foreground font-sans">
-                        — {p.label}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No phone number assigned yet — contact DOAI.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+        This was five near-identical cards — icon, name, an "Enabled" badge and
+        a single line of detail each — stacked down the page. Five card frames
+        to carry five lines of text made the page look padded out, and two of
+        them said "contact DOAI" in exactly the same words. A row each says the
+        same thing in a quarter of the height, and the differences between
+        channels are finally visible side by side.
 
-      {/* Instagram — badge + business account id */}
-      {settings.instagramEnabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2">
-                <Camera className="w-5 h-5" />
-                Instagram
-              </span>
-              <Badge variant="default">Enabled</Badge>
-            </CardTitle>
+        Only enabled channels appear: a client has no use for a row telling
+        them about a product they have not bought.
+      */}
+      {channels.length > 0 && (
+        <Card className="gap-0">
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="text-base">Channels</CardTitle>
           </CardHeader>
-          <CardContent>
-            {settings.instagramBusinessId ? (
-              <p className="text-sm font-mono">
-                Business ID: {settings.instagramBusinessId}
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No Instagram business account linked yet — contact DOAI.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Facebook Messenger — badge + page id */}
-      {settings.facebookEnabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2">
-                <Send className="w-5 h-5" />
-                Facebook Messenger
-              </span>
-              <Badge variant="default">Enabled</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {settings.facebookPageId ? (
-              <p className="text-sm font-mono">
-                Page ID: {settings.facebookPageId}
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No Facebook Page linked yet — contact DOAI.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Voice Agent — badge + number(s) */}
-      {settings.voiceEnabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2">
-                <Phone className="w-5 h-5" />
-                Voice Agent
-              </span>
-              <Badge variant="default">Enabled</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {voiceNumbers.length > 0 ? (
-              <ul className="space-y-1">
-                {voiceNumbers.map((p) => (
-                  <li
-                    key={p.id}
-                    className="text-sm font-mono flex items-center gap-2"
-                  >
-                    <span>{p.number}</span>
-                    {p.label && (
-                      <span className="text-xs text-muted-foreground font-sans">
-                        — {p.label}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No phone number assigned yet — contact DOAI.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Team Members — only if voice is enabled */}
-      {settings.voiceEnabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Team Members
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {settings.teamMembers.map((member, i) => (
-              <div
-                key={i}
-                className="flex gap-3 items-start p-3 border rounded-lg"
-              >
-                <div className="flex-1 grid grid-cols-2 gap-2">
-                  <Input
-                    value={member.name}
-                    onChange={(e) => {
-                      const updated = [...settings.teamMembers];
-                      updated[i] = { ...updated[i], name: e.target.value };
-                      setSettings({ ...settings, teamMembers: updated });
-                    }}
-                    placeholder="Name"
-                  />
-                  <Input
-                    value={member.email}
-                    onChange={(e) => {
-                      const updated = [...settings.teamMembers];
-                      updated[i] = { ...updated[i], email: e.target.value };
-                      setSettings({ ...settings, teamMembers: updated });
-                    }}
-                    placeholder="Email"
-                  />
-                  <Input
-                    value={member.phone}
-                    onChange={(e) => {
-                      const updated = [...settings.teamMembers];
-                      updated[i] = { ...updated[i], phone: e.target.value };
-                      setSettings({ ...settings, teamMembers: updated });
-                    }}
-                    placeholder="Phone number"
-                  />
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{member.role}</Badge>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSettings({
-                      ...settings,
-                      teamMembers: settings.teamMembers.filter(
-                        (_, idx) => idx !== i
-                      ),
-                    });
-                  }}
+          <CardContent className="p-0">
+            <ul className="divide-y divide-border">
+              {channels.map((c) => (
+                <li
+                  key={c.label}
+                  className="flex items-center gap-3 px-4 py-3 flex-wrap"
                 >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                  <c.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm font-medium">{c.label}</span>
+                  <span className="flex-1 min-w-0 text-right">
+                    {c.detail ? (
+                      <span className="text-xs font-mono text-foreground/80 break-all">
+                        {c.detail}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {c.missing}
+                      </span>
+                    )}
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] shrink-0">
+                    Enabled
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Team members — only if voice is enabled */}
+      {settings.voiceEnabled && (
+        <Card className="gap-0">
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="text-base">Team members</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Who the voice agent offers when a caller asks for a person.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-4">
+            {settings.teamMembers.length === 0 && (
+              <EmptyState
+                icon={Users}
+                title="No one added yet"
+                hint="Add a colleague so the voice agent has someone to name when a caller asks for a person."
+              />
+            )}
+            {/*
+              Labelled fields, and the role out of the grid.
+
+              The row was a 2x2 of bare inputs whose placeholders vanished the
+              moment they held anything, so a filled-in member was three
+              unlabelled boxes; the fourth cell held only a role badge, leaving
+              a gap beside the phone number.
+            */}
+            {settings.teamMembers.map((member, i) => (
+              <div key={i} className="p-3 border border-border rounded-lg">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <Badge variant="outline" className="text-[10px]">
+                    {member.role}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Remove ${member.name || "team member"}`}
+                    onClick={() => {
+                      setSettings({
+                        ...settings,
+                        teamMembers: settings.teamMembers.filter(
+                          (_, idx) => idx !== i,
+                        ),
+                      });
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <label className="text-xs text-muted-foreground">
+                    Name
+                    <Input
+                      value={member.name}
+                      onChange={(e) => {
+                        const updated = [...settings.teamMembers];
+                        updated[i] = { ...updated[i], name: e.target.value };
+                        setSettings({ ...settings, teamMembers: updated });
+                      }}
+                      placeholder="Sam Okoye"
+                      className="mt-1"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Email
+                    <Input
+                      type="email"
+                      value={member.email}
+                      onChange={(e) => {
+                        const updated = [...settings.teamMembers];
+                        updated[i] = { ...updated[i], email: e.target.value };
+                        setSettings({ ...settings, teamMembers: updated });
+                      }}
+                      placeholder="sam@example.co.uk"
+                      className="mt-1"
+                    />
+                  </label>
+                  <label className="text-xs text-muted-foreground">
+                    Phone
+                    <Input
+                      type="tel"
+                      value={member.phone}
+                      onChange={(e) => {
+                        const updated = [...settings.teamMembers];
+                        updated[i] = { ...updated[i], phone: e.target.value };
+                        setSettings({ ...settings, teamMembers: updated });
+                      }}
+                      placeholder="07700 900000"
+                      className="mt-1"
+                    />
+                  </label>
+                </div>
               </div>
             ))}
             <Button
@@ -385,11 +367,8 @@ export default function SettingsPage() {
                 })
               }
             >
-              <Plus className="w-4 h-4 mr-1" /> Add Team Member
+              <Plus className="w-4 h-4 mr-1.5" /> Add team member
             </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Used by the voice agent when a caller asks to speak to a human.
-            </p>
           </CardContent>
         </Card>
       )}

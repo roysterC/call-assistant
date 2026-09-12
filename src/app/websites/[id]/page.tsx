@@ -12,6 +12,8 @@ import { ArrowLeft, Save, Trash2, Copy, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { readableTextOn } from "@/lib/contrast";
 import { planMayHideBranding } from "@/lib/branding";
+import { PageHeader } from "@/components/ui/page-header";
+import { plural } from "@/lib/plural";
 
 interface Site {
   id: string;
@@ -172,42 +174,49 @@ export default function WebsiteEditPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => router.push("/websites")}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{site.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
-                {site.siteId}
-              </code>
-              <span className="ml-3">
-                {site._count.conversations} conversations
-              </span>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          {isSuperAdmin && (
-            <Button variant="outline" onClick={deleteSite}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </Button>
-          )}
-          <Button onClick={save} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </div>
+      <div className="flex items-start gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Back to websites"
+          className="mt-0.5"
+          onClick={() => router.push("/websites")}
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <PageHeader
+          className="flex-1"
+          title={site.name}
+          actions={
+            <>
+              {isSuperAdmin && (
+                <Button variant="outline" onClick={deleteSite}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              )}
+              <Button onClick={save} disabled={saving}>
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </>
+          }
+        />
       </div>
 
-      {/* Embed Code */}
+      <p className="text-sm text-muted-foreground -mt-3 ml-12 flex items-center gap-3 flex-wrap">
+        <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
+          {site.siteId}
+        </code>
+        <span>{plural(site._count.conversations, "conversation")}</span>
+        <span className={site.enabled ? "text-emerald-400" : "text-amber-400"}>
+          {site.enabled ? "Live" : "Disabled"}
+        </span>
+      </p>
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Embed Code</CardTitle>
+          <CardTitle className="text-base">Embed snippet</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 items-start">
@@ -223,15 +232,15 @@ export default function WebsiteEditPage() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Add this script tag to any HTML page before <code>&lt;/body&gt;</code>
+            Add this script tag to any HTML page before{" "}
+            <code>&lt;/body&gt;</code>
           </p>
         </CardContent>
       </Card>
 
-      {/* Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Configuration</CardTitle>
+          <CardTitle className="text-base">Basics</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -246,7 +255,7 @@ export default function WebsiteEditPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Display Name</label>
+            <label className="text-sm font-medium">Display name</label>
             <Input
               value={site.name}
               onChange={(e) => setSite({ ...site, name: e.target.value })}
@@ -255,7 +264,7 @@ export default function WebsiteEditPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Bot Name</label>
+            <label className="text-sm font-medium">Bot name</label>
             <Input
               value={site.botName}
               onChange={(e) => setSite({ ...site, botName: e.target.value })}
@@ -264,7 +273,7 @@ export default function WebsiteEditPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Brand Color</label>
+            <label className="text-sm font-medium">Brand colour</label>
             <div className="flex gap-2 mt-1">
               <Input
                 type="color"
@@ -311,156 +320,165 @@ export default function WebsiteEditPage() {
                           c.meetsAAA ? " and AAA" : ""
                         }`
                       : `Contrast ${c.ratio.toFixed(
-                          1
+                          1,
                         )}:1 — below the 4.5:1 minimum, text may be hard to read`}
                   </span>
                 </div>
               );
             })()}
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Launcher & theme */}
-          <div className="rounded-lg border border-border p-3 space-y-3">
-            <p className="text-sm font-medium">Launcher &amp; theme</p>
-
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="text-xs text-muted-foreground">Position</label>
-                <select
-                  value={site.launcherPosition}
-                  onChange={(e) =>
-                    setSite({
-                      ...site,
-                      launcherPosition: e.target.value as "left" | "right",
-                    })
-                  }
-                  className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
-                >
-                  <option value="right">Bottom right</option>
-                  <option value="left">Bottom left</option>
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="text-xs text-muted-foreground">
-                  Edge offset (px)
-                </label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={site.launcherOffset}
-                  onChange={(e) =>
-                    setSite({
-                      ...site,
-                      launcherOffset: Number(e.target.value) || 0,
-                    })
-                  }
-                  className="mt-1"
-                />
-              </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Launcher &amp; theme</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs text-muted-foreground">Position</label>
+              <select
+                value={site.launcherPosition}
+                onChange={(e) =>
+                  setSite({
+                    ...site,
+                    launcherPosition: e.target.value as "left" | "right",
+                  })
+                }
+                className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
+              >
+                <option value="right">Bottom right</option>
+                <option value="left">Bottom left</option>
+              </select>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Move it out of the way of cookie banners, back-to-top buttons or
-              another vendor&apos;s widget.
-            </p>
-
-            <div className="flex gap-3">
-              <div className="w-24">
-                <label className="text-xs text-muted-foreground">Icon</label>
-                <Input
-                  value={site.launcherIcon || ""}
-                  onChange={(e) =>
-                    setSite({ ...site, launcherIcon: e.target.value || null })
-                  }
-                  placeholder="💬"
-                  maxLength={4}
-                  className="mt-1 text-center"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-xs text-muted-foreground">
-                  Label (optional — makes it a pill)
-                </label>
-                <Input
-                  value={site.launcherLabel || ""}
-                  onChange={(e) =>
-                    setSite({ ...site, launcherLabel: e.target.value || null })
-                  }
-                  placeholder="Chat with us"
-                  className="mt-1"
-                />
-              </div>
+            <div className="flex-1">
+              <label className="text-xs text-muted-foreground">
+                Edge offset (px)
+              </label>
+              <Input
+                type="number"
+                min={0}
+                value={site.launcherOffset}
+                onChange={(e) =>
+                  setSite({
+                    ...site,
+                    launcherOffset: Number(e.target.value) || 0,
+                  })
+                }
+                className="mt-1"
+              />
             </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Move it out of the way of cookie banners, back-to-top buttons or
+            another vendor&apos;s widget.
+          </p>
 
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="text-xs text-muted-foreground">Theme</label>
-                <select
-                  value={site.theme}
-                  onChange={(e) =>
-                    setSite({
-                      ...site,
-                      theme: e.target.value as "light" | "dark" | "auto",
-                    })
-                  }
-                  className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
-                >
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                  <option value="auto">Follow visitor&apos;s device</option>
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="text-xs text-muted-foreground">Font</label>
-                <select
-                  value={site.fontFamily}
-                  onChange={(e) =>
-                    setSite({ ...site, fontFamily: e.target.value })
-                  }
-                  className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
-                >
-                  <option value="system">System default</option>
-                  <option value="inter">Inter</option>
-                  <option value="serif">Serif</option>
-                  <option value="mono">Monospace</option>
-                </select>
-              </div>
+          <div className="flex gap-3">
+            <div className="w-24">
+              <label className="text-xs text-muted-foreground">Icon</label>
+              <Input
+                value={site.launcherIcon || ""}
+                onChange={(e) =>
+                  setSite({ ...site, launcherIcon: e.target.value || null })
+                }
+                placeholder="💬"
+                maxLength={4}
+                className="mt-1 text-center"
+              />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Fonts are limited to stacks already on the visitor&apos;s device —
-              the widget won&apos;t download a font file onto a client&apos;s
-              page.
-            </p>
-
-            {(() => {
-              const mayHide = planMayHideBranding(site.organization?.planTier);
-              return (
-                <div className="pt-3 border-t border-border">
-                  <label className="flex items-center justify-between gap-3">
-                    <span>
-                      <span className="text-sm font-medium">
-                        Hide &ldquo;Powered by&rdquo;
-                      </span>
-                      <span className="block text-xs text-muted-foreground mt-0.5">
-                        {mayHide
-                          ? "Removes the attribution from the bottom of the chat."
-                          : "Available on higher plans. The toggle is ignored until then."}
-                      </span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={site.hideBranding}
-                      disabled={!mayHide}
-                      onChange={(e) =>
-                        setSite({ ...site, hideBranding: e.target.checked })
-                      }
-                      className="w-4 h-4 shrink-0 disabled:opacity-40"
-                    />
-                  </label>
-                </div>
-              );
-            })()}
+            <div className="flex-1">
+              <label className="text-xs text-muted-foreground">
+                Label (optional — makes it a pill)
+              </label>
+              <Input
+                value={site.launcherLabel || ""}
+                onChange={(e) =>
+                  setSite({ ...site, launcherLabel: e.target.value || null })
+                }
+                placeholder="Chat with us"
+                className="mt-1"
+              />
+            </div>
           </div>
 
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs text-muted-foreground">Theme</label>
+              <select
+                value={site.theme}
+                onChange={(e) =>
+                  setSite({
+                    ...site,
+                    theme: e.target.value as "light" | "dark" | "auto",
+                  })
+                }
+                className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="auto">Follow visitor&apos;s device</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-muted-foreground">Font</label>
+              <select
+                value={site.fontFamily}
+                onChange={(e) =>
+                  setSite({ ...site, fontFamily: e.target.value })
+                }
+                className="mt-1 w-full h-9 rounded-md border border-border bg-transparent px-2 text-sm"
+              >
+                <option value="system">System default</option>
+                <option value="inter">Inter</option>
+                <option value="serif">Serif</option>
+                <option value="mono">Monospace</option>
+              </select>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Fonts are limited to stacks already on the visitor&apos;s device —
+            the widget won&apos;t download a font file onto a client&apos;s
+            page.
+          </p>
+
+          {(() => {
+            const mayHide = planMayHideBranding(site.organization?.planTier);
+            return (
+              <div className="pt-3 border-t border-border">
+                <label className="flex items-center justify-between gap-3">
+                  <span>
+                    <span className="text-sm font-medium">
+                      Hide &ldquo;Powered by&rdquo;
+                    </span>
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      {mayHide
+                        ? "Removes the attribution from the bottom of the chat."
+                        : "Available on higher plans. The toggle is ignored until then."}
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={site.hideBranding}
+                    disabled={!mayHide}
+                    onChange={(e) =>
+                      setSite({ ...site, hideBranding: e.target.checked })
+                    }
+                    className="w-4 h-4 shrink-0 disabled:opacity-40"
+                  />
+                </label>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Conversation</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div>
             <label className="text-sm font-medium">Greeting</label>
             <Input
@@ -475,7 +493,7 @@ export default function WebsiteEditPage() {
 
           <div>
             <label className="text-sm font-medium">
-              Quick Replies (one per line)
+              Quick replies (one per line)
             </label>
             <Textarea
               value={site.quickReplies.join("\n")}
@@ -500,156 +518,172 @@ export default function WebsiteEditPage() {
             one promises something the product does not do. This points at the
             form the client already staffs instead.
           */}
-          <div className="rounded-lg border border-border p-3 space-y-3">
-            <div>
-              <label className="text-sm font-medium">
-                &ldquo;Talk to us&rdquo; button
-              </label>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Appears once the visitor has sent a message. Scrolls them to a
-                form on your page rather than waiting for a person who
-                isn&apos;t there. Leave the label blank to hide it.
-              </p>
-            </div>
+        </CardContent>
+      </Card>
 
-            <div>
-              <label className="text-xs text-muted-foreground">Button label</label>
-              <Input
-                value={site.ctaLabel || ""}
-                onChange={(e) =>
-                  setSite({ ...site, ctaLabel: e.target.value || null })
-                }
-                placeholder="Book a call with the team"
-                maxLength={40}
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground">
-                Element on your page (CSS selector)
-              </label>
-              <Input
-                value={site.ctaSelector || ""}
-                onChange={(e) =>
-                  setSite({ ...site, ctaSelector: e.target.value || null })
-                }
-                placeholder="#booking-form"
-                className="mt-1 font-mono text-xs"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                The widget scrolls here and focuses the first field. It never
-                clicks anything.
-              </p>
-            </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground">
-                Fallback link (used when that element isn&apos;t on the page)
-              </label>
-              <Input
-                value={site.ctaUrl || ""}
-                onChange={(e) =>
-                  setSite({ ...site, ctaUrl: e.target.value || null })
-                }
-                placeholder="/contact"
-                className="mt-1"
-              />
-            </div>
-
-            {!site.ctaLabel?.trim() && (
-              <p className="text-xs text-amber-400/80">
-                No label set — the button is hidden.
-              </p>
-            )}
-            {site.ctaLabel?.trim() &&
-              !site.ctaSelector?.trim() &&
-              !site.ctaUrl?.trim() && (
-                <p className="text-xs text-amber-400/80">
-                  Add a selector or a link, or the button stays hidden — it has
-                  nowhere to send anyone.
-                </p>
-              )}
-          </div>
-
-          {/* Proactive teaser */}
-          <div className="rounded-lg border border-border p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm font-medium">Proactive message</label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Shows a prompt beside the launcher after a delay. Skipped for
-                  visitors who have already started a conversation.
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={site.proactiveEnabled}
-                onChange={(e) =>
-                  setSite({ ...site, proactiveEnabled: e.target.checked })
-                }
-                className="w-4 h-4 shrink-0 ml-3"
-              />
-            </div>
-
-            {site.proactiveEnabled && (
-              <>
-                <Input
-                  value={site.proactiveMessage || ""}
-                  onChange={(e) =>
-                    setSite({ ...site, proactiveMessage: e.target.value })
-                  }
-                  placeholder="Missing calls while you're on site? Ask me anything."
-                />
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="text-xs text-muted-foreground">
-                      Delay (seconds)
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={site.proactiveDelaySeconds}
-                      onChange={(e) =>
-                        setSite({
-                          ...site,
-                          proactiveDelaySeconds: Number(e.target.value) || 0,
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs text-muted-foreground">
-                      Show again after (hours, 0 = once only)
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={site.proactiveCooldownHours}
-                      onChange={(e) =>
-                        setSite({
-                          ...site,
-                          proactiveCooldownHours: Number(e.target.value) || 0,
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-                {!site.proactiveMessage?.trim() && (
-                  <p className="text-xs text-amber-500">
-                    Enabled but no message set — nothing will be shown.
-                  </p>
-                )}
-              </>
-            )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            &ldquo;Talk to us&rdquo; button
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Appears once the visitor has sent a message. Scrolls them to a
+              form on your page rather than waiting for a person who isn&apos;t
+              there. Leave the label blank to hide it.
+            </p>
           </div>
 
           <div>
-            <label className="text-sm font-medium">
-              Allowed Origins (one per line)
+            <label className="text-xs text-muted-foreground">
+              Button label
             </label>
+            <Input
+              value={site.ctaLabel || ""}
+              onChange={(e) =>
+                setSite({ ...site, ctaLabel: e.target.value || null })
+              }
+              placeholder="Book a call with the team"
+              maxLength={40}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground">
+              Element on your page (CSS selector)
+            </label>
+            <Input
+              value={site.ctaSelector || ""}
+              onChange={(e) =>
+                setSite({ ...site, ctaSelector: e.target.value || null })
+              }
+              placeholder="#booking-form"
+              className="mt-1 font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              The widget scrolls here and focuses the first field. It never
+              clicks anything.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground">
+              Fallback link (used when that element isn&apos;t on the page)
+            </label>
+            <Input
+              value={site.ctaUrl || ""}
+              onChange={(e) =>
+                setSite({ ...site, ctaUrl: e.target.value || null })
+              }
+              placeholder="/contact"
+              className="mt-1"
+            />
+          </div>
+
+          {!site.ctaLabel?.trim() && (
+            <p className="text-xs text-amber-400/80">
+              No label set — the button is hidden.
+            </p>
+          )}
+          {site.ctaLabel?.trim() &&
+            !site.ctaSelector?.trim() &&
+            !site.ctaUrl?.trim() && (
+              <p className="text-xs text-amber-400/80">
+                Add a selector or a link, or the button stays hidden — it has
+                nowhere to send anyone.
+              </p>
+            )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Proactive message</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium">Proactive message</label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Shows a prompt beside the launcher after a delay. Skipped for
+                visitors who have already started a conversation.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={site.proactiveEnabled}
+              onChange={(e) =>
+                setSite({ ...site, proactiveEnabled: e.target.checked })
+              }
+              className="w-4 h-4 shrink-0 ml-3"
+            />
+          </div>
+
+          {site.proactiveEnabled && (
+            <>
+              <Input
+                value={site.proactiveMessage || ""}
+                onChange={(e) =>
+                  setSite({ ...site, proactiveMessage: e.target.value })
+                }
+                placeholder="Missing calls while you're on site? Ask me anything."
+              />
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground">
+                    Delay (seconds)
+                  </label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={site.proactiveDelaySeconds}
+                    onChange={(e) =>
+                      setSite({
+                        ...site,
+                        proactiveDelaySeconds: Number(e.target.value) || 0,
+                      })
+                    }
+                    className="mt-1"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground">
+                    Show again after (hours, 0 = once only)
+                  </label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={site.proactiveCooldownHours}
+                    onChange={(e) =>
+                      setSite({
+                        ...site,
+                        proactiveCooldownHours: Number(e.target.value) || 0,
+                      })
+                    }
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              {!site.proactiveMessage?.trim() && (
+                <p className="text-xs text-amber-500">
+                  Enabled but no message set — nothing will be shown.
+                </p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Allowed origins</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div>
+            <label className="sr-only">Allowed origins (one per line)</label>
             <Textarea
               value={site.allowedOrigins.join("\n")}
               onChange={(e) =>
@@ -676,7 +710,7 @@ export default function WebsiteEditPage() {
       {isSuperAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Model</CardTitle>
+            <CardTitle className="text-base">Model</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <select
@@ -712,7 +746,7 @@ export default function WebsiteEditPage() {
       {isSuperAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between">
+            <CardTitle className="text-base flex items-center justify-between">
               <span>System Prompt</span>
               <Badge variant="outline" className="text-[10px]">
                 {site.systemPrompt.length} chars
@@ -731,8 +765,9 @@ export default function WebsiteEditPage() {
             <p className="text-xs text-muted-foreground mt-2">
               Tip: Include a lead capture instruction like &quot;When the
               visitor provides their name, email, and phone, append [LEAD:
-              {"{"}&quot;name&quot;:...,&quot;email&quot;:...,&quot;phone&quot;:...{"}"}] at the end of your
-              message.&quot;
+              {"{"}
+              &quot;name&quot;:...,&quot;email&quot;:...,&quot;phone&quot;:...
+              {"}"}] at the end of your message.&quot;
             </p>
           </CardContent>
         </Card>
