@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { corsHeaders } from "@/lib/website-chat";
+import { corsHeaders, checkCORS } from "@/lib/website-chat";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
@@ -59,12 +59,22 @@ export async function GET(req: NextRequest) {
 
     const site = await prisma.websiteConfig.findUnique({
       where: { siteId },
-      select: { enabled: true },
+      select: { enabled: true, allowedOrigins: true },
     });
     if (!site || !site.enabled) {
       return NextResponse.json(
         { error: "Site not found" },
         { status: 404, headers }
+      );
+    }
+    // Matches the message and handoff endpoints. The sessionId is already an
+    // unguessable bearer and lives in storage scoped to this origin, so this
+    // is defence in depth rather than the primary control — but a transcript
+    // endpoint should not be the one sibling that skips the check.
+    if (!checkCORS(origin, site.allowedOrigins as string[])) {
+      return NextResponse.json(
+        { error: "Origin not allowed" },
+        { status: 403, headers }
       );
     }
 
