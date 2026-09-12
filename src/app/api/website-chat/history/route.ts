@@ -67,11 +67,18 @@ export async function GET(req: NextRequest) {
         { status: 404, headers }
       );
     }
-    // Matches the message and handoff endpoints. The sessionId is already an
-    // unguessable bearer and lives in storage scoped to this origin, so this
-    // is defence in depth rather than the primary control — but a transcript
-    // endpoint should not be the one sibling that skips the check.
-    if (!checkCORS(origin, site.allowedOrigins as string[])) {
+    // Only enforced when an Origin header is actually present.
+    //
+    // Browsers omit Origin on same-origin GETs, and this endpoint's main
+    // caller is the embed iframe, which is same-origin with the API. Calling
+    // checkCORS unconditionally rejected those with a 403 — checkCORS treats a
+    // null origin as a failure — which silently broke transcript restore and
+    // operator-reply delivery. The sibling endpoints never hit this because
+    // they are POSTs, where the browser does send Origin.
+    //
+    // A genuine cross-origin request always carries Origin, so the protection
+    // this was added for is unaffected.
+    if (origin && !checkCORS(origin, site.allowedOrigins as string[])) {
       return NextResponse.json(
         { error: "Origin not allowed" },
         { status: 403, headers }
