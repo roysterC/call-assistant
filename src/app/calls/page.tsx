@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -17,6 +16,8 @@ import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { sentimentStyle } from "@/lib/status-styles";
+import { cn } from "@/lib/utils";
 
 interface Call {
   id: string;
@@ -66,14 +67,14 @@ export default function CallsPage() {
         description="All calls handled by your AI assistant"
       />
 
-      <Card>
+      <Card className="py-0">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Caller</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>Duration</TableHead>
+                <TableHead className="text-right">Duration</TableHead>
                 <TableHead>Sentiment</TableHead>
                 <TableHead>Summary</TableHead>
                 <TableHead>Date</TableHead>
@@ -99,41 +100,79 @@ export default function CallsPage() {
               ) : (
                 calls.map((call) => (
                   <TableRow key={call.id}>
-                    <TableCell className="font-medium">
-                      {call.lead?.name || "Unknown"}
+                    <TableCell>
+                      <span
+                        className={
+                          call.lead?.name
+                            ? "font-medium"
+                            : "text-muted-foreground italic"
+                        }
+                      >
+                        {call.lead?.name || "Unknown caller"}
+                      </span>
                       {call.lead?.company && (
                         <span className="text-xs text-muted-foreground block">
                           {call.lead.company}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">{call.phoneNumber}</TableCell>
-                    <TableCell className="text-sm">{formatDuration(call.duration)}</TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {call.phoneNumber}
+                    </TableCell>
+                    <TableCell className="text-sm text-right tabular-nums">
+                      {formatDuration(call.duration)}
+                    </TableCell>
+                    {/*
+                      Sentiment is the one column here that carries a judgement,
+                      so it gets the shared meaning-colours. It used to take the
+                      Badge "default" variant for positive — the near-white
+                      primary — while the dashboard drew the same fact in green.
+                    */}
                     <TableCell>
-                      {call.sentiment && (
-                        <Badge
-                          variant={
-                            call.sentiment === "positive"
-                              ? "default"
-                              : call.sentiment === "negative"
-                                ? "destructive"
-                                : "secondary"
-                          }
-                          className="text-[10px]"
-                        >
-                          {call.sentiment}
-                        </Badge>
+                      {call.sentiment ? (
+                        (() => {
+                          const s = sentimentStyle(call.sentiment);
+                          return (
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+                                s.className
+                              )}
+                            >
+                              {s.label}
+                            </span>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell
-                      className={`text-sm text-muted-foreground cursor-pointer ${expandedSummary === call.id ? "whitespace-normal" : "max-w-xs truncate"}`}
-                      onClick={() => setExpandedSummary(expandedSummary === call.id ? null : call.id)}
-                      title={expandedSummary !== call.id ? "Click to expand" : "Click to collapse"}
-                    >
-                      {call.summary || "—"}
+                    {/* Same button treatment as the leads table's Issue cell. */}
+                    <TableCell className="max-w-sm">
+                      {call.summary ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedSummary(
+                              expandedSummary === call.id ? null : call.id
+                            )
+                          }
+                          aria-expanded={expandedSummary === call.id}
+                          className={cn(
+                            "text-sm text-left text-muted-foreground hover:text-foreground transition-colors w-full",
+                            expandedSummary === call.id
+                              ? "whitespace-normal"
+                              : "truncate"
+                          )}
+                        >
+                          {call.summary}
+                        </button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(call.createdAt), "MMM d, h:mm a")}
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {format(new Date(call.createdAt), "d MMM, HH:mm")}
                     </TableCell>
                   </TableRow>
                 ))

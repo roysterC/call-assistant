@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -24,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { leadStatus } from "@/lib/status-styles";
 
 interface SocialContact {
   channel: "instagram" | "facebook";
@@ -52,17 +52,6 @@ interface Lead {
   socialContact: SocialContact | null;
   whatsappContact: WhatsAppContact | null;
 }
-
-const statusColors: Record<
-  string,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  new: "default",
-  callback_booked: "secondary",
-  contacted: "outline",
-  resolved: "default",
-  lost: "destructive",
-};
 
 // Source values stored on Lead → Channel union used by CHANNEL_META.
 function sourceToChannel(source: string): Channel {
@@ -285,38 +274,64 @@ export default function LeadsPage() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell
-                        className={`text-sm text-muted-foreground cursor-pointer ${
-                          expandedIssue === lead.id
-                            ? "whitespace-normal"
-                            : "max-w-xs truncate"
-                        }`}
-                        onClick={() =>
-                          setExpandedIssue(
-                            expandedIssue === lead.id ? null : lead.id
-                          )
-                        }
-                        title={
-                          expandedIssue !== lead.id
-                            ? "Click to expand"
-                            : "Click to collapse"
-                        }
-                      >
-                        {lead.issue || "—"}
+                      {/*
+                        A real button, not a clickable cell.
+
+                        Expanding used to be a td with cursor-pointer and a
+                        title attribute — invisible to the keyboard, invisible
+                        to a screen reader, and discoverable only by hovering
+                        long enough for a tooltip. The text still truncates by
+                        default; now something says so.
+                      */}
+                      <TableCell className="max-w-xs">
+                        {lead.issue ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedIssue(
+                                expandedIssue === lead.id ? null : lead.id
+                              )
+                            }
+                            aria-expanded={expandedIssue === lead.id}
+                            className={cn(
+                              "text-sm text-left text-muted-foreground hover:text-foreground transition-colors w-full",
+                              expandedIssue === lead.id
+                                ? "whitespace-normal"
+                                : "truncate"
+                            )}
+                          >
+                            {lead.issue}
+                          </button>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            —
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={statusColors[lead.status] || "outline"}
-                          className="text-[10px]"
-                        >
-                          {lead.status.replace("_", " ")}
-                        </Badge>
+                        {(() => {
+                          const s = leadStatus(lead.status);
+                          return (
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap",
+                                s.className
+                              )}
+                            >
+                              {s.label}
+                            </span>
+                          );
+                        })()}
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {lead._count.calls}
+                      <TableCell className="text-sm text-right tabular-nums">
+                        {lead._count.calls > 0 ? (
+                          lead._count.calls
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {format(new Date(lead.createdAt), "MMM d, yyyy")}
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        {format(new Date(lead.createdAt), "d MMM yyyy")}
                       </TableCell>
                     </TableRow>
                   );
