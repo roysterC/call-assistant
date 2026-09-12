@@ -17,6 +17,7 @@ import {
   LogOut,
   Building2,
   Shield,
+  TrendingUp,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -44,6 +45,12 @@ const navItems: Array<{
     requires: ["chatbot", "whatsapp", "instagram", "facebook"],
   },
   { href: "/websites", label: "Websites", icon: Globe, requires: "chatbot" },
+  {
+    href: "/insights",
+    label: "Insights",
+    icon: TrendingUp,
+    requires: "chatbot",
+  },
   { href: "/leads", label: "Leads", icon: Users },
   {
     href: "/callbacks",
