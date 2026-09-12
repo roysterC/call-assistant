@@ -423,10 +423,11 @@ function EmbedContent() {
         const opener: Message[] = config?.greeting
           ? [{ id: "greeting", role: "assistant", content: config.greeting }]
           : [];
-        const next = [...opener, ...restored];
-        // Only adopt the server's view when it genuinely has more than we are
-        // showing, so a poll can never shorten the visible transcript.
-        setMessages((prev) => (next.length > prev.length ? next : prev));
+        // Adopt the server's view outright. Polling is suspended while a
+        // reply is streaming, so there is never a partial bubble to clobber —
+        // and the previous length comparison silently stopped updating as soon
+        // as anything local was longer than the server's copy.
+        setMessages([...opener, ...restored]);
       } catch {
         /* transient network failure — the next tick tries again */
       }
@@ -499,11 +500,18 @@ function EmbedContent() {
       setMessages((prev) => [...prev, userMsg]);
       setInput("");
 
+      // No pending-reply bubble while a human has the conversation. An empty
+      // bubble renders as the typing indicator, and during handoff nothing is
+      // ever going to fill it — the dots would sit there permanently, telling
+      // the visitor someone is typing when nobody is.
+      const expectBotReply = handoff === "bot";
       const assistantId = crypto.randomUUID();
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: "assistant", content: "" },
-      ]);
+      if (expectBotReply) {
+        setMessages((prev) => [
+          ...prev,
+          { id: assistantId, role: "assistant", content: "" },
+        ]);
+      }
 
       try {
         const res = await fetch("/api/website-chat/message", {
@@ -522,15 +530,29 @@ function EmbedContent() {
           const errMsg = await res.text();
           console.error("[Widget] API error:", errMsg);
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? {
-                    ...m,
-                    content: "Sorry, something went wrong. Please try again.",
-                  }
-                : m
-            )
+            expectBotReply
+              ? prev.map((m) =>
+                  m.id === assistantId
+                    ? {
+                        ...m,
+                        content:
+                          "Sorry, something went wrong. Please try again.",
+                      }
+                    : m
+                )
+              : prev
           );
+          return;
+        }
+
+        // A JSON body rather than an event stream means the server declined to
+        // generate — currently because the conversation is with a human. Adopt
+        // the state it reports and drop any placeholder, rather than feeding
+        // JSON through the SSE parser and leaving an empty bubble behind.
+        if (!res.headers.get("content-type")?.includes("text/event-stream")) {
+          const data = await res.json().catch(() => null);
+          if (data?.handoffState) setHandoff(data.handoffState as HandoffState);
+          setMessages((prev) => prev.filter((m) => m.id !== assistantId));
           return;
         }
 
@@ -569,17 +591,21 @@ function EmbedContent() {
       } catch (err) {
         console.error("[Widget] Send error:", err);
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: "Connection error. Please try again." }
-              : m
-          )
+          expectBotReply
+            ? prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, content: "Connection error. Please try again." }
+                  : m
+              )
+            : prev
         );
       } finally {
         setSending(false);
       }
     },
-    [config, sending, siteId, sessionId]
+    // `handoff` matters: without it the callback keeps a stale value and would
+    // still draw a pending-reply bubble after the conversation moved to a human.
+    [config, sending, siteId, sessionId, handoff]
   );
 
   if (!siteId) {

@@ -75,6 +75,8 @@ interface ConversationDetail {
   handle?: string | null;
   /** ISO timestamp of the last persona reset, or null if never reset. */
   personaResetAt?: string | null;
+  /** "bot" | "requested" | "human" — website conversations only. */
+  handoffState?: string;
 }
 
 type Filter = "all" | "unread" | "recent" | "starred";
@@ -110,6 +112,7 @@ export default function ConversationsPage() {
   const [selectedChannel, setSelectedChannel] = useState<Channel>("whatsapp");
   const [reply, setReply] = useState("");
   const [replying, setReplying] = useState(false);
+  const [switchingHandoff, setSwitchingHandoff] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
   // `search` is what the user is typing right now; `searchDebounced` is
@@ -212,6 +215,39 @@ export default function ConversationsPage() {
    * Send an operator reply. This also takes the conversation over from the
    * bot server-side, so the model stops answering the moment a person does.
    */
+  // Derived as a boolean so the polling effect only re-runs when the state
+  // actually flips — depending on activeConversation itself would restart the
+  // interval on every tick, since the object identity changes each fetch.
+  const liveHandoff =
+    activeConversation?.channel === "website" &&
+    !!activeConversation.handoffState &&
+    activeConversation.handoffState !== "bot";
+
+  const setHandoff = useCallback(
+    async (state: "bot" | "human") => {
+      if (!selectedId || switchingHandoff) return;
+      setSwitchingHandoff(true);
+      try {
+        const res = await apiFetch(
+          `/api/conversations/${selectedId}/handoff?channel=${selectedChannel}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ state }),
+          }
+        );
+        if (!res.ok) throw new Error("Handoff failed");
+        await refetchActive();
+      } catch (err) {
+        console.error("Failed to change handoff state:", err);
+        alert("Failed to change handoff state");
+      } finally {
+        setSwitchingHandoff(false);
+      }
+    },
+    [selectedId, selectedChannel, switchingHandoff, refetchActive]
+  );
+
   const sendReply = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -245,7 +281,10 @@ export default function ConversationsPage() {
   // API while idle. Polls also pause while the user is mid-search (the
   // debounce handles that — searchDebounced is the dep).
   useEffect(() => {
-    const POLL_MS = 15_000;
+    // 15s is fine for bot conversations nobody is sitting on. While a person
+    // is handling one it is a live chat, and a visitor waiting 15s for a reply
+    // they already sent to appear reads as broken.
+    const POLL_MS = liveHandoff ? 3_000 : 15_000;
     let timer: ReturnType<typeof setInterval> | null = null;
     function tick() {
       if (typeof document !== "undefined" && document.hidden) return;
@@ -256,7 +295,7 @@ export default function ConversationsPage() {
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [fetchConversations, refetchActive]);
+  }, [fetchConversations, refetchActive, liveHandoff]);
 
   async function selectConversation(id: string, channel: Channel) {
     setSelectedId(id);
@@ -537,6 +576,34 @@ export default function ConversationsPage() {
               are a separate piece of work rather than a disabled-looking box
               that silently does nothing.
             */}
+            {selectedChannel === "website" && (
+              <div className="border-t border-white/10 px-3 pt-2 flex items-center justify-between gap-3 bg-[#161b22]">
+                <span className="text-xs text-slate-400">
+                  {activeConversation.handoffState === "human"
+                    ? "You are handling this conversation. The bot is paused."
+                    : activeConversation.handoffState === "requested"
+                    ? "Visitor asked for a person. The bot is paused."
+                    : "The bot is answering this conversation."}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={switchingHandoff}
+                  onClick={() =>
+                    setHandoff(
+                      activeConversation.handoffState === "bot"
+                        ? "human"
+                        : "bot"
+                    )
+                  }
+                >
+                  {activeConversation.handoffState === "bot"
+                    ? "Take over"
+                    : "Hand back to bot"}
+                </Button>
+              </div>
+            )}
+
             {selectedChannel === "website" && (
               <form
                 onSubmit={sendReply}
