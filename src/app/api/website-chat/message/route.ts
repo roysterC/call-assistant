@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  buildChatContext,
   getChatResponse,
   resolveModelForSite,
-  toChatMessages,
 } from "@/lib/claude";
 import {
   checkCORS,
@@ -154,17 +154,21 @@ export async function POST(req: NextRequest) {
       select: { role: true, content: true },
     });
 
-    // Maps operator ("agent") rows onto the roles the API accepts and labels
-    // them so the bot knows a colleague spoke. Shared with the WhatsApp and
-    // Meta handlers — see toChatMessages() for why both halves matter.
-    const chatMessages = toChatMessages(history);
+    // Maps operator ("agent") rows onto the roles the API accepts, and returns
+    // the system prompt that makes sense of them. Shared with the WhatsApp and
+    // Meta handlers — see buildChatContext() for why both halves travel
+    // together.
+    const { messages: chatMessages, systemPrompt } = buildChatContext(
+      history,
+      site.systemPrompt
+    );
 
     // Get AI response. If a lead is already attached to this conversation
     // (set on a previous turn via the [LEAD:...] marker or an explicit
     // form submission), let Claude also extract details into the lead row
     // through the save_customer_details tool. First-turn messages without
     // a lead yet still rely on the marker flow below.
-    const rawResponse = await getChatResponse(chatMessages, site.systemPrompt, {
+    const rawResponse = await getChatResponse(chatMessages, systemPrompt, {
       organizationId: site.organizationId,
       chatModel: resolveModelForSite(
         site.organization?.planTier,

@@ -7,43 +7,81 @@ interface ChatMessage {
   content: string;
 }
 
+/** Marks turns a human operator typed, not the bot. See buildChatContext(). */
+const AGENT_PREFIX = "[Human colleague]";
+
 /**
- * Converts stored message rows into the two roles the API accepts.
+ * Appended to the system prompt only when a human has actually replied.
  *
- * Every channel needs this because `role` is an unconstrained String column on
- * all three message tables, so what comes out of the database is wider than
- * what Anthropic will take. The website channel writes "agent" rows when an
- * operator replies during a handoff; the others have no operator path *yet*,
- * which is exactly why this is shared — the next channel to grow one should
- * not have to rediscover the failure.
+ * The transcript marker alone does not work. An assistant turn is the model's
+ * own voice, and a marker claiming otherwise contradicts a system prompt that
+ * casts it as the sole assistant — so it resolves the conflict by disowning the
+ * message. Three marker wordings were tried against the live prompt and all
+ * three failed, the worst actively undermining the operator: asked about a fee
+ * waiver a colleague had just granted, the bot replied "that wasn't actually
+ * from Roy, I think there's been a mix-up, so I wouldn't rely on that."
  *
- * Two things it gets right that are easy to get wrong:
- *
- * 1. It maps rather than asserts. The original `m.role as "user" | "assistant"`
- *    satisfied the compiler and converted nothing at runtime, so "agent"
- *    reached the API and every message after a handback failed the whole
- *    request with `Unexpected role "agent"`.
- *
- * 2. It labels agent turns. A human's reply is an assistant-side turn as far
- *    as the model is concerned, and keeping it in the transcript is what lets
- *    the bot pick up where the person left off — but unlabelled, the model
- *    reads those words as its own and denies a human was ever involved. It was
- *    observed replying "there's no one before me, I'm the one chatting with
- *    you" to a visitor who had just been talking to a person.
- *
- * Anything that isn't "user" is assistant-side: an unrecognised role is far
- * better rendered as context than used to reject the request.
+ * Telling a customer to disregard a concession a real member of staff just made
+ * is a commercial problem, not a cosmetic one — hence the fix lives at the
+ * system-prompt level, which is authoritative enough to hold.
  */
-export function toChatMessages(
-  rows: { role: string; content: string }[]
-): ChatMessage[] {
-  return rows.map((m) => ({
-    role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-    content:
-      m.role === "agent"
-        ? `(Sent by a human colleague from the team, not by you:) ${m.content}`
-        : m.content,
-  }));
+const HANDOFF_NOTE = `
+
+## A human colleague has joined this conversation
+
+Turns prefixed with ${AGENT_PREFIX} were typed by a real person from the team who
+stepped into this chat — not by you. They are genuine messages the visitor has
+already seen, and anything the colleague stated or promised stands.
+
+Treat them as part of the conversation: refer back to them when asked, attribute
+them to the colleague rather than to yourself, and never tell the visitor the
+message was a mistake, wasn't real, or should be disregarded. If you cannot add
+to what the colleague said, offer to pass it back to them.`;
+
+/**
+ * Prepares stored message rows for the API, plus the system prompt that goes
+ * with them.
+ *
+ * Both halves are returned together because using one without the other is a
+ * silent failure: the roles alone get a reply that disowns the human, and the
+ * note alone has nothing to attach to. Callers get a matched pair or nothing.
+ *
+ * On the role mapping — `role` is an unconstrained String column on all three
+ * message tables, so what comes out of the database is wider than what the API
+ * accepts. This maps rather than asserts: the original
+ * `m.role as "user" | "assistant"` satisfied the compiler and converted nothing
+ * at runtime, so "agent" reached the API and every message after a handback
+ * failed the whole request with `Unexpected role "agent"`. Anything that isn't
+ * "user" is treated as assistant-side — an unrecognised role is far better
+ * rendered as context than used to reject the request.
+ *
+ * Only the website channel writes "agent" rows today. The others have no
+ * operator path *yet*, which is exactly why this is shared: the next channel to
+ * grow one should not have to rediscover any of the above.
+ *
+ * Caching: with no agent turns the returned prompt is byte-identical to the one
+ * passed in, so the cached prefix still hits. Only handoff conversations pay a
+ * cache write, and they are rare.
+ */
+export function buildChatContext(
+  rows: { role: string; content: string }[],
+  systemPrompt: string
+): { messages: ChatMessage[]; systemPrompt: string } {
+  let sawAgent = false;
+
+  const messages = rows.map((m) => {
+    if (m.role === "agent") sawAgent = true;
+    return {
+      role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+      content:
+        m.role === "agent" ? `${AGENT_PREFIX} ${m.content}` : m.content,
+    };
+  });
+
+  return {
+    messages,
+    systemPrompt: sawAgent ? systemPrompt + HANDOFF_NOTE : systemPrompt,
+  };
 }
 
 interface LeadExtractionTarget {

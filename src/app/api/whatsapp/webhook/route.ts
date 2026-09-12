@@ -7,9 +7,9 @@ import {
   waIdToPhone,
 } from "@/lib/whatsapp";
 import {
+  buildChatContext,
   buildSystemPrompt,
   getChatResponse,
-  toChatMessages,
 } from "@/lib/claude";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -226,9 +226,11 @@ async function processMessage(
     select: { role: true, content: true },
   });
 
-  const chatMessages = toChatMessages(history);
+  const { messages: chatMessages, systemPrompt } = buildChatContext(
+    history,
+    await buildSystemPrompt(organizationId)
+  );
 
-  const systemPrompt = await buildSystemPrompt(organizationId);
   const aiResponse = await getChatResponse(chatMessages, systemPrompt, {
     organizationId,
     channel: "whatsapp",
