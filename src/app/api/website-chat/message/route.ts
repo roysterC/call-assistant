@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getChatResponse, resolveModelForSite } from "@/lib/claude";
+import {
+  getChatResponse,
+  resolveModelForSite,
+  toChatMessages,
+} from "@/lib/claude";
 import {
   checkCORS,
   corsHeaders,
@@ -150,26 +154,10 @@ export async function POST(req: NextRequest) {
       select: { role: true, content: true },
     });
 
-    const chatMessages = history.map((m) => ({
-      // A human operator's reply is an assistant-side turn as far as the model
-      // is concerned, and keeping it in the transcript is what lets the bot
-      // pick up where the person left off.
-      //
-      // Mapped rather than asserted: `as "user" | "assistant"` satisfied the
-      // compiler and converted nothing, so "agent" reached the Anthropic API
-      // and every message after a handback failed with
-      // `Unexpected role "agent"`.
-      role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-      // Agent turns are labelled so the model knows a colleague spoke rather
-      // than assuming it said those words itself. Without this it denies a
-      // human was ever involved — observed replying "there's no one before
-      // me, I'm the one chatting with you" to a visitor who had just been
-      // talking to a person.
-      content:
-        m.role === "agent"
-          ? `(Sent by a human colleague from the team, not by you:) ${m.content}`
-          : m.content,
-    }));
+    // Maps operator ("agent") rows onto the roles the API accepts and labels
+    // them so the bot knows a colleague spoke. Shared with the WhatsApp and
+    // Meta handlers — see toChatMessages() for why both halves matter.
+    const chatMessages = toChatMessages(history);
 
     // Get AI response. If a lead is already attached to this conversation
     // (set on a previous turn via the [LEAD:...] marker or an explicit

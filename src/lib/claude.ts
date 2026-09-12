@@ -7,6 +7,45 @@ interface ChatMessage {
   content: string;
 }
 
+/**
+ * Converts stored message rows into the two roles the API accepts.
+ *
+ * Every channel needs this because `role` is an unconstrained String column on
+ * all three message tables, so what comes out of the database is wider than
+ * what Anthropic will take. The website channel writes "agent" rows when an
+ * operator replies during a handoff; the others have no operator path *yet*,
+ * which is exactly why this is shared — the next channel to grow one should
+ * not have to rediscover the failure.
+ *
+ * Two things it gets right that are easy to get wrong:
+ *
+ * 1. It maps rather than asserts. The original `m.role as "user" | "assistant"`
+ *    satisfied the compiler and converted nothing at runtime, so "agent"
+ *    reached the API and every message after a handback failed the whole
+ *    request with `Unexpected role "agent"`.
+ *
+ * 2. It labels agent turns. A human's reply is an assistant-side turn as far
+ *    as the model is concerned, and keeping it in the transcript is what lets
+ *    the bot pick up where the person left off — but unlabelled, the model
+ *    reads those words as its own and denies a human was ever involved. It was
+ *    observed replying "there's no one before me, I'm the one chatting with
+ *    you" to a visitor who had just been talking to a person.
+ *
+ * Anything that isn't "user" is assistant-side: an unrecognised role is far
+ * better rendered as context than used to reject the request.
+ */
+export function toChatMessages(
+  rows: { role: string; content: string }[]
+): ChatMessage[] {
+  return rows.map((m) => ({
+    role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+    content:
+      m.role === "agent"
+        ? `(Sent by a human colleague from the team, not by you:) ${m.content}`
+        : m.content,
+  }));
+}
+
 interface LeadExtractionTarget {
   /** Lead row id to upsert extracted details onto. */
   leadId: string;

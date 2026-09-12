@@ -21,7 +21,11 @@
 
 import { createHmac } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { buildSystemPrompt, getChatResponse } from "@/lib/claude";
+import {
+  buildSystemPrompt,
+  getChatResponse,
+  toChatMessages,
+} from "@/lib/claude";
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v21.0";
 const APP_SECRET = process.env.META_APP_SECRET;
@@ -433,10 +437,7 @@ async function processMessageEvent(
     orderBy: { createdAt: "asc" },
     select: { role: true, content: true },
   });
-  const chatMessages = history.map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
+  const chatMessages = toChatMessages(history);
 
   const systemPrompt = await buildSystemPrompt(ctx.organizationId, channel);
   const aiResponse = await getChatResponse(chatMessages, systemPrompt, {

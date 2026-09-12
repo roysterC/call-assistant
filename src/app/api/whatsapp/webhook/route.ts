@@ -6,7 +6,11 @@ import {
   verifySignature,
   waIdToPhone,
 } from "@/lib/whatsapp";
-import { buildSystemPrompt, getChatResponse } from "@/lib/claude";
+import {
+  buildSystemPrompt,
+  getChatResponse,
+  toChatMessages,
+} from "@/lib/claude";
 import { rateLimit } from "@/lib/rate-limit";
 
 // GET - Meta webhook verification
@@ -222,10 +226,7 @@ async function processMessage(
     select: { role: true, content: true },
   });
 
-  const chatMessages = history.map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
+  const chatMessages = toChatMessages(history);
 
   const systemPrompt = await buildSystemPrompt(organizationId);
   const aiResponse = await getChatResponse(chatMessages, systemPrompt, {
