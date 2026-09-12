@@ -77,11 +77,16 @@ function WebsitesPageInner() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Websites</h1>
-        <p className="text-muted-foreground mt-1">
-          Embeddable chatbots for your websites
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Websites</h1>
+          <p className="text-muted-foreground mt-1">
+            Embeddable chatbots for your websites
+          </p>
+        </div>
+        <Button onClick={() => router.push(`/websites/new${navSuffix}`)}>
+          Add website
+        </Button>
       </div>
 
       <Card>
