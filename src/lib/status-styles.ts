@@ -81,3 +81,37 @@ export function sentimentStyle(value: string): StatusStyle {
     }
   );
 }
+
+export const CALLBACK_STATUS: Record<string, StatusStyle> = {
+  pending: {
+    label: "Pending",
+    className: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  },
+  completed: {
+    label: "Completed",
+    className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  },
+  missed: {
+    label: "Missed",
+    className: "bg-red-500/15 text-red-400 border-red-500/30",
+  },
+};
+
+export function callbackStatus(status: string): StatusStyle {
+  return (
+    CALLBACK_STATUS[status] ?? {
+      label: status.replace(/_/g, " "),
+      className: "bg-muted text-muted-foreground border-border",
+    }
+  );
+}
+
+/**
+ * One badge shape for all of the above.
+ *
+ * Kept next to the palettes because the three tables that use them were
+ * otherwise each repeating the same `inline-flex items-center rounded-md
+ * border px-1.5 …` string, which is how two of them ended up a pixel apart.
+ */
+export const STATUS_BADGE =
+  "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap";

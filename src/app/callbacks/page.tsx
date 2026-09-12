@@ -32,6 +32,8 @@ import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { callbackStatus, STATUS_BADGE } from "@/lib/status-styles";
+import { cn } from "@/lib/utils";
 
 const OUTCOMES: Array<{ value: string; label: string }> = [
   { value: "converted", label: "Converted" },
@@ -60,6 +62,7 @@ export default function CallbacksPage() {
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
   const [filter, setFilter] = useState("pending");
   const [loading, setLoading] = useState(true);
+  const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
 
   // Mark-complete dialog state
   const [completeTarget, setCompleteTarget] = useState<Callback | null>(null);
@@ -140,16 +143,21 @@ export default function CallbacksPage() {
         description="Scheduled follow-up calls with customers"
       />
 
-      <div className="flex gap-2">
+      <div className="flex gap-1">
         {["pending", "completed", "missed"].map((status) => (
-          <Button
+          <button
             key={status}
-            variant={filter === status ? "default" : "outline"}
-            size="sm"
             onClick={() => setFilter(status)}
+            aria-pressed={filter === status}
+            className={cn(
+              "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+              filter === status
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+            )}
           >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Button>
+            {callbackStatus(status).label}
+          </button>
         ))}
       </div>
 
@@ -160,7 +168,7 @@ export default function CallbacksPage() {
               <TableRow>
                 <TableHead>Customer</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>Assigned To</TableHead>
+                <TableHead>Assigned to</TableHead>
                 <TableHead>Scheduled</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead>Status</TableHead>
@@ -192,26 +200,73 @@ export default function CallbacksPage() {
               ) : (
                 callbacks.map((cb) => (
                   <TableRow key={cb.id}>
-                    <TableCell className="font-medium">
-                      {cb.lead.name || "Unknown"}
+                    <TableCell>
+                      <span
+                        className={
+                          cb.lead.name
+                            ? "font-medium"
+                            : "text-muted-foreground italic"
+                        }
+                      >
+                        {cb.lead.name || "Unknown"}
+                      </span>
                       {cb.lead.company && (
                         <span className="text-xs text-muted-foreground block">
                           {cb.lead.company}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">{cb.lead.phone}</TableCell>
-                    <TableCell className="text-sm">{cb.assignedTo}</TableCell>
-                    <TableCell className="text-sm">
-                      {format(new Date(cb.scheduledAt), "MMM d, h:mm a")}
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {cb.lead.phone}
                     </TableCell>
-                    <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                      {cb.notes || "—"}
+                    <TableCell className="text-sm">{cb.assignedTo}</TableCell>
+                    {/*
+                      A pending callback whose time has passed is the only thing
+                      on this page anyone is in a hurry about, and the column
+                      gave no sign of it — every row looked equally calm.
+                    */}
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {format(new Date(cb.scheduledAt), "d MMM, HH:mm")}
+                      {cb.status === "pending" &&
+                        new Date(cb.scheduledAt) < new Date() && (
+                          <span className="block text-[11px] text-amber-400">
+                            Overdue
+                          </span>
+                        )}
+                    </TableCell>
+                    {/* Same expand treatment as the leads and calls tables. */}
+                    <TableCell className="max-w-xs">
+                      {cb.notes ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedNotes(
+                              expandedNotes === cb.id ? null : cb.id
+                            )
+                          }
+                          aria-expanded={expandedNotes === cb.id}
+                          className={cn(
+                            "text-sm text-left text-muted-foreground hover:text-foreground transition-colors w-full",
+                            expandedNotes === cb.id
+                              ? "whitespace-normal"
+                              : "truncate"
+                          )}
+                        >
+                          {cb.notes}
+                        </button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px]">
-                        {cb.status}
-                      </Badge>
+                      {(() => {
+                        const s = callbackStatus(cb.status);
+                        return (
+                          <span className={cn(STATUS_BADGE, s.className)}>
+                            {s.label}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     {filter === "completed" && (
                       <TableCell>
@@ -220,7 +275,9 @@ export default function CallbacksPage() {
                             {OUTCOME_LABEL[cb.outcome] || cb.outcome}
                           </Badge>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-sm text-muted-foreground">
+                            —
+                          </span>
                         )}
                       </TableCell>
                     )}
@@ -239,11 +296,11 @@ export default function CallbacksPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 w-8 p-0"
                             onClick={() => updateStatus(cb.id, "missed")}
                             title="Mark missed"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3 h-3 mr-1" />
+                            Missed
                           </Button>
                         </div>
                       </TableCell>

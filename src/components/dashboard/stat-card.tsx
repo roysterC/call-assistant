@@ -6,8 +6,15 @@ interface StatCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
-  icon: LucideIcon;
+  /** Optional: Insights shows four of these in a row and the icons add noise. */
+  icon?: LucideIcon;
   trend?: "up" | "down" | "neutral";
+  /**
+   * Green value, for the one or two numbers on a page that are the point of it
+   * — conversion rate, out-of-hours share. Distinct from `trend`, which tints
+   * the subtitle to say which way something moved.
+   */
+  accent?: boolean;
 }
 
 /**
@@ -24,19 +31,27 @@ export function StatCard({
   subtitle,
   icon: Icon,
   trend,
+  accent,
 }: StatCardProps) {
   return (
     <Card className="gap-0 transition-colors hover:ring-foreground/20">
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div className="w-9 h-9 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Icon className="w-[18px] h-[18px] text-muted-foreground" />
-          </div>
+          {Icon && (
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Icon className="w-[18px] h-[18px] text-muted-foreground" />
+            </div>
+          )}
         </div>
         {/* Tabular figures stop the numbers jittering sideways as they tick
             over, which is what made four cards in a row look unaligned. */}
-        <p className="text-3xl font-semibold mt-2 tabular-nums tracking-tight text-foreground">
+        <p
+          className={cn(
+            "text-3xl font-semibold mt-2 tabular-nums tracking-tight",
+            accent ? "text-emerald-400" : "text-foreground"
+          )}
+        >
           {value}
         </p>
         {subtitle && (

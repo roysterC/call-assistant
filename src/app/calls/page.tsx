@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { sentimentStyle } from "@/lib/status-styles";
+import { sentimentStyle, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 
 interface Call {
@@ -134,10 +134,7 @@ export default function CallsPage() {
                           const s = sentimentStyle(call.sentiment);
                           return (
                             <span
-                              className={cn(
-                                "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
-                                s.className
-                              )}
+                              className={cn(STATUS_BADGE, s.className)}
                             >
                               {s.label}
                             </span>

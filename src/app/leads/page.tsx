@@ -23,7 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { leadStatus } from "@/lib/status-styles";
+import { leadStatus, STATUS_BADGE } from "@/lib/status-styles";
 
 interface SocialContact {
   channel: "instagram" | "facebook";
@@ -313,10 +313,7 @@ export default function LeadsPage() {
                           const s = leadStatus(lead.status);
                           return (
                             <span
-                              className={cn(
-                                "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap",
-                                s.className
-                              )}
+                              className={cn(STATUS_BADGE, s.className)}
                             >
                               {s.label}
                             </span>

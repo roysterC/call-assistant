@@ -15,6 +15,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { plural } from "@/lib/plural";
+import { EmptyState } from "@/components/ui/empty-state";
+import { MessageCircle, Link2 } from "lucide-react";
 import {
   CHART_GRID,
   CHART_SERIES,
@@ -41,34 +45,6 @@ interface Analytics {
 }
 
 const RANGES = [7, 30, 90];
-
-function Stat({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  accent?: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p
-          className={`text-3xl font-bold mt-1 ${
-            accent ? "text-emerald-500" : ""
-          }`}
-        >
-          {value}
-        </p>
-        {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function InsightsPage() {
   const [data, setData] = useState<Analytics | null>(null);
@@ -165,22 +141,22 @@ export default function InsightsPage() {
 
       {empty ? (
         <Card>
-          <CardContent className="py-12 text-center">
-            <p className="font-medium">No conversations yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Once the widget is live on your site, everything it captures shows
-              up here.
-            </p>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={MessageCircle}
+              title="No conversations in this period"
+              hint="Once the widget is live on your site, everything it captures shows up here. Try a longer range if it went live recently."
+            />
           </CardContent>
         </Card>
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-4">
-            <Stat label="Conversations" value={String(t.conversations)} />
-            <Stat
-              label="Leads captured"
+            <StatCard title="Conversations" value={String(t.conversations)} />
+            <StatCard
+              title="Leads captured"
               value={String(t.leads)}
-              hint={`${t.conversionRate}% of conversations`}
+              subtitle={`${t.conversionRate}% of conversations`}
               accent
             />
             {/*
@@ -188,22 +164,22 @@ export default function InsightsPage() {
               the enquiries you can't get to" — this is the client checking that
               claim against their own traffic.
             */}
-            <Stat
-              label="Outside working hours"
+            <StatCard
+              title="Outside working hours"
               value={`${t.outOfHoursRate}%`}
-              hint={`${t.outOfHours} conversations outside ${data.businessHours.startHour}:00–${data.businessHours.endHour}:00, Mon–Fri`}
+              subtitle={`${plural(t.outOfHours, "conversation")} outside ${data.businessHours.startHour}:00–${data.businessHours.endHour}:00, Mon–Fri`}
               accent
             />
-            <Stat
-              label="Messages per conversation"
+            <StatCard
+              title="Messages per conversation"
               value={String(t.avgMessagesPerConversation)}
-              hint={`${t.messages} messages total`}
+              subtitle={`${plural(t.messages, "message")} total`}
             />
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">
+              <CardTitle className="text-base">
                 Conversations and leads over time
               </CardTitle>
             </CardHeader>
@@ -252,13 +228,36 @@ export default function InsightsPage() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+              {/*
+                Two series and nothing saying which was which. The `name` props
+                only reach the tooltip, so unless you hovered, the chart was two
+                coloured lines and a guess. Same legend shape as the dashboard's
+                sentiment card.
+              */}
+              <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-3">
+                {[
+                  { label: "Conversations", colour: CHART_SERIES[0] },
+                  { label: "Leads", colour: CHART_SERIES[1] },
+                ].map((s) => (
+                  <li
+                    key={s.label}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: s.colour }}
+                    />
+                    {s.label}
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">When enquiries arrive</CardTitle>
+                <CardTitle className="text-base">When enquiries arrive</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-56">
@@ -307,26 +306,54 @@ export default function InsightsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Where they came from</CardTitle>
+                <CardTitle className="text-base">Where they came from</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className={data.topReferrers.length ? "" : "p-0"}>
                 {data.topReferrers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No data yet.</p>
+                  <EmptyState
+                    icon={Link2}
+                    title="No referrers recorded"
+                    hint="Where visitors arrived from appears here once the widget sees traffic from more than one page."
+                  />
                 ) : (
+                  /*
+                    A bar behind each row. The list was names and counts in two
+                    columns, which reads as a table of numbers to compare by
+                    hand — the whole question being asked of it is "which of
+                    these is bigger", and a length answers that without doing
+                    arithmetic.
+                  */
                   <div className="space-y-2">
-                    {data.topReferrers.map((r) => (
-                      <div
-                        key={r.referrer}
-                        className="flex items-center justify-between gap-3 text-sm"
-                      >
-                        <span className="truncate text-foreground/80">
-                          {r.referrer}
-                        </span>
-                        <span className="text-muted-foreground shrink-0">
-                          {r.count}
-                        </span>
-                      </div>
-                    ))}
+                    {(() => {
+                      const max = Math.max(
+                        ...data.topReferrers.map((r) => r.count),
+                        1
+                      );
+                      return data.topReferrers.map((r) => (
+                        <div key={r.referrer} className="space-y-1">
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="truncate text-foreground/80">
+                              {r.referrer}
+                            </span>
+                            <span className="text-muted-foreground shrink-0 tabular-nums">
+                              {r.count}
+                            </span>
+                          </div>
+                          <div
+                            className="h-1.5 rounded-full bg-muted overflow-hidden"
+                            role="presentation"
+                          >
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.max(2, (r.count / max) * 100)}%`,
+                                backgroundColor: CHART_SERIES[0],
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 )}
               </CardContent>
