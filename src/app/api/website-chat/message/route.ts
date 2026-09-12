@@ -227,13 +227,23 @@ export async function POST(req: NextRequest) {
             issue: lead.summary?.trim().slice(0, 500) || null,
           },
           update: {
+            // Name and email stay fill-if-null. They are identity, and a
+            // later conversation offering a worse version of a name we
+            // already hold ("Tom" over "Tom Reid") should not win.
             name: existing?.name || lead.name || null,
             email: existing?.email || lead.email || null,
-            // Same fill-in-null-fields behaviour as name/email above: a lead
-            // first created by another channel (a phone call, say) with no
-            // issue recorded picks one up from the chat summary.
+            // The issue is not identity — it is what this person currently
+            // wants, and that is the whole reason anyone reads the column. It
+            // used to be fill-if-null like the two above, so the first summary
+            // ever recorded outlived every later one: someone who enquired
+            // about a boiler in March and came back in June about a bathroom
+            // still read as a boiler enquiry.
+            //
+            // A newer summary now wins, but only a real one — an empty or
+            // missing summary leaves whatever is already there rather than
+            // clearing a good description to null.
             issue:
-              existing?.issue || lead.summary?.trim().slice(0, 500) || null,
+              lead.summary?.trim().slice(0, 500) || existing?.issue || null,
           },
         });
         updateData.leadId = upserted.id;
