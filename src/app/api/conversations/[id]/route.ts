@@ -57,6 +57,10 @@ export async function GET(
         createdAt: conv.createdAt,
         lastMessageAt: conv.lastMessageAt,
         personaResetAt: conv.personaResetAt,
+        // Without this the inbox could never tell which side was handling the
+        // conversation: the status line and the take-over/hand-back button
+        // both read it, and it was being dropped by this normalisation.
+        handoffState: conv.handoffState,
         userAgent: conv.userAgent,
         referrer: conv.referrer,
         site: conv.site,

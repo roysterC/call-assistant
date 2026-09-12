@@ -151,7 +151,15 @@ export async function POST(req: NextRequest) {
     });
 
     const chatMessages = history.map((m) => ({
-      role: m.role as "user" | "assistant",
+      // A human operator's reply is an assistant-side turn as far as the model
+      // is concerned, and keeping it in the transcript is what lets the bot
+      // pick up where the person left off.
+      //
+      // Mapped rather than asserted: `as "user" | "assistant"` satisfied the
+      // compiler and converted nothing, so "agent" reached the Anthropic API
+      // and every message after a handback failed with
+      // `Unexpected role "agent"`.
+      role: m.role === "user" ? ("user" as const) : ("assistant" as const),
       content: m.content,
     }));
 
