@@ -449,7 +449,9 @@ export default function OrganizationDetailPage() {
         <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
           {org.slug}
         </code>
-        <span className="capitalize">{org.planTier} plan</span>
+        <span>
+          <span className="capitalize">{org.planTier}</span> plan
+        </span>
         <span>{plural(org._count.leads, "lead")}</span>
         <span>{plural(org._count.calls, "call")}</span>
         <span>{plural(org._count.websites, "site")}</span>
