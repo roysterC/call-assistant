@@ -42,7 +42,7 @@ interface Lead {
   id: string;
   name: string | null;
   email: string | null;
-  phone: string;
+  phone: string | null;
   company: string | null;
   issue: string | null;
   status: string;
@@ -108,25 +108,24 @@ function displayIdentifier(lead: Lead): string {
   }
 
   if (channel === "website") {
-    if (lead.email) return lead.email;
-    // Synthetic phone for website leads is `website-{sessionId8}` — too
-    // ugly to surface; show the trailing 8 chars only as a thin context.
-    if (lead.phone.startsWith("website-")) {
-      return `Session ${lead.phone.slice(-8)}`;
-    }
-    return lead.phone;
+    // Email is this channel's identity now, so it is almost always present.
+    return lead.email || lead.phone || "—";
   }
 
-  // Phone / WhatsApp / manual: phone is the real identifier IF it's a
-  // genuine number rather than a synthetic prefix.
+  // Phone / WhatsApp / manual: the number is the real identifier, unless it is
+  // one of the synthetic values the other channels used to invent. Website no
+  // longer creates `website-{session}` at all, but rows written before that
+  // change still carry one.
+  const phone = lead.phone;
   if (
-    lead.phone.startsWith("instagram-") ||
-    lead.phone.startsWith("facebook-") ||
-    lead.phone.startsWith("website-")
+    !phone ||
+    phone.startsWith("instagram-") ||
+    phone.startsWith("facebook-") ||
+    phone.startsWith("website-")
   ) {
     return "—";
   }
-  return lead.phone;
+  return phone;
 }
 
 export default function LeadsPage() {
@@ -212,8 +211,14 @@ export default function LeadsPage() {
                   const channelMeta = CHANNEL_META[channel];
                   const ChannelIcon = channelMeta.icon;
                   const avatarUrl = lead.socialContact?.profilePicUrl || null;
-                  const initials = initialsFor(name === "Unknown" ? null : name, lead.phone);
-                  const avatarColor = avatarColorFor(name + lead.phone);
+                  // Seeded from email when there is no number, so a website
+                  // lead still gets stable initials and a stable colour.
+                  const seed = lead.phone || lead.email || lead.id;
+                  const initials = initialsFor(
+                    name === "Unknown" ? null : name,
+                    seed
+                  );
+                  const avatarColor = avatarColorFor(name + seed);
                   return (
                     <TableRow key={lead.id}>
                       <TableCell>

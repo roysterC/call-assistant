@@ -72,7 +72,7 @@ interface ConversationDetail {
     id: string;
     name: string | null;
     email: string | null;
-    phone: string;
+    phone: string | null;
     company: string | null;
     // The API has always returned the whole lead row; this type just did not
     // mention `issue`, so it was dropped on the way to the contact panel.

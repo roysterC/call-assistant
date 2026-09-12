@@ -11,7 +11,7 @@ interface Callback {
   scheduledAt: string;
   status: string;
   notes: string | null;
-  lead: { name: string | null; phone: string; company: string | null };
+  lead: { name: string | null; phone: string | null; company: string | null };
 }
 
 export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {

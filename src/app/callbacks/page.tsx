@@ -55,7 +55,7 @@ interface Callback {
   outcome: string | null;
   completedAt: string | null;
   notes: string | null;
-  lead: { name: string | null; phone: string; company: string | null };
+  lead: { name: string | null; phone: string | null; company: string | null };
 }
 
 export default function CallbacksPage() {

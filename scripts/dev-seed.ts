@@ -130,14 +130,14 @@ async function main() {
 
     // 6. Sample call
     const existingCall = await prisma.call.findFirst({
-      where: { organizationId: org.id, phoneNumber: lead.phone },
+      where: { organizationId: org.id, phoneNumber: lead.phone ?? "" },
     });
     if (!existingCall) {
       await prisma.call.create({
         data: {
           organizationId: org.id,
           vapiCallId: `dev-call-${Date.now()}`,
-          phoneNumber: lead.phone,
+          phoneNumber: lead.phone ?? "",
           status: "completed",
           duration: 180,
           transcript:
@@ -167,7 +167,7 @@ async function main() {
         data: {
           organizationId: org.id,
           waId: "447700900000",
-          phoneNumber: lead.phone,
+          phoneNumber: lead.phone ?? "",
           contactName: "Jane Example",
           leadId: lead.id,
           status: "active",

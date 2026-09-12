@@ -25,7 +25,7 @@ interface ContactPanelProps {
       id: string;
       name: string | null;
       email: string | null;
-      phone: string;
+      phone: string | null;
       company: string | null;
       /** One-line summary of what they want. See the Lead Info section. */
       issue: string | null;

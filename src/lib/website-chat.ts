@@ -83,7 +83,6 @@ export function isSafeCTAUrl(url: string): boolean {
   // Browsers ignore control characters and whitespace when resolving a scheme,
   // so "java\nscript:alert(1)" navigates. Strip them before testing or the
   // check reads a scheme that the browser will not.
-  // eslint-disable-next-line no-control-regex
   const cleaned = url.replace(/[\u0000-\u0020]/g, "");
   if (!cleaned) return false;
 

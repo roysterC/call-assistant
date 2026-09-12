@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkCORS, corsHeaders, isValidEmail } from "@/lib/website-chat";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
+import { upsertWebsiteLead } from "@/lib/website-lead";
 
 export async function OPTIONS(req: NextRequest) {
   return new Response(null, {
@@ -81,33 +82,20 @@ export async function POST(req: NextRequest) {
     }
 
     const organizationId = site.organizationId;
-    // Find or create lead
-    let lead = phone
-      ? await prisma.lead.findUnique({
-          where: { organizationId_phone: { organizationId, phone } },
-        })
-      : null;
-
-    if (!lead) {
-      lead = await prisma.lead.create({
-        data: {
-          organizationId,
-          name: name || null,
-          email,
-          phone: phone || `website-${sessionId.slice(0, 8)}`,
-          source: "website",
-          notes: notes || null,
-        },
-      });
-    } else {
-      lead = await prisma.lead.update({
-        where: { id: lead.id },
-        data: {
-          name: lead.name || name || null,
-          email: lead.email || email || null,
-        },
-      });
-    }
+    // Keyed on email, shared with the lead-marker path.
+    //
+    // This used to look the lead up by phone and, when the visitor gave none,
+    // invent `website-{sessionId}` — so the same person filling the form again
+    // next week became a second lead, because the session had changed. It also
+    // never checked email at all, so someone who had already been captured by
+    // the marker got a duplicate.
+    const lead = await upsertWebsiteLead({
+      organizationId,
+      email,
+      name,
+      phone,
+      notes,
+    });
 
     await prisma.websiteConversation.update({
       where: { id: conversation.id },

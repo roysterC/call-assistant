@@ -271,6 +271,16 @@ async function handleBookCallback(
     teamMember = members[0]?.name || "Team";
   }
 
+  // A callback is a phone call, so a lead with no number cannot have one
+  // booked. Voice leads always have one; this guards the case where a website
+  // lead (email-keyed, often no number) reaches this path.
+  if (!lead.phone) {
+    return {
+      success: false,
+      message: "That contact has no phone number on file to call back.",
+    };
+  }
+
   const booking = await bookCallback(
     scheduledAt.toISOString(),
     lead.name || lead.phone,

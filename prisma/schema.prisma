@@ -174,8 +174,14 @@ model Lead {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name           String?
+  // Stored lower-cased for the website channel, because it is that channel's
+  // identity key and "Sam@x.co.uk" must not become a second lead.
   email          String?
-  phone          String
+  // Nullable since website leads are keyed on email and often have no number.
+  // It used to be required, so that channel invented one — `website-{session}`
+  // — which made a *new* lead every time the same person came back, because
+  // the session changed.
+  phone          String?
   company        String?
   issue          String?
   status         String   @default("new") // new, callback_booked, contacted, resolved, lost
@@ -189,7 +195,18 @@ model Lead {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  // Two identity keys, one per kind of channel.
+  //
+  // Phone channels (voice, WhatsApp) know a number and nothing else, so that
+  // is what they deduplicate on. The website knows an email and often no
+  // number at all, and keying it on phone was wrong in both directions: two
+  // people sharing one number — a reception line, a couple — collapsed into a
+  // single lead, while one person returning in a new session became several.
+  //
+  // Postgres permits many NULLs in a unique index, so leads missing either
+  // field coexist happily under both constraints.
   @@unique([organizationId, phone])
+  @@unique([organizationId, email])
   @@index([organizationId])
   @@index([status])
   @@index([createdAt])

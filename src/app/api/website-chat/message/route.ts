@@ -12,6 +12,7 @@ import {
   isValidEmail,
 } from "@/lib/website-chat";
 import { rateLimit } from "@/lib/rate-limit";
+import { upsertWebsiteLead } from "@/lib/website-lead";
 
 export async function OPTIONS(req: NextRequest) {
   return new Response(null, {
@@ -197,57 +198,22 @@ export async function POST(req: NextRequest) {
         visitorPhone: lead.phone || undefined,
       };
 
-      if (phone) {
-        // Atomic upsert. The earlier findUnique-then-create branch would
-        // race when two messages from the same visitor arrived back-to-
-        // back. We still want the "fill in null fields" behaviour from
-        // the old update branch, so we read the row back first to compute
-        // the merged update — but the create-vs-update arbitration itself
-        // is atomic at DB level.
-        const existing = await prisma.lead.findUnique({
-          where: {
-            organizationId_phone: { organizationId: site.organizationId, phone },
-          },
-        });
-        const upserted = await prisma.lead.upsert({
-          where: {
-            organizationId_phone: { organizationId: site.organizationId, phone },
-          },
-          create: {
-            organizationId: site.organizationId,
-            name: lead.name || null,
-            email: lead.email,
-            phone,
-            source: "website",
-            // The marker's summary is "what this lead wants", which is `issue`
-            // — the column the leads table renders. It used to go to `notes`,
-            // an internal field nothing displays, so every website lead showed
-            // a blank issue while phone leads showed theirs. Capped at 500 to
-            // match applyCustomerDetails() in lib/claude.ts.
-            issue: lead.summary?.trim().slice(0, 500) || null,
-          },
-          update: {
-            // Name and email stay fill-if-null. They are identity, and a
-            // later conversation offering a worse version of a name we
-            // already hold ("Tom" over "Tom Reid") should not win.
-            name: existing?.name || lead.name || null,
-            email: existing?.email || lead.email || null,
-            // The issue is not identity — it is what this person currently
-            // wants, and that is the whole reason anyone reads the column. It
-            // used to be fill-if-null like the two above, so the first summary
-            // ever recorded outlived every later one: someone who enquired
-            // about a boiler in March and came back in June about a bathroom
-            // still read as a boiler enquiry.
-            //
-            // A newer summary now wins, but only a real one — an empty or
-            // missing summary leaves whatever is already there rather than
-            // clearing a good description to null.
-            issue:
-              lead.summary?.trim().slice(0, 500) || existing?.issue || null,
-          },
-        });
-        updateData.leadId = upserted.id;
-      }
+      // Keyed on email, not the phone number. The marker cannot fire without
+      // an email, and two visitors sharing a phone used to merge into one
+      // lead and overwrite each other's details. See upsertWebsiteLead().
+      //
+      // The marker's summary is "what this lead wants", which is `issue` — the
+      // column the leads table renders. It used to go to `notes`, an internal
+      // field nothing displays, so every website lead showed a blank issue
+      // while phone leads showed theirs.
+      const upserted = await upsertWebsiteLead({
+        organizationId: site.organizationId,
+        email: lead.email,
+        name: lead.name,
+        phone,
+        issue: lead.summary,
+      });
+      updateData.leadId = upserted.id;
 
       await prisma.websiteConversation.update({
         where: { id: conversation.id },
