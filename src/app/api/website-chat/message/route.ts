@@ -160,7 +160,15 @@ export async function POST(req: NextRequest) {
       // and every message after a handback failed with
       // `Unexpected role "agent"`.
       role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-      content: m.content,
+      // Agent turns are labelled so the model knows a colleague spoke rather
+      // than assuming it said those words itself. Without this it denies a
+      // human was ever involved — observed replying "there's no one before
+      // me, I'm the one chatting with you" to a visitor who had just been
+      // talking to a person.
+      content:
+        m.role === "agent"
+          ? `(Sent by a human colleague from the team, not by you:) ${m.content}`
+          : m.content,
     }));
 
     // Get AI response. If a lead is already attached to this conversation
