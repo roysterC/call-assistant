@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { isChannelEnabled, type Channel } from "@/lib/channel-flags";
+import { websiteVisitorLabel } from "@/lib/visitor-label";
 
 export async function GET(
   req: NextRequest,
@@ -47,7 +48,13 @@ export async function GET(
       return NextResponse.json({
         id: conv.id,
         channel: "website",
-        contactName: conv.visitorName,
+        // Falls back to the same label the list shows, so a conversation does
+        // not change its name when you click into it.
+        contactName:
+          conv.visitorName ||
+          conv.lead?.name ||
+          conv.visitorEmail ||
+          websiteVisitorLabel(conv.sessionId),
         phoneNumber: conv.visitorPhone || "",
         visitorEmail: conv.visitorEmail,
         visitorPhone: conv.visitorPhone,

@@ -68,13 +68,14 @@ export function ConversationListItem({
   // Fallback ladder for the primary display name. For IG/FB the API
   // sends phoneNumber: "" — we land on the handle (or a friendly
   // channel placeholder when even that is missing on first contact).
+  // Website is absent deliberately: that channel's identifier is now always
+  // populated upstream (websiteVisitorLabel), so a "Visitor" branch here could
+  // never be reached — it looked like a safety net while being dead code.
   const channelPlaceholder =
     channel === "instagram"
       ? "Instagram user"
       : channel === "facebook"
       ? "Messenger user"
-      : channel === "website"
-      ? "Visitor"
       : "Unknown";
   const primaryName =
     contactName ||

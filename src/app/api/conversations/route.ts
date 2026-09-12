@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
+import { websiteVisitorLabel } from "@/lib/visitor-label";
 
 type NormalizedConversation = {
   id: string;
@@ -170,7 +171,7 @@ export async function GET(req: NextRequest) {
           id: c.id,
           channel: "website",
           contactName: c.visitorName || c.lead?.name || null,
-          identifier: c.visitorEmail || c.sessionId.slice(0, 8),
+          identifier: c.visitorEmail || websiteVisitorLabel(c.sessionId),
           lastMessage: c.messages[0]?.content || null,
           lastMessageAt: c.lastMessageAt.toISOString(),
           isRead: c.isRead,
