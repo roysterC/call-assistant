@@ -377,3 +377,46 @@ export function resolveSpokenDate(
   if (delta === 0) delta = 7;
   return addDays(delta);
 }
+
+/**
+ * Describe an appointment time for a written message.
+ *
+ * Deliberately different from the phrasing used on a call: "quarter past two"
+ * suits speech, "2:15pm" suits a text someone glances at. Relative wording is
+ * used where it is unambiguous, because "tomorrow at 2pm" is checked against
+ * memory far faster than a date is.
+ */
+export function describeAppointmentWhen(
+  at: Date,
+  timeZone: string,
+  now: Date = new Date()
+): string {
+  const target = zonedDateString(at, timeZone);
+  const today = zonedDateString(now, timeZone);
+  const tomorrow = zonedDateString(
+    new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    timeZone
+  );
+
+  const { hour, minute } = zonedParts(at, timeZone);
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  const suffix = hour < 12 ? "am" : "pm";
+  const time =
+    minute === 0
+      ? `${h12}${suffix}`
+      : `${h12}:${String(minute).padStart(2, "0")}${suffix}`;
+
+  if (target === today) return `today at ${time}`;
+  if (target === tomorrow) return `tomorrow at ${time}`;
+
+  const dayName = DAY_NAMES[zonedParts(at, timeZone).weekday];
+  const withinAWeek = at.getTime() - now.getTime() < 7 * 24 * 60 * 60 * 1000;
+  if (withinAWeek) return `${dayName} at ${time}`;
+
+  const { day, month } = zonedParts(at, timeZone);
+  const monthName = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ][month - 1];
+  return `${dayName} ${day} ${monthName} at ${time}`;
+}

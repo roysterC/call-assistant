@@ -116,6 +116,9 @@ model OrganizationSettings {
   // write, because they drive booking logic and generated prompt text.
   businessHours           Json         @default("[]")
   timezone                String       @default("Europe/London")
+  // Printed in outbound texts. The SMS sender is alphanumeric and one-way, so
+  // every message has to say where to ring if the time does not suit.
+  contactPhone            String?
   services                Json         @default("[]")
   // Voice prompt body, matching the per-channel convention used by
   // whatsappSystemPrompt / instagramSystemPrompt / facebookSystemPrompt. The
@@ -302,10 +305,14 @@ model Appointment {
   source String  @default("voice") // voice | manual
   notes  String?
 
-  // SMS confirmation state. Three columns rather than a message table: the
-  // only question staff ask is "did the text go?".
+  // SMS state. Columns rather than a message table: the only question staff
+  // ask is "did the text go?", and a delivery-audit story can come later.
   confirmationSentAt DateTime?
   confirmationError  String?
+  // Set the moment a reminder is attempted, not when it succeeds, so a cron
+  // run that overlaps itself cannot text the same client twice.
+  reminderSentAt     DateTime?
+  reminderError      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

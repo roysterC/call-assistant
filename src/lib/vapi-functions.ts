@@ -13,7 +13,9 @@ import {
 } from "@/lib/booking/availability";
 import { matchService, matchStylist } from "@/lib/salon-config";
 import { normalisePhone, speakablePhone } from "@/lib/phone";
+import { confirmationBody, sendSms } from "@/lib/sms";
 import {
+  describeAppointmentWhen,
   nextOpenMorning,
   parseDateOnly,
   resolveSpokenDate,
@@ -700,7 +702,7 @@ export async function handleBookAppointment(
     };
   }
 
-  await prisma.appointment.create({
+  const appointment = await prisma.appointment.create({
     data: {
       organizationId,
       leadId: lead.id,
@@ -719,6 +721,42 @@ export async function handleBookAppointment(
     },
   });
 
+  // Confirmation text. Deliberately after the appointment is committed and
+  // deliberately not awaited into the booking's success: the appointment is
+  // real whether or not the text lands, and the agent has already been told
+  // it can confirm. A failure is recorded so staff can see it on the
+  // appointment rather than discovering it from an unhappy client.
+  const settings = await prisma.organizationSettings.findUnique({
+    where: { organizationId },
+    select: { businessName: true, contactPhone: true },
+  });
+
+  const sms = await sendSms(
+    organizationId,
+    phone,
+    confirmationBody({
+      clientName: lead.name,
+      serviceName: service.name,
+      stylistName: stylist.name,
+      whenText: describeAppointmentWhen(new Date(written.startsAt), cfg.timeZone),
+      businessName: settings?.businessName ?? "the salon",
+      contactPhone: settings?.contactPhone ?? null,
+    })
+  );
+
+  await prisma.appointment.update({
+    where: { id: appointment.id },
+    data: sms.ok
+      ? { confirmationSentAt: new Date(), confirmationError: null }
+      : { confirmationError: sms.reason },
+  });
+
+  if (!sms.ok) {
+    console.warn(
+      `[SMS] Confirmation not sent for appointment ${appointment.id}: ${sms.reason}`
+    );
+  }
+
   await prisma.lead.update({
     where: { id: lead.id },
     data: { status: "resolved" },
@@ -730,10 +768,13 @@ export async function handleBookAppointment(
     startsAt: written.startsAt,
     stylist: stylist.name,
     service: service.name,
+    textSent: sms.ok,
     message:
       `Booked: ${service.name} with ${stylist.name} at ` +
       `${spokenTime(written.startsAt, cfg.timeZone)}. Confirm that back to the ` +
-      "caller and let them know they will get a text.",
+      (sms.ok
+        ? "caller and let them know they will get a text confirming it."
+        : "caller. Do NOT promise a text — one could not be sent."),
   };
 }
 
