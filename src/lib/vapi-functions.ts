@@ -244,10 +244,17 @@ export async function handleBookCallback(
   };
 }
 
+/** Vapi body templates send unset fields as "" — that means absent. */
+function blankToUndefined(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
 function normaliseClientType(
   raw: string | undefined
 ): "new" | "returning" | "unknown" {
-  const v = (raw ?? "").trim().toLowerCase();
+  const v = (blankToUndefined(raw) ?? "").toLowerCase();
   if (v === "new") return "new";
   if (v === "returning" || v === "existing" || v === "regular") return "returning";
   return "unknown";
@@ -303,7 +310,7 @@ export async function handleCheckAvailability(
   }
 
   const cfg = await getSalonConfig(organizationId);
-  const service = matchService(params.service, cfg.services);
+  const service = matchService(blankToUndefined(params.service), cfg.services);
 
   if (!service) {
     return {
@@ -323,7 +330,8 @@ export async function handleCheckAvailability(
           ? "returning"
           : undefined)
   );
-  const stylistName = params.stylist || params.teamMember;
+  const stylistName =
+    blankToUndefined(params.stylist) ?? blankToUndefined(params.teamMember);
 
   // Callers say "Thursday"; the model has no dependable idea what today is.
   // Resolve against the salon's own clock rather than trusting it to compute.
@@ -403,9 +411,9 @@ export async function handleCheckAvailability(
   // who said "anytime after five" is the kind of thing that makes an agent
   // sound like it is not listening.
   const preference = {
-    timeOfDay: parseTimeOfDay(params.timeOfDay),
-    after: params.after,
-    before: params.before,
+    timeOfDay: parseTimeOfDay(blankToUndefined(params.timeOfDay)),
+    after: blankToUndefined(params.after),
+    before: blankToUndefined(params.before),
   };
   const preferred = filterSlotsByPreference(slots, cfg.timeZone, preference);
   const hasPreference = Boolean(
@@ -506,13 +514,17 @@ export async function handleBookAppointment(
     };
   }
 
-  const stylist = matchStylist(params.stylist, cfg.stylists);
-  if (!stylist) {
+  const requestedStylist = blankToUndefined(params.stylist);
+  let stylist = matchStylist(requestedStylist, cfg.stylists);
+
+  if (!stylist && requestedStylist) {
+    // A name was given and not recognised — say so, rather than implying none
+    // was supplied. Usually the transcriber mangling it ("Joe" for "Jo").
     return {
       success: false,
       message:
-        "Which stylist is that with? I need to know before I can put it in " +
-        "the diary.",
+        `"${requestedStylist}" is not a stylist here. Confirm the name with ` +
+        "the caller, or say who you offered the slot with.",
     };
   }
 
@@ -550,6 +562,34 @@ export async function handleBookAppointment(
 
   if (Number.isNaN(startsAt.getTime())) {
     return { success: false, message: "That date and time did not parse." };
+  }
+
+  // No stylist named: work out who owns the slot that was offered.
+  if (!stylist && canReadAvailability(provider)) {
+    const iso = startsAt.toISOString();
+    try {
+      const slots = await provider.getAvailability({
+        organizationId,
+        date: resolveSpokenDate(params.date || params.day, cfg.timeZone) ?? "",
+        serviceName: service.name,
+      });
+      const atThatTime = slots.filter((sl) => sl.start === iso);
+      const names = [...new Set(atThatTime.map((sl) => sl.stylistName))];
+      if (names.length === 1 && names[0]) {
+        stylist = matchStylist(names[0], cfg.stylists);
+      }
+    } catch (err) {
+      console.warn("[VAPI FUNCTIONS] Stylist inference failed:", err);
+    }
+  }
+
+  if (!stylist) {
+    return {
+      success: false,
+      message:
+        "Which stylist is that with? More than one is free then, so say who " +
+        "you offered it with.",
+    };
   }
 
   const today = zonedDateString(new Date(), cfg.timeZone);
