@@ -1,24 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createHmac } from "crypto";
+import {
+  verifyVapiSignature,
+  vapiSignatureFromHeaders,
+} from "@/lib/vapi-signature";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
-
-const WEBHOOK_SECRET = process.env.VAPI_WEBHOOK_SECRET;
-
-// Surface misconfiguration at boot instead of silently accepting unsigned
-// webhooks in production. In dev we log a warning but still allow them so
-// the Vapi dashboard's "test webhook" button keeps working.
-if (!WEBHOOK_SECRET) {
-  if (process.env.NODE_ENV === "production") {
-    console.error(
-      "[VAPI WEBHOOK] VAPI_WEBHOOK_SECRET is not set — ALL incoming webhooks will be rejected as unsigned."
-    );
-  } else {
-    console.warn(
-      "[VAPI WEBHOOK] VAPI_WEBHOOK_SECRET not set — dev-only bypass active. Unsigned webhooks will be accepted."
-    );
-  }
-}
 
 /**
  * Parse a Vapi transcript into a flat text string for analysis.
@@ -162,17 +148,6 @@ function extractCallerName(transcript: unknown): string | null {
   return null;
 }
 
-function verifyVapiSignature(payload: string, signature: string | null): boolean {
-  // Production: a missing secret means we CANNOT verify anything — reject.
-  // Dev: allow so local testing / Vapi dashboard "test webhook" keeps working.
-  if (!WEBHOOK_SECRET) {
-    return process.env.NODE_ENV !== "production";
-  }
-  if (!signature) return false;
-  const expected = createHmac("sha256", WEBHOOK_SECRET).update(payload).digest("hex");
-  return signature === expected;
-}
-
 // GET handler for testing webhook accessibility
 export async function GET() {
   return NextResponse.json({
@@ -191,7 +166,7 @@ export async function POST(req: NextRequest) {
     // Always run the check — its internal logic handles the dev/prod branch
     // when the secret isn't configured. Removing the `WEBHOOK_SECRET &&`
     // guard closes the prod bypass where unsigned webhooks were accepted.
-    const signature = req.headers.get("x-vapi-signature");
+    const signature = vapiSignatureFromHeaders(req.headers);
     if (!verifyVapiSignature(rawBody, signature)) {
       console.warn("[VAPI WEBHOOK] Invalid signature");
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });

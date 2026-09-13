@@ -31,24 +31,25 @@ model Organization {
   websiteConversations  WebsiteConversation[]
   socialConversations   SocialConversation[]
   phoneNumbers          PhoneNumber[]
+  appointments          Appointment[]
 
   @@map("ca_organizations")
 }
 
 model User {
-  id             String    @id @default(cuid())
-  email          String    @unique
+  id             String        @id @default(cuid())
+  email          String        @unique
   name           String?
   emailVerified  DateTime?
   image          String?
   passwordHash   String?
-  role           String    @default("member") // member, admin, superAdmin
+  role           String        @default("member") // member, admin, superAdmin
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   accounts       Account[]
   sessions       Session[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@map("ca_users")
 }
@@ -92,47 +93,65 @@ model VerificationToken {
 }
 
 model OrganizationSettings {
-  id                   String   @id @default(cuid())
-  organizationId       String   @unique
-  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  businessName         String
-  teamMembers          Json     @default("[]")
-  whatsappSystemPrompt String?
-  whatsappEnabled      Boolean  @default(false)
-  chatbotEnabled       Boolean  @default(false)
-  voiceEnabled         Boolean  @default(false)
+  id                      String       @id @default(cuid())
+  organizationId          String       @unique
+  organization            Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessName            String
+  teamMembers             Json         @default("[]")
+  whatsappSystemPrompt    String?
+  whatsappEnabled         Boolean      @default(false)
+  chatbotEnabled          Boolean      @default(false)
+  voiceEnabled            Boolean      @default(false)
   // Cal.com v2 integration (opt-in). When both are set, callbacks created
   // via the Vapi function call will also be booked as Cal.com events.
-  calComApiKey         String?
-  calComEventTypeId    String?
+  calComApiKey            String?
+  calComEventTypeId       String?
+  // Salon diary. The booking provider is chosen from what is configured here:
+  // Google calendar ids on teamMembers -> google; Cal.com creds -> calcom;
+  // otherwise the manual provider, which cannot claim availability at all.
+  //
+  // businessHours: [{ day: 0-6, closed, open: "HH:MM", close: "HH:MM" }]
+  // services:      [{ name, durationMinutes, requiresPatchTest, bufferMinutes }]
+  // Both are validated by parseBusinessHours / parseServices on read AND on
+  // write, because they drive booking logic and generated prompt text.
+  businessHours           Json         @default("[]")
+  timezone                String       @default("Europe/London")
+  services                Json         @default("[]")
+  // Voice prompt body, matching the per-channel convention used by
+  // whatsappSystemPrompt / instagramSystemPrompt / facebookSystemPrompt. The
+  // availability stance and opening hours are generated and prepended at sync
+  // time so they cannot drift from what the code enforces.
+  voiceSystemPrompt       String?
+  vapiAssistantId         String?
   // Instagram Direct Messages (Meta Graph API). When enabled, inbound
   // messages land in /conversations and Claude auto-replies via the
   // per-org instagramSystemPrompt (fallback: generic prompt).
-  instagramEnabled         Boolean @default(false)
-  instagramSystemPrompt    String?
-  instagramBusinessId      String?
-  instagramAccessToken     String?
+  instagramEnabled        Boolean      @default(false)
+  instagramSystemPrompt   String?
+  instagramBusinessId     String?
+  instagramAccessToken    String?
   // Facebook Messenger (Meta Graph API). Same semantics as Instagram.
-  facebookEnabled          Boolean @default(false)
-  facebookSystemPrompt     String?
-  facebookPageId           String?
-  facebookPageAccessToken  String?
-  updatedAt            DateTime @updatedAt
+  facebookEnabled         Boolean      @default(false)
+  facebookSystemPrompt    String?
+  facebookPageId          String?
+  facebookPageAccessToken String?
+  updatedAt               DateTime     @updatedAt
 
   @@map("ca_organization_settings")
 }
 
 model PhoneNumber {
-  id                    String   @id @default(cuid())
+  id                    String       @id @default(cuid())
   organizationId        String
   organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  number                String   @unique // E.164 format
-  channel               String   // "vapi" or "whatsapp"
+  number                String       @unique // E.164 format
+  channel               String // "vapi" or "whatsapp"
   vapiPhoneNumberId     String?
   whatsappPhoneNumberId String?
+  smsSenderId           String?
   label                 String?
-  active                Boolean  @default(true)
-  createdAt             DateTime @default(now())
+  active                Boolean      @default(true)
+  createdAt             DateTime     @default(now())
 
   @@index([organizationId])
   @@index([channel])
@@ -145,13 +164,13 @@ model PhoneNumber {
 // ─────────────────────────────────────────────────────────────
 
 model Call {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vapiCallId     String   @unique
+  vapiCallId     String       @unique
   phoneNumber    String
-  status         String   @default("completed") // completed, transferred, voicemail, failed
-  duration       Int      @default(0)
+  status         String       @default("completed") // completed, transferred, voicemail, failed
+  duration       Int          @default(0)
   transcript     Json?
   summary        String?
   sentiment      String?
@@ -159,9 +178,9 @@ model Call {
   costCents      Int?
   endReason      String?
   leadId         String?
-  lead           Lead?    @relation(fields: [leadId], references: [id])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  lead           Lead?        @relation(fields: [leadId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@index([organizationId])
   @@index([phoneNumber])
@@ -170,30 +189,31 @@ model Call {
 }
 
 model Lead {
-  id             String   @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name           String?
+  id                    String                 @id @default(cuid())
+  organizationId        String
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                  String?
   // Stored lower-cased for the website channel, because it is that channel's
   // identity key and "Sam@x.co.uk" must not become a second lead.
-  email          String?
+  email                 String?
   // Nullable since website leads are keyed on email and often have no number.
   // It used to be required, so that channel invented one — `website-{session}`
   // — which made a *new* lead every time the same person came back, because
   // the session changed.
-  phone          String?
-  company        String?
-  issue          String?
-  status         String   @default("new") // new, callback_booked, contacted, resolved, lost
-  source         String   @default("phone") // phone, manual, whatsapp, website, instagram, facebook
-  notes          String?
-  calls          Call[]
-  callbacks      Callback[]
+  phone                 String?
+  company               String?
+  issue                 String?
+  status                String                 @default("new") // new, callback_booked, contacted, resolved, lost
+  source                String                 @default("phone") // phone, manual, whatsapp, website, instagram, facebook
+  notes                 String?
+  calls                 Call[]
+  callbacks             Callback[]
+  appointments          Appointment[]
   whatsappConversations WhatsAppConversation[]
   websiteConversations  WebsiteConversation[]
   socialConversations   SocialConversation[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   // Two identity keys, one per kind of channel.
   //
@@ -214,22 +234,22 @@ model Lead {
 }
 
 model Callback {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   leadId          String
-  lead            Lead     @relation(fields: [leadId], references: [id])
+  lead            Lead         @relation(fields: [leadId], references: [id])
   assignedTo      String
   scheduledAt     DateTime
-  status          String   @default("pending") // pending | completed | cancelled
+  status          String       @default("pending") // pending | completed | cancelled
   // Outcome captured when operator marks the callback complete.
   // One of: converted | no_answer | not_interested | follow_up | other
   outcome         String?
   completedAt     DateTime?
   notes           String?
   calendarEventId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@index([organizationId])
   @@index([scheduledAt])
@@ -238,26 +258,85 @@ model Callback {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Appointments
+//
+// Confirmed bookings, not requests. The diary itself lives in the provider
+// (Google Calendar, one calendar per stylist); this table is our own record
+// so the salon still has one if an event is later edited or deleted, and so
+// the dashboard can show what the agent booked overnight without calling
+// Google on every page load.
+//
+// Distinct from Callback on purpose: Callback.scheduledAt/assignedTo describe
+// "ring this person back", which is a different thing from "they are booked
+// in at two". Calls the agent could NOT book still create a Callback.
+// ─────────────────────────────────────────────────────────────
+
+model Appointment {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead         @relation(fields: [leadId], references: [id])
+  callId         String?
+
+  // Verbatim as spoken, then resolved against OrganizationSettings.services.
+  // Stored as text rather than a foreign key: the agent hears "a half head of
+  // highlights with Jo" down a phone line, and a wrong FK match would book a
+  // wrong duration. Staff correct the text; they cannot correct a silent
+  // mis-resolution.
+  serviceText     String
+  durationMinutes Int
+  stylistName     String
+
+  startsAt DateTime
+  endsAt   DateTime
+
+  // Provider-side identifiers, so an appointment can be cancelled or amended.
+  googleEventId    String?
+  googleCalendarId String?
+
+  clientType        String  @default("unknown") // new | returning | unknown
+  patchTestRequired Boolean @default(false)
+
+  status String  @default("booked") // booked | cancelled | completed | no_show
+  source String  @default("voice") // voice | manual
+  notes  String?
+
+  // SMS confirmation state. Three columns rather than a message table: the
+  // only question staff ask is "did the text go?".
+  confirmationSentAt DateTime?
+  confirmationError  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, startsAt])
+  @@index([organizationId, status])
+  @@index([leadId])
+  @@map("ca_appointments")
+}
+
+// ─────────────────────────────────────────────────────────────
 // WhatsApp
 // ─────────────────────────────────────────────────────────────
 
 model WhatsAppConversation {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   waId           String
   phoneNumber    String
   contactName    String?
   leadId         String?
-  lead           Lead?    @relation(fields: [leadId], references: [id])
-  status         String   @default("active")
-  isRead         Boolean  @default(false)
-  starred        Boolean  @default(false)
-  lastMessageAt  DateTime @default(now())
+  lead           Lead?        @relation(fields: [leadId], references: [id])
+  status         String       @default("active")
+  isRead         Boolean      @default(false)
+  starred        Boolean      @default(false)
+  lastMessageAt  DateTime     @default(now())
 
-  messages       WhatsAppMessage[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  messages  WhatsAppMessage[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 
   // When the org's system prompt changes, the admin can flip this to
   // NOW() so the AI ignores conversation history older than the reset
@@ -285,14 +364,14 @@ model WhatsAppConversation {
 }
 
 model WhatsAppMessage {
-  id             String   @id @default(cuid())
+  id             String               @id @default(cuid())
   conversationId String
   conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           String
   content        String
-  waMessageId    String?  @unique
-  status         String   @default("sent")
-  createdAt      DateTime @default(now())
+  waMessageId    String?              @unique
+  status         String               @default("sent")
+  createdAt      DateTime             @default(now())
 
   @@index([conversationId])
   @@index([createdAt])
@@ -304,26 +383,26 @@ model WhatsAppMessage {
 // ─────────────────────────────────────────────────────────────
 
 model WebsiteConfig {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   siteId         String
   name           String
-  botName        String   @default("Assistant")
+  botName        String       @default("Assistant")
   systemPrompt   String
   greeting       String?
-  quickReplies   Json     @default("[]")
-  brandColor     String   @default("#2563eb")
-  allowedOrigins Json     @default("[]")
-  enabled        Boolean  @default(true)
+  quickReplies   Json         @default("[]")
+  brandColor     String       @default("#2563eb")
+  allowedOrigins Json         @default("[]")
+  enabled        Boolean      @default(true)
 
   // Launcher presentation. Position and offset exist mainly to get out of the
   // way of whatever else already lives in a client's bottom-right corner —
   // cookie banners, back-to-top buttons, other vendors' widgets.
   launcherPosition String  @default("right") // "right" | "left"
-  launcherOffset   Int     @default(20)      // px from the bottom and side
-  launcherLabel    String?                   // e.g. "Chat with us" — pill instead of a circle
-  launcherIcon     String?                   // single emoji; null uses the default chat glyph
+  launcherOffset   Int     @default(20) // px from the bottom and side
+  launcherLabel    String? // e.g. "Chat with us" — pill instead of a circle
+  launcherIcon     String? // single emoji; null uses the default chat glyph
 
   // Panel theme. "auto" follows the visitor's OS setting.
   theme      String @default("light") // "light" | "dark" | "auto"
@@ -365,9 +444,9 @@ model WebsiteConfig {
   ctaSelector String?
   ctaUrl      String?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  conversations  WebsiteConversation[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  conversations WebsiteConversation[]
 
   @@unique([siteId])
   @@index([organizationId])
@@ -375,32 +454,32 @@ model WebsiteConfig {
 }
 
 model WebsiteConversation {
-  id             String   @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  siteId         String
-  site           WebsiteConfig @relation(fields: [siteId], references: [siteId])
-  sessionId      String   @unique
-  leadId         String?
-  lead           Lead?    @relation(fields: [leadId], references: [id])
-  visitorName    String?
-  visitorEmail   String?
-  visitorPhone   String?
-  status         String   @default("active")
-  isRead         Boolean  @default(false)
-  starred        Boolean  @default(false)
-  lastMessageAt  DateTime @default(now())
+  id                 String           @id @default(cuid())
+  organizationId     String
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  siteId             String
+  site               WebsiteConfig    @relation(fields: [siteId], references: [siteId])
+  sessionId          String           @unique
+  leadId             String?
+  lead               Lead?            @relation(fields: [leadId], references: [id])
+  visitorName        String?
+  visitorEmail       String?
+  visitorPhone       String?
+  status             String           @default("active")
+  isRead             Boolean          @default(false)
+  starred            Boolean          @default(false)
+  lastMessageAt      DateTime         @default(now())
   // Human handoff. "bot" is the normal state; "requested" means the visitor
   // asked for a person and the bot has stopped answering; "human" means an
   // operator has actually replied. The bot stays silent in both non-bot
   // states — answering over a waiting human is worse than a slow reply.
-  handoffState       String    @default("bot")
+  handoffState       String           @default("bot")
   handoffRequestedAt DateTime?
-  userAgent      String?
-  referrer       String?
-  messages       WebsiteMessage[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  userAgent          String?
+  referrer           String?
+  messages           WebsiteMessage[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   // See WhatsAppConversation for personaResetAt rationale.
   personaResetAt DateTime?
@@ -417,12 +496,12 @@ model WebsiteConversation {
 }
 
 model WebsiteMessage {
-  id             String   @id @default(cuid())
+  id             String              @id @default(cuid())
   conversationId String
   conversation   WebsiteConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           String
   content        String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime            @default(now())
 
   @@index([conversationId])
   @@map("ca_website_messages")
@@ -439,11 +518,11 @@ model WebsiteMessage {
 // ─────────────────────────────────────────────────────────────
 
 model SocialConversation {
-  id             String   @id @default(cuid())
+  id             String          @id @default(cuid())
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  channel        String   // "instagram" | "facebook"
-  externalUserId String   // IG scoped user id OR Messenger PSID
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel        String // "instagram" | "facebook"
+  externalUserId String // IG scoped user id OR Messenger PSID
   contactName    String?
   // Cached profile data fetched from Graph API on first contact, used for
   // displaying the lead with a real handle and avatar instead of the
@@ -452,14 +531,14 @@ model SocialConversation {
   contactHandle  String?
   profilePicUrl  String?
   leadId         String?
-  lead           Lead?    @relation(fields: [leadId], references: [id])
-  status         String   @default("active")
-  isRead         Boolean  @default(false)
-  starred        Boolean  @default(false)
-  lastMessageAt  DateTime @default(now())
+  lead           Lead?           @relation(fields: [leadId], references: [id])
+  status         String          @default("active")
+  isRead         Boolean         @default(false)
+  starred        Boolean         @default(false)
+  lastMessageAt  DateTime        @default(now())
   messages       SocialMessage[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   // See WhatsAppConversation for personaResetAt rationale.
   personaResetAt DateTime?
@@ -476,14 +555,14 @@ model SocialConversation {
 }
 
 model SocialMessage {
-  id                String   @id @default(cuid())
+  id                String             @id @default(cuid())
   conversationId    String
   conversation      SocialConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role              String   // "user" | "assistant"
+  role              String // "user" | "assistant"
   content           String
-  externalMessageId String?  @unique
-  status            String   @default("sent")
-  createdAt         DateTime @default(now())
+  externalMessageId String?            @unique
+  status            String             @default("sent")
+  createdAt         DateTime           @default(now())
 
   @@index([conversationId])
   @@index([createdAt])
