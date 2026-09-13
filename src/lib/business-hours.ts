@@ -317,3 +317,63 @@ export function describeHoursForPrompt(
   }
   return `${lines.join("\n")}\n\nAll times ${timeZone}.`;
 }
+
+// -------------------------------------------------------------------------
+// Spoken dates
+// -------------------------------------------------------------------------
+
+const WEEKDAY_NAMES: Record<string, number> = {
+  sunday: 0, sun: 0,
+  monday: 1, mon: 1,
+  tuesday: 2, tue: 2, tues: 2,
+  wednesday: 3, wed: 3,
+  thursday: 4, thu: 4, thur: 4, thurs: 4,
+  friday: 5, fri: 5,
+  saturday: 6, sat: 6,
+};
+
+/**
+ * Resolve what a caller said into a calendar date.
+ *
+ * Callers say "Thursday", not "2026-09-17", and the model has no dependable
+ * way to know today's date — it will either guess or hand back the weekday
+ * name. Doing this on the server means the answer comes from the salon's own
+ * clock rather than the model's imagination.
+ *
+ * Returns null when the input cannot be resolved, so the caller can ask again
+ * instead of booking an invented day.
+ */
+export function resolveSpokenDate(
+  input: string | undefined,
+  timeZone: string,
+  now: Date = new Date()
+): string | null {
+  if (!input) return null;
+  const text = input.trim().toLowerCase();
+  if (!text) return null;
+
+  // Already a calendar date.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+  const addDays = (n: number) =>
+    zonedDateString(new Date(now.getTime() + n * 24 * 60 * 60 * 1000), timeZone);
+
+  if (text === "today" || text === "tonight") return addDays(0);
+  if (text === "tomorrow") return addDays(1);
+  if (text === "day after tomorrow" || text === "the day after tomorrow") {
+    return addDays(2);
+  }
+
+  // "thursday", "this thursday", "next thursday", "on thursday"
+  const cleaned = text.replace(/^(on|this|next|coming)\s+/, "").trim();
+  const target = WEEKDAY_NAMES[cleaned];
+  if (target === undefined) return null;
+
+  // Next occurrence strictly after today. Someone ringing an after-hours line
+  // and saying "Thursday" on a Thursday evening means the following week; if
+  // they meant today they would have said so.
+  const todayWeekday = zonedParts(now, timeZone).weekday;
+  let delta = (target - todayWeekday + 7) % 7;
+  if (delta === 0) delta = 7;
+  return addDays(delta);
+}
