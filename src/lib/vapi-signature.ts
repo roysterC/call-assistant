@@ -79,10 +79,11 @@ export interface VerificationResult {
  *
  * Vapi's HMAC credential signs `{timestamp}.{body}` by default and sends the
  * hex digest in `x-signature`, with the timestamp in `x-timestamp`. Older
- * assistants instead send the raw shared secret in `x-vapi-secret`, and some
- * send an HMAC of the body alone. All three are accepted: a plain secret can
- * never collide with a hex digest, so supporting them together costs nothing
- * — an attacker still needs the secret in every case.
+ * assistants instead send the raw shared secret in `x-vapi-secret`, some send
+ * an HMAC of the body alone, and a Bearer credential sends the secret in
+ * `Authorization`. All four are accepted: a plain secret can never collide
+ * with a hex digest, so supporting them together costs nothing — an attacker
+ * still needs the secret in every case.
  *
  * @param payload The RAW request body, exactly as received. Re-serialising a
  *                parsed object changes the bytes and breaks the HMAC.
@@ -99,6 +100,14 @@ export function verifyVapiRequest(
       : { ok: false, reason: "no VAPI_WEBHOOK_SECRET configured" };
   }
 
+  // Bearer credential: the token IS the shared secret. Checked first because
+  // it carries no timestamp and needs none of the HMAC handling below.
+  const authorization = headers.get("authorization");
+  if (authorization) {
+    const token = authorization.replace(/^Bearer\s+/i, "").trim();
+    if (token && safeEqual(token, WEBHOOK_SECRET)) return { ok: true };
+  }
+
   let signature: string | null = null;
   let usedHeader = "";
   for (const name of SIGNATURE_HEADERS) {
@@ -110,7 +119,12 @@ export function verifyVapiRequest(
     }
   }
   if (!signature) {
-    return { ok: false, reason: "no signature header present" };
+    return {
+      ok: false,
+      reason: authorization
+        ? "Authorization header present but the bearer token did not match the secret"
+        : "no signature or Authorization header present",
+    };
   }
 
   const rawTimestamp = headers.get(TIMESTAMP_HEADER);

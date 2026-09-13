@@ -104,12 +104,35 @@ describe("verifyVapiRequest — legacy schemes", () => {
   it("rejects when no signature header is present at all", () => {
     const result = mod.verifyVapiRequest(BODY, new Headers());
     expect(result.ok).toBe(false);
-    expect(result.reason).toContain("no signature header");
+    expect(result.reason).toContain("no signature or Authorization header");
   });
 
   it("rejects an arbitrary value in the signature header", () => {
     const headers = new Headers({ "x-signature": "hello" });
     expect(mod.verifyVapiRequest(BODY, headers).ok).toBe(false);
+  });
+});
+
+describe("verifyVapiRequest — Bearer credential", () => {
+  it("accepts the shared secret as a bearer token", () => {
+    const headers = new Headers({ authorization: `Bearer ${SECRET}` });
+    expect(mod.verifyVapiRequest(BODY, headers).ok).toBe(true);
+  });
+
+  it("accepts it without the Bearer prefix", () => {
+    expect(mod.verifyVapiRequest(BODY, new Headers({ authorization: SECRET })).ok).toBe(true);
+  });
+
+  it("rejects a wrong bearer token", () => {
+    const result = mod.verifyVapiRequest(BODY, new Headers({ authorization: "Bearer nope" }));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("bearer token did not match");
+  });
+
+  it("still prefers a valid HMAC when both are present", () => {
+    const headers = vapiHeaders(BODY);
+    headers.set("authorization", "Bearer nope");
+    expect(mod.verifyVapiRequest(BODY, headers).ok).toBe(true);
   });
 });
 

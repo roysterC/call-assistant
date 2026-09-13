@@ -52,6 +52,24 @@ async function resolveOrgFromVapiPayload(
     if (match) return match.organizationId;
   }
 
+  // Web calls carry no phone number — there is nothing to dial — so fall back
+  // to the assistant. This is not only for testing: an organization is tied to
+  // its assistant regardless of how the call arrived, and a number may not
+  // exist yet.
+  const assistantId =
+    call.assistantId ||
+    call.assistant?.id ||
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (body as any).message?.assistant?.id ||
+    null;
+  if (assistantId) {
+    const match = await prisma.organizationSettings.findFirst({
+      where: { vapiAssistantId: assistantId },
+      select: { organizationId: true },
+    });
+    if (match) return match.organizationId;
+  }
+
   return null;
 }
 
@@ -149,7 +167,16 @@ export async function POST(req: NextRequest) {
     if (!organizationId) {
       console.warn("[VAPI] No org mapping for function call");
       return NextResponse.json(
-        { results: [{ result: JSON.stringify({ error: "Organization not configured for this phone number" }) }] },
+        {
+          results: [
+            {
+              result: JSON.stringify({
+                error:
+                  "No organization is mapped to this call. Map the Vapi phone number or the assistant id to an organization.",
+              }),
+            },
+          ],
+        },
         { status: 200 }
       );
     }
