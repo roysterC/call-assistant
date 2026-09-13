@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  verifyVapiSignature,
-  vapiSignatureFromHeaders,
+  verifyVapiRequest,
+  describeAuthHeaders,
 } from "@/lib/vapi-signature";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 import {
@@ -67,9 +67,11 @@ export async function POST(req: NextRequest) {
     // SMS, so it is verified exactly like the webhook route. Read the raw body
     // first — re-serialising a parsed object changes the bytes and breaks the
     // HMAC scheme.
-    const signature = vapiSignatureFromHeaders(req.headers);
-    if (!verifyVapiSignature(rawBody, signature)) {
-      console.warn("[VAPI] Invalid signature on function call");
+    const verified = verifyVapiRequest(rawBody, req.headers);
+    if (!verified.ok) {
+      console.warn(
+        `[VAPI] Rejected function call: ${verified.reason} | headers: ${describeAuthHeaders(req.headers)}`
+      );
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 

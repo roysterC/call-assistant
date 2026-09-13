@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  verifyVapiSignature,
-  vapiSignatureFromHeaders,
+  verifyVapiRequest,
+  describeAuthHeaders,
 } from "@/lib/vapi-signature";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 
@@ -166,9 +166,15 @@ export async function POST(req: NextRequest) {
     // Always run the check — its internal logic handles the dev/prod branch
     // when the secret isn't configured. Removing the `WEBHOOK_SECRET &&`
     // guard closes the prod bypass where unsigned webhooks were accepted.
-    const signature = vapiSignatureFromHeaders(req.headers);
-    if (!verifyVapiSignature(rawBody, signature)) {
-      console.warn("[VAPI WEBHOOK] Invalid signature");
+    const verified = verifyVapiRequest(rawBody, req.headers);
+    if (!verified.ok) {
+      // Log why, and which auth headers arrived (names and lengths only —
+      // never values). Vapi's HMAC credential lets you rename the headers and
+      // change the signed payload, so a mismatch is a configuration question,
+      // and "Invalid signature" alone does not answer it.
+      console.warn(
+        `[VAPI WEBHOOK] Rejected: ${verified.reason} | headers: ${describeAuthHeaders(req.headers)}`
+      );
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
