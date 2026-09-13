@@ -50,7 +50,13 @@ const SAVE_CUSTOMER_DETAILS: VapiTool = {
       properties: {
         name: { type: "string", description: "The caller's full name" },
         email: { type: "string", description: "Email address, if offered" },
-        phone: { type: "string", description: "Best contact number" },
+        phone: {
+          type: "string",
+          description:
+            "Best contact number, as the caller said it. It is checked " +
+            "and normalised here, so send the digits rather than trying " +
+            "to format them.",
+        },
         issue: {
           type: "string",
           description:
@@ -146,7 +152,12 @@ const BOOK_APPOINTMENT: VapiTool = {
         },
         service: { type: "string", description: "The service being booked" },
         stylist: { type: "string", description: "The stylist's name" },
-        customerPhone: { type: "string", description: "Caller's number" },
+        customerPhone: {
+          type: "string",
+          description:
+            "Caller's number. Checked here — if it comes back as too " +
+            "long or too short, read it back to them and try again.",
+        },
         customerName: { type: "string", description: "Caller's name" },
         clientType: {
           type: "string",

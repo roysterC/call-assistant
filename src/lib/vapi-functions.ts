@@ -12,6 +12,7 @@ import {
   parseTimeOfDay,
 } from "@/lib/booking/availability";
 import { matchService, matchStylist } from "@/lib/salon-config";
+import { normalisePhone, speakablePhone } from "@/lib/phone";
 import {
   nextOpenMorning,
   parseDateOnly,
@@ -113,12 +114,20 @@ export async function handleSaveCustomerDetails(
 ) {
   const { name, email, phone, company, businessType, issue } = params;
 
-  if (!phone) {
-    return { success: false, message: "Phone number is required" };
+  const parsed = normalisePhone(phone);
+  if (!parsed.ok) {
+    // Do not store a number that cannot be rung or texted — ask again. A
+    // plausible-looking wrong number is worse than none: the salon calls a
+    // stranger and the appointment sits unconfirmed.
+    return {
+      success: false,
+      message: `${parsed.reason} Read the number back to the caller digit by digit and confirm it.`,
+    };
   }
+  const normalisedPhone = parsed.e164;
 
   const lead = await prisma.lead.upsert({
-    where: { organizationId_phone: { organizationId, phone } },
+    where: { organizationId_phone: { organizationId, phone: normalisedPhone } },
     update: {
       ...(name && { name }),
       ...(email && { email }),
@@ -127,7 +136,7 @@ export async function handleSaveCustomerDetails(
     },
     create: {
       organizationId,
-      phone,
+      phone: normalisedPhone,
       name: name || null,
       email: email || null,
       company: company || null,
@@ -138,7 +147,8 @@ export async function handleSaveCustomerDetails(
 
   return {
     success: true,
-    message: `Customer details saved for ${lead.name || lead.phone}`,
+    message: `Customer details saved for ${lead.name || speakablePhone(normalisedPhone)}`,
+    phone: normalisedPhone,
     leadId: lead.id,
   };
 }
@@ -156,15 +166,24 @@ export async function handleBookCallback(
 ) {
   const { date, time, assignedTo, notes, customerPhone, customerName } = params;
 
+  const parsedCallbackPhone = normalisePhone(customerPhone);
+  if (!parsedCallbackPhone.ok) {
+    return {
+      success: false,
+      message: `${parsedCallbackPhone.reason} Read it back and confirm it.`,
+    };
+  }
+  const callbackPhone = parsedCallbackPhone.e164;
+
   let lead = await prisma.lead.findUnique({
-    where: { organizationId_phone: { organizationId, phone: customerPhone } },
+    where: { organizationId_phone: { organizationId, phone: callbackPhone } },
   });
 
   if (!lead) {
     lead = await prisma.lead.create({
       data: {
         organizationId,
-        phone: customerPhone,
+        phone: callbackPhone,
         name: customerName || null,
         source: "phone",
       },
@@ -489,9 +508,15 @@ export async function handleBookAppointment(
 ) {
   const { time, customerPhone, customerName, notes } = params;
 
-  if (!customerPhone) {
-    return { success: false, message: "A phone number is required to book." };
+  const parsedPhone = normalisePhone(customerPhone);
+  if (!parsedPhone.ok) {
+    return {
+      success: false,
+      badPhone: true,
+      message: `${parsedPhone.reason} Read it back digit by digit, confirm it, then book.`,
+    };
   }
+  const phone = parsedPhone.e164;
 
   const provider = await getBookingProvider(organizationId);
   if (!canCreateBooking(provider)) {
@@ -621,11 +646,11 @@ export async function handleBookAppointment(
   }
 
   const lead = await prisma.lead.upsert({
-    where: { organizationId_phone: { organizationId, phone: customerPhone } },
+    where: { organizationId_phone: { organizationId, phone } },
     update: { ...(customerName && { name: customerName }) },
     create: {
       organizationId,
-      phone: customerPhone,
+      phone,
       name: customerName || null,
       source: "phone",
     },
@@ -637,8 +662,8 @@ export async function handleBookAppointment(
     durationMinutes: service.durationMinutes,
     serviceName: service.name,
     stylistName: stylist.name,
-    clientName: lead.name || customerPhone,
-    clientPhone: customerPhone,
+    clientName: lead.name || speakablePhone(phone),
+    clientPhone: phone,
     clientEmail: lead.email,
     notes,
     leadId: lead.id,
