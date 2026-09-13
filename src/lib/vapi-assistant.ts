@@ -73,12 +73,36 @@ const CHECK_AVAILABILITY: VapiTool = {
     parameters: {
       type: "object",
       properties: {
-        date: { type: "string", description: "Date to check, YYYY-MM-DD" },
+        date: {
+          type: "string",
+          description:
+            "The day to check. A weekday name is fine and preferred — " +
+            "'Thursday', 'tomorrow', 'today' — and is resolved against the " +
+            "salon's own clock. Only send YYYY-MM-DD if the caller named an " +
+            "actual date. Never guess a date.",
+        },
         service: {
           type: "string",
           description:
             "The service the caller wants, e.g. 'cut and finish', " +
             "'balayage'. Required — it determines how long is needed.",
+        },
+        timeOfDay: {
+          type: "string",
+          enum: ["morning", "afternoon", "evening"],
+          description:
+            "Pass this whenever the caller expresses a preference, so they " +
+            "are not offered times they have already ruled out.",
+        },
+        after: {
+          type: "string",
+          description:
+            "Earliest acceptable start as HH:MM, 24-hour. Use for 'after 5' " +
+            "or 'not before half two'.",
+        },
+        before: {
+          type: "string",
+          description: "Latest acceptable start as HH:MM, 24-hour.",
         },
         stylist: {
           type: "string",
@@ -108,7 +132,12 @@ const BOOK_APPOINTMENT: VapiTool = {
     parameters: {
       type: "object",
       properties: {
-        date: { type: "string", description: "Appointment date, YYYY-MM-DD" },
+        date: {
+          type: "string",
+          description:
+            "The appointment day. A weekday name such as 'Thursday' is " +
+            "accepted and resolved against the salon's clock.",
+        },
         time: {
           type: "string",
           description:

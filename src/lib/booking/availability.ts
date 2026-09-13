@@ -204,3 +204,76 @@ export function summariseSlotsForSpeech(
   }
   return picked;
 }
+
+
+// -------------------------------------------------------------------------
+// Caller preferences
+// -------------------------------------------------------------------------
+
+export type TimeOfDay = "morning" | "afternoon" | "evening";
+
+/** Local-time boundaries, in minutes from midnight. */
+const TIME_OF_DAY_WINDOWS: Record<TimeOfDay, [number, number]> = {
+  morning: [0, 12 * 60],
+  afternoon: [12 * 60, 17 * 60],
+  evening: [17 * 60, 24 * 60],
+};
+
+export interface TimePreference {
+  timeOfDay?: TimeOfDay;
+  /** "HH:MM" local — no start before this. */
+  after?: string;
+  /** "HH:MM" local — no start after this. */
+  before?: string;
+}
+
+function hhmmToMinutes(value: string): number | null {
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+export function parseTimeOfDay(raw: string | undefined): TimeOfDay | undefined {
+  const v = (raw ?? "").trim().toLowerCase();
+  if (v === "morning" || v === "am") return "morning";
+  if (v === "afternoon" || v === "pm") return "afternoon";
+  if (v === "evening" || v === "night") return "evening";
+  return undefined;
+}
+
+/**
+ * Narrow slots to what the caller actually asked for.
+ *
+ * Someone who says "anytime after five" and is then offered nine in the
+ * morning has not been listened to. Filtering here rather than hoping the
+ * model discards the rest keeps the decision with the code that knows the
+ * salon's timezone.
+ */
+export function filterSlotsByPreference(
+  slots: TimeSlot[],
+  timeZone: string,
+  pref: TimePreference
+): TimeSlot[] {
+  let lower = 0;
+  let upper = 24 * 60;
+
+  if (pref.timeOfDay) {
+    [lower, upper] = TIME_OF_DAY_WINDOWS[pref.timeOfDay];
+  }
+  if (pref.after) {
+    const m = hhmmToMinutes(pref.after);
+    if (m !== null) lower = Math.max(lower, m);
+  }
+  if (pref.before) {
+    const m = hhmmToMinutes(pref.before);
+    if (m !== null) upper = Math.min(upper, m);
+  }
+
+  if (lower === 0 && upper === 24 * 60) return slots;
+
+  return slots.filter((s) => {
+    const { hour, minute } = zonedParts(new Date(s.start), timeZone);
+    const mins = hour * 60 + minute;
+    return mins >= lower && mins < upper;
+  });
+}

@@ -7,6 +7,10 @@ import {
   getSalonConfig,
   summariseSlotsForSpeech,
 } from "@/lib/booking";
+import {
+  filterSlotsByPreference,
+  parseTimeOfDay,
+} from "@/lib/booking/availability";
 import { matchService, matchStylist } from "@/lib/salon-config";
 import {
   nextOpenMorning,
@@ -273,6 +277,12 @@ export async function handleCheckAvailability(
     clientType?: string;
     /** Some phrasings produce a boolean instead of clientType. */
     newClient?: boolean;
+    /** "morning" | "afternoon" | "evening" */
+    timeOfDay?: string;
+    /** "HH:MM" local — caller wants nothing before this. */
+    after?: string;
+    /** "HH:MM" local — caller wants nothing after this. */
+    before?: string;
   }
 ) {
   const provider = await getBookingProvider(organizationId);
@@ -389,7 +399,47 @@ export async function handleCheckAvailability(
     };
   }
 
-  const picked = summariseSlotsForSpeech(slots, 3);
+  // Honour what the caller asked for. Offering nine in the morning to someone
+  // who said "anytime after five" is the kind of thing that makes an agent
+  // sound like it is not listening.
+  const preference = {
+    timeOfDay: parseTimeOfDay(params.timeOfDay),
+    after: params.after,
+    before: params.before,
+  };
+  const preferred = filterSlotsByPreference(slots, cfg.timeZone, preference);
+  const hasPreference = Boolean(
+    preference.timeOfDay || preference.after || preference.before
+  );
+
+  if (hasPreference && preferred.length === 0) {
+    // Do not silently widen the search — say plainly that the window is full
+    // and offer what does exist, so the caller chooses rather than the agent
+    // quietly ignoring them.
+    const fallback = summariseSlotsForSpeech(slots, 3).map((s) => ({
+      time: spokenTime(s.start, cfg.timeZone),
+      startsAt: s.start,
+      stylist: s.stylistName,
+    }));
+    return {
+      available: false,
+      canCheck: true,
+      today,
+      date,
+      outsidePreference: true,
+      alternatives: fallback,
+      message:
+        "Nothing free in the window they asked for. Say so plainly, then " +
+        `offer these instead if they are interested: ${fallback
+          .map((o) => `${o.time} with ${o.stylist}`)
+          .join(", ")}.`,
+    };
+  }
+
+  const picked = summariseSlotsForSpeech(
+    hasPreference ? preferred : slots,
+    3
+  );
   const options = picked.map((s) => ({
     time: spokenTime(s.start, cfg.timeZone),
     startsAt: s.start,
