@@ -28,3 +28,24 @@ Adding a 5th channel today touches ~10–15 places (Prisma models, three list/de
 3. Two or more conversation-area cleanup items want to touch the same code at once.
 
 **Cheaper intermediate step** if duplication starts to feel painful before a real trigger: extract a `src/lib/conversation-store.ts` helper that wraps the three per-channel `findMany` / `findUnique` calls behind one TypeScript interface. No schema change, no data migration, ~half a day of work.
+
+## Production is netcup, not Hetzner
+
+Two VPSes carry a checkout of this repo and only one of them matters.
+
+- **Production: netcup** — `v2202609416356518198.megasrv.de` (89.58.45.110),
+  app at `/home/deploy/call-assistant`, systemd unit `call-assistant.service`,
+  served at <https://89-58-45-110.nip.io>.
+- **Retired: Hetzner** — `178.104.49.71` / `doai-vps` / ssh alias `kaia-vps`,
+  stale copy at `/home/kaia/doai/call-assistant`. Nothing should deploy here.
+
+The deploy workflow shipped to the Hetzner box for months after the app moved,
+because it read its target from a repository secret and so the repo itself
+never said which machine "production" meant. The host is now written in plain
+text in `.github/workflows/deploy-netcup.yml`; keep it that way.
+
+`call.doaisystems.co.uk` still resolves to the retired box, so it is not a
+reliable way to check whether a change went out. Use the nip.io URL.
+
+Full topology, secrets, and the schema-change policy: see "Deployment" in
+README.md.

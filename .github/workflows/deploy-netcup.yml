@@ -1,0 +1,166 @@
+# Production deploy for the DOAI Call Assistant.
+#
+# Target topology is documented in README.md ("Deployment"). The short version:
+# production is the netcup box, NOT the Hetzner box this workflow used to ship
+# to. See the `env:` block below before changing anything here.
+name: Deploy to netcup
+
+on:
+  push:
+    branches: [master]
+  # Manual trigger, so a deploy can be re-run after fixing the box without
+  # having to push an empty commit.
+  workflow_dispatch:
+
+# One production deploy at a time. Two overlapping runs would interleave
+# `npm ci`, `prisma db push` and `systemctl restart` on the same working tree.
+# Queue rather than cancel: a half-finished deploy is worse than a slow one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+# Host facts are kept here in plain sight rather than in repository secrets.
+#
+# The previous version of this workflow read its target from ${{ secrets.VPS_HOST }},
+# so nothing in the repo said which machine "production" meant. It went on
+# deploying to a decommissioned Hetzner box long after the app had moved, and
+# nobody could see that by reading the file. A hostname is not a credential;
+# only the SSH key below is.
+env:
+  DEPLOY_HOST: v2202609416356518198.megasrv.de # netcup, 89.58.45.110
+  DEPLOY_USER: root
+  APP_USER: deploy # owns APP_DIR and runs the service
+  APP_DIR: /home/deploy/call-assistant
+  SERVICE: call-assistant.service
+  # `npm run build` dies with a V8 OOM / SIGABRT on this 3.8GB box under Node's
+  # default heap. 3072MB builds reliably and still leaves room for Postgres and
+  # the running service alongside it.
+  NODE_HEAP_MB: "3072"
+
+jobs:
+  # Fail fast on the runner, before anything touches production.
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install deps
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  deploy:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to netcup over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ secrets.NETCUP_SSH_KEY }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+
+            APP_DIR='${{ env.APP_DIR }}'
+            APP_USER='${{ env.APP_USER }}'
+            SERVICE='${{ env.SERVICE }}'
+            NODE_HEAP_MB='${{ env.NODE_HEAP_MB }}'
+
+            # Login is root, but the working tree and the service both belong to
+            # `deploy`. Everything that touches the tree therefore runs as
+            # `deploy` rather than configuring safe.directory for root: if root
+            # wrote here, it would leave root-owned files in node_modules/ and
+            # .next/ that the next deploy (and the service itself) could not
+            # overwrite. -H so npm uses deploy's HOME and cache.
+            as_deploy() {
+              sudo -u "$APP_USER" -H bash -lc "cd '$APP_DIR' && $*"
+            }
+
+            echo "==> Deploying to $(hostname) as $APP_USER in $APP_DIR"
+
+            # Prisma reads DATABASE_URL through prisma.config.ts, which loads
+            # .env.local then .env from the app directory. Checked up front so a
+            # missing env file is a one-line error here rather than a confusing
+            # Prisma failure three steps later.
+            if ! as_deploy 'test -f .env.local -o -f .env'; then
+              echo "ERROR: neither .env.local nor .env found in $APP_DIR." >&2
+              echo "Prisma and Next both read DATABASE_URL from there." >&2
+              exit 1
+            fi
+
+            # Git is the source of truth for this box. reset --hard rather than
+            # pull: a merge or a rebase on a deploy target is never what anyone
+            # wants, and this recovers a tree someone has poked at by hand.
+            # Untracked files (.env.local in particular) are not touched.
+            echo "==> Fetching master"
+            as_deploy 'git fetch origin master && git reset --hard origin/master'
+
+            echo "==> Installing dependencies"
+            as_deploy 'npm ci'
+
+            echo "==> Generating Prisma client"
+            as_deploy 'npm run prisma:generate'
+
+            # --- Schema sync -------------------------------------------------
+            #
+            # `prisma db push` refuses anything it considers lossy unless given
+            # --accept-data-loss, and that flag is all-or-nothing: it would wave
+            # through a DROP COLUMN just as readily as the added unique
+            # constraint that broke the last three runs of the old workflow.
+            #
+            # So the diff is inspected first. If the SQL that would bring prod
+            # up to the committed schema is purely additive, the push runs with
+            # the flag. If it drops or narrows anything, the deploy stops and
+            # prints the SQL for a human to apply deliberately.
+            #
+            # This is a guard, not a proof: db push recomputes its own plan, so
+            # treat it as "nothing destructive was pending a moment ago". Adding
+            # a unique constraint over existing duplicates still fails — but it
+            # fails on the Postgres index build, which changes nothing.
+            echo "==> Checking for schema drift"
+            SCHEMA_SQL="$(as_deploy 'npx prisma migrate diff --from-config-datasource --to-schema=prisma/schema.prisma --script')"
+
+            if printf '%s' "$SCHEMA_SQL" | grep -Eiq 'DROP[[:space:]]+(TABLE|COLUMN|SCHEMA|DATABASE)|SET[[:space:]]+NOT[[:space:]]+NULL|SET[[:space:]]+DATA[[:space:]]+TYPE|TRUNCATE'; then
+              echo "ERROR: refusing to apply a destructive schema change automatically." >&2
+              echo "Pending SQL:" >&2
+              printf '%s\n' "$SCHEMA_SQL" >&2
+              echo >&2
+              echo "Apply it by hand on the box, or split it into the two-commit" >&2
+              echo "dance (ship code that stops reading the column, then drop it)." >&2
+              exit 1
+            fi
+
+            echo "==> Syncing schema (additive only)"
+            as_deploy 'npx prisma db push --accept-data-loss'
+
+            # Build before the restart, so the service keeps serving the old
+            # build for the ~minute this takes and is down only for the restart.
+            echo "==> Building (heap ${NODE_HEAP_MB}MB)"
+            as_deploy "NODE_OPTIONS=--max-old-space-size=${NODE_HEAP_MB} npm run build"
+
+            echo "==> Restarting $SERVICE"
+            systemctl restart "$SERVICE"
+            # Give it a moment to fall over before declaring success: a unit
+            # that exits on boot would otherwise be reported as a green deploy.
+            sleep 5
+            systemctl is-active --quiet "$SERVICE" || {
+              echo "ERROR: $SERVICE is not active after restart." >&2
+              systemctl status "$SERVICE" --no-pager --lines=40 >&2 || true
+              exit 1
+            }
+
+            echo "==> Deploy complete: $(systemctl show -p ActiveState --value "$SERVICE")"
