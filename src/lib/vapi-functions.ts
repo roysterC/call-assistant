@@ -372,6 +372,7 @@ export async function handleCheckAvailability(
       return {
         available: false,
         canCheck: true,
+        today,
         patchTestRequired: true,
         message:
           `Nothing on that date. ${service.name} needs a skin patch test at ` +
@@ -382,6 +383,7 @@ export async function handleCheckAvailability(
     return {
       available: false,
       canCheck: true,
+      today,
       message:
         "Nothing free on that date for that service. Offer to try another day.",
     };
@@ -397,6 +399,10 @@ export async function handleCheckAvailability(
   return {
     available: true,
     canCheck: true,
+    // Every response carries the date, so the model can orient from the first
+    // successful call rather than guessing and being corrected afterwards.
+    today,
+    date,
     service: service.name,
     durationMinutes: service.durationMinutes,
     options,
@@ -496,6 +502,8 @@ export async function handleBookAppointment(
     return { success: false, message: "That date and time did not parse." };
   }
 
+  const today = zonedDateString(new Date(), cfg.timeZone);
+
   const clientType = normaliseClientType(
     params.clientType ??
       (params.newClient === true
@@ -512,6 +520,7 @@ export async function handleBookAppointment(
   if (startsAt < floor.at) {
     return {
       success: false,
+      today,
       tooSoon: true,
       patchTestRequired: floor.reason === "patch_test",
       message:
@@ -568,6 +577,7 @@ export async function handleBookAppointment(
 
     return {
       success: false,
+      today,
       conflict: Boolean(written.conflict),
       message: written.conflict
         ? "That slot was taken while we were talking. Apologise and offer another time."
@@ -601,6 +611,7 @@ export async function handleBookAppointment(
 
   return {
     success: true,
+    today,
     startsAt: written.startsAt,
     stylist: stylist.name,
     service: service.name,
