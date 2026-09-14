@@ -160,9 +160,15 @@ function tokens(s: string): string[] {
  * Resolve spoken text to a configured service.
  *
  * Exact match, then containment either way, then best token overlap — but a
- * token-overlap win must be unique and cover at least half the service's own
- * tokens, otherwise "colour" would silently pick whichever colour service
- * happens to sort first.
+ * token-overlap win must be unique and cover MORE than half the service's own
+ * tokens.
+ *
+ * Strictly more than half, not at least: "beard trim" shares one word with
+ * "Fringe trim", which is exactly half of it, and that was enough to book
+ * someone a fifteen-minute fringe trim when they asked for a beard. One word
+ * in common — and it is always a common word, "cut", "trim", "colour" — is
+ * not evidence. Returning null makes the agent ask, which costs a sentence;
+ * guessing costs the wrong appointment at the wrong length.
  */
 export function matchService(
   spoken: string | undefined,
@@ -199,7 +205,7 @@ export function matchService(
     }
   }
 
-  if (!best || tied || best.score < 0.5) return null;
+  if (!best || tied || best.score <= 0.5) return null;
   return best.service;
 }
 
