@@ -84,7 +84,7 @@ export async function GET(
  * stray edit rewrites a live assistant mid-evening with nobody watching.
  */
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ctx = await requireSuperAdmin();
@@ -92,9 +92,14 @@ export async function POST(
 
   try {
     const { id: organizationId } = await params;
-    const result = await syncAssistant(organizationId);
+    // `?dryRun=1` returns the exact PATCH body without sending it. Worth
+    // using once against a live assistant before trusting this with one.
+    const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
+    const result = await syncAssistant(organizationId, { dryRun });
 
-    if (!result.synced) {
+    // A dry run legitimately reports synced:false; only a real attempt that
+    // failed to push is a conflict.
+    if (!result.synced && !result.dryRun) {
       return NextResponse.json(result, { status: 409 });
     }
     return NextResponse.json(result);

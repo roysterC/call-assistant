@@ -23,7 +23,7 @@ import {
   type BookingCapabilities,
   type SalonConfig,
 } from "@/lib/booking";
-import { updateAssistant } from "@/lib/vapi";
+import { getAssistant, updateAssistant } from "@/lib/vapi";
 
 export interface VapiTool {
   type: "function";
@@ -447,22 +447,44 @@ export function composeVoicePrompt(
 
 export interface SyncResult {
   synced: boolean;
+  dryRun: boolean;
   assistantId: string | null;
   providerId: string;
-  toolNames: string[];
+  /** Tools this organization's capabilities call for. */
+  expectedTools: string[];
+  /** Tool ids actually attached to the assistant in Vapi. */
+  attachedToolCount: number | null;
+  /** The exact body that was, or would be, sent. */
+  payload?: Record<string, unknown>;
   warnings: string[];
 }
 
 /**
- * Push the composed prompt and tool list to Vapi.
+ * Push the composed prompt to the Vapi assistant.
  *
- * Deliberately manual — triggered from an admin button, never on a settings
- * save. An accidental edit silently rewriting a live assistant mid-evening is
- * a worse failure than a forgotten click.
+ * Prompt only, deliberately. Vapi holds tools as separate objects referenced
+ * by `model.toolIds`, and each carries its own server URL and auth credential
+ * — none of which the generated tool JSON knows about. Writing tools from here
+ * would replace working, authenticated tools with definitions that point
+ * nowhere. Tools stay managed in the console; this reports whether the number
+ * attached matches what the capabilities call for, which is the part that
+ * silently drifts.
+ *
+ * The prompt is the thing that actually goes stale: opening hours and the
+ * service list are generated from settings, so the moment a tenant edits them
+ * the agent starts saying something the booking engine will not honour.
+ *
+ * Reads the assistant before writing and merges, rather than PATCHing a bare
+ * `model`. A partial model object risks dropping `provider`, `model`,
+ * `toolIds` and `promptCacheRetention` — which would take the assistant down
+ * rather than update it.
  */
 export async function syncAssistant(
-  organizationId: string
+  organizationId: string,
+  options: { dryRun?: boolean } = {}
 ): Promise<SyncResult> {
+  const dryRun = Boolean(options.dryRun);
+
   const settings = await prisma.organizationSettings.findUnique({
     where: { organizationId },
     select: { vapiAssistantId: true, voiceSystemPrompt: true },
@@ -470,34 +492,102 @@ export async function syncAssistant(
 
   const cfg = await getSalonConfig(organizationId);
   const composed = composeVoicePrompt(cfg, settings?.voiceSystemPrompt ?? null);
+  const expectedTools = composed.toolNames;
 
   const assistantId = settings?.vapiAssistantId ?? null;
   if (!assistantId) {
     return {
       synced: false,
+      dryRun,
       assistantId: null,
       providerId: composed.providerId,
-      toolNames: composed.toolNames,
+      expectedTools,
+      attachedToolCount: null,
       warnings: [
         ...composed.warnings,
-        "No vapiAssistantId configured for this organization — nothing was pushed.",
+        "No vapiAssistantId configured for this organization — nothing to push.",
       ],
     };
   }
 
-  const caps = selectProvider(cfg).capabilities;
-  await updateAssistant(assistantId, {
+  if (!process.env.VAPI_API_KEY) {
+    return {
+      synced: false,
+      dryRun,
+      assistantId,
+      providerId: composed.providerId,
+      expectedTools,
+      attachedToolCount: null,
+      warnings: [
+        ...composed.warnings,
+        "VAPI_API_KEY is not set, so the assistant cannot be read or written.",
+      ],
+    };
+  }
+
+  const warnings = [...composed.warnings];
+
+  // Read first. Everything else on the model object has to survive.
+  const current = (await getAssistant(assistantId)) as {
+    model?: Record<string, unknown>;
+    name?: string;
+  };
+
+  const currentModel = current.model ?? {};
+  const toolIds = Array.isArray(currentModel.toolIds)
+    ? (currentModel.toolIds as unknown[])
+    : [];
+
+  // Keep any non-system messages the assistant carries, and replace only the
+  // system one. Vapi assistants normally hold a single system message, but
+  // discarding anything else would be an unpleasant surprise.
+  const existingMessages = Array.isArray(currentModel.messages)
+    ? (currentModel.messages as Array<{ role?: string }>)
+    : [];
+  const nonSystem = existingMessages.filter((m) => m?.role !== "system");
+
+  const payload = {
     model: {
-      messages: [{ role: "system", content: composed.prompt }],
+      ...currentModel,
+      messages: [
+        { role: "system", content: composed.prompt },
+        ...nonSystem,
+      ],
     },
-    tools: buildVoiceTools(caps),
-  });
+  };
+
+  if (toolIds.length !== expectedTools.length) {
+    warnings.push(
+      `Vapi has ${toolIds.length} tool(s) attached but this organization's ` +
+        `capabilities call for ${expectedTools.length} ` +
+        `(${expectedTools.join(", ")}). Tools are managed in the Vapi console; ` +
+        "this sync does not touch them."
+    );
+  }
+
+  if (dryRun) {
+    return {
+      synced: false,
+      dryRun: true,
+      assistantId,
+      providerId: composed.providerId,
+      expectedTools,
+      attachedToolCount: toolIds.length,
+      payload,
+      warnings,
+    };
+  }
+
+  await updateAssistant(assistantId, payload);
 
   return {
     synced: true,
+    dryRun: false,
     assistantId,
     providerId: composed.providerId,
-    toolNames: composed.toolNames,
-    warnings: composed.warnings,
+    expectedTools,
+    attachedToolCount: toolIds.length,
+    payload,
+    warnings,
   };
 }
