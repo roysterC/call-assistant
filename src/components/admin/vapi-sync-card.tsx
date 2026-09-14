@@ -26,7 +26,8 @@ interface SyncResult {
   assistantId: string | null;
   providerId: string;
   expectedTools: string[];
-  attachedToolCount: number | null;
+  missingTools: string[] | null;
+  extraTools: string[] | null;
   payload?: { model?: { messages?: Array<{ content?: string }> } };
   warnings: string[];
   error?: string;
@@ -54,7 +55,8 @@ export function VapiSyncCard({ organizationId }: { organizationId: string }) {
         assistantId: null,
         providerId: "unknown",
         expectedTools: [],
-        attachedToolCount: null,
+        missingTools: null,
+        extraTools: null,
         warnings: [],
         error: "Request failed — see the console.",
       });
@@ -64,10 +66,7 @@ export function VapiSyncCard({ organizationId }: { organizationId: string }) {
   }
 
   const prompt = result?.payload?.model?.messages?.[0]?.content;
-  const toolMismatch =
-    result &&
-    result.attachedToolCount !== null &&
-    result.attachedToolCount !== result.expectedTools.length;
+  const missing = result?.missingTools ?? [];
 
   return (
     <Card>
@@ -123,38 +122,39 @@ export function VapiSyncCard({ organizationId }: { organizationId: string }) {
                 Diary provider:{" "}
                 <span className="text-foreground">{result.providerId}</span>
               </span>
-              {result.attachedToolCount !== null && (
+              {result.missingTools !== null && (
                 <span>
-                  Tools attached:{" "}
+                  Tools:{" "}
                   <span
                     className={cn(
-                      toolMismatch ? "text-amber-400" : "text-foreground"
+                      missing.length > 0 ? "text-amber-400" : "text-emerald-400"
                     )}
                   >
-                    {result.attachedToolCount} of {result.expectedTools.length}
+                    {missing.length === 0
+                      ? "all attached"
+                      : `${missing.length} missing`}
                   </span>
                 </span>
               )}
             </div>
 
-            {toolMismatch && (
+            {missing.length > 0 && (
               <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-400">
                 <TriangleAlert className="h-4 w-4 shrink-0 mt-px" />
                 <div>
                   <p>
-                    The prompt tells the agent it can do things it has no tool
-                    for. Tools are managed in the Vapi console and are not
-                    touched by this sync.
+                    Not attached in Vapi. The prompt tells the agent it can do
+                    these, so it will try and find no tool to call.
                   </p>
                   <p className="mt-1 font-mono text-[10px] break-all">
-                    {result.expectedTools.join(", ")}
+                    {missing.join(", ")}
                   </p>
                 </div>
               </div>
             )}
 
             {result.warnings
-              .filter((w) => !w.startsWith("Vapi has "))
+              .filter((w) => !w.startsWith("Not attached in Vapi"))
               .map((w, i) => (
                 <p key={i} className="text-amber-400">
                   {w}

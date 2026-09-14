@@ -26,7 +26,7 @@ import {
   type BookingCapabilities,
   type SalonConfig,
 } from "@/lib/booking";
-import { getAssistant, updateAssistant } from "@/lib/vapi";
+import { getAssistant, listTools, updateAssistant } from "@/lib/vapi";
 
 export interface VapiTool {
   type: "function";
@@ -456,8 +456,10 @@ export interface SyncResult {
   providerId: string;
   /** Tools this organization's capabilities call for. */
   expectedTools: string[];
-  /** Tool ids actually attached to the assistant in Vapi. */
-  attachedToolCount: number | null;
+  /** Expected tools that are not attached to the assistant in Vapi. */
+  missingTools: string[] | null;
+  /** Tools attached that this app does not generate — endCall and the like. */
+  extraTools: string[] | null;
   /** The exact body that was, or would be, sent. */
   payload?: Record<string, unknown>;
   warnings: string[];
@@ -506,7 +508,8 @@ export async function syncAssistant(
       assistantId: null,
       providerId: composed.providerId,
       expectedTools,
-      attachedToolCount: null,
+      missingTools: null,
+      extraTools: null,
       warnings: [
         ...composed.warnings,
         "No vapiAssistantId configured for this organization — nothing to push.",
@@ -521,7 +524,8 @@ export async function syncAssistant(
       assistantId,
       providerId: composed.providerId,
       expectedTools,
-      attachedToolCount: null,
+      missingTools: null,
+      extraTools: null,
       warnings: [
         ...composed.warnings,
         "VAPI_API_KEY is not set, so the assistant cannot be read or written.",
@@ -560,12 +564,34 @@ export async function syncAssistant(
     },
   };
 
-  if (toolIds.length !== expectedTools.length) {
+  // Compare names, not counts. An assistant legitimately carries tools this
+  // app does not generate — endCall, transfers — so counting would report
+  // "6 of 6" while one of ours was missing and one of theirs made up the
+  // number. That is worse than no check: it reads as a pass.
+  let missingTools: string[] | null = null;
+  let extraTools: string[] | null = null;
+  try {
+    const all = await listTools();
+    const byId = new Map(all.map((t) => [t.id, t]));
+    const attachedNames = toolIds
+      .map((id) => byId.get(String(id))?.name)
+      .filter((n): n is string => Boolean(n));
+
+    missingTools = expectedTools.filter((n) => !attachedNames.includes(n));
+    extraTools = attachedNames.filter((n) => !expectedTools.includes(n));
+
+    if (missingTools.length > 0) {
+      warnings.push(
+        `Not attached in Vapi: ${missingTools.join(", ")}. The prompt tells ` +
+          "the agent it can do these, so it will try and find no tool to " +
+          "call. Tools are managed in the Vapi console; this sync does not " +
+          "touch them."
+      );
+    }
+  } catch (err) {
     warnings.push(
-      `Vapi has ${toolIds.length} tool(s) attached but this organization's ` +
-        `capabilities call for ${expectedTools.length} ` +
-        `(${expectedTools.join(", ")}). Tools are managed in the Vapi console; ` +
-        "this sync does not touch them."
+      "Could not list tools from Vapi, so the attached set was not checked: " +
+        (err instanceof Error ? err.message : String(err))
     );
   }
 
@@ -576,7 +602,8 @@ export async function syncAssistant(
       assistantId,
       providerId: composed.providerId,
       expectedTools,
-      attachedToolCount: toolIds.length,
+      missingTools,
+      extraTools,
       payload,
       warnings,
     };
@@ -590,7 +617,8 @@ export async function syncAssistant(
     assistantId,
     providerId: composed.providerId,
     expectedTools,
-    attachedToolCount: toolIds.length,
+    missingTools,
+    extraTools,
     payload,
     warnings,
   };
