@@ -196,6 +196,102 @@ const BOOK_CALLBACK: VapiTool = {
   },
 };
 
+const FIND_APPOINTMENT: VapiTool = {
+  type: "function",
+  function: {
+    name: "find_appointment",
+    description:
+      "Look up a caller's upcoming appointment by their phone number. Use " +
+      "this when someone rings about an existing booking. Read the details " +
+      "back before changing anything.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerPhone: {
+          type: "string",
+          description: "The number the appointment was booked under",
+        },
+      },
+      required: ["customerPhone"],
+    },
+  },
+};
+
+const CANCEL_APPOINTMENT: VapiTool = {
+  type: "function",
+  function: {
+    name: "cancel_appointment",
+    description:
+      "Cancel an existing appointment and free the slot. Confirm which " +
+      "appointment you are cancelling with the caller first. If they have " +
+      "more than one booked, this returns the list and you must ask which.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerPhone: {
+          type: "string",
+          description: "The number the appointment was booked under",
+        },
+        appointmentId: {
+          type: "string",
+          description:
+            "Only needed when they have several booked — use the " +
+            "appointmentId from find_appointment.",
+        },
+        reason: {
+          type: "string",
+          description: "Why, if they say. Recorded for the salon.",
+        },
+      },
+      required: ["customerPhone"],
+    },
+  },
+};
+
+const RESCHEDULE_APPOINTMENT: VapiTool = {
+  type: "function",
+  function: {
+    name: "reschedule_appointment",
+    description:
+      "Move an existing appointment to a new time. Check the new time with " +
+      "check_availability first and pass the exact startsAt it returned. The " +
+      "original is kept if the new time cannot be taken, so the caller is " +
+      "never left with nothing.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerPhone: {
+          type: "string",
+          description: "The number the appointment was booked under",
+        },
+        appointmentId: {
+          type: "string",
+          description: "Only needed when they have several booked",
+        },
+        date: {
+          type: "string",
+          description:
+            "The new day. A weekday name such as 'Thursday' is accepted and " +
+            "resolved against the salon's clock.",
+        },
+        time: {
+          type: "string",
+          description:
+            "The exact startsAt from check_availability, or HH:MM in " +
+            "24-hour format.",
+        },
+        stylist: {
+          type: "string",
+          description:
+            "Only if they want a different stylist. Otherwise the original " +
+            "one is kept.",
+        },
+      },
+      required: ["customerPhone", "date", "time"],
+    },
+  },
+};
+
 /**
  * The tool list for a given capability set.
  *
@@ -206,7 +302,13 @@ const BOOK_CALLBACK: VapiTool = {
 export function buildVoiceTools(caps: BookingCapabilities): VapiTool[] {
   const tools: VapiTool[] = [SAVE_CUSTOMER_DETAILS];
   if (caps.readAvailability) tools.push(CHECK_AVAILABILITY);
-  if (caps.createBooking) tools.push(BOOK_APPOINTMENT);
+  if (caps.createBooking) {
+    tools.push(BOOK_APPOINTMENT);
+    // Changing a booking needs the same write access as making one. On an
+    // after-hours line these matter as much as new bookings — someone
+    // realising at nine at night that tomorrow will not work.
+    tools.push(FIND_APPOINTMENT, CANCEL_APPOINTMENT, RESCHEDULE_APPOINTMENT);
+  }
   // Only offer the callback path when there is no way to book directly.
   // Failed bookings are converted to callbacks server-side, so the agent does
   // not need this tool when it can book.
@@ -255,7 +357,8 @@ finish by telling the caller the salon will confirm.`;
 
   return `# Booking
 
-You can see the real diary and you can book into it.
+You can see the real diary, and you can book, move and cancel appointments in
+it.
 
 - **Always call \`check_availability\` before offering any time.** Never guess,
   never work it out yourself, and never offer a time the tool did not return.
@@ -269,7 +372,21 @@ You can see the real diary and you can book into it.
 - You must know whether they are a new or returning client before booking any
   colour service. New clients need a skin patch test 48 hours beforehand, so
   the earliest colour appointment is two days away. Explain that plainly if it
-  comes up; do not treat it as negotiable.`;
+  comes up; do not treat it as negotiable.
+
+## Changing an existing appointment
+
+Plenty of people ring after hours to cancel or move something, not to book.
+
+- Ask for the number it was booked under, then \`find_appointment\`.
+- **Read the appointment back before you change anything.** Service, stylist
+  and time. Wait for them to confirm it is the right one.
+- To move it, check the new time with \`check_availability\` first, then call
+  \`reschedule_appointment\`. If the new slot has gone, their original is kept
+  — say so, and offer something else.
+- When cancelling, offer to rebook before you end the call. Someone who rings
+  to cancel will often take another time if you ask.
+- Never tell them it is done until the tool says so.`;
 }
 
 export interface ComposedPrompt {

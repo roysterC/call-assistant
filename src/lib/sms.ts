@@ -157,3 +157,22 @@ export function reminderBody(i: AppointmentMessageInput): string {
     `${signOff(i.contactPhone, i.businessName)}`
   );
 }
+
+export function cancellationBody(i: AppointmentMessageInput): string {
+  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
+  return (
+    `${greeting}your appointment ${i.whenText} for a ${i.serviceName.toLowerCase()} ` +
+    `has been cancelled. ${signOff(i.contactPhone, i.businessName)}`
+  );
+}
+
+export function rescheduleBody(
+  i: AppointmentMessageInput & { previousWhenText: string }
+): string {
+  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
+  return (
+    `${greeting}your ${i.serviceName.toLowerCase()} has moved from ` +
+    `${i.previousWhenText} to ${i.whenText} with ${i.stylistName}. ` +
+    `${signOff(i.contactPhone, i.businessName)}`
+  );
+}

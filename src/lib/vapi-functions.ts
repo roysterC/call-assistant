@@ -13,7 +13,12 @@ import {
 } from "@/lib/booking/availability";
 import { matchService, matchStylist } from "@/lib/salon-config";
 import { normalisePhone, speakablePhone } from "@/lib/phone";
-import { confirmationBody, sendSms } from "@/lib/sms";
+import {
+  cancellationBody,
+  confirmationBody,
+  rescheduleBody,
+  sendSms,
+} from "@/lib/sms";
 import {
   describeAppointmentWhen,
   nextOpenMorning,
@@ -89,6 +94,9 @@ export type VapiFunctionName =
   | "book_callback"
   | "check_availability"
   | "book_appointment"
+  | "find_appointment"
+  | "cancel_appointment"
+  | "reschedule_appointment"
   | "transfer_call";
 
 export const VAPI_FUNCTION_NAMES: VapiFunctionName[] = [
@@ -96,6 +104,9 @@ export const VAPI_FUNCTION_NAMES: VapiFunctionName[] = [
   "book_callback",
   "check_availability",
   "book_appointment",
+  "find_appointment",
+  "cancel_appointment",
+  "reschedule_appointment",
   "transfer_call",
 ];
 
@@ -809,6 +820,458 @@ export async function handleTransferCall(
 }
 
 
+// -------------------------------------------------------------------------
+// Changing an existing appointment
+//
+// Cancellations are probably more common on an after-hours line than new
+// bookings — someone realising at nine at night that tomorrow will not work.
+// Without these the agent has no tool for it and either takes a message or,
+// worse, sounds confused.
+//
+// Identification is by phone number alone. That is deliberate for a salon: it
+// is what the client has to hand, and demanding more would lose more real
+// cancellations than it prevents mischief. The trade-off is that someone who
+// knows a number could cancel that person's appointment; the agent reads the
+// details back before acting, which is the same protection a receptionist
+// gives.
+// -------------------------------------------------------------------------
+
+interface ResolvedAppointment {
+  id: string;
+  serviceText: string;
+  durationMinutes: number;
+  stylistName: string;
+  startsAt: Date;
+  googleEventId: string | null;
+  googleCalendarId: string | null;
+  patchTestRequired: boolean;
+  clientType: string;
+  notes: string | null;
+  lead: { id: string; name: string | null; phone: string | null };
+}
+
+/**
+ * Find the appointment a caller means.
+ *
+ * Returns the single upcoming one where that is unambiguous, so the common
+ * case needs no lookup call first. Where there are several, it refuses and
+ * lists them rather than guessing — cancelling the wrong appointment is not
+ * recoverable by the person on the phone.
+ */
+async function resolveAppointment(
+  organizationId: string,
+  phone: string,
+  appointmentId: string | undefined,
+  timeZone: string
+): Promise<
+  | { ok: true; appointment: ResolvedAppointment }
+  | { ok: false; result: Record<string, unknown> }
+> {
+  const lead = await prisma.lead.findUnique({
+    where: { organizationId_phone: { organizationId, phone } },
+    select: { id: true },
+  });
+
+  if (!lead) {
+    return {
+      ok: false,
+      result: {
+        found: false,
+        message:
+          "Nothing on that number. Check it with the caller, or they may " +
+          "have booked under a different one.",
+      },
+    };
+  }
+
+  const upcoming = await prisma.appointment.findMany({
+    where: {
+      organizationId,
+      leadId: lead.id,
+      status: "booked",
+      startsAt: { gte: new Date() },
+    },
+    include: { lead: { select: { id: true, name: true, phone: true } } },
+    orderBy: { startsAt: "asc" },
+  });
+
+  if (upcoming.length === 0) {
+    return {
+      ok: false,
+      result: {
+        found: false,
+        message:
+          "No upcoming appointments on that number. Anything in the past " +
+          "cannot be changed from here.",
+      },
+    };
+  }
+
+  if (appointmentId) {
+    const match = upcoming.find((a) => a.id === appointmentId);
+    if (!match) {
+      return {
+        ok: false,
+        result: {
+          found: false,
+          message: "That appointment reference did not match. Look it up again.",
+        },
+      };
+    }
+    return { ok: true, appointment: match as ResolvedAppointment };
+  }
+
+  if (upcoming.length === 1) {
+    return { ok: true, appointment: upcoming[0] as ResolvedAppointment };
+  }
+
+  return {
+    ok: false,
+    result: {
+      found: true,
+      ambiguous: true,
+      appointments: upcoming.map((a) => ({
+        appointmentId: a.id,
+        when: describeAppointmentWhen(a.startsAt, timeZone),
+        service: a.serviceText,
+        stylist: a.stylistName,
+      })),
+      message:
+        "There is more than one booked. Read them out, ask which they mean, " +
+        "then call again with that appointmentId.",
+    },
+  };
+}
+
+async function orgMessageContext(organizationId: string) {
+  const settings = await prisma.organizationSettings.findUnique({
+    where: { organizationId },
+    select: { businessName: true, contactPhone: true },
+  });
+  return {
+    businessName: settings?.businessName ?? "the salon",
+    contactPhone: settings?.contactPhone ?? null,
+  };
+}
+
+export async function handleFindAppointment(
+  organizationId: string,
+  params: { customerPhone?: string; phone?: string }
+) {
+  const parsed = normalisePhone(params.customerPhone ?? params.phone);
+  if (!parsed.ok) {
+    return { found: false, message: `${parsed.reason} Ask for it again.` };
+  }
+
+  const cfg = await getSalonConfig(organizationId);
+  const resolved = await resolveAppointment(
+    organizationId,
+    parsed.e164,
+    undefined,
+    cfg.timeZone
+  );
+
+  if (!resolved.ok) return resolved.result;
+
+  const a = resolved.appointment;
+  return {
+    found: true,
+    appointmentId: a.id,
+    when: describeAppointmentWhen(a.startsAt, cfg.timeZone),
+    service: a.serviceText,
+    stylist: a.stylistName,
+    clientName: a.lead.name,
+    message:
+      `They have ${a.serviceText.toLowerCase()} with ${a.stylistName} ` +
+      `${describeAppointmentWhen(a.startsAt, cfg.timeZone)}. Read that back ` +
+      "and confirm it is the one they mean before changing anything.",
+  };
+}
+
+export async function handleCancelAppointment(
+  organizationId: string,
+  params: {
+    customerPhone?: string;
+    phone?: string;
+    appointmentId?: string;
+    reason?: string;
+  }
+) {
+  const parsed = normalisePhone(params.customerPhone ?? params.phone);
+  if (!parsed.ok) {
+    return { success: false, message: `${parsed.reason} Ask for it again.` };
+  }
+
+  const cfg = await getSalonConfig(organizationId);
+  const resolved = await resolveAppointment(
+    organizationId,
+    parsed.e164,
+    blankToUndefined(params.appointmentId),
+    cfg.timeZone
+  );
+  if (!resolved.ok) return { success: false, ...resolved.result };
+
+  const appt = resolved.appointment;
+  const whenText = describeAppointmentWhen(appt.startsAt, cfg.timeZone);
+
+  // Remove it from the stylist's calendar, not just our record. A cancelled
+  // appointment that still blocks the diary is the same as no cancellation —
+  // the slot cannot be resold, which is the entire point of ringing in.
+  const provider = await getBookingProvider(organizationId);
+  let calendarCleared = true;
+  if (appt.googleEventId && provider.cancelBooking) {
+    try {
+      await provider.cancelBooking(
+        organizationId,
+        appt.googleEventId,
+        appt.googleCalendarId ?? undefined
+      );
+    } catch (err) {
+      calendarCleared = false;
+      console.error("[VAPI FUNCTIONS] Calendar cancellation failed:", err);
+    }
+  }
+
+  const note = blankToUndefined(params.reason);
+  await prisma.appointment.update({
+    where: { id: appt.id },
+    data: {
+      status: "cancelled",
+      notes: [
+        appt.notes,
+        `Cancelled by phone${note ? `: ${note}` : ""}${
+          calendarCleared ? "" : " — CALENDAR ENTRY NOT REMOVED, do it by hand"
+        }`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    },
+  });
+
+  const ctx = await orgMessageContext(organizationId);
+  const sms = await sendSms(
+    organizationId,
+    parsed.e164,
+    cancellationBody({
+      clientName: appt.lead.name,
+      serviceName: appt.serviceText,
+      stylistName: appt.stylistName,
+      whenText,
+      ...ctx,
+    })
+  );
+
+  return {
+    success: true,
+    cancelled: whenText,
+    textSent: sms.ok,
+    // Staff need to know when the diary was not actually cleared, because the
+    // caller has been told it was.
+    calendarCleared,
+    message:
+      `Cancelled: ${appt.serviceText} with ${appt.stylistName} ${whenText}. ` +
+      "Confirm that back to the caller" +
+      (sms.ok ? " and say a text is coming." : ", but do not promise a text.") +
+      " Offer to rebook if they want another time.",
+  };
+}
+
+export async function handleRescheduleAppointment(
+  organizationId: string,
+  params: {
+    customerPhone?: string;
+    phone?: string;
+    appointmentId?: string;
+    date?: string;
+    day?: string;
+    time: string;
+    stylist?: string;
+  }
+) {
+  const parsed = normalisePhone(params.customerPhone ?? params.phone);
+  if (!parsed.ok) {
+    return { success: false, message: `${parsed.reason} Ask for it again.` };
+  }
+
+  const cfg = await getSalonConfig(organizationId);
+  const provider = await getBookingProvider(organizationId);
+  if (!canCreateBooking(provider)) {
+    return {
+      success: false,
+      message:
+        "You cannot change the diary directly. Take the request and say the " +
+        "salon will confirm.",
+    };
+  }
+
+  const resolved = await resolveAppointment(
+    organizationId,
+    parsed.e164,
+    blankToUndefined(params.appointmentId),
+    cfg.timeZone
+  );
+  if (!resolved.ok) return { success: false, ...resolved.result };
+
+  const appt = resolved.appointment;
+  const previousWhenText = describeAppointmentWhen(appt.startsAt, cfg.timeZone);
+
+  const newDate = resolveSpokenDate(params.date || params.day, cfg.timeZone);
+  if (!newDate) {
+    return {
+      success: false,
+      message: "Which day did they want to move to? Ask, then call again.",
+    };
+  }
+
+  let startsAt: Date;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(params.time)) {
+    startsAt = new Date(params.time);
+  } else {
+    const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(params.time).trim());
+    if (!m) {
+      return { success: false, message: `That time did not parse ("${params.time}").` };
+    }
+    const d = parseDateOnly(newDate);
+    startsAt = zonedWallTimeToUtc(d.year, d.month, d.day, Number(m[1]), Number(m[2]), cfg.timeZone);
+  }
+  if (Number.isNaN(startsAt.getTime())) {
+    return { success: false, message: "That date and time did not parse." };
+  }
+
+  const service = matchService(appt.serviceText, cfg.services);
+  if (!service) {
+    return {
+      success: false,
+      message:
+        `The original service (${appt.serviceText}) is no longer in the list, ` +
+        "so its length is unknown. Take a message for the salon.",
+    };
+  }
+
+  // The lead-time rules apply to the new slot as much as the original. A
+  // colour moved inside the patch-test window is the same hazard whether it
+  // was booked that way or moved there.
+  const clientType =
+    appt.clientType === "returning" ? "returning" : appt.patchTestRequired ? "new" : "unknown";
+  const floor = earliestBookableStart(service, clientType, new Date());
+  if (startsAt < floor.at) {
+    return {
+      success: false,
+      tooSoon: true,
+      patchTestRequired: floor.reason === "patch_test",
+      message:
+        floor.reason === "patch_test"
+          ? `${service.name} needs a patch test 48 hours ahead for a new client, so it cannot move that close. Offer a later slot.`
+          : "That is too soon. Offer a later time.",
+    };
+  }
+
+  const stylistName = blankToUndefined(params.stylist) ?? appt.stylistName;
+  const stylist = matchStylist(stylistName, cfg.stylists);
+  if (!stylist) {
+    return {
+      success: false,
+      message: `"${stylistName}" is not a stylist here. Confirm who they want.`,
+    };
+  }
+
+  // Book the new slot BEFORE releasing the old one. If this ordering were
+  // reversed and the new time turned out to be taken, the caller would be left
+  // with no appointment at all — having rung up to keep one.
+  const written = await provider.createBooking({
+    organizationId,
+    startsAt: startsAt.toISOString(),
+    durationMinutes: service.durationMinutes,
+    serviceName: service.name,
+    stylistName: stylist.name,
+    clientName: appt.lead.name || parsed.e164,
+    clientPhone: parsed.e164,
+    notes: `Moved from ${previousWhenText}`,
+    leadId: appt.lead.id,
+  });
+
+  if (!written.ok) {
+    return {
+      success: false,
+      conflict: Boolean(written.conflict),
+      keptOriginal: true,
+      message: written.conflict
+        ? `That time is taken. Their original appointment ${previousWhenText} is untouched — offer another time.`
+        : `Could not move it. Their original appointment ${previousWhenText} still stands. Say the salon will ring to sort it.`,
+    };
+  }
+
+  // New slot secured; now release the old one.
+  let oldCleared = true;
+  if (appt.googleEventId && provider.cancelBooking) {
+    try {
+      await provider.cancelBooking(
+        organizationId,
+        appt.googleEventId,
+        appt.googleCalendarId ?? undefined
+      );
+    } catch (err) {
+      oldCleared = false;
+      console.error("[VAPI FUNCTIONS] Releasing the old slot failed:", err);
+    }
+  }
+
+  const updated = await prisma.appointment.update({
+    where: { id: appt.id },
+    data: {
+      startsAt: new Date(written.startsAt),
+      endsAt: new Date(written.endsAt),
+      stylistName: stylist.name,
+      googleEventId: written.ref,
+      googleCalendarId: written.calendarId ?? null,
+      // A reminder for the old date must not go out for the new one.
+      reminderSentAt: null,
+      reminderError: null,
+      notes: [
+        appt.notes,
+        `Moved from ${previousWhenText} by phone` +
+          (oldCleared ? "" : " — OLD CALENDAR ENTRY NOT REMOVED, delete it by hand"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    },
+  });
+
+  const whenText = describeAppointmentWhen(updated.startsAt, cfg.timeZone);
+  const ctx = await orgMessageContext(organizationId);
+  const sms = await sendSms(
+    organizationId,
+    parsed.e164,
+    rescheduleBody({
+      clientName: appt.lead.name,
+      serviceName: service.name,
+      stylistName: stylist.name,
+      whenText,
+      previousWhenText,
+      ...ctx,
+    })
+  );
+
+  await prisma.appointment.update({
+    where: { id: appt.id },
+    data: sms.ok
+      ? { confirmationSentAt: new Date(), confirmationError: null }
+      : { confirmationError: sms.reason },
+  });
+
+  return {
+    success: true,
+    movedTo: whenText,
+    stylist: stylist.name,
+    textSent: sms.ok,
+    oldSlotReleased: oldCleared,
+    message:
+      `Moved to ${whenText} with ${stylist.name}. Confirm that back to the ` +
+      "caller" +
+      (sms.ok ? " and say a text is coming." : ", but do not promise a text."),
+  };
+}
+
 /**
  * Route a named call to its handler.
  *
@@ -831,6 +1294,12 @@ export async function executeVapiFunction(
       return handleCheckAvailability(organizationId, parameters as Parameters<typeof handleCheckAvailability>[1]);
     case "book_appointment":
       return handleBookAppointment(organizationId, parameters as Parameters<typeof handleBookAppointment>[1]);
+    case "find_appointment":
+      return handleFindAppointment(organizationId, parameters as Parameters<typeof handleFindAppointment>[1]);
+    case "cancel_appointment":
+      return handleCancelAppointment(organizationId, parameters as Parameters<typeof handleCancelAppointment>[1]);
+    case "reschedule_appointment":
+      return handleRescheduleAppointment(organizationId, parameters as Parameters<typeof handleRescheduleAppointment>[1]);
     case "transfer_call":
       return handleTransferCall(organizationId, parameters as Parameters<typeof handleTransferCall>[1]);
     default:
