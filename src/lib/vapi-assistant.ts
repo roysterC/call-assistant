@@ -419,6 +419,7 @@ export function composeVoicePrompt(
     buildAvailabilityStance(caps),
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
     `# Services\n\n${describeServicesForPrompt(cfg.services)}`,
+    `# The team\n\n${describeTeamForPrompt(cfg.stylists, cfg.services)}`,
   ];
 
   if (body && body.trim()) sections.push(body.trim());
