@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { matchService, matchStylist, parseServices, parseStylists } from "./salon-config";
+import {
+  describeTeamForPrompt,
+  matchService,
+  matchStylist,
+  parseServices,
+  parseStylists,
+} from "./salon-config";
 
 const SERVICES = parseServices([
   { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false, bufferMinutes: 0 },
@@ -57,5 +63,71 @@ describe("matchStylist", () => {
     // book with whoever is closest alphabetically.
     expect(matchStylist("Joe", STYLISTS)).toBeNull();
     expect(matchStylist("Bartholomew", STYLISTS)).toBeNull();
+  });
+});
+
+describe("describeTeamForPrompt", () => {
+  const SERVICES_2 = parseServices([
+    { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false, bufferMinutes: 0 },
+    { name: "Balayage", durationMinutes: 180, requiresPatchTest: true, bufferMinutes: 0 },
+  ]);
+
+  const team = (raw: unknown[]) => parseStylists(raw);
+
+  it("names who can be booked, with days and services", () => {
+    const out = describeTeamForPrompt(
+      team([{ name: "Jo", role: "Owner", googleCalendarId: "jo@x", workingDays: [2, 3], services: ["Balayage"] }]),
+      SERVICES_2
+    );
+    expect(out).toContain("**Jo**");
+    expect(out).toContain("Owner");
+    expect(out).toContain("Tue, Wed");
+    expect(out).toContain("Balayage");
+  });
+
+  it("says 'everything' when no services are pinned", () => {
+    const out = describeTeamForPrompt(
+      team([{ name: "Jo", googleCalendarId: "jo@x", workingDays: [], services: [] }]),
+      SERVICES_2
+    );
+    expect(out).toContain("any day the salon is open");
+    expect(out).toContain("everything");
+  });
+
+  it("ignores services that no longer exist", () => {
+    // Otherwise the agent offers a service the salon removed.
+    const out = describeTeamForPrompt(
+      team([{ name: "Jo", googleCalendarId: "jo@x", workingDays: [], services: ["Perm"] }]),
+      SERVICES_2
+    );
+    expect(out).not.toContain("Perm");
+    expect(out).toContain("everything");
+  });
+
+  it("separates stylists who cannot be booked, with what to do instead", () => {
+    const out = describeTeamForPrompt(
+      team([
+        { name: "Jo", googleCalendarId: "jo@x", workingDays: [], services: [] },
+        { name: "Marcus", googleCalendarId: "", workingDays: [], services: [] },
+      ]),
+      SERVICES_2
+    );
+    expect(out).toContain("**Jo**");
+    // Named, but clearly not bookable — a caller can still ask for them.
+    expect(out).toContain("Marcus");
+    expect(out).toContain("take a");
+    expect(out).not.toContain("**Marcus**");
+  });
+
+  it("says so plainly when nobody is bookable", () => {
+    const out = describeTeamForPrompt(
+      team([{ name: "Marcus", googleCalendarId: "", workingDays: [], services: [] }]),
+      SERVICES_2
+    );
+    expect(out).toContain("Nobody can currently be booked");
+  });
+
+  it("copes with an empty roster", () => {
+    expect(describeTeamForPrompt([], SERVICES_2)).toContain("No stylists");
   });
 });

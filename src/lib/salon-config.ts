@@ -267,3 +267,70 @@ export function describeServicesForPrompt(services: SalonService[]): string {
     })
     .join("\n");
 }
+
+const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * The team, for the voice prompt.
+ *
+ * Generated rather than written by hand, so removing someone in settings
+ * removes them from what the agent says. A stylist who has left but is still
+ * named in a hand-written prompt gets offered to callers, and the booking then
+ * fails — which is how a roster change turns into a bad phone call weeks later.
+ *
+ * Bookable and unbookable are listed separately and deliberately. A stylist
+ * with no calendar can still be asked for by name, and the agent needs to know
+ * that taking a message is the right answer rather than discovering mid-call
+ * that it cannot book them.
+ */
+export function describeTeamForPrompt(
+  stylists: Stylist[],
+  services: SalonService[]
+): string {
+  if (stylists.length === 0) return "No stylists are configured.";
+
+  const describeDays = (s: Stylist) =>
+    s.workingDays.length === 0
+      ? "any day the salon is open"
+      : s.workingDays.map((d) => DAY_NAMES_SHORT[d]).join(", ");
+
+  const describeServices = (s: Stylist) => {
+    if (s.services.length === 0) return "everything";
+    // Only name services that still exist — a stylist listed against a
+    // service that was deleted would have the agent offering it.
+    const live = s.services.filter((name) =>
+      services.some((sv) => sv.name.toLowerCase() === name.toLowerCase())
+    );
+    return live.length > 0 ? live.join(", ") : "everything";
+  };
+
+  const bookable = stylists.filter((s) => s.googleCalendarId);
+  const unbookable = stylists.filter((s) => !s.googleCalendarId);
+
+  const lines: string[] = [];
+
+  for (const s of bookable) {
+    const role = s.role ? ` — ${s.role}` : "";
+    lines.push(
+      `- **${s.name}**${role}. Works ${describeDays(s)}. Does ${describeServices(s)}.`
+    );
+  }
+
+  if (unbookable.length > 0) {
+    lines.push("");
+    lines.push(
+      `${unbookable.map((s) => s.name).join(", ")} also work here but cannot ` +
+        "be booked over the phone. If a caller asks for one of them, take a " +
+        "message and say the salon will ring back to arrange it."
+    );
+  }
+
+  if (bookable.length === 0) {
+    return (
+      "Nobody can currently be booked by phone. Take the request and say the " +
+      "salon will ring back to confirm."
+    );
+  }
+
+  return lines.join("\n");
+}

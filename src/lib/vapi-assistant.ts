@@ -15,7 +15,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { describeHoursForPrompt } from "@/lib/business-hours";
-import { describeServicesForPrompt } from "@/lib/salon-config";
+import {
+  describeServicesForPrompt,
+  describeTeamForPrompt,
+} from "@/lib/salon-config";
 import {
   explainProviderSelection,
   getSalonConfig,
