@@ -46,6 +46,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { STATUS_BADGE } from "@/lib/status-styles";
 import { plural } from "@/lib/plural";
 import { cn } from "@/lib/utils";
+import { VapiSyncCard } from "@/components/admin/vapi-sync-card";
 
 interface Org {
   id: string;
@@ -725,9 +726,11 @@ export default function OrganizationDetailPage() {
                 Voice agent (Vapi)
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Vapi assistant prompts live in the Vapi dashboard. Inbound
-                calls route to this org via the org&apos;s phone numbers
-                (managed in the section above).
+                Tools live in the Vapi dashboard, along with their server URLs
+                and credentials. The system prompt is generated from this
+                org&apos;s settings and pushed from the card below. Inbound
+                calls route here via the org&apos;s phone numbers (managed
+                above), falling back to the assistant id for web calls.
               </p>
               <a
                 href="https://dashboard.vapi.ai"
@@ -798,6 +801,10 @@ export default function OrganizationDetailPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {org.settings?.voiceEnabled && (
+        <VapiSyncCard organizationId={org.id} />
       )}
 
       <Card>
