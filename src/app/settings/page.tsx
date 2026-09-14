@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Save,
-  Plus,
-  Trash2,
   Users,
   MessageSquare,
   MessageCircle,
@@ -19,17 +17,19 @@ import {
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-
-interface TeamMember {
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-}
+import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
+import { ServicesEditor } from "@/components/settings/services-editor";
+import { StylistsEditor } from "@/components/settings/stylists-editor";
+import type { DayHours } from "@/lib/business-hours";
+import type { SalonService, Stylist } from "@/lib/salon-config";
 
 interface Settings {
   businessName: string;
-  teamMembers: TeamMember[];
+  contactPhone: string | null;
+  timezone: string;
+  businessHours: DayHours[];
+  services: SalonService[];
+  teamMembers: Stylist[];
   chatbotEnabled: boolean;
   whatsappEnabled: boolean;
   voiceEnabled: boolean;
@@ -62,6 +62,10 @@ export default function SettingsPage() {
         const data = await res.json();
         const s: Settings = {
           businessName: data.settings?.businessName || "",
+          contactPhone: data.settings?.contactPhone ?? null,
+          timezone: data.settings?.timezone || "Europe/London",
+          businessHours: data.settings?.businessHours || [],
+          services: data.settings?.services || [],
           teamMembers: data.settings?.teamMembers || [],
           chatbotEnabled: !!data.settings?.chatbotEnabled,
           whatsappEnabled: !!data.settings?.whatsappEnabled,
@@ -113,6 +117,10 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           businessName: settings.businessName,
+          contactPhone: settings.contactPhone,
+          timezone: settings.timezone,
+          businessHours: settings.businessHours,
+          services: settings.services,
           teamMembers: settings.teamMembers,
         }),
       });
@@ -211,6 +219,25 @@ export default function SettingsPage() {
               className="mt-1"
             />
           </div>
+
+          <div>
+            <label className="text-sm font-medium">Contact number</label>
+            <Input
+              value={settings.contactPhone ?? ""}
+              placeholder="01234 567890"
+              onChange={(e) =>
+                setSettings({ ...settings, contactPhone: e.target.value })
+              }
+              className="mt-1"
+            />
+            {/* Texts go out from a one-way sender, so without this a client
+                who cannot make their appointment has no way to tell you. */}
+            <p className="text-xs text-muted-foreground mt-1">
+              Printed in confirmation and reminder texts. Customers cannot
+              reply to those messages, so this is the only way they can reach
+              you about a booking.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -262,116 +289,74 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* Team members — only if voice is enabled */}
-      {settings.voiceEnabled && (
-        <Card className="gap-0">
-          <CardHeader className="border-b pb-3">
-            <CardTitle className="text-base">Team members</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Who the voice agent offers when a caller asks for a person.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3 pt-4">
-            {settings.teamMembers.length === 0 && (
-              <EmptyState
-                icon={Users}
-                title="No one added yet"
-                hint="Add a colleague so the voice agent has someone to name when a caller asks for a person."
-              />
-            )}
-            {/*
-              Labelled fields, and the role out of the grid.
+      {/* The salon diary — hours, services and who can be booked.
 
-              The row was a 2x2 of bare inputs whose placeholders vanished the
-              moment they held anything, so a filled-in member was three
-              unlabelled boxes; the fourth cell held only a role badge, leaving
-              a gap beside the phone number.
-            */}
-            {settings.teamMembers.map((member, i) => (
-              <div key={i} className="p-3 border border-border rounded-lg">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <Badge variant="outline" className="text-[10px]">
-                    {member.role}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Remove ${member.name || "team member"}`}
-                    onClick={() => {
-                      setSettings({
-                        ...settings,
-                        teamMembers: settings.teamMembers.filter(
-                          (_, idx) => idx !== i,
-                        ),
-                      });
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <label className="text-xs text-muted-foreground">
-                    Name
-                    <Input
-                      value={member.name}
-                      onChange={(e) => {
-                        const updated = [...settings.teamMembers];
-                        updated[i] = { ...updated[i], name: e.target.value };
-                        setSettings({ ...settings, teamMembers: updated });
-                      }}
-                      placeholder="Sam Okoye"
-                      className="mt-1"
-                    />
-                  </label>
-                  <label className="text-xs text-muted-foreground">
-                    Email
-                    <Input
-                      type="email"
-                      value={member.email}
-                      onChange={(e) => {
-                        const updated = [...settings.teamMembers];
-                        updated[i] = { ...updated[i], email: e.target.value };
-                        setSettings({ ...settings, teamMembers: updated });
-                      }}
-                      placeholder="sam@example.co.uk"
-                      className="mt-1"
-                    />
-                  </label>
-                  <label className="text-xs text-muted-foreground">
-                    Phone
-                    <Input
-                      type="tel"
-                      value={member.phone}
-                      onChange={(e) => {
-                        const updated = [...settings.teamMembers];
-                        updated[i] = { ...updated[i], phone: e.target.value };
-                        setSettings({ ...settings, teamMembers: updated });
-                      }}
-                      placeholder="07700 900000"
-                      className="mt-1"
-                    />
-                  </label>
-                </div>
-              </div>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setSettings({
-                  ...settings,
-                  teamMembers: [
-                    ...settings.teamMembers,
-                    { name: "", email: "", phone: "", role: "member" },
-                  ],
-                })
-              }
-            >
-              <Plus className="w-4 h-4 mr-1.5" /> Add team member
-            </Button>
-          </CardContent>
-        </Card>
+          All three feed the same place: the availability algorithm enforces
+          them, and the voice prompt is generated from them, so what the agent
+          says and what it will actually do cannot drift apart. */}
+      {settings.voiceEnabled && (
+        <>
+          <Card className="gap-0">
+            <CardHeader className="border-b pb-3">
+              <CardTitle className="text-base">Opening hours</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                When appointments can be booked. Also what the receptionist
+                tells callers.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <OpeningHoursEditor
+                value={settings.businessHours}
+                onChange={(businessHours) =>
+                  setSettings({ ...settings, businessHours })
+                }
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="gap-0">
+            <CardHeader className="border-b pb-3">
+              <CardTitle className="text-base">Services</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                What you offer and how long each takes.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <ServicesEditor
+                value={settings.services}
+                onChange={(services) => setSettings({ ...settings, services })}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="gap-0">
+            <CardHeader className="border-b pb-3">
+              <CardTitle className="text-base">Stylists</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Each needs a Google calendar shared with the service account
+                before they can be booked.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {settings.teamMembers.length === 0 ? (
+                <EmptyState
+                  icon={Users}
+                  title="No one added yet"
+                  hint="Add a stylist so the receptionist has someone to book with."
+                />
+              ) : null}
+              <StylistsEditor
+                value={settings.teamMembers}
+                services={settings.services}
+                onChange={(teamMembers) =>
+                  setSettings({ ...settings, teamMembers })
+                }
+              />
+            </CardContent>
+          </Card>
+        </>
       )}
+
     </div>
   );
 }

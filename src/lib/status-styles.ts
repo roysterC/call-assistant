@@ -115,3 +115,57 @@ export function callbackStatus(status: string): StatusStyle {
  */
 export const STATUS_BADGE =
   "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap";
+
+export const APPOINTMENT_STATUS: Record<string, StatusStyle> = {
+  booked: {
+    label: "Booked",
+    className: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  },
+  completed: {
+    label: "Completed",
+    className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  },
+  cancelled: {
+    label: "Cancelled",
+    className: "bg-muted text-muted-foreground border-border",
+  },
+  no_show: {
+    label: "No show",
+    className: "bg-red-500/15 text-red-400 border-red-500/30",
+  },
+};
+
+export function appointmentStatus(status: string): StatusStyle {
+  return (
+    APPOINTMENT_STATUS[status] ?? {
+      label: status.replace(/_/g, " "),
+      className: "bg-muted text-muted-foreground border-border",
+    }
+  );
+}
+
+/**
+ * Amber, and never truncated in the table.
+ *
+ * A patch test is a 48-hour lead time and a skin-reaction liability. Buried in
+ * a notes column it gets missed, and the consequence lands on the client — so
+ * it gets its own colour, distinct from every status above.
+ */
+export const PATCH_TEST_BADGE =
+  "bg-amber-500/15 text-amber-400 border-amber-500/30";
+
+/** Whether the confirmation text actually went out. */
+export const SMS_STATUS: Record<"sent" | "failed" | "pending", StatusStyle> = {
+  sent: {
+    label: "Sent",
+    className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  },
+  failed: {
+    label: "Failed",
+    className: "bg-red-500/15 text-red-400 border-red-500/30",
+  },
+  pending: {
+    label: "Not sent",
+    className: "bg-muted text-muted-foreground border-border",
+  },
+};

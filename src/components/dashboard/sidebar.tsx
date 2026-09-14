@@ -12,6 +12,7 @@ import {
   Globe,
   Users,
   CalendarClock,
+  CalendarCheck,
   Settings,
   Bot,
   LogOut,
@@ -52,6 +53,12 @@ const navItems: Array<{
     requires: "chatbot",
   },
   { href: "/leads", label: "Leads", icon: Users },
+  {
+    href: "/appointments",
+    label: "Appointments",
+    icon: CalendarCheck,
+    requires: "voice",
+  },
   {
     href: "/callbacks",
     label: "Callbacks",
