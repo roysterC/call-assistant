@@ -632,6 +632,19 @@ export async function handleCheckAvailability(
       searchDays: days,
     });
 
+  // Honour what the caller asked for. Offering nine in the morning to someone
+  // who said "anytime after five" is the kind of thing that makes an agent
+  // sound like it is not listening — which applies just as much to the day we
+  // look ahead to as to the day they named.
+  const preference = {
+    timeOfDay: parseTimeOfDay(blankToUndefined(params.timeOfDay)),
+    after: blankToUndefined(params.after),
+    before: blankToUndefined(params.before),
+  };
+  const hasPreference = Boolean(
+    preference.timeOfDay || preference.after || preference.before
+  );
+
   let slots: TimeSlot[];
   try {
     // Someone asking for the soonest is not asking about a particular day, so
@@ -696,10 +709,24 @@ export async function handleCheckAvailability(
     // call. Look forward and name one instead. This is a second read, and it
     // only happens on a day that came back empty.
     let ahead: ReturnType<typeof optionsForSoonestDay> | null = null;
+    let aheadMatchedPreference = true;
     if (canLookAhead && wants !== "earliest") {
       try {
+        const found = await read(
+          addCalendarDays(date, 1),
+          DEFAULT_SEARCH_DAYS - 1
+        );
+        const inWindow = filterSlotsByPreference(
+          found,
+          cfg.timeZone,
+          preference
+        );
+        // Someone who said "after four" and is then offered eleven in the
+        // morning on a different day has been listened to twice as badly.
+        // Fall back to anything only when their window has nothing at all.
+        aheadMatchedPreference = !hasPreference || inWindow.length > 0;
         ahead = optionsForSoonestDay(
-          await read(addCalendarDays(date, 1), DEFAULT_SEARCH_DAYS - 1),
+          inWindow.length > 0 ? inWindow : found,
           "earliest"
         );
       } catch (err) {
@@ -713,10 +740,18 @@ export async function handleCheckAvailability(
         ? { date: ahead.date, options: ahead.options }
         : undefined;
     const offer = nextAvailable
-      ? ` The next free is ${spokenDay(nextAvailable.date, cfg.timeZone)} at ` +
+      ? (aheadMatchedPreference
+          ? " The next free is "
+          : " Nothing in the window they asked for at all, but the next free is ") +
+        `${spokenDay(nextAvailable.date, cfg.timeZone)} at ` +
         `${nextAvailable.options[0].time} with ` +
         `${nextAvailable.options[0].stylist} — offer that.`
       : "";
+
+    // Shut is not the same as full. A caller told "nothing free Thursday"
+    // asks about next Thursday; one told the salon is closed on Thursdays
+    // asks about another day.
+    const closed = openWindowFor(cfg.hours, cfg.timeZone, date) === null;
 
     if (floor.reason === "patch_test") {
       return {
@@ -741,27 +776,20 @@ export async function handleCheckAvailability(
       date,
       searchedDays: searchedRange ? DEFAULT_SEARCH_DAYS : 1,
       nextAvailable,
+      closed,
       message: searchedRange
         ? `Nothing free for ${service.name.toLowerCase()} in the next two ` +
           "weeks. Say so, take their details, and tell them the salon will " +
           "ring back with something."
-        : `Nothing free on ${spokenDay(date, cfg.timeZone)} for that ` +
-          `service.${offer || " Offer to try another day."}`,
+        : closed
+          ? `The salon is closed on ${spokenDay(date, cfg.timeZone)} — say ` +
+            `that, not that it is booked up.${offer || " Ask which other day suits."}`
+          : `Nothing free on ${spokenDay(date, cfg.timeZone)} for that ` +
+            `service.${offer || " Offer to try another day."}`,
     };
   }
 
-  // Honour what the caller asked for. Offering nine in the morning to someone
-  // who said "anytime after five" is the kind of thing that makes an agent
-  // sound like it is not listening.
-  const preference = {
-    timeOfDay: parseTimeOfDay(blankToUndefined(params.timeOfDay)),
-    after: blankToUndefined(params.after),
-    before: blankToUndefined(params.before),
-  };
   const preferred = filterSlotsByPreference(slots, cfg.timeZone, preference);
-  const hasPreference = Boolean(
-    preference.timeOfDay || preference.after || preference.before
-  );
 
   if (hasPreference && preferred.length === 0) {
     // Do not silently widen the search — say plainly that the window is full
