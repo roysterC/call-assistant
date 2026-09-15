@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolveOrgFromVapiPayload } from "@/lib/vapi-functions";
 import {
   verifyVapiRequest,
   describeAuthHeaders,
@@ -342,33 +343,24 @@ async function handleEndOfCallReport(message: any) {
   const callerName = extractCallerName(transcript);
 
   // Route to the correct org via the Vapi phone number ID
-  const vapiPhoneNumberId =
-    call.phoneNumberId || call.phoneNumber?.id || null;
-  const dialledNumber =
-    call.phoneNumber?.number ||
-    (typeof call.phoneNumber === "string" ? call.phoneNumber : null) ||
-    null;
-
-  let organizationId: string | null = null;
-  if (vapiPhoneNumberId) {
-    const match = await prisma.phoneNumber.findFirst({
-      where: { vapiPhoneNumberId, channel: "vapi" },
-      select: { organizationId: true },
-    });
-    organizationId = match?.organizationId || null;
-  }
-  if (!organizationId && dialledNumber) {
-    const match = await prisma.phoneNumber.findUnique({
-      where: { number: dialledNumber },
-      select: { organizationId: true },
-    });
-    organizationId = match?.organizationId || null;
-  }
+  // One resolver, shared with the tool route. These were separate copies and
+  // drifted: tool calls resolved while call records silently did not, because
+  // an end-of-call report puts the phone number somewhere a tool call does not.
+  const organizationId = await resolveOrgFromVapiPayload(message);
 
   if (!organizationId) {
     console.warn(
       "[VAPI WEBHOOK] No organization mapping found for Vapi call",
-      { vapiPhoneNumberId, dialledNumber }
+      // Log what the payload actually offered, so the next mismatch says
+      // which identifier was present rather than only that none matched.
+      {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        phoneNumberId: (message as any)?.phoneNumber?.id ?? null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        dialled: (message as any)?.phoneNumber?.number ?? null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        assistantId: (message as any)?.call?.assistantId ?? null,
+      }
     );
     return;
   }

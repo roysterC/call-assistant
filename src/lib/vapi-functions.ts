@@ -38,17 +38,42 @@ import {
  */
 
 /**
- * Resolve the organization ID for a Vapi function call by inspecting the
- * call payload for a Vapi phone number ID or dialled number.
+ * Work out which organization a Vapi payload belongs to.
+ *
+ * Vapi does not put the identifiers in one place. A tool call carries the
+ * phone number under `message.call`; an end-of-call report carries it under
+ * `message.phoneNumber`, a sibling of the call. The webhook route used to
+ * have its own copy of this that only looked at the first, which is why tool
+ * calls resolved and call records silently did not — the duplication was the
+ * bug, not the lookup.
+ *
+ * Four routes to an answer, cheapest first:
+ *   1. the Vapi phone-number id, if we have stored it
+ *   2. the number that was dialled
+ *   3. the assistant id — the only one a web call has, since there is no
+ *      number to dial
  */
 export async function resolveOrgFromVapiPayload(
   body: Record<string, unknown>
 ): Promise<string | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const call = (body as any).message?.call || (body as any).call;
-  if (!call) return null;
+  // Vapi's payloads are loosely shaped and vary by event, so this walks them
+  // defensively rather than against a type that would only be half true.
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const root = body as any;
+  const message = root.message ?? root;
+  const call = message?.call ?? root.call ?? {};
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
-  const vapiPhoneNumberId = call.phoneNumberId || call.phoneNumber?.id || null;
+  // `message.phoneNumber` is where an end-of-call report puts it; `call.
+  // phoneNumber` is where a tool call does.
+  const phoneNumber = message?.phoneNumber ?? call?.phoneNumber ?? null;
+
+  const vapiPhoneNumberId =
+    call?.phoneNumberId ??
+    message?.phoneNumberId ??
+    (typeof phoneNumber === "object" ? phoneNumber?.id : null) ??
+    null;
+
   if (vapiPhoneNumberId) {
     const match = await prisma.phoneNumber.findFirst({
       where: { vapiPhoneNumberId, channel: "vapi" },
@@ -58,8 +83,10 @@ export async function resolveOrgFromVapiPayload(
   }
 
   const dialledNumber =
-    call.phoneNumber?.number ||
-    (typeof call.phoneNumber === "string" ? call.phoneNumber : null);
+    (typeof phoneNumber === "object" ? phoneNumber?.number : null) ??
+    (typeof phoneNumber === "string" ? phoneNumber : null) ??
+    null;
+
   if (dialledNumber) {
     const match = await prisma.phoneNumber.findUnique({
       where: { number: dialledNumber },
@@ -69,15 +96,15 @@ export async function resolveOrgFromVapiPayload(
   }
 
   // Web calls carry no phone number — there is nothing to dial — so fall back
-  // to the assistant. This is not only for testing: an organization is tied to
-  // its assistant regardless of how the call arrived, and a number may not
-  // exist yet.
+  // to the assistant. Also covers an inbound number we have not mapped yet.
   const assistantId =
-    call.assistantId ||
-    call.assistant?.id ||
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (body as any).message?.assistant?.id ||
+    call?.assistantId ??
+    call?.assistant?.id ??
+    message?.assistantId ??
+    message?.assistant?.id ??
+    (typeof phoneNumber === "object" ? phoneNumber?.assistantId : null) ??
     null;
+
   if (assistantId) {
     const match = await prisma.organizationSettings.findFirst({
       where: { vapiAssistantId: assistantId },
