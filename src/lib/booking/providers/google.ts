@@ -22,10 +22,12 @@ import {
   type Stylist,
 } from "@/lib/salon-config";
 import {
-  computeBookableSlots,
+  computeForwardSlots,
+  DEFAULT_SEARCH_DAYS,
   type BusyBlock,
   type StylistAvailability,
 } from "../availability";
+import { addCalendarDays } from "@/lib/business-hours";
 import type {
   AvailabilityQuery,
   BookingProvider,
@@ -179,6 +181,9 @@ export function createGoogleProvider(
       readAvailability: true,
       createBooking: true,
       perStaffAvailability: true,
+      // One freebusy query covers the whole range, so looking a fortnight
+      // ahead costs the same call as looking at Thursday.
+      forwardSearch: true,
       // Google IS the diary, not a mirror of one. The agent may confirm.
       availabilityIsAdvisory: false,
     },
@@ -187,11 +192,23 @@ export function createGoogleProvider(
       const service = matchService(q.serviceName, cfg.services);
       if (!service) return [];
 
+      // Two weeks is the cap rather than the default: a search is only ever
+      // this wide when the caller asked for the soonest, and `freebusy` takes
+      // the whole range in one request regardless of its width.
+      const searchDays = Math.min(
+        Math.max(1, q.searchDays ?? 1),
+        DEFAULT_SEARCH_DAYS
+      );
+      const lastDate = addCalendarDays(q.date, searchDays - 1);
+
       // Widen the free/busy window by a day either side so appointments that
       // straddle midnight in the salon's timezone are still seen.
-      const dayStart = new Date(`${q.date}T00:00:00Z`);
-      const timeMin = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000);
-      const timeMax = new Date(dayStart.getTime() + 48 * 60 * 60 * 1000);
+      const timeMin = new Date(
+        new Date(`${q.date}T00:00:00Z`).getTime() - 24 * 60 * 60 * 1000
+      );
+      const timeMax = new Date(
+        new Date(`${lastDate}T00:00:00Z`).getTime() + 48 * 60 * 60 * 1000
+      );
 
       const candidates = await candidatesFor(
         service,
@@ -201,8 +218,9 @@ export function createGoogleProvider(
       );
       if (candidates.length === 0) return [];
 
-      return computeBookableSlots({
-        date: q.date,
+      return computeForwardSlots({
+        fromDate: q.date,
+        searchDays,
         timeZone: cfg.timeZone,
         hours: cfg.hours,
         service,

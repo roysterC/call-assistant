@@ -141,6 +141,20 @@ export function parseDateOnly(date: string): {
   return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
 }
 
+/**
+ * Step a YYYY-MM-DD date by whole calendar days.
+ *
+ * Calendar arithmetic, not instant arithmetic: adding 24 hours across a DST
+ * boundary lands on the wrong day, and a forward search that skips or repeats
+ * a day would offer the caller a slot on a day the salon is shut.
+ */
+export function addCalendarDays(date: string, days: number): string {
+  const { year, month, day } = parseDateOnly(date);
+  const at = new Date(Date.UTC(year, month - 1, day));
+  at.setUTCDate(at.getUTCDate() + days);
+  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
+}
+
 // -------------------------------------------------------------------------
 // Parsing / validation
 // -------------------------------------------------------------------------

@@ -12,6 +12,7 @@
  */
 
 import {
+  addCalendarDays,
   type BusinessHours,
   openWindowFor,
   parseDateOnly,
@@ -175,6 +176,60 @@ export function computeBookableSlots(input: SlotComputationInput): TimeSlot[] {
   });
 
   return slots;
+}
+
+export interface ForwardSearchInput
+  extends Omit<SlotComputationInput, "date"> {
+  /** YYYY-MM-DD in `timeZone` — the first day to consider. */
+  fromDate: string;
+  /** How many calendar days to look at, including `fromDate`. */
+  searchDays: number;
+  /**
+   * Stop once this many days have produced something.
+   *
+   * More than one because the caller's time preference is applied afterwards,
+   * by code that knows what they asked for. Stopping at the first day with
+   * any availability would answer "nothing after five" when the day after
+   * is wide open in the evening.
+   */
+  maxDaysWithSlots?: number;
+}
+
+export const DEFAULT_SEARCH_DAYS = 14;
+export const DEFAULT_MAX_DAYS_WITH_SLOTS = 3;
+
+/**
+ * Bookable slots across consecutive days, soonest first.
+ *
+ * "When are you next free?" is a different question from "are you free
+ * Thursday?", and answering it one day at a time means either a query per day
+ * or an agent that gives up after one. Busy blocks for the whole range are
+ * fetched once by the provider and handed in here; this walks the days.
+ *
+ * Closed days cost nothing — `computeBookableSlots` returns [] for them.
+ */
+export function computeForwardSlots(input: ForwardSearchInput): TimeSlot[] {
+  const {
+    fromDate,
+    searchDays,
+    maxDaysWithSlots = DEFAULT_MAX_DAYS_WITH_SLOTS,
+    ...rest
+  } = input;
+
+  const found: TimeSlot[] = [];
+  let daysWithSlots = 0;
+
+  for (let offset = 0; offset < Math.max(1, searchDays); offset++) {
+    const date = addCalendarDays(fromDate, offset);
+    const slots = computeBookableSlots({ ...rest, date });
+    if (slots.length === 0) continue;
+
+    found.push(...slots);
+    daysWithSlots++;
+    if (daysWithSlots >= maxDaysWithSlots) break;
+  }
+
+  return found;
 }
 
 export type SlotPreference = "earliest" | "any";

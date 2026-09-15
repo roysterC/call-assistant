@@ -30,6 +30,16 @@ export interface AvailabilityQuery {
   stylistName?: string;
   /** Drives the patch-test lead time for colour services. */
   clientType?: "new" | "returning" | "unknown";
+  /**
+   * Look forward from `date` up to this many calendar days, for "when are you
+   * next free?". Defaults to 1 — that day only.
+   *
+   * Only meaningful when `capabilities.forwardSearch`. A provider without it
+   * returns the single day, which is honest but narrower than asked; the
+   * capability flag is what lets the caller word the answer truthfully
+   * instead of claiming a fortnight was searched.
+   */
+  searchDays?: number;
 }
 
 export interface BookingWrite {
@@ -78,6 +88,8 @@ export interface BookingCapabilities {
   createBooking: boolean;
   /** Availability resolves per stylist, not just salon-wide. */
   perStaffAvailability: boolean;
+  /** `AvailabilityQuery.searchDays` is honoured, not ignored. */
+  forwardSearch: boolean;
   /**
    * The data is a mirror that can lag its source, so the agent may suggest
    * but must not confirm. False for Google here — Google IS the diary.

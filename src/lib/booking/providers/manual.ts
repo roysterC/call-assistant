@@ -18,6 +18,7 @@ export const manualProvider: BookingProvider = {
     readAvailability: false,
     createBooking: false,
     perStaffAvailability: false,
+    forwardSearch: false,
     availabilityIsAdvisory: false,
   },
 };

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   computeBookableSlots,
+  computeForwardSlots,
   earliestBookableStart,
   summariseSlotsForSpeech,
   type BusyBlock,
 } from "./availability";
 import {
+  addCalendarDays,
   parseBusinessHours,
   nextOpenMorning,
   zonedWallTimeToUtc,
@@ -394,5 +396,147 @@ describe("nextOpenMorning", () => {
 
   it("returns null when hours are unconfigured", () => {
     expect(nextOpenMorning([], TZ, new Date())).toBeNull();
+  });
+});
+
+describe("addCalendarDays", () => {
+  it("steps whole days, not 24-hour blocks", () => {
+    expect(addCalendarDays("2026-09-15", 1)).toBe("2026-09-16");
+    expect(addCalendarDays("2026-09-30", 1)).toBe("2026-10-01");
+    expect(addCalendarDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addCalendarDays("2026-03-01", -1)).toBe("2026-02-28");
+  });
+
+  // The clocks go back on 2026-10-25. Adding 24 hours to the Saturday lands
+  // on the Sunday twice over; calendar arithmetic does not.
+  it("crosses a DST boundary without slipping", () => {
+    expect(addCalendarDays("2026-10-24", 1)).toBe("2026-10-25");
+    expect(addCalendarDays("2026-10-25", 1)).toBe("2026-10-26");
+    expect(addCalendarDays("2026-10-24", 3)).toBe("2026-10-27");
+  });
+});
+
+describe("computeForwardSlots", () => {
+  // Monday is closed, Tuesday and Wednesday are 9-6.
+  const MON = "2026-09-14";
+  const TUE = "2026-09-15";
+  const WED = "2026-09-16";
+
+  const base = {
+    timeZone: TZ,
+    hours: HOURS,
+    service: CUT,
+    clientType: "returning" as const,
+  };
+
+  it("walks past a closed day to find the next open one", () => {
+    const slots = computeForwardSlots({
+      ...base,
+      fromDate: MON,
+      searchDays: 3,
+      maxDaysWithSlots: 1,
+      candidates: [{ stylist: stylist("Jo"), busy: [] }],
+      now: at(MON, 6),
+    });
+    expect(slots.length).toBeGreaterThan(0);
+    // Everything returned is on the Tuesday, not the closed Monday.
+    const days = new Set(slots.map((s) => s.start.slice(0, 10)));
+    expect([...days]).toEqual(["2026-09-15"]);
+  });
+
+  it("walks past a fully booked day", () => {
+    const slots = computeForwardSlots({
+      ...base,
+      fromDate: TUE,
+      searchDays: 3,
+      maxDaysWithSlots: 1,
+      candidates: [
+        { stylist: stylist("Jo"), busy: [busy(TUE, 8, 19)] },
+      ],
+      now: at(TUE, 6),
+    });
+    expect(slots.length).toBeGreaterThan(0);
+    expect(new Set(slots.map((s) => s.start.slice(0, 10)))).toEqual(
+      new Set([WED])
+    );
+  });
+
+  it("stops after the day cap rather than returning a fortnight of slots", () => {
+    const slots = computeForwardSlots({
+      ...base,
+      fromDate: TUE,
+      searchDays: 14,
+      maxDaysWithSlots: 2,
+      candidates: [{ stylist: stylist("Jo"), busy: [] }],
+      now: at(TUE, 6),
+    });
+    const days = new Set(slots.map((s) => s.start.slice(0, 10)));
+    expect(days.size).toBe(2);
+  });
+
+  it("returns soonest first, so the head of the list is the answer", () => {
+    const slots = computeForwardSlots({
+      ...base,
+      fromDate: TUE,
+      searchDays: 5,
+      maxDaysWithSlots: 3,
+      candidates: [{ stylist: stylist("Jo"), busy: [busy(TUE, 8, 15)] }],
+      now: at(TUE, 6),
+    });
+    expect(localTimes(slots.slice(0, 1))).toEqual(["15:00"]);
+    const starts = slots.map((s) => s.start);
+    expect([...starts].sort()).toEqual(starts);
+  });
+
+  it("finds nothing when every day in range is shut", () => {
+    const closed = parseBusinessHours([
+      { day: 0, closed: true },
+      { day: 1, closed: true },
+      { day: 2, closed: true },
+      { day: 3, closed: true },
+      { day: 4, closed: true },
+      { day: 5, closed: true },
+      { day: 6, closed: true },
+    ]);
+    const slots = computeForwardSlots({
+      ...base,
+      hours: closed,
+      fromDate: TUE,
+      searchDays: 14,
+      candidates: [{ stylist: stylist("Jo"), busy: [] }],
+      now: at(TUE, 6),
+    });
+    expect(slots).toEqual([]);
+  });
+
+  // A new client's colour cannot happen inside 48 hours whichever day is
+  // searched — the forward walk must not sneak past the patch-test floor.
+  it("still honours the patch-test floor across days", () => {
+    const slots = computeForwardSlots({
+      ...base,
+      service: BALAYAGE,
+      clientType: "new",
+      fromDate: TUE,
+      searchDays: 7,
+      maxDaysWithSlots: 1,
+      candidates: [{ stylist: stylist("Jo"), busy: [] }],
+      now: at(TUE, 9),
+    });
+    expect(slots.length).toBeGreaterThan(0);
+    const floor = at(TUE, 9).getTime() + 48 * 60 * 60 * 1000;
+    for (const s of slots) {
+      expect(new Date(s.start).getTime()).toBeGreaterThanOrEqual(floor);
+    }
+  });
+
+  it("treats searchDays of 1 as the single-day behaviour it replaced", () => {
+    const args = {
+      ...base,
+      candidates: [{ stylist: stylist("Jo"), busy: [] }],
+      now: at(TUE, 6),
+    };
+    const forward = computeForwardSlots({ ...args, fromDate: TUE, searchDays: 1 });
+    const single = computeBookableSlots({ ...args, date: TUE });
+    expect(forward).toEqual(single);
   });
 });

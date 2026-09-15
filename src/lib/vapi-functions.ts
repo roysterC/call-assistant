@@ -8,12 +8,13 @@ import {
   summariseSlotsForSpeech,
 } from "@/lib/booking";
 import {
+  DEFAULT_SEARCH_DAYS,
   filterSlotsByPreference,
   opennessRatio,
   parseTimeOfDay,
   type SlotPreference,
 } from "@/lib/booking/availability";
-import { openWindowFor } from "@/lib/business-hours";
+import type { TimeSlot } from "@/lib/booking/types";
 import {
   matchService,
   matchStylist,
@@ -30,8 +31,10 @@ import {
   sendSms,
 } from "@/lib/sms";
 import {
+  addCalendarDays,
   describeAppointmentWhen,
   nextOpenMorning,
+  openWindowFor,
   parseDateOnly,
   resolveSpokenDate,
   zonedDateString,
@@ -467,6 +470,47 @@ function spokenTime(iso: string, timeZone: string): string {
   return `${h12}:${String(minute).padStart(2, "0")}${suffix}`;
 }
 
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+/**
+ * Name a day the way someone says it out loud.
+ *
+ * A forward search answers about a day the caller did not name, so the day
+ * has to come back with the time — "quarter to twelve" on its own is how
+ * somebody turns up on the wrong morning.
+ */
+function spokenDay(date: string, timeZone: string, now = new Date()): string {
+  const today = zonedDateString(now, timeZone);
+  if (date === today) return "today";
+  if (date === addCalendarDays(today, 1)) return "tomorrow";
+
+  const { year, month, day } = parseDateOnly(date);
+  const noon = zonedWallTimeToUtc(year, month, day, 12, 0, timeZone);
+  const name = DAY_NAMES[zonedParts(noon, timeZone).weekday];
+
+  // Past a week a weekday name alone is ambiguous — "Thursday" could be
+  // either of two, and the caller will assume the nearer one.
+  if (date <= addCalendarDays(today, 6)) return name;
+
+  const suffix =
+    day % 10 === 1 && day !== 11
+      ? "st"
+      : day % 10 === 2 && day !== 12
+        ? "nd"
+        : day % 10 === 3 && day !== 13
+          ? "rd"
+          : "th";
+  return `${name} the ${day}${suffix}`;
+}
+
 export async function handleCheckAvailability(
   organizationId: string,
   params: {
@@ -535,23 +579,35 @@ export async function handleCheckAvailability(
     return { available: null, canCheck: true, message: pairing };
   }
 
+  const wants: SlotPreference =
+    (blankToUndefined(params.prefer) ?? "").toLowerCase() === "earliest"
+      ? "earliest"
+      : "any";
+
+  const today = zonedDateString(new Date(), cfg.timeZone);
+
   // Callers say "Thursday"; the model has no dependable idea what today is.
   // Resolve against the salon's own clock rather than trusting it to compute.
-  const date = resolveSpokenDate(params.date || params.day, cfg.timeZone);
+  let date = resolveSpokenDate(params.date || params.day, cfg.timeZone);
   if (!date) {
-    return {
-      available: null,
-      canCheck: true,
-      message:
-        "Which day did they mean? Ask for a specific day of the week or a " +
-        "date, then call this again.",
-    };
+    // "As soon as you can" is already an answer to "which day?" — asking
+    // again is the deafness this whole path exists to avoid. Start from today
+    // and let the forward search find the day.
+    if (wants !== "earliest") {
+      return {
+        available: null,
+        canCheck: true,
+        message:
+          "Which day did they mean? Ask for a specific day of the week or a " +
+          "date, then call this again.",
+      };
+    }
+    date = today;
   }
 
   // A model with no reliable sense of today will happily produce a date from
   // two years ago. Rather than search an empty past, hand back today's date so
   // it can correct itself on the next call.
-  const today = zonedDateString(new Date(), cfg.timeZone);
   if (date < today) {
     return {
       available: null,
@@ -563,15 +619,28 @@ export async function handleCheckAvailability(
     };
   }
 
-  let slots;
-  try {
-    slots = await provider.getAvailability({
+  const canLookAhead = provider.capabilities.forwardSearch;
+
+  /** One availability read. `days` of 1 is the single day it always was. */
+  const read = async (fromDate: string, days: number): Promise<TimeSlot[]> =>
+    provider.getAvailability({
       organizationId,
-      date,
+      date: fromDate,
       serviceName: service.name,
       stylistName,
       clientType,
+      searchDays: days,
     });
+
+  let slots: TimeSlot[];
+  try {
+    // Someone asking for the soonest is not asking about a particular day, so
+    // searching one and reporting nothing would answer a question they did
+    // not ask. The whole range costs one free/busy query.
+    slots = await read(
+      date,
+      wants === "earliest" && canLookAhead ? DEFAULT_SEARCH_DAYS : 1
+    );
   } catch (err) {
     // Could not read the diary. Say so — never fall back to a guess.
     console.error("[VAPI FUNCTIONS] Availability lookup failed:", err);
@@ -584,28 +653,100 @@ export async function handleCheckAvailability(
     };
   }
 
+  /** Slots on the soonest day that has any, as spoken options. */
+  const optionsForSoonestDay = (
+    list: TimeSlot[],
+    preference: SlotPreference = "any"
+  ) => {
+    if (list.length === 0) {
+      return { date: null as string | null, options: [], slots: [] as TimeSlot[] };
+    }
+
+    // Two days' times read out as one list is how somebody books Thursday and
+    // turns up on Wednesday. Answer about one day.
+    const day = zonedDateString(new Date(list[0].start), cfg.timeZone);
+    const sameDay = list.filter(
+      (s) => zonedDateString(new Date(s.start), cfg.timeZone) === day
+    );
+    const picked = summariseSlotsForSpeech(sameDay, {
+      max: 3,
+      // Options have to be far enough apart to be different. A gap of at
+      // least the service length means back-to-back at the tightest, rather
+      // than three readings of the same answer fifteen minutes apart.
+      minGapMinutes: Math.max(45, service.durationMinutes),
+      preference,
+    });
+    return {
+      date: day as string | null,
+      slots: sameDay,
+      options: picked.map((s) => ({
+        time: spokenTime(s.start, cfg.timeZone),
+        startsAt: s.start,
+        stylist: s.stylistName,
+      })),
+    };
+  };
+
   if (slots.length === 0) {
     // Distinguish "fully booked" from "too soon": the caller can act on the
     // second one, whereas the first just sounds like a brush-off.
     const floor = earliestBookableStart(service, clientType, new Date());
+
+    // "Try another day" makes the caller do the work, and usually ends the
+    // call. Look forward and name one instead. This is a second read, and it
+    // only happens on a day that came back empty.
+    let ahead: ReturnType<typeof optionsForSoonestDay> | null = null;
+    if (canLookAhead && wants !== "earliest") {
+      try {
+        ahead = optionsForSoonestDay(
+          await read(addCalendarDays(date, 1), DEFAULT_SEARCH_DAYS - 1),
+          "earliest"
+        );
+      } catch (err) {
+        // The answer about the day they asked for is still true and useful.
+        console.error("[VAPI FUNCTIONS] Look-ahead failed:", err);
+      }
+    }
+
+    const nextAvailable =
+      ahead && ahead.date && ahead.options.length > 0
+        ? { date: ahead.date, options: ahead.options }
+        : undefined;
+    const offer = nextAvailable
+      ? ` The next free is ${spokenDay(nextAvailable.date, cfg.timeZone)} at ` +
+        `${nextAvailable.options[0].time} with ` +
+        `${nextAvailable.options[0].stylist} — offer that.`
+      : "";
+
     if (floor.reason === "patch_test") {
       return {
         available: false,
         canCheck: true,
         today,
+        date,
         patchTestRequired: true,
+        nextAvailable,
         message:
           `Nothing on that date. ${service.name} needs a skin patch test at ` +
           "least 48 hours beforehand for a new client, so the earliest we can " +
-          "look at is two days away. Offer a later date.",
+          `look at is two days away.${offer || " Offer a later date."}`,
       };
     }
+
+    const searchedRange = wants === "earliest" && canLookAhead;
     return {
       available: false,
       canCheck: true,
       today,
-      message:
-        "Nothing free on that date for that service. Offer to try another day.",
+      date,
+      searchedDays: searchedRange ? DEFAULT_SEARCH_DAYS : 1,
+      nextAvailable,
+      message: searchedRange
+        ? `Nothing free for ${service.name.toLowerCase()} in the next two ` +
+          "weeks. Say so, take their details, and tell them the salon will " +
+          "ring back with something."
+        : `Nothing free on ${spokenDay(date, cfg.timeZone)} for that ` +
+          `service.${offer || " Offer to try another day."}`,
     };
   }
 
@@ -626,57 +767,37 @@ export async function handleCheckAvailability(
     // Do not silently widen the search — say plainly that the window is full
     // and offer what does exist, so the caller chooses rather than the agent
     // quietly ignoring them.
-    const fallback = summariseSlotsForSpeech(slots, {
-      max: 3,
-      minGapMinutes: Math.max(45, service.durationMinutes),
-    }).map((s) => ({
-      time: spokenTime(s.start, cfg.timeZone),
-      startsAt: s.start,
-      stylist: s.stylistName,
-    }));
+    const fallback = optionsForSoonestDay(slots);
     return {
       available: false,
       canCheck: true,
       today,
-      date,
+      date: fallback.date ?? date,
       outsidePreference: true,
-      alternatives: fallback,
+      alternatives: fallback.options,
       message:
         "Nothing free in the window they asked for. Say so plainly, then " +
-        `offer these instead if they are interested: ${fallback
+        `offer these instead if they are interested: ${fallback.options
           .map((o) => `${o.time} with ${o.stylist}`)
           .join(", ")}.`,
     };
   }
 
-  const wants: SlotPreference =
-    (blankToUndefined(params.prefer) ?? "").toLowerCase() === "earliest"
-      ? "earliest"
-      : "any";
+  const found = optionsForSoonestDay(hasPreference ? preferred : slots, wants);
+  const foundDate = found.date ?? date;
+  const options = found.options;
 
-  const usable = hasPreference ? preferred : slots;
-
-  // Options have to be far enough apart to be different. A gap of at least
-  // the service length means back-to-back at the tightest, rather than three
-  // readings of the same answer fifteen minutes apart.
-  const minGapMinutes = Math.max(45, service.durationMinutes);
-
-  const picked = summariseSlotsForSpeech(usable, {
-    max: 3,
-    minGapMinutes,
-    preference: wants,
-  });
-  const options = picked.map((s) => ({
-    time: spokenTime(s.start, cfg.timeZone),
-    startsAt: s.start,
-    stylist: s.stylistName,
-  }));
+  // The search may have walked past the day they named, or past today when
+  // they named no day at all. Either way the answer is about a different day
+  // and the answer has to say so.
+  const movedOn = foundDate !== date;
+  const dayPhrase = spokenDay(foundDate, cfg.timeZone);
 
   // A wide-open day offered as three specific times is three arbitrary times.
   // Better to say it is open and ask what suits.
   const openness = opennessRatio(
-    usable,
-    openWindowFor(cfg.hours, cfg.timeZone, date),
+    found.slots,
+    openWindowFor(cfg.hours, cfg.timeZone, foundDate),
     service.durationMinutes
   );
   const mostlyFree = wants !== "earliest" && !hasPreference && openness >= 0.7;
@@ -687,23 +808,30 @@ export async function handleCheckAvailability(
     // Every response carries the date, so the model can orient from the first
     // successful call rather than guessing and being corrected afterwards.
     today,
-    date,
+    date: foundDate,
+    ...(movedOn ? { requestedDate: date } : {}),
     service: service.name,
     durationMinutes: service.durationMinutes,
     mostlyFree,
     options,
     message: mostlyFree
-      ? `That day is wide open for ${service.name.toLowerCase()} — say so and ` +
-        "ask what time would suit them, rather than reading out times. If " +
-        `they have no preference, the first one is ${options[0]?.time} with ` +
-        `${options[0]?.stylist}.`
+      ? `${movedOn ? `${dayPhrase} is` : "That day is"} wide open for ` +
+        `${service.name.toLowerCase()} — say so and ask what time would suit ` +
+        "them, rather than reading out times. If they have no preference, " +
+        `the first one is ${options[0]?.time} with ${options[0]?.stylist}.`
       : wants === "earliest"
-        ? `The soonest is ${options[0]?.time} with ${options[0]?.stylist}` +
+        ? `The soonest is ${dayPhrase} at ${options[0]?.time} with ` +
+          `${options[0]?.stylist}` +
           (options[1]
-            ? `, then ${options[1].time}. Offer the first and mention the second only if they hesitate.`
+            ? `, then ${options[1].time}. Offer the first and mention the ` +
+              "second only if they hesitate."
             : ". Offer it.") +
-          " Then call book_appointment with the exact startsAt for whichever they take."
-        : `Offer these times: ${options
+          " Say the day as well as the time. Then call book_appointment with " +
+          "the exact startsAt for whichever they take."
+        : (movedOn
+            ? `Nothing on the day they asked for, but ${dayPhrase} has: `
+            : "Offer these times: ") +
+          `${options
             .map((o) => `${o.time} with ${o.stylist}`)
             .join(", ")}. When the caller picks one, call book_appointment ` +
           "with the exact startsAt value for that option.",

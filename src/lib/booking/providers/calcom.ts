@@ -49,6 +49,7 @@ export function createCalComProvider(
       createBooking: true,
       // One event type, no per-stylist resolution.
       perStaffAvailability: false,
+      forwardSearch: false,
       availabilityIsAdvisory: false,
     },
 

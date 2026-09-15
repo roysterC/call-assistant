@@ -96,7 +96,9 @@ const CHECK_AVAILABILITY: VapiTool = {
             "The day to check. A weekday name is fine and preferred — " +
             "'Thursday', 'tomorrow', 'today' — and is resolved against the " +
             "salon's own clock. Only send YYYY-MM-DD if the caller named an " +
-            "actual date. Never guess a date.",
+            "actual date. Never guess a date. Leave it empty if they did not " +
+            "name a day and just want the soonest — send prefer='earliest' " +
+            "instead.",
         },
         service: {
           type: "string",
@@ -127,7 +129,9 @@ const CHECK_AVAILABILITY: VapiTool = {
           description:
             "Send 'earliest' when they asked for the soonest appointment " +
             "rather than a choice of times — 'when's your next free slot', " +
-            "'as soon as possible'. Otherwise leave it.",
+            "'as soon as possible'. The diary is then searched forward over " +
+            "the following two weeks, so no day is needed. Otherwise leave " +
+            "it.",
         },
         stylist: {
           type: "string",
@@ -387,8 +391,16 @@ it.
 
 - **Always call \`check_availability\` before offering any time.** Never guess,
   never work it out yourself, and never offer a time the tool did not return.
-- Offer at most two or three options. Reading a long list down the phone is
-  worse than offering three good ones.
+- Answer the question they actually asked. If they want the **soonest**
+  appointment, send \`prefer: "earliest"\` and no day — the diary is searched
+  forward for you — then offer the one time it names. Reading out a morning,
+  an afternoon and an evening is not an answer to "when are you next free?".
+- If they name a day, check that day. When nothing is free the tool names the
+  next day that is — offer that rather than asking them to try another day.
+- The tool returns a day alongside every time. **Say the day as well as the
+  time** whenever it is not the day they asked for.
+- Otherwise offer at most two or three options. Reading a long list down the
+  phone is worse than offering three good ones.
 - When the caller picks one, call \`book_appointment\` straight away with the
   exact \`startsAt\` value that \`check_availability\` gave you for that option.
 - Only once the tool confirms it worked may you say they are booked in. If it
