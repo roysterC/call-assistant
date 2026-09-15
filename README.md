@@ -41,8 +41,92 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Host topology
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Production is **netcup**. It is not Vercel, and it is no longer Hetzner.
+
+| | Host | Role |
+|---|---|---|
+| **Production** | `v2202609416356518198.megasrv.de` (89.58.45.110) | The live app. All deploys go here. |
+| **Hetzner (retired)** | `178.104.49.71`, hostname `doai-vps`, ssh alias `kaia-vps` | Stale copy at `/home/kaia/doai/call-assistant`. Serves nothing anyone should be looking at. |
+
+Both boxes still exist and both still have a checkout of this repo, which is
+the trap: a deploy aimed at the wrong one succeeds quietly and changes nothing
+users can see. The deploy workflow therefore names its target host in plain
+text rather than reading it from a repository secret — see
+`.github/workflows/deploy-netcup.yml`.
+
+On netcup:
+
+- **Path** — `/home/deploy/call-assistant`, owned by the `deploy` user
+- **Service** — systemd unit `call-assistant.service`, running as `deploy`,
+  `ExecStart=/usr/bin/npm start`, listening on port 3000
+- **Public URL** — <https://89-58-45-110.nip.io> (Let's Encrypt, with nip.io
+  supplying the wildcard DNS)
+- **SSH** — as `root`, with the key at `~/.ssh/netcup-ca`
+
+Note that SSH login is `root` while the checkout belongs to `deploy`. Every
+command that touches the working tree runs under `sudo -u deploy`, so that root
+never leaves files in `node_modules/` or `.next/` that the service user cannot
+replace on the next deploy.
+
+**Stale DNS:** `call.doaisystems.co.uk` still points at the retired Hetzner
+box. It should be repointed at netcup or retired outright; until then, treat
+any traffic or screenshot from that hostname as showing old code.
+
+### The pipeline
+
+`.github/workflows/deploy-netcup.yml` runs on every push to `master`, and can
+be started by hand from the Actions tab. It checks on the runner first
+(`npm ci`, `prisma generate`, typecheck, lint, `npm test`, `npm run build`) and
+only then SSHes to netcup to fetch master, `npm ci`, regenerate the Prisma
+client, sync the schema, rebuild and restart the unit. Deploys are serialised,
+and a restart that does not leave the unit active fails the run.
+
+It needs one repository secret:
+
+| Secret | Value |
+|---|---|
+| `NETCUP_SSH_KEY` | The private half of `~/.ssh/netcup-ca`, whole file including the header and footer lines |
+
+Everything else the deploy needs — `DATABASE_URL` above all — is read on the
+box from `.env.local` (or `.env`) in the app directory, which is also where
+Next and `prisma.config.ts` look. The production database URL is deliberately
+not duplicated into GitHub.
+
+The build step raises Node's heap to 3072MB. The default heap OOMs
+(`SIGABRT`) on this 3.8GB box, which reads as a mysterious mid-build crash if
+you do not know to look for it.
+
+### Schema changes
+
+There are no Prisma migration files; the schema is applied with
+`prisma db push`. The deploy guards that push by first asking
+`prisma migrate diff` what SQL is pending and refusing to continue if it drops
+a table or column, re-tightens a `NOT NULL`, changes a column type, or
+truncates. Purely additive changes go through automatically.
+
+So an added column, a relaxed `NOT NULL` or a new unique constraint needs
+nothing from you. Anything destructive stops the deploy and prints the SQL, and
+is meant to be applied deliberately — usually as a two-commit dance: ship code
+that stops reading the column, then drop it.
+
+One sharp edge worth knowing: adding a unique constraint over rows that already
+violate it fails when Postgres builds the index. That is a safe failure — the
+schema and the data are left as they were — but the deploy stops, and the
+duplicates have to be resolved on the box before it will go through.
+
+### Manual operations
+
+```bash
+ssh -i ~/.ssh/netcup-ca root@v2202609416356518198.megasrv.de
+
+systemctl status call-assistant.service
+journalctl -u call-assistant.service -f      # live logs
+systemctl restart call-assistant.service
+
+# Anything touching the checkout runs as the owner:
+sudo -u deploy -H bash -lc 'cd /home/deploy/call-assistant && git log --oneline -5'
+```
