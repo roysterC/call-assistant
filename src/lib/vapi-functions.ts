@@ -148,12 +148,54 @@ export function isVapiFunctionName(name: string): name is VapiFunctionName {
   return (VAPI_FUNCTION_NAMES as string[]).includes(name);
 }
 
+/** Loose enough to be useful, strict enough to reject a mis-heard word. */
+function validEmail(raw: string | undefined): string | null {
+  const e = blankToUndefined(raw);
+  if (!e) return null;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) ? e.toLowerCase() : null;
+}
+
+/**
+ * Settle on a usable number from what the agent sent and what Vapi knows.
+ *
+ * The model transcribes a number it heard spoken and gets it wrong — one call
+ * sent "4782" while simultaneously holding the full number for the booking.
+ * `callerNumber` is the caller ID, which Vapi can put in the tool body and
+ * which nobody has to hear correctly.
+ *
+ * Caller ID is the fallback rather than the default because people ring on
+ * behalf of others, and the number they give is the one they want used.
+ */
+type ResolvedPhone =
+  | { ok: true; e164: string; source: "given" | "callerId" }
+  | { ok: false; reason: string };
+
+function resolveCallerPhone(
+  spoken: string | undefined,
+  callerId: string | undefined
+): ResolvedPhone {
+  const fromSpoken = normalisePhone(blankToUndefined(spoken));
+  if (fromSpoken.ok) return { ok: true, e164: fromSpoken.e164, source: "given" };
+
+  const fromCaller = normalisePhone(blankToUndefined(callerId));
+  if (fromCaller.ok) return { ok: true, e164: fromCaller.e164, source: "callerId" };
+
+  return {
+    ok: false,
+    reason: blankToUndefined(spoken)
+      ? fromSpoken.reason
+      : "No number was given.",
+  };
+}
+
 export async function handleSaveCustomerDetails(
   organizationId: string,
   params: {
     name?: string;
     email?: string;
     phone?: string;
+    /** Caller ID, if the Vapi tool body supplies it. */
+    callerNumber?: string;
     company?: string;
     businessType?: string;
     issue?: string;
@@ -161,42 +203,92 @@ export async function handleSaveCustomerDetails(
 ) {
   const { name, email, phone, company, businessType, issue } = params;
 
-  const parsed = normalisePhone(phone);
-  if (!parsed.ok) {
-    // Do not store a number that cannot be rung or texted — ask again. A
-    // plausible-looking wrong number is worse than none: the salon calls a
-    // stranger and the appointment sits unconfirmed.
+  const cleanName = blankToUndefined(name);
+  const cleanEmail = validEmail(email);
+  const cleanIssue = blankToUndefined(issue);
+  const cleanCompany = blankToUndefined(company);
+  const noteIssue = blankToUndefined(businessType)
+    ? `[${blankToUndefined(businessType)}] ${cleanIssue ?? ""}`.trim()
+    : cleanIssue;
+
+  const resolved = resolveCallerPhone(phone, params.callerNumber);
+
+  // A bad number used to throw the whole call away with it. The name and what
+  // they were ringing about are worth keeping even when the digits were
+  // mis-heard — the salon can still work out who it was, and the number
+  // usually arrives correctly later when the booking is made.
+  if (!resolved.ok) {
+    if (!cleanEmail) {
+      return {
+        success: false,
+        savedAnything: false,
+        message:
+          `${resolved.reason} Read the number back digit by digit and call ` +
+          "this again — nothing could be saved without it.",
+      };
+    }
+
+    // Email is the other identity key, so a lead can still be keyed on it.
+    const lead = await prisma.lead.upsert({
+      where: { organizationId_email: { organizationId, email: cleanEmail } },
+      update: {
+        ...(cleanName && { name: cleanName }),
+        ...(cleanCompany && { company: cleanCompany }),
+        ...(noteIssue && { issue: noteIssue }),
+      },
+      create: {
+        organizationId,
+        email: cleanEmail,
+        name: cleanName ?? null,
+        company: cleanCompany ?? null,
+        issue: noteIssue ?? null,
+        source: "phone",
+      },
+    });
+
     return {
-      success: false,
-      message: `${parsed.reason} Read the number back to the caller digit by digit and confirm it.`,
+      success: true,
+      savedAnything: true,
+      phoneMissing: true,
+      leadId: lead.id,
+      message:
+        `Saved against their email. ${resolved.reason} Read the number back ` +
+        "digit by digit and call this again so we can ring them.",
     };
   }
-  const normalisedPhone = parsed.e164;
+
+  const normalisedPhone = resolved.e164;
 
   const lead = await prisma.lead.upsert({
     where: { organizationId_phone: { organizationId, phone: normalisedPhone } },
     update: {
-      ...(name && { name }),
-      ...(email && { email }),
-      ...(company && { company }),
-      ...(issue && { issue }),
+      ...(cleanName && { name: cleanName }),
+      ...(cleanEmail && { email: cleanEmail }),
+      ...(cleanCompany && { company: cleanCompany }),
+      ...(noteIssue && { issue: noteIssue }),
     },
     create: {
       organizationId,
       phone: normalisedPhone,
-      name: name || null,
-      email: email || null,
-      company: company || null,
-      issue: businessType ? `[${businessType}] ${issue || ""}`.trim() : issue || null,
+      name: cleanName ?? null,
+      email: cleanEmail ?? null,
+      company: cleanCompany ?? null,
+      issue: noteIssue ?? null,
       source: "phone",
     },
   });
 
   return {
     success: true,
-    message: `Customer details saved for ${lead.name || speakablePhone(normalisedPhone)}`,
+    savedAnything: true,
     phone: normalisedPhone,
+    usedCallerId: resolved.source === "callerId",
     leadId: lead.id,
+    message:
+      `Saved for ${lead.name || speakablePhone(normalisedPhone)}.` +
+      (resolved.source === "callerId"
+        ? " The number they gave did not parse, so the number they are ringing from was used — confirm it with them."
+        : ""),
   };
 }
 
@@ -586,6 +678,8 @@ export async function handleBookAppointment(
     service: string;
     stylist?: string;
     customerPhone: string;
+    /** Caller ID, if the Vapi tool body supplies it. */
+    callerNumber?: string;
     customerName?: string;
     clientType?: string;
     newClient?: boolean;
@@ -594,15 +688,15 @@ export async function handleBookAppointment(
 ) {
   const { time, customerPhone, customerName, notes } = params;
 
-  const parsedPhone = normalisePhone(customerPhone);
-  if (!parsedPhone.ok) {
+  const resolvedPhone = resolveCallerPhone(customerPhone, params.callerNumber);
+  if (!resolvedPhone.ok) {
     return {
       success: false,
       badPhone: true,
-      message: `${parsedPhone.reason} Read it back digit by digit, confirm it, then book.`,
+      message: `${resolvedPhone.reason} Read it back digit by digit, confirm it, then book.`,
     };
   }
-  const phone = parsedPhone.e164;
+  const phone = resolvedPhone.e164;
 
   const provider = await getBookingProvider(organizationId);
   if (!canCreateBooking(provider)) {

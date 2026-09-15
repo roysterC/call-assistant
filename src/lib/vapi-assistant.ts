@@ -66,8 +66,16 @@ const SAVE_CUSTOMER_DETAILS: VapiTool = {
             "What they want: service, stylist, preferred times, new or " +
             "returning client, and anything else relevant.",
         },
+        callerNumber: {
+          type: "string",
+          description:
+            "The number they are ringing from, if the tool supplies it. Used " +
+            "only when the number they spoke cannot be parsed.",
+        },
       },
-      required: ["phone"],
+      // Name and issue are saved even when the number cannot be parsed, so
+      // call this as soon as you have anything rather than waiting.
+      required: [],
     },
   },
 };
@@ -160,6 +168,12 @@ const BOOK_APPOINTMENT: VapiTool = {
           description:
             "Caller's number. Checked here — if it comes back as too " +
             "long or too short, read it back to them and try again.",
+        },
+        callerNumber: {
+          type: "string",
+          description:
+            "The number they are ringing from, if the tool supplies it. Used " +
+            "only when the number they spoke cannot be parsed.",
         },
         customerName: { type: "string", description: "Caller's name" },
         clientType: {
