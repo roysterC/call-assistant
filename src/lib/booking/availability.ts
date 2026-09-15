@@ -177,34 +177,111 @@ export function computeBookableSlots(input: SlotComputationInput): TimeSlot[] {
   return slots;
 }
 
+export type SlotPreference = "earliest" | "any";
+
+export interface SummariseOptions {
+  max?: number;
+  /**
+   * Minimum minutes between offered times.
+   *
+   * At fifteen-minute granularity, three "options" can be 9:00, 9:15 and
+   * 9:30 — one answer read three ways. Options a caller can actually choose
+   * between have to be far enough apart to be different.
+   */
+  minGapMinutes?: number;
+  preference?: SlotPreference;
+}
+
 /**
  * Reduce a slot list to something speakable.
  *
- * One option per start time (the caller asked for a time, not a stylist
- * roster) and spread across the day rather than clustered at opening, so
- * "we have ten past nine, twenty past nine, half past nine" never happens.
+ * Two shapes, because callers ask two different questions. "When are you free
+ * Thursday?" wants a picture of the day, so options are spread across it.
+ * "What's the soonest you've got?" wants the soonest — spreading that answer
+ * across the day and reading out the evening is not answering the question.
+ *
+ * One option per start time either way: the caller asked for a time, not a
+ * roster.
  */
 export function summariseSlotsForSpeech(
   slots: TimeSlot[],
-  max = 3
+  options: SummariseOptions | number = {}
 ): TimeSlot[] {
+  const opts: SummariseOptions =
+    typeof options === "number" ? { max: options } : options;
+  const max = opts.max ?? 3;
+  const minGapMs = (opts.minGapMinutes ?? 0) * MINUTE;
+  const preference = opts.preference ?? "any";
+
   if (slots.length === 0) return [];
 
   const byStart = new Map<string, TimeSlot>();
   for (const s of slots) {
     if (!byStart.has(s.start)) byStart.set(s.start, s);
   }
-  const unique = [...byStart.values()];
+  const unique = [...byStart.values()].sort((a, b) =>
+    a.start < b.start ? -1 : 1
+  );
+
+  // Earliest: start at the front and step forward by the gap. Fewer options
+  // on purpose — someone who asked for the soonest wants the soonest, and a
+  // couple of near alternatives, not a tour of the day.
+  if (preference === "earliest") {
+    const picked: TimeSlot[] = [];
+    let lastAt = -Infinity;
+    for (const slot of unique) {
+      const at = new Date(slot.start).getTime();
+      if (at - lastAt < minGapMs) continue;
+      picked.push(slot);
+      lastAt = at;
+      if (picked.length >= Math.min(max, 2)) break;
+    }
+    return picked;
+  }
+
   if (unique.length <= max) return unique;
 
-  const picked: TimeSlot[] = [];
+  // Spread across the day, then thin anything that ended up too close
+  // together to be a real alternative.
+  const spread: TimeSlot[] = [];
   const step = (unique.length - 1) / (max - 1);
-  for (let i = 0; i < max; i++) {
-    picked.push(unique[Math.round(i * step)]);
+  for (let i = 0; i < max; i++) spread.push(unique[Math.round(i * step)]);
+
+  const picked: TimeSlot[] = [];
+  let lastAt = -Infinity;
+  for (const slot of spread) {
+    const at = new Date(slot.start).getTime();
+    if (at - lastAt < minGapMs) continue;
+    picked.push(slot);
+    lastAt = at;
   }
-  return picked;
+  return picked.length > 0 ? picked : [unique[0]];
 }
 
+/**
+ * Roughly what proportion of the day is still open.
+ *
+ * A wide-open day offered as three specific times is three arbitrary times.
+ * Knowing the day is largely free lets the agent ask what suits instead of
+ * reading options at someone, which is both a better call and a shorter one.
+ */
+export function opennessRatio(
+  slots: TimeSlot[],
+  openWindow: { start: Date; end: Date } | null,
+  serviceDurationMinutes: number,
+  granularityMinutes = DEFAULT_GRANULARITY_MINUTES
+): number {
+  if (!openWindow || slots.length === 0) return 0;
+  const usableMs =
+    openWindow.end.getTime() -
+    openWindow.start.getTime() -
+    serviceDurationMinutes * MINUTE;
+  if (usableMs <= 0) return 0;
+
+  const possible = Math.floor(usableMs / (granularityMinutes * MINUTE)) + 1;
+  const distinct = new Set(slots.map((s) => s.start)).size;
+  return Math.min(1, distinct / possible);
+}
 
 // -------------------------------------------------------------------------
 // Caller preferences

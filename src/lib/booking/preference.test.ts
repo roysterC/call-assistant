@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { filterSlotsByPreference, parseTimeOfDay } from "./availability";
+import {
+  filterSlotsByPreference,
+  opennessRatio,
+  parseTimeOfDay,
+  summariseSlotsForSpeech,
+} from "./availability";
 import { zonedWallTimeToUtc } from "@/lib/business-hours";
 import type { TimeSlot } from "./types";
 
@@ -74,5 +79,94 @@ describe("parseTimeOfDay", () => {
   it("returns undefined for anything else", () => {
     expect(parseTimeOfDay("whenever")).toBeUndefined();
     expect(parseTimeOfDay(undefined)).toBeUndefined();
+  });
+});
+
+describe("summariseSlotsForSpeech", () => {
+  /** Quarter-hourly slots from 11:00 to 18:00 — an empty salon day. */
+  function wideOpen(): TimeSlot[] {
+    const out: TimeSlot[] = [];
+    for (let m = 11 * 60; m <= 18 * 60; m += 15) {
+      const start = zonedWallTimeToUtc(2026, 9, 16, Math.floor(m / 60), m % 60, TZ);
+      out.push({
+        start: start.toISOString(),
+        end: new Date(start.getTime() + 45 * 60000).toISOString(),
+        stylistName: "Shogo",
+      });
+    }
+    return out;
+  }
+
+  const hhmm = (s: TimeSlot) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false,
+    }).format(new Date(s.start));
+
+  it("answers 'the soonest' with the soonest, not a tour of the day", () => {
+    const out = summariseSlotsForSpeech(wideOpen(), {
+      preference: "earliest",
+      minGapMinutes: 45,
+    });
+    expect(out.map(hhmm)[0]).toBe("11:00");
+    // Few options on purpose — they asked for the earliest, not a choice.
+    expect(out.length).toBeLessThanOrEqual(2);
+  });
+
+  it("keeps offered times far enough apart to be real alternatives", () => {
+    const out = summariseSlotsForSpeech(wideOpen(), { minGapMinutes: 45 });
+    const mins = out.map((s) => {
+      const [h, m] = hhmm(s).split(":").map(Number);
+      return h * 60 + m;
+    });
+    for (let i = 1; i < mins.length; i++) {
+      expect(mins[i] - mins[i - 1]).toBeGreaterThanOrEqual(45);
+    }
+  });
+
+  it("still spreads across the day when no preference is given", () => {
+    const out = summariseSlotsForSpeech(wideOpen(), { minGapMinutes: 45 });
+    expect(hhmm(out[0])).toBe("11:00");
+    expect(hhmm(out.at(-1)!)).toBe("18:00");
+  });
+
+  it("never returns nothing when slots exist", () => {
+    // A single slot cannot satisfy a gap rule; it is still the answer.
+    const one = wideOpen().slice(0, 1);
+    expect(summariseSlotsForSpeech(one, { minGapMinutes: 240 })).toHaveLength(1);
+  });
+
+  it("collapses duplicate start times across stylists", () => {
+    const slots = wideOpen();
+    const doubled = slots.flatMap((s) => [s, { ...s, stylistName: "Jo" }]);
+    const out = summariseSlotsForSpeech(doubled, { minGapMinutes: 45 });
+    expect(new Set(out.map((s) => s.start)).size).toBe(out.length);
+  });
+});
+
+describe("opennessRatio", () => {
+  const window = {
+    start: zonedWallTimeToUtc(2026, 9, 16, 11, 0, TZ),
+    end: zonedWallTimeToUtc(2026, 9, 16, 19, 0, TZ),
+  };
+
+  function slotsEvery(minutes: number, count: number): TimeSlot[] {
+    return Array.from({ length: count }, (_, i) => {
+      const start = new Date(window.start.getTime() + i * minutes * 60000);
+      return { start: start.toISOString(), end: start.toISOString() };
+    });
+  }
+
+  it("reads a wide-open day as open", () => {
+    // Quarter-hourly across the whole window.
+    expect(opennessRatio(slotsEvery(15, 29), window, 45)).toBeGreaterThan(0.9);
+  });
+
+  it("reads a busy day as not open", () => {
+    expect(opennessRatio(slotsEvery(15, 3), window, 45)).toBeLessThan(0.3);
+  });
+
+  it("is zero with no slots or no window", () => {
+    expect(opennessRatio([], window, 45)).toBe(0);
+    expect(opennessRatio(slotsEvery(15, 5), null, 45)).toBe(0);
   });
 });

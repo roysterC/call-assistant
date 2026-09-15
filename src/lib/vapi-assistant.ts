@@ -121,6 +121,14 @@ const CHECK_AVAILABILITY: VapiTool = {
           type: "string",
           description: "Latest acceptable start as HH:MM, 24-hour.",
         },
+        prefer: {
+          type: "string",
+          enum: ["earliest", "any"],
+          description:
+            "Send 'earliest' when they asked for the soonest appointment " +
+            "rather than a choice of times — 'when's your next free slot', " +
+            "'as soon as possible'. Otherwise leave it.",
+        },
         stylist: {
           type: "string",
           description: "Preferred stylist's name, if the caller named one",

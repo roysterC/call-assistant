@@ -9,8 +9,11 @@ import {
 } from "@/lib/booking";
 import {
   filterSlotsByPreference,
+  opennessRatio,
   parseTimeOfDay,
+  type SlotPreference,
 } from "@/lib/booking/availability";
+import { openWindowFor } from "@/lib/business-hours";
 import {
   matchService,
   matchStylist,
@@ -482,6 +485,8 @@ export async function handleCheckAvailability(
     after?: string;
     /** "HH:MM" local — caller wants nothing after this. */
     before?: string;
+    /** "earliest" when they asked for the soonest rather than a choice. */
+    prefer?: string;
   }
 ) {
   const provider = await getBookingProvider(organizationId);
@@ -621,7 +626,10 @@ export async function handleCheckAvailability(
     // Do not silently widen the search — say plainly that the window is full
     // and offer what does exist, so the caller chooses rather than the agent
     // quietly ignoring them.
-    const fallback = summariseSlotsForSpeech(slots, 3).map((s) => ({
+    const fallback = summariseSlotsForSpeech(slots, {
+      max: 3,
+      minGapMinutes: Math.max(45, service.durationMinutes),
+    }).map((s) => ({
       time: spokenTime(s.start, cfg.timeZone),
       startsAt: s.start,
       stylist: s.stylistName,
@@ -641,15 +649,37 @@ export async function handleCheckAvailability(
     };
   }
 
-  const picked = summariseSlotsForSpeech(
-    hasPreference ? preferred : slots,
-    3
-  );
+  const wants: SlotPreference =
+    (blankToUndefined(params.prefer) ?? "").toLowerCase() === "earliest"
+      ? "earliest"
+      : "any";
+
+  const usable = hasPreference ? preferred : slots;
+
+  // Options have to be far enough apart to be different. A gap of at least
+  // the service length means back-to-back at the tightest, rather than three
+  // readings of the same answer fifteen minutes apart.
+  const minGapMinutes = Math.max(45, service.durationMinutes);
+
+  const picked = summariseSlotsForSpeech(usable, {
+    max: 3,
+    minGapMinutes,
+    preference: wants,
+  });
   const options = picked.map((s) => ({
     time: spokenTime(s.start, cfg.timeZone),
     startsAt: s.start,
     stylist: s.stylistName,
   }));
+
+  // A wide-open day offered as three specific times is three arbitrary times.
+  // Better to say it is open and ask what suits.
+  const openness = opennessRatio(
+    usable,
+    openWindowFor(cfg.hours, cfg.timeZone, date),
+    service.durationMinutes
+  );
+  const mostlyFree = wants !== "earliest" && !hasPreference && openness >= 0.7;
 
   return {
     available: true,
@@ -660,12 +690,23 @@ export async function handleCheckAvailability(
     date,
     service: service.name,
     durationMinutes: service.durationMinutes,
+    mostlyFree,
     options,
-    message:
-      `Offer these times: ${options
-        .map((o) => `${o.time} with ${o.stylist}`)
-        .join(", ")}. When the caller picks one, call book_appointment with ` +
-      "the exact startsAt value for that option.",
+    message: mostlyFree
+      ? `That day is wide open for ${service.name.toLowerCase()} — say so and ` +
+        "ask what time would suit them, rather than reading out times. If " +
+        `they have no preference, the first one is ${options[0]?.time} with ` +
+        `${options[0]?.stylist}.`
+      : wants === "earliest"
+        ? `The soonest is ${options[0]?.time} with ${options[0]?.stylist}` +
+          (options[1]
+            ? `, then ${options[1].time}. Offer the first and mention the second only if they hesitate.`
+            : ". Offer it.") +
+          " Then call book_appointment with the exact startsAt for whichever they take."
+        : `Offer these times: ${options
+            .map((o) => `${o.time} with ${o.stylist}`)
+            .join(", ")}. When the caller picks one, call book_appointment ` +
+          "with the exact startsAt value for that option.",
   };
 }
 
