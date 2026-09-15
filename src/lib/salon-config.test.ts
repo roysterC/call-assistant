@@ -6,6 +6,7 @@ import {
   matchStylist,
   parseServices,
   parseStylists,
+  serviceIsStaffedOn,
 } from "./salon-config";
 
 const SERVICES = parseServices([
@@ -171,5 +172,65 @@ describe("constrainWorkingDays", () => {
   it("constrains nothing when opening hours are unconfigured", () => {
     const before = team([1, 2, 4]);
     expect(constrainWorkingDays(before, [])).toBe(before);
+  });
+});
+
+describe("serviceIsStaffedOn", () => {
+  const cut = matchService("Cut and finish", SERVICES)!;
+  const balayage = matchService("Balayage", SERVICES)!;
+
+  // The Shogo case: Jo is on Saturday but only does colour, so a Saturday
+  // haircut has nobody — which is not the same as the diary being full.
+  const team = parseStylists([
+    {
+      name: "Jo",
+      googleCalendarId: "jo@example.com",
+      workingDays: [2, 3, 4, 6],
+      services: ["Balayage", "Half head highlights"],
+    },
+    {
+      name: "Shogo",
+      googleCalendarId: "shogo@example.com",
+      workingDays: [2, 3, 4, 5],
+      services: [],
+    },
+  ]);
+
+  it("is false when the only stylist that day does not do the service", () => {
+    expect(serviceIsStaffedOn(cut, team, 6)).toBe(false); // Saturday
+  });
+
+  it("is true for a service that stylist does do", () => {
+    expect(serviceIsStaffedOn(balayage, team, 6)).toBe(true);
+  });
+
+  it("is false when nobody is rostered at all", () => {
+    expect(serviceIsStaffedOn(cut, team, 0)).toBe(false); // Sunday
+    expect(serviceIsStaffedOn(balayage, team, 0)).toBe(false);
+  });
+
+  it("is true on a day both are on", () => {
+    expect(serviceIsStaffedOn(cut, team, 3)).toBe(true);
+    expect(serviceIsStaffedOn(balayage, team, 3)).toBe(true);
+  });
+
+  it("treats an empty services list as every service", () => {
+    expect(serviceIsStaffedOn(cut, team, 5)).toBe(true); // Friday, Shogo only
+    expect(serviceIsStaffedOn(balayage, team, 5)).toBe(true);
+  });
+
+  it("treats an empty workingDays list as every open day", () => {
+    const anyDay = parseStylists([
+      { name: "Sam", googleCalendarId: "sam@example.com", workingDays: [], services: [] },
+    ]);
+    expect(serviceIsStaffedOn(cut, anyDay, 0)).toBe(true);
+    expect(serviceIsStaffedOn(cut, anyDay, 6)).toBe(true);
+  });
+
+  it("ignores a stylist with no calendar, who cannot be booked", () => {
+    const noCalendar = parseStylists([
+      { name: "Alex", workingDays: [6], services: [] },
+    ]);
+    expect(serviceIsStaffedOn(cut, noCalendar, 6)).toBe(false);
   });
 });
