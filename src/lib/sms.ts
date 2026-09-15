@@ -135,6 +135,21 @@ export interface AppointmentMessageInput {
   contactPhone: string | null;
 }
 
+/**
+ * "a cut and finish", "an Olaplex treatment", "full head highlights".
+ *
+ * Service names are whatever the salon typed, so the article has to be worked
+ * out rather than hardcoded: plurals take none, and a vowel sound takes "an".
+ * "a full head highlights" is the sort of thing that makes a confirmation read
+ * like it came from a machine.
+ */
+function withArticle(serviceName: string): string {
+  const name = serviceName.toLowerCase();
+  // Plural — no article. Catches "highlights", "extensions", "curls".
+  if (/s$/.test(name) && !/ss$/.test(name)) return name;
+  return `${/^[aeiou]/.test(name) ? "an" : "a"} ${name}`;
+}
+
 function signOff(contactPhone: string | null, businessName: string): string {
   return contactPhone
     ? `Call us on ${contactPhone} if that doesn't suit. ${businessName}`
@@ -144,7 +159,7 @@ function signOff(contactPhone: string | null, businessName: string): string {
 export function confirmationBody(i: AppointmentMessageInput): string {
   const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
   return (
-    `${greeting}you're booked in ${i.whenText} for a ${i.serviceName.toLowerCase()} ` +
+    `${greeting}you're booked in ${i.whenText} for ${withArticle(i.serviceName)} ` +
     `with ${i.stylistName}. ${signOff(i.contactPhone, i.businessName)}`
   );
 }
@@ -152,8 +167,8 @@ export function confirmationBody(i: AppointmentMessageInput): string {
 export function reminderBody(i: AppointmentMessageInput): string {
   const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
   return (
-    `${greeting}just a reminder you're booked in ${i.whenText} for a ` +
-    `${i.serviceName.toLowerCase()} with ${i.stylistName}. ` +
+    `${greeting}a reminder you're booked in ${i.whenText} for ` +
+    `${withArticle(i.serviceName)} with ${i.stylistName}. ` +
     `${signOff(i.contactPhone, i.businessName)}`
   );
 }
@@ -161,7 +176,7 @@ export function reminderBody(i: AppointmentMessageInput): string {
 export function cancellationBody(i: AppointmentMessageInput): string {
   const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
   return (
-    `${greeting}your appointment ${i.whenText} for a ${i.serviceName.toLowerCase()} ` +
+    `${greeting}your appointment ${i.whenText} for ${withArticle(i.serviceName)} ` +
     `has been cancelled. ${signOff(i.contactPhone, i.businessName)}`
   );
 }

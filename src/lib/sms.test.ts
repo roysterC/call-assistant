@@ -77,3 +77,46 @@ describe("describeAppointmentWhen", () => {
     expect(describeAppointmentWhen(at("2026-09-17T16:45:00Z"), TZ, now)).toBe("Thursday at 5:45pm");
   });
 });
+
+describe("service names in message bodies", () => {
+  const base = {
+    clientName: "Sarah",
+    stylistName: "Shogo",
+    whenText: "Thursday at 2pm",
+    businessName: "Shogo",
+    contactPhone: "0333 038 8801",
+  };
+
+  it("drops the article for plural services", () => {
+    const b = confirmationBody({ ...base, serviceName: "Full head highlights" });
+    expect(b).toContain("for full head highlights");
+    expect(b).not.toContain("a full head highlights");
+  });
+
+  it("uses 'an' before a vowel", () => {
+    const b = confirmationBody({ ...base, serviceName: "Olaplex treatment" });
+    expect(b).toContain("an olaplex treatment");
+  });
+
+  it("uses 'a' otherwise", () => {
+    expect(confirmationBody({ ...base, serviceName: "Cut and finish" })).toContain(
+      "a cut and finish"
+    );
+  });
+
+  it("keeps the article for a singular name ending in double s", () => {
+    expect(confirmationBody({ ...base, serviceName: "Hair press" })).toContain(
+      "a hair press"
+    );
+  });
+
+  it("still fits one segment with the longest realistic combination", () => {
+    // Longest service, a long name, and the stylist name repeated as sign-off.
+    const b = reminderBody({
+      ...base,
+      clientName: "Christopher",
+      serviceName: "Full head highlights",
+    });
+    expect(b.length).toBeLessThanOrEqual(160);
+  });
+});
