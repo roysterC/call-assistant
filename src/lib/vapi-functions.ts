@@ -11,7 +11,14 @@ import {
   filterSlotsByPreference,
   parseTimeOfDay,
 } from "@/lib/booking/availability";
-import { matchService, matchStylist } from "@/lib/salon-config";
+import {
+  matchService,
+  matchStylist,
+  stylistDoesService,
+  stylistsForService,
+  type SalonService,
+  type Stylist,
+} from "@/lib/salon-config";
 import { normalisePhone, speakablePhone } from "@/lib/phone";
 import {
   cancellationBody,
@@ -310,6 +317,40 @@ function blankToUndefined(value: unknown): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
+/**
+ * Refuse a stylist who does not do the service, and say who does.
+ *
+ * Returning "nothing free" would be true and useless — the caller would try
+ * another day and get the same answer. Naming the right person is what a
+ * receptionist does, and it is the difference between the agent sounding
+ * knowledgeable and sounding broken.
+ *
+ * Returns null when the pairing is fine.
+ */
+function stylistServiceProblem(
+  stylistName: string | undefined,
+  service: SalonService,
+  stylists: Stylist[]
+): string | null {
+  if (!stylistName) return null;
+  const requested = matchStylist(stylistName, stylists);
+  if (!requested) return null; // unrecognised names are handled separately
+  if (stylistDoesService(requested, service)) return null;
+
+  const who = stylistsForService(service, stylists).map((s) => s.name);
+  const alternative =
+    who.length === 0
+      ? "Nobody here is set up for it at the moment — take a message."
+      : who.length === 1
+        ? `${who[0]} does.`
+        : `${who.slice(0, -1).join(", ")} and ${who.at(-1)} do.`;
+
+  return (
+    `${requested.name} does not do ${service.name.toLowerCase()}. ` +
+    `${alternative} Offer that, or ask whether they wanted a different service.`
+  );
+}
+
 function normaliseClientType(
   raw: string | undefined
 ): "new" | "returning" | "unknown" {
@@ -391,6 +432,11 @@ export async function handleCheckAvailability(
   );
   const stylistName =
     blankToUndefined(params.stylist) ?? blankToUndefined(params.teamMember);
+
+  const pairing = stylistServiceProblem(stylistName, service, cfg.stylists);
+  if (pairing) {
+    return { available: null, canCheck: true, message: pairing };
+  }
 
   // Callers say "Thursday"; the model has no dependable idea what today is.
   // Resolve against the salon's own clock rather than trusting it to compute.
@@ -655,6 +701,18 @@ export async function handleBookAppointment(
         "Which stylist is that with? More than one is free then, so say who " +
         "you offered it with.",
     };
+  }
+
+  // Also checked here, not only in check_availability: the agent can reach
+  // book_appointment without having checked, and booking a colour specialist
+  // for a cut is exactly the configuration the salon just set out to prevent.
+  const bookingPairing = stylistServiceProblem(
+    stylist.name,
+    service,
+    cfg.stylists
+  );
+  if (bookingPairing) {
+    return { success: false, message: bookingPairing };
   }
 
   const today = zonedDateString(new Date(), cfg.timeZone);

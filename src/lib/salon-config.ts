@@ -334,3 +334,14 @@ export function describeTeamForPrompt(
 
   return lines.join("\n");
 }
+
+/** Whether a stylist performs a given service. Empty list means all of them. */
+export function stylistDoesService(
+  stylist: Stylist,
+  service: SalonService
+): boolean {
+  if (stylist.services.length === 0) return true;
+  return stylist.services.some(
+    (name) => normalise(name) === normalise(service.name)
+  );
+}

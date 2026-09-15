@@ -146,14 +146,15 @@ export function createGoogleProvider(
 
     const preferred = matchStylist(stylistPreference, cfg.stylists);
     if (preferred) {
-      // Honour the request even if the roster says they do not list this
-      // service — "I always see Jo" is most of a salon's repeat business, and
-      // the config is likelier to be incomplete than the client is to be wrong.
-      pool = pool.some((s) => s.name === preferred.name)
-        ? [preferred]
-        : preferred.googleCalendarId
-          ? [preferred]
-          : [];
+      // Only if they actually do this service. This used to honour the name
+      // regardless, on the reasoning that "I always see Jo" matters more than
+      // a possibly-incomplete roster — which was right while the service
+      // lists were guesses, and wrong once a salon sets them deliberately.
+      // A colour specialist pinned to colour was still being booked for cuts.
+      //
+      // The handler checks this first and explains who does do it, so
+      // returning nothing here is a backstop rather than the caller's answer.
+      pool = pool.filter((s) => s.name === preferred.name);
     }
 
     const ids = pool
