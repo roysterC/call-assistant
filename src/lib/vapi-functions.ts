@@ -6,6 +6,7 @@ import {
   getBookingProvider,
   getSalonConfig,
   summariseSlotsForSpeech,
+  type SalonConfig,
 } from "@/lib/booking";
 import {
   DEFAULT_SEARCH_DAYS,
@@ -18,6 +19,7 @@ import type { TimeSlot } from "@/lib/booking/types";
 import {
   matchService,
   matchStylist,
+  serviceIsStaffedOn,
   stylistDoesService,
   stylistsForService,
   type SalonService,
@@ -481,6 +483,25 @@ const DAY_NAMES = [
 ];
 
 /**
+ * Whether anyone who performs `service` is rostered on the weekday that
+ * `date` falls on, in the salon's timezone.
+ *
+ * Anchored at noon before reading the weekday, the same way availability
+ * does it: midnight can land on the other side of a DST shift and report
+ * the neighbouring day.
+ */
+function serviceStaffedOnDate(
+  cfg: SalonConfig,
+  service: SalonService,
+  date: string
+): boolean {
+  const { year, month, day } = parseDateOnly(date);
+  const noon = zonedWallTimeToUtc(year, month, day, 12, 0, cfg.timeZone);
+  const { weekday } = zonedParts(noon, cfg.timeZone);
+  return serviceIsStaffedOn(service, cfg.stylists, weekday);
+}
+
+/**
  * Name a day the way someone says it out loud.
  *
  * A forward search answers about a day the caller did not name, so the day
@@ -753,6 +774,12 @@ export async function handleCheckAvailability(
     // asks about another day.
     const closed = openWindowFor(cfg.hours, cfg.timeZone, date) === null;
 
+    // Open, but nobody who does this service is rostered. Not a busy day —
+    // an unstaffed one, and it will read the same every week until the roster
+    // changes. Only worth saying when the salon is actually open: shut is the
+    // better explanation when both are true.
+    const unstaffed = !closed && !serviceStaffedOnDate(cfg, service, date);
+
     if (floor.reason === "patch_test") {
       return {
         available: false,
@@ -777,6 +804,7 @@ export async function handleCheckAvailability(
       searchedDays: searchedRange ? DEFAULT_SEARCH_DAYS : 1,
       nextAvailable,
       closed,
+      unstaffed,
       message: searchedRange
         ? `Nothing free for ${service.name.toLowerCase()} in the next two ` +
           "weeks. Say so, take their details, and tell them the salon will " +
@@ -784,8 +812,13 @@ export async function handleCheckAvailability(
         : closed
           ? `The salon is closed on ${spokenDay(date, cfg.timeZone)} — say ` +
             `that, not that it is booked up.${offer || " Ask which other day suits."}`
-          : `Nothing free on ${spokenDay(date, cfg.timeZone)} for that ` +
-            `service.${offer || " Offer to try another day."}`,
+          : unstaffed
+            ? `Nobody who does ${service.name.toLowerCase()} works ` +
+              `${spokenDay(date, cfg.timeZone)} — say that it is not a day we ` +
+              "offer it, not that it is booked up, so they do not ask again " +
+              `for the same day next week.${offer || " Ask which other day suits."}`
+            : `Nothing free on ${spokenDay(date, cfg.timeZone)} for that ` +
+              `service.${offer || " Offer to try another day."}`,
     };
   }
 

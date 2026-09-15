@@ -278,6 +278,28 @@ export function stylistWorksOn(stylist: Stylist, weekday: number): boolean {
   return stylist.workingDays.includes(weekday);
 }
 
+/**
+ * Whether anyone who performs `service` is rostered on `weekday` at all.
+ *
+ * Distinct from "nothing free": a day with no eligible stylist is not busy,
+ * it is unstaffed for that service, and it will be unstaffed next week too.
+ * A caller told Saturday is full rings back about the Saturday after and
+ * hears the same thing forever, so the agent has to be able to tell the two
+ * apart. Ignores the diary entirely — this is a roster question.
+ *
+ * Says nothing about whether the salon is open that day; check the hours
+ * first, because shut beats unstaffed as an explanation.
+ */
+export function serviceIsStaffedOn(
+  service: SalonService,
+  stylists: Stylist[],
+  weekday: number
+): boolean {
+  return stylistsForService(service, stylists).some((s) =>
+    stylistWorksOn(s, weekday)
+  );
+}
+
 /** Service catalogue for the voice prompt, generated from the same config. */
 export function describeServicesForPrompt(services: SalonService[]): string {
   if (services.length === 0) return "No services are configured.";
