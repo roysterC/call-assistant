@@ -244,6 +244,35 @@ export function stylistsForService(
   });
 }
 
+/**
+ * Drop working days the salon is shut on.
+ *
+ * Booking already refuses a closed day, so this changes nothing about what
+ * can be booked. What it changes is what the agent *says*: the team
+ * description is generated from these lists, and "Jo works Tue, Wed, Thu" on
+ * a salon that shuts Thursdays is a caller being told to ring back for a day
+ * that does not exist.
+ *
+ * A stylist whose every day is closed keeps their list untouched. Pruning it
+ * to [] would read as "any day the salon is open", which is the opposite of
+ * what the data says — and turning "works none of our open days" into "works
+ * all of them" is the one direction that must never happen silently.
+ */
+export function constrainWorkingDays(
+  stylists: Stylist[],
+  openDays: number[]
+): Stylist[] {
+  // Hours unconfigured — constraining against nothing would close everyone.
+  if (openDays.length === 0) return stylists;
+
+  return stylists.map((s) => {
+    if (s.workingDays.length === 0) return s; // already "any open day"
+    const kept = s.workingDays.filter((d) => openDays.includes(d));
+    if (kept.length === 0 || kept.length === s.workingDays.length) return s;
+    return { ...s, workingDays: kept };
+  });
+}
+
 export function stylistWorksOn(stylist: Stylist, weekday: number): boolean {
   if (stylist.workingDays.length === 0) return true;
   return stylist.workingDays.includes(weekday);

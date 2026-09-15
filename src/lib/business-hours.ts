@@ -274,6 +274,20 @@ export function openWindowFor(
   };
 }
 
+/**
+ * The weekdays the salon actually trades, as 0-6.
+ *
+ * Returns [] when hours are unconfigured, which callers must read as "not
+ * known" rather than "never open" — the difference between declining to
+ * constrain something and constraining it to nothing.
+ */
+export function openWeekdays(hours: BusinessHours): number[] {
+  return hours
+    .filter((h) => !h.closed)
+    .map((h) => h.day)
+    .sort((a, b) => a - b);
+}
+
 export function isOpenAt(
   hours: BusinessHours,
   timeZone: string,

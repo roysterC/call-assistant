@@ -348,6 +348,7 @@ export default function SettingsPage() {
               <StylistsEditor
                 value={settings.teamMembers}
                 services={settings.services}
+                businessHours={settings.businessHours}
                 onChange={(teamMembers) =>
                   setSettings({ ...settings, teamMembers })
                 }

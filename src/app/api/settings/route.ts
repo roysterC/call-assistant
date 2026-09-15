@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
-import { parseBusinessHours, parseTimezone } from "@/lib/business-hours";
-import { parseServices, parseStylists } from "@/lib/salon-config";
+import {
+  openWeekdays,
+  parseBusinessHours,
+  parseTimezone,
+  type BusinessHours,
+} from "@/lib/business-hours";
+import {
+  constrainWorkingDays,
+  parseServices,
+  parseStylists,
+  type Stylist,
+} from "@/lib/salon-config";
 
 const DEFAULT_SETTINGS = {
   businessName: "Our Business",
@@ -136,6 +146,30 @@ export async function PUT(req: NextRequest) {
       for (const f of SUPER_ADMIN_ONLY_FIELDS) {
         if (f in data) delete data[f];
       }
+    }
+
+    // A stylist cannot work on a day the salon is shut. Enforced on the way
+    // in rather than only in the editor, because closing a day has to prune
+    // it from everyone who had it — otherwise the team description keeps
+    // offering callers a day that no longer exists.
+    if ("teamMembers" in data || "businessHours" in data) {
+      let hours = ("businessHours" in data
+        ? (data.businessHours as BusinessHours)
+        : null) as BusinessHours | null;
+      let stylists = ("teamMembers" in data
+        ? (data.teamMembers as Stylist[])
+        : null) as Stylist[] | null;
+
+      if (!hours || !stylists) {
+        const current = await prisma.organizationSettings.findUnique({
+          where: { organizationId: ctx.organizationId },
+          select: { businessHours: true, teamMembers: true },
+        });
+        hours = hours ?? parseBusinessHours(current?.businessHours);
+        stylists = stylists ?? parseStylists(current?.teamMembers);
+      }
+
+      data.teamMembers = constrainWorkingDays(stylists, openWeekdays(hours));
     }
 
     const settings = await prisma.organizationSettings.upsert({

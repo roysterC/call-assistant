@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  constrainWorkingDays,
   describeTeamForPrompt,
   matchService,
   matchStylist,
@@ -129,5 +130,46 @@ describe("describeTeamForPrompt", () => {
 
   it("copes with an empty roster", () => {
     expect(describeTeamForPrompt([], SERVICES_2)).toContain("No stylists");
+  });
+});
+
+describe("constrainWorkingDays", () => {
+  // Shogo trades Sun, Tue, Wed, Fri, Sat. Closed Monday and Thursday.
+  const OPEN = [0, 2, 3, 5, 6];
+
+  const team = (workingDays: number[]) =>
+    parseStylists([{ name: "Jo", workingDays }]);
+
+  it("drops days the salon is shut", () => {
+    const [jo] = constrainWorkingDays(team([2, 3, 4, 5, 6]), OPEN);
+    expect(jo.workingDays).toEqual([2, 3, 5, 6]);
+  });
+
+  it("drops Monday as readily as Thursday", () => {
+    const [jo] = constrainWorkingDays(team([1, 2, 4]), OPEN);
+    expect(jo.workingDays).toEqual([2]);
+  });
+
+  it("leaves a list that is already inside opening hours alone", () => {
+    const before = team([2, 3]);
+    const after = constrainWorkingDays(before, OPEN);
+    expect(after[0]).toBe(before[0]); // same object, not a rebuilt copy
+  });
+
+  it("leaves an empty list empty — that already means any open day", () => {
+    const [jo] = constrainWorkingDays(team([]), OPEN);
+    expect(jo.workingDays).toEqual([]);
+  });
+
+  // The dangerous direction: pruning to [] would read as "works every open
+  // day", turning someone who works none of them into someone who works all.
+  it("does not turn 'no open days' into 'every open day'", () => {
+    const [jo] = constrainWorkingDays(team([1, 4]), OPEN);
+    expect(jo.workingDays).toEqual([1, 4]);
+  });
+
+  it("constrains nothing when opening hours are unconfigured", () => {
+    const before = team([1, 2, 4]);
+    expect(constrainWorkingDays(before, [])).toBe(before);
   });
 });

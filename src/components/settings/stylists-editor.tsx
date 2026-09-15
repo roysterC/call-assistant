@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2, CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Stylist, SalonService } from "@/lib/salon-config";
+import { openWeekdays, type DayHours } from "@/lib/business-hours";
 
 /**
  * The team, and what makes each of them bookable.
@@ -29,12 +30,21 @@ const DAY_SHORT: Record<number, string> = {
 export function StylistsEditor({
   value,
   services,
+  businessHours,
   onChange,
 }: {
   value: Stylist[];
   services: SalonService[];
+  businessHours: DayHours[];
   onChange: (next: Stylist[]) => void;
 }) {
+  // Nobody works a day the salon is shut. With hours unconfigured every day
+  // stays selectable — the alternative is an editor that silently refuses
+  // every button before opening hours have been filled in.
+  const openDays = openWeekdays(businessHours);
+  const constrained = openDays.length > 0;
+  const isOpen = (day: number) => !constrained || openDays.includes(day);
+
   function update(index: number, patch: Partial<Stylist>) {
     const next = [...value];
     next[index] = { ...next[index], ...patch };
@@ -42,6 +52,7 @@ export function StylistsEditor({
   }
 
   function toggleDay(index: number, day: number) {
+    if (!isOpen(day)) return;
     const current = value[index].workingDays ?? [];
     const next = current.includes(day)
       ? current.filter((d) => d !== day)
@@ -123,18 +134,23 @@ export function StylistsEditor({
               </label>
               <div className="mt-1 flex flex-wrap gap-1">
                 {DAY_ORDER.map((day) => {
-                  const on = (stylist.workingDays ?? []).includes(day);
+                  const open = isOpen(day);
+                  const on = open && (stylist.workingDays ?? []).includes(day);
                   return (
                     <button
                       key={day}
                       type="button"
+                      disabled={!open}
                       onClick={() => toggleDay(i, day)}
                       aria-pressed={on}
+                      title={open ? undefined : "The salon is closed this day"}
                       className={cn(
                         "px-2 py-0.5 rounded-md text-xs font-medium transition-colors",
-                        on
-                          ? "bg-accent text-foreground"
-                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                        !open
+                          ? "text-muted-foreground/40 line-through cursor-not-allowed"
+                          : on
+                            ? "bg-accent text-foreground"
+                            : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                       )}
                     >
                       {DAY_SHORT[day]}
@@ -142,7 +158,7 @@ export function StylistsEditor({
                   );
                 })}
               </div>
-              {(stylist.workingDays ?? []).length === 0 && (
+              {(stylist.workingDays ?? []).filter(isOpen).length === 0 && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   None selected — treated as available any day the salon is open.
                 </p>
@@ -185,6 +201,13 @@ export function StylistsEditor({
           </div>
         );
       })}
+
+      {constrained && (
+        <p className="text-xs text-muted-foreground">
+          Struck-through days are ones the salon is closed. Change them under
+          Opening hours.
+        </p>
+      )}
 
       <Button
         type="button"
