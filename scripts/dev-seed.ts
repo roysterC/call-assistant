@@ -1,5 +1,5 @@
 /**
- * Dev-only seed script. Creates a full DOAI org with enough sample data
+ * Dev-only seed script. Creates a full Kikai org with enough sample data
  * to exercise every dashboard page.
  *
  * Usage:
@@ -27,13 +27,13 @@ async function main() {
   try {
     console.log("🌱 Seeding dev database...");
 
-    // 1. DOAI organization
+    // 1. Kikai organization
     const org = await prisma.organization.upsert({
       where: { slug: "doai" },
       update: {},
       create: {
         id: DOAI_ORG_ID,
-        name: "DOAI Systems",
+        name: "Kikai",
         slug: "doai",
         planTier: "custom",
       },

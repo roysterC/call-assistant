@@ -69,7 +69,7 @@ function LoginForm() {
               <Bot className="w-6 h-6 text-white" />
             </div>
             <div className="min-w-0">
-              <CardTitle className="text-lg">DOAI Call Assistant</CardTitle>
+              <CardTitle className="text-lg">Kikai Call Assistant</CardTitle>
               <p className="text-xs text-muted-foreground">
                 Sign in to continue
               </p>

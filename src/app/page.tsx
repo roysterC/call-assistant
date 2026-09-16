@@ -210,7 +210,7 @@ export default function DashboardPage() {
             <EmptyState
               icon={Sparkles}
               title="Nothing switched on yet"
-              hint="Your account is set up but no channels are active. Your account manager at DOAI enables these."
+              hint="Your account is set up but no channels are active. Your account manager at Kikai enables these."
             />
           </CardContent>
         </Card>

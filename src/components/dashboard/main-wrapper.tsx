@@ -44,7 +44,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         >
           <Menu className="w-5 h-5" />
         </button>
-        <span className="font-semibold text-sm truncate">DOAI</span>
+        <span className="font-semibold text-sm truncate">Kikai</span>
       </header>
 
       <div className="flex flex-1 min-h-0 w-full">

@@ -14,7 +14,7 @@ export type TenantContext = {
 /**
  * Local dev escape hatch — when DEV_BYPASS_AUTH=1 is set (via .env.local),
  * skip real session lookups and return a mock super-admin context pointing
- * at the seeded DOAI org. Only activates if that org exists in the DB.
+ * at the seeded Kikai org (slug "doai"). Only activates if that org exists in the DB.
  */
 async function devBypassTenant(
   req: Request
@@ -41,7 +41,7 @@ async function devBypassTenant(
  * - Regular users: uses session.user.organizationId
  * - Super-admins:
  *    - If ?asOrg=<id> is provided → uses that org
- *    - Otherwise → must also have their own organizationId (the DOAI org)
+ *    - Otherwise → must also have their own organizationId (the Kikai org, slug "doai")
  *
  * Returns an NextResponse error on failure.
  */

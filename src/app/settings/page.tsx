@@ -165,28 +165,28 @@ export default function SettingsPage() {
       icon: MessageCircle,
       enabled: settings.whatsappEnabled,
       detail: numberList(whatsappNumbers),
-      missing: "No number assigned yet — contact DOAI",
+      missing: "No number assigned yet — contact Kikai",
     },
     {
       label: "Voice agent",
       icon: Phone,
       enabled: settings.voiceEnabled,
       detail: numberList(voiceNumbers),
-      missing: "No number assigned yet — contact DOAI",
+      missing: "No number assigned yet — contact Kikai",
     },
     {
       label: "Instagram",
       icon: Camera,
       enabled: settings.instagramEnabled,
       detail: settings.instagramBusinessId || "",
-      missing: "No business account linked yet — contact DOAI",
+      missing: "No business account linked yet — contact Kikai",
     },
     {
       label: "Facebook Messenger",
       icon: Send,
       enabled: settings.facebookEnabled,
       detail: settings.facebookPageId || "",
-      missing: "No Page linked yet — contact DOAI",
+      missing: "No Page linked yet — contact Kikai",
     },
   ].filter((c) => c.enabled);
 
@@ -247,7 +247,7 @@ export default function SettingsPage() {
         This was five near-identical cards — icon, name, an "Enabled" badge and
         a single line of detail each — stacked down the page. Five card frames
         to carry five lines of text made the page look padded out, and two of
-        them said "contact DOAI" in exactly the same words. A row each says the
+        them said "contact Kikai" in exactly the same words. A row each says the
         same thing in a quarter of the height, and the differences between
         channels are finally visible side by side.
 

@@ -494,7 +494,7 @@ export default function OrganizationDetailPage() {
                   anthropicApiKeyOverride: e.target.value || null,
                 })
               }
-              placeholder="Leave blank to use shared DOAI key"
+              placeholder="Leave blank to use shared Kikai key"
               className="mt-1"
               type="password"
             />

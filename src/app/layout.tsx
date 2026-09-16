@@ -15,8 +15,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DOAI Call Assistant",
-  description: "24/7 AI-powered call assistant for DOAI Systems",
+  title: "Kikai Call Assistant",
+  description: "24/7 AI-powered call assistant for Kikai",
 };
 
 export default function RootLayout({
