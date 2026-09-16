@@ -11,7 +11,7 @@ const mockSession: Session = {
     email: "roy.cheung@doaisystems.co.uk",
     name: "Roy Cheung",
     organizationId: null,
-    organizationName: "DOAI Systems",
+    organizationName: "Kikai",
     role: "superAdmin",
   },
   expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),

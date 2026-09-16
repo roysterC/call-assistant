@@ -8,7 +8,7 @@
   var script = document.currentScript;
   var siteId = script && script.getAttribute("data-site-id");
   if (!siteId) {
-    console.error("[DOAI Widget] data-site-id attribute is required");
+    console.error("[Kikai Widget] data-site-id attribute is required");
     return;
   }
 

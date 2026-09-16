@@ -619,7 +619,7 @@ export async function getChatResponse(
       );
     }
 
-    // Claude CLI fallback - only allowed for the DOAI org and only if no shared key is set
+    // Claude CLI fallback - only allowed for the Kikai org (slug "doai") and only if no shared key is set
     if (
       options.allowCLI &&
       org?.slug === "doai" &&

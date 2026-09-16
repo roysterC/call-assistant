@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Data Deletion Instructions — DOAI Systems",
+  title: "Data Deletion Instructions — Kikai",
   description:
-    "How to request deletion of your personal data from the DOAI Systems AI messaging platform.",
+    "How to request deletion of your personal data from the Kikai AI messaging platform.",
 };
 
 const LAST_UPDATED = "24 April 2026";
@@ -15,7 +15,7 @@ export default function DataDeletionPage() {
       <article className="mx-auto max-w-3xl space-y-6">
         <header className="space-y-2 border-b border-border pb-6">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            DOAI Systems
+            Kikai
           </p>
           <h1 className="text-3xl font-semibold">
             Data deletion instructions
@@ -31,7 +31,7 @@ export default function DataDeletionPage() {
           </h2>
           <p>
             This page explains how to request deletion of personal data that
-            DOAI Systems holds about you as a result of your interaction with
+            Kikai holds about you as a result of your interaction with
             a business that uses our AI messaging platform. This applies
             whether you messaged a business via WhatsApp, Instagram, Facebook
             Messenger, website chat, or by placing a voice call to its AI
@@ -48,9 +48,9 @@ export default function DataDeletionPage() {
               Send an email to{" "}
               <a
                 className="text-blue-400 hover:underline"
-                href="mailto:roy.cheung@doaisystems.co.uk?subject=Data%20deletion%20request"
+                href="mailto:roy962002@hotmail.com?subject=Data%20deletion%20request"
               >
-                roy.cheung@doaisystems.co.uk
+                roy962002@hotmail.com
               </a>{" "}
               with the subject line{" "}
               <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
@@ -134,7 +134,7 @@ export default function DataDeletionPage() {
             Third-party platforms
           </h2>
           <p>
-            Deleting your data from DOAI Systems does not delete any
+            Deleting your data from Kikai does not delete any
             information held by the underlying platforms themselves
             (WhatsApp, Instagram, Facebook, Anthropic, Vapi, Cal.com). To
             remove data from those services, you must contact them directly

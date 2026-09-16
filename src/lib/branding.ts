@@ -15,7 +15,7 @@
  */
 export function brandingIdentity() {
   return {
-    label: process.env.BRANDING_LABEL || "DOAI",
+    label: process.env.BRANDING_LABEL || "Kikai",
     url: process.env.BRANDING_URL || "",
   };
 }

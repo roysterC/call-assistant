@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — DOAI Systems",
+  title: "Terms of Service — Kikai",
   description:
-    "Terms governing use of the DOAI Systems AI-powered customer messaging platform.",
+    "Terms governing use of the Kikai AI-powered customer messaging platform.",
 };
 
 const LAST_UPDATED = "24 April 2026";
@@ -15,7 +15,7 @@ export default function TermsOfServicePage() {
       <article className="mx-auto max-w-3xl space-y-6">
         <header className="space-y-2 border-b border-border pb-6">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            DOAI Systems
+            Kikai
           </p>
           <h1 className="text-3xl font-semibold">Terms of Service</h1>
           <p className="text-sm text-muted-foreground">
@@ -27,7 +27,7 @@ export default function TermsOfServicePage() {
           <h2 className="text-xl font-semibold mt-6 mb-2">1. Introduction</h2>
           <p>
             These Terms of Service (&ldquo;Terms&rdquo;) govern your use of
-            the DOAI Systems AI-powered customer messaging platform (the
+            the Kikai AI-powered customer messaging platform (the
             &ldquo;Service&rdquo;). By using the Service, you agree to these
             Terms. If you do not agree, please do not use the Service.
           </p>
@@ -50,7 +50,7 @@ export default function TermsOfServicePage() {
           <h2 className="text-xl font-semibold mt-6 mb-2">3. Who may use it</h2>
           <p>
             The Service is intended for business users who have been granted
-            an account by DOAI Systems or by an authorised super-administrator
+            an account by Kikai or by an authorised super-administrator
             of their organisation. End customers messaging those businesses do
             not hold accounts; their interaction is governed by our{" "}
             <Link
@@ -102,9 +102,9 @@ export default function TermsOfServicePage() {
             using the Anthropic Claude API. AI-generated replies are produced
             automatically and may contain inaccuracies, omissions, or
             inappropriate content despite reasonable safeguards. The business
-            tenant is responsible for the messages sent on their behalf. DOAI
-            Systems does not warrant the accuracy, completeness, or fitness
-            for any particular purpose of AI-generated replies.
+            tenant is responsible for the messages sent on their behalf. Kikai
+            does not warrant the accuracy, completeness, or fitness for any
+            particular purpose of AI-generated replies.
           </p>
         </section>
 
@@ -113,7 +113,7 @@ export default function TermsOfServicePage() {
             6. Intellectual property
           </h2>
           <p>
-            DOAI Systems owns the Service, its codebase, design, and brand.
+            Kikai owns the Service, its codebase, design, and brand.
             Business tenants retain ownership of the content they upload,
             configure, or receive. End-customer content (e.g. inbound
             messages) is processed on the tenant&rsquo;s behalf under the
@@ -139,7 +139,7 @@ export default function TermsOfServicePage() {
             8. Limitation of liability
           </h2>
           <p>
-            To the maximum extent permitted by law, DOAI Systems shall not be
+            To the maximum extent permitted by law, Kikai shall not be
             liable for any indirect, incidental, special, consequential, or
             punitive damages arising out of or related to use of the Service.
             Our total aggregate liability in any twelve-month period shall
@@ -155,7 +155,7 @@ export default function TermsOfServicePage() {
           <p>
             The Service interoperates with WhatsApp, Instagram, Facebook
             Messenger, Vapi, Cal.com, and Anthropic. Those platforms have
-            their own terms which you must also comply with. DOAI Systems is
+            their own terms which you must also comply with. Kikai is
             not responsible for the availability, behaviour, or policy
             changes of those third parties.
           </p>
@@ -191,9 +191,9 @@ export default function TermsOfServicePage() {
             Questions about these Terms:{" "}
             <a
               className="text-blue-400 hover:underline"
-              href="mailto:roy.cheung@doaisystems.co.uk"
+              href="mailto:roy962002@hotmail.com"
             >
-              roy.cheung@doaisystems.co.uk
+              roy962002@hotmail.com
             </a>
           </p>
         </section>

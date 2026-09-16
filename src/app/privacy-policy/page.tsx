@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — DOAI Systems",
+  title: "Privacy Policy — Kikai",
   description:
-    "How DOAI Systems collects, uses, and protects data when you interact with our AI-powered customer messaging platform.",
+    "How Kikai collects, uses, and protects data when you interact with our AI-powered customer messaging platform.",
 };
 
 const LAST_UPDATED = "24 April 2026";
@@ -15,7 +15,7 @@ export default function PrivacyPolicyPage() {
       <article className="mx-auto max-w-3xl space-y-6">
         <header className="space-y-2 border-b border-border pb-6">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            DOAI Systems
+            Kikai
           </p>
           <h1 className="text-3xl font-semibold">Privacy Policy</h1>
           <p className="text-sm text-muted-foreground">
@@ -26,7 +26,7 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2 className="text-xl font-semibold mt-6 mb-2">1. Who we are</h2>
           <p>
-            DOAI Systems (&ldquo;we&rdquo;, &ldquo;us&rdquo;) operates an
+            Kikai (&ldquo;we&rdquo;, &ldquo;us&rdquo;) operates an
             AI-powered customer messaging platform (the &ldquo;Service&rdquo;)
             that businesses use to handle inbound messages across WhatsApp,
             Instagram, Facebook Messenger, website chat, and voice calls. We
@@ -39,16 +39,16 @@ export default function PrivacyPolicyPage() {
             is:
           </p>
           <address className="mt-2 not-italic text-sm text-foreground/80">
-            DOAI Systems
+            Kikai
             <br />
             United Kingdom
             <br />
             Contact:{" "}
             <a
               className="text-blue-400 hover:underline"
-              href="mailto:roy.cheung@doaisystems.co.uk"
+              href="mailto:roy962002@hotmail.com"
             >
-              roy.cheung@doaisystems.co.uk
+              roy962002@hotmail.com
             </a>
           </address>
         </section>
@@ -221,9 +221,9 @@ export default function PrivacyPolicyPage() {
             To exercise any of these rights, email{" "}
             <a
               className="text-blue-400 hover:underline"
-              href="mailto:roy.cheung@doaisystems.co.uk"
+              href="mailto:roy962002@hotmail.com"
             >
-              roy.cheung@doaisystems.co.uk
+              roy962002@hotmail.com
             </a>
             . We respond within 30 days as required by law.
           </p>
@@ -247,9 +247,9 @@ export default function PrivacyPolicyPage() {
             Questions about this policy or about how your data is handled:{" "}
             <a
               className="text-blue-400 hover:underline"
-              href="mailto:roy.cheung@doaisystems.co.uk"
+              href="mailto:roy962002@hotmail.com"
             >
-              roy.cheung@doaisystems.co.uk
+              roy962002@hotmail.com
             </a>
           </p>
         </section>
