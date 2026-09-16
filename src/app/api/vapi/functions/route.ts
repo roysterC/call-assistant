@@ -6,6 +6,10 @@ import {
 } from "@/lib/vapi-signature";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 import {
+  summariseAvailabilityCall,
+  telemetryLine,
+} from "@/lib/voice-telemetry";
+import {
   executeVapiFunction,
   resolveOrgFromVapiPayload,
 } from "@/lib/vapi-functions";
@@ -141,6 +145,21 @@ export async function POST(req: NextRequest) {
     );
 
     console.log(`[VAPI] Function ${name} result:`, JSON.stringify(result));
+
+    // One structured line per availability check, so the forward-search
+    // settings can be tuned from real calls. Carries no personal data;
+    // never allowed to fail the call it is describing.
+    if (name === "check_availability") {
+      try {
+        const t = summariseAvailabilityCall(
+          parameters,
+          result as Record<string, unknown>
+        );
+        if (t) console.log(telemetryLine(t));
+      } catch {
+        // Telemetry is never worth a dropped booking.
+      }
+    }
 
     // Vapi expects results with toolCallId for matching
     const responseItem: { toolCallId?: string; result: string } = {
