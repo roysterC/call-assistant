@@ -244,25 +244,31 @@ export function createGoogleProvider(
       // Re-check immediately before writing. Between the agent offering 2pm
       // and the caller saying yes, thirty seconds may pass — and a second
       // caller may be on another line. The window is small; it is not zero.
-      try {
-        const busy = await fetchBusy([stylist.googleCalendarId], start, end);
-        const blocks = busy.get(stylist.googleCalendarId) ?? [];
-        const clash = blocks.some((b) => start < b.end && b.start < end);
-        if (clash) {
+      //
+      // Skipped for a deliberate overbook from the desk: the check exists to
+      // stop a caller being promised a chair that has gone, and the person
+      // standing at the desk is looking at the clash they are creating.
+      if (!r.allowOverlap) {
+        try {
+          const busy = await fetchBusy([stylist.googleCalendarId], start, end);
+          const blocks = busy.get(stylist.googleCalendarId) ?? [];
+          const clash = blocks.some((b) => start < b.end && b.start < end);
+          if (clash) {
+            return {
+              ok: false,
+              conflict: true,
+              reason: "That time was taken while we were talking.",
+            };
+          }
+        } catch (err) {
+          // Could not verify, so do not write. Claiming a booking we could
+          // not confirm is the worst outcome available here.
+          console.error("[GOOGLE] Pre-insert free/busy check failed:", err);
           return {
             ok: false,
-            conflict: true,
-            reason: "That time was taken while we were talking.",
+            reason: "Could not verify the diary is still free.",
           };
         }
-      } catch (err) {
-        // Could not verify, so do not write. Claiming a booking we could not
-        // confirm is the worst outcome available here.
-        console.error("[GOOGLE] Pre-insert free/busy check failed:", err);
-        return {
-          ok: false,
-          reason: "Could not verify the diary is still free.",
-        };
       }
 
       try {
