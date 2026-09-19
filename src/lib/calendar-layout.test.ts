@@ -9,6 +9,7 @@ import {
   rowFromOffset,
   salonDate,
   salonDayRange,
+  quarterMarks,
   timeOfRow,
   wallTimeToUtc,
   ROW_COUNT,
@@ -256,5 +257,23 @@ describe("salonDate", () => {
   it("names the salon's day, not the browser's", () => {
     expect(salonDate(new Date("2026-09-18T22:30:00Z"), TZ)).toBe("2026-09-18");
     expect(salonDate(new Date("2026-09-18T23:30:00Z"), TZ)).toBe("2026-09-19");
+  });
+});
+
+describe("quarterMarks", () => {
+  it("draws a line every quarter hour across the window", () => {
+    const marks = quarterMarks();
+    // 08:00 to 21:00 inclusive, every 15 minutes.
+    expect(marks).toHaveLength(13 * 4 + 1);
+    expect(marks[0].topPct).toBe(0);
+    expect(marks[marks.length - 1].topPct).toBeCloseTo(100, 5);
+  });
+
+  it("flags hours and half hours so they can be drawn differently", () => {
+    const marks = quarterMarks();
+    expect(marks[0].major).toBe(true);
+    expect(marks[1].major).toBe(false);
+    expect(marks[2].half).toBe(true);
+    expect(marks[4].major).toBe(true);
   });
 });

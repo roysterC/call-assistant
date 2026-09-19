@@ -18,6 +18,19 @@ export const WINDOW_END_HOUR = 21;
 /** Row height of the grid, and the step a click on empty space snaps to. */
 export const SLOT_MINUTES = 15;
 
+/** Pixels per hour. Fifteen-minute rows need the room to be distinguishable. */
+export const HOUR_HEIGHT_PX = 64;
+
+/**
+ * Width kept clear on the right of every column, in pixels.
+ *
+ * Blocks never fill the column. The strip left over is always clickable, so a
+ * stylist who is already booked at two o'clock can still be given a second
+ * client at two o'clock — squeezing a regular in is a normal thing for a
+ * salon to do, and the screen has to let them say it.
+ */
+export const OVERBOOK_GUTTER_PX = 22;
+
 export const WINDOW_START_MIN = WINDOW_START_HOUR * 60;
 export const WINDOW_END_MIN = WINDOW_END_HOUR * 60;
 export const WINDOW_MINUTES = WINDOW_END_MIN - WINDOW_START_MIN;
@@ -233,6 +246,25 @@ export function hourMarks(): Array<{ hour: number; label: string; topPct: number
       hour: h,
       label: `${h12}${h < 12 ? "am" : "pm"}`,
       topPct: ((h * 60 - WINDOW_START_MIN) / WINDOW_MINUTES) * 100,
+    });
+  }
+  return out;
+}
+
+/** Quarter-hour lines down the grid; `major` marks the hour. */
+export function quarterMarks(): Array<{
+  minutes: number;
+  topPct: number;
+  major: boolean;
+  half: boolean;
+}> {
+  const out = [];
+  for (let m = WINDOW_START_MIN; m <= WINDOW_END_MIN; m += SLOT_MINUTES) {
+    out.push({
+      minutes: m,
+      topPct: ((m - WINDOW_START_MIN) / WINDOW_MINUTES) * 100,
+      major: m % 60 === 0,
+      half: m % 60 === 30,
     });
   }
   return out;

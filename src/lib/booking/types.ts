@@ -55,6 +55,16 @@ export interface BookingWrite {
   notes?: string;
   /** Written into the calendar event so a booking can be traced back. */
   leadId?: string;
+  /**
+   * Write even if the stylist is already busy then.
+   *
+   * Only ever set by a person at the desk. A caller on the phone must not be
+   * double-booked — they cannot see the diary and would arrive to find the
+   * chair taken. Someone standing in the salon can see exactly what they are
+   * doing, and squeezing a regular in beside an existing booking is a normal
+   * thing for a salon to decide.
+   */
+  allowOverlap?: boolean;
 }
 
 /**

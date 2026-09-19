@@ -17,7 +17,10 @@ import {
   isOnDate,
   layoutColumn,
   rowFromOffset,
+  quarterMarks,
   timeOfRow,
+  HOUR_HEIGHT_PX,
+  OVERBOOK_GUTTER_PX,
   SLOT_MINUTES,
   WINDOW_END_HOUR,
   WINDOW_START_HOUR,
@@ -73,6 +76,7 @@ export function DayGrid({
   onOpenAppointment,
 }: DayGridProps) {
   const marks = hourMarks();
+  const lines = quarterMarks();
   const shaded = closedBands(open);
 
   return (
@@ -101,7 +105,9 @@ export function DayGrid({
 
         <div
           className="flex relative"
-          style={{ height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * 56}px` }}
+          style={{
+            height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * HOUR_HEIGHT_PX}px`,
+          }}
         >
           <div className="w-14 shrink-0 relative">
             {marks.map((m) => (
@@ -121,7 +127,7 @@ export function DayGrid({
               stylist={s}
               timeZone={timeZone}
               shaded={shaded}
-              marks={marks}
+              lines={lines}
               nowMinutes={nowMinutes}
               isPastDay={isPastDay}
               appointments={appointments.filter(
@@ -146,7 +152,7 @@ function StylistColumn({
   stylist,
   timeZone,
   shaded,
-  marks,
+  lines,
   nowMinutes,
   isPastDay,
   appointments,
@@ -156,7 +162,7 @@ function StylistColumn({
   stylist: CalendarStylist;
   timeZone: string;
   shaded: Array<{ topPct: number; heightPct: number }>;
-  marks: Array<{ hour: number; topPct: number }>;
+  lines: Array<{ minutes: number; topPct: number; major: boolean; half: boolean }>;
   nowMinutes: number | null;
   isPastDay: boolean;
   appointments: CalendarAppointment[];
@@ -221,6 +227,16 @@ function StylistColumn({
         <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
       )}
 
+      {/* The overbook strip. Faintly marked so it reads as somewhere you may
+          click, rather than as dead space beside a full column. */}
+      {bookable && placed.length > 0 && (
+        <div
+          className="absolute inset-y-0 right-0 border-l border-dashed border-border/60 bg-accent/10 pointer-events-none"
+          style={{ width: `${OVERBOOK_GUTTER_PX}px` }}
+          aria-hidden="true"
+        />
+      )}
+
       {elapsedPct > 0 && (
         <div
           className="absolute inset-x-0 top-0 bg-muted/30 pointer-events-none"
@@ -228,18 +244,24 @@ function StylistColumn({
         />
       )}
 
-      {marks.map((m) => (
+      {lines.map((l) => (
         <div
-          key={m.hour}
-          className="absolute inset-x-0 border-t border-border/60 pointer-events-none"
-          style={{ top: `${m.topPct}%` }}
+          key={l.minutes}
+          className={cn(
+            "absolute inset-x-0 border-t pointer-events-none",
+            l.major
+              ? "border-border"
+              : l.half
+                ? "border-border/50"
+                : "border-border/25"
+          )}
+          style={{ top: `${l.topPct}%` }}
         />
       ))}
 
       {placed.map((b) => {
         const a = b.item;
         const tone = APPOINTMENT_STATUS[a.status] ?? APPOINTMENT_STATUS.booked;
-        const width = 100 / b.lanes;
         return (
           <button
             key={a.id}
@@ -260,9 +282,10 @@ function StylistColumn({
             style={{
               top: `${b.topPct}%`,
               height: `${b.heightPct}%`,
-              left: `${b.lane * width}%`,
-              width: `calc(${width}% - 3px)`,
-              marginLeft: "2px",
+              // Every block sits inside the column minus the overbook strip,
+              // so there is always bare column left to click on.
+              left: `calc((100% - ${OVERBOOK_GUTTER_PX}px) * ${b.lane / b.lanes} + 2px)`,
+              width: `calc((100% - ${OVERBOOK_GUTTER_PX}px) / ${b.lanes} - 4px)`,
             }}
           >
             <span className="block font-semibold truncate">
