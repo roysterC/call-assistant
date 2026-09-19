@@ -28,7 +28,7 @@ import {
   WINDOW_MINUTES,
   type PlacedBlock,
 } from "@/lib/calendar-layout";
-import { APPOINTMENT_STATUS } from "@/lib/status-styles";
+import { toneFor, type ServiceTone } from "@/lib/service-colours";
 
 export interface CalendarAppointment {
   id: string;
@@ -60,6 +60,8 @@ interface DayGridProps {
   nowMinutes: number | null;
   /** The whole day is behind us. */
   isPastDay: boolean;
+  /** Service name (lower-cased) to colour, built from the salon's list. */
+  tones: Map<string, ServiceTone>;
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
 }
@@ -72,6 +74,7 @@ export function DayGrid({
   open,
   nowMinutes,
   isPastDay,
+  tones,
   onPickSlot,
   onOpenAppointment,
 }: DayGridProps) {
@@ -130,6 +133,7 @@ export function DayGrid({
               lines={lines}
               nowMinutes={nowMinutes}
               isPastDay={isPastDay}
+              tones={tones}
               appointments={appointments.filter(
                 (a) =>
                   a.stylistName.toLowerCase() === s.name.toLowerCase() &&
@@ -155,6 +159,7 @@ function StylistColumn({
   lines,
   nowMinutes,
   isPastDay,
+  tones,
   appointments,
   onPickSlot,
   onOpenAppointment,
@@ -165,6 +170,7 @@ function StylistColumn({
   lines: Array<{ minutes: number; topPct: number; major: boolean; half: boolean }>;
   nowMinutes: number | null;
   isPastDay: boolean;
+  tones: Map<string, ServiceTone>;
   appointments: CalendarAppointment[];
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
@@ -261,7 +267,7 @@ function StylistColumn({
 
       {placed.map((b) => {
         const a = b.item;
-        const tone = APPOINTMENT_STATUS[a.status] ?? APPOINTMENT_STATUS.booked;
+        const tone = toneFor(a.serviceText, tones);
         return (
           <button
             key={a.id}
@@ -272,14 +278,19 @@ function StylistColumn({
             }}
             title={`${a.lead.name ?? "Client"} — ${a.serviceText}`}
             className={cn(
-              "absolute rounded-md border px-1.5 py-1 text-left overflow-hidden",
+              "absolute rounded-md border px-1.5 py-1 text-left overflow-hidden text-slate-100",
               "text-[11px] leading-tight transition-shadow hover:shadow-md focus-visible:ring-2",
-              tone.className,
-              a.status === "cancelled" && "opacity-60 line-through",
-              b.clippedStart && "rounded-t-none border-t-dashed",
-              b.clippedEnd && "rounded-b-none border-b-dashed"
+              // Colour now carries the service, so status needs its own
+              // channel rather than competing for the fill.
+              a.status === "cancelled" && "opacity-50 line-through",
+              a.status === "completed" && "opacity-75",
+              a.status === "no_show" && "border-dashed",
+              b.clippedStart && "rounded-t-none",
+              b.clippedEnd && "rounded-b-none"
             )}
             style={{
+              background: tone.fill,
+              borderColor: tone.border,
               top: `${b.topPct}%`,
               height: `${b.heightPct}%`,
               // Every block sits inside the column minus the overbook strip,

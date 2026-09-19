@@ -27,6 +27,12 @@ import {
 } from "@/components/calendar/day-grid";
 import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
 import {
+  buildServiceTones,
+  familiesInUse,
+  FAMILY_HUE,
+  FAMILY_LABEL,
+} from "@/lib/service-colours";
+import {
   NewBookingDialog,
   type BookingSlot,
   type ServiceOption,
@@ -117,6 +123,12 @@ export default function CalendarPage() {
     [selected, today, timeZone]
   );
   const isPastDay = selected < today;
+
+  // Built once per service list rather than per block: the mapping depends on
+  // the whole list (a service's step is its position within its family), so
+  // it cannot be worked out one appointment at a time.
+  const tones = useMemo(() => buildServiceTones(services), [services]);
+  const legend = useMemo(() => familiesInUse(services), [services]);
 
   useEffect(() => {
     (async () => {
@@ -272,6 +284,7 @@ export default function CalendarPage() {
             open={open}
             nowMinutes={nowMinutes}
             isPastDay={isPastDay}
+            tones={tones}
             onPickSlot={(stylistName, time) =>
               setSlot({ stylistName, time, date: selected })
             }
@@ -279,7 +292,31 @@ export default function CalendarPage() {
           />
         )}
 
-        <aside className="w-full lg:w-60 shrink-0 overflow-y-auto max-h-[38vh] lg:max-h-none lg:border-l lg:border-border lg:pl-4">
+        <aside className="w-full lg:w-60 shrink-0 overflow-y-auto max-h-[38vh] lg:max-h-none lg:border-l lg:border-border lg:pl-4 flex flex-col gap-5">
+          {legend.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
+                Services
+              </p>
+              <ul className="grid gap-1.5">
+                {legend.map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-xs">
+                    <span
+                      className="h-2.5 w-2.5 rounded-sm shrink-0 border"
+                      style={{
+                        background: `${FAMILY_HUE[f]}2e`,
+                        borderColor: `${FAMILY_HUE[f]}b3`,
+                      }}
+                    />
+                    <span className="text-muted-foreground truncate">
+                      {FAMILY_LABEL[f]}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <MonthPanel
             selected={selected}
             today={today}
@@ -295,6 +332,7 @@ export default function CalendarPage() {
       <AppointmentSheet
         appointment={openAppointment}
         timeZone={timeZone}
+        tones={tones}
         onClose={() => setOpenAppointment(null)}
         onChanged={() => {
           loadDay();
