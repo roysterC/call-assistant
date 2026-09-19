@@ -219,13 +219,15 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <PageHeader
-        title="Diary"
-        description="Every stylist, one day at a time. Click an empty slot to book."
-      />
+    <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6">
+      <div className="shrink-0">
+        <PageHeader
+          title="Diary"
+          description="Every stylist, one day at a time. Click an empty slot to book."
+        />
+      </div>
 
-      <div className="flex items-center gap-2 px-1 pb-3">
+      <div className="flex items-center gap-2 px-1 pb-3 shrink-0 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => jump(shiftDate(selected, -1))}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -251,7 +253,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <div className="flex gap-4 flex-1 min-h-0 flex-col-reverse lg:flex-row">
+      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden flex-col-reverse lg:flex-row">
         {!settingsLoaded ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground py-16">
             Loading the diary…
@@ -277,7 +279,7 @@ export default function CalendarPage() {
           />
         )}
 
-        <aside className="w-full lg:w-60 shrink-0 lg:border-l lg:border-border lg:pl-4">
+        <aside className="w-full lg:w-60 shrink-0 overflow-y-auto max-h-[38vh] lg:max-h-none lg:border-l lg:border-border lg:pl-4">
           <MonthPanel
             selected={selected}
             today={today}
