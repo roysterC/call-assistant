@@ -254,18 +254,19 @@ export async function POST(req: NextRequest) {
       clientEmail: lead.email,
       notes,
       leadId: lead.id,
+      // A booking taken at the desk is never refused for clashing. The salon
+      // can see the diary in front of them; overbooking is their call to make.
+      allowOverlap: true,
     });
 
     if (!written.ok) {
       // Say so rather than recording a booking the diary does not have.
+      // Clashes no longer reach here (allowOverlap), so anything left is a
+      // real failure to write — say so rather than recording a booking the
+      // diary is not holding.
       return NextResponse.json(
-        {
-          error: written.conflict
-            ? "That slot is already taken."
-            : `Could not write to the diary: ${written.reason}`,
-          conflict: Boolean(written.conflict),
-        },
-        { status: written.conflict ? 409 : 502 }
+        { error: `Could not write to the diary: ${written.reason}` },
+        { status: 502 }
       );
     }
 

@@ -14,9 +14,18 @@ import { cn } from "@/lib/utils";
 import {
   closedBands,
   hourMarks,
+  isOnDate,
   layoutColumn,
   rowFromOffset,
+  quarterMarks,
   timeOfRow,
+  HOUR_HEIGHT_PX,
+  OVERBOOK_GUTTER_PX,
+  SLOT_MINUTES,
+  WINDOW_END_HOUR,
+  WINDOW_START_HOUR,
+  WINDOW_START_MIN,
+  WINDOW_MINUTES,
   type PlacedBlock,
 } from "@/lib/calendar-layout";
 import { APPOINTMENT_STATUS } from "@/lib/status-styles";
@@ -47,6 +56,10 @@ interface DayGridProps {
   appointments: CalendarAppointment[];
   /** Opening window in minutes past midnight, or null when shut. */
   open: { openMin: number; closeMin: number } | null;
+  /** Minutes elapsed today, or null when the day shown is not today. */
+  nowMinutes: number | null;
+  /** The whole day is behind us. */
+  isPastDay: boolean;
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
 }
@@ -57,10 +70,13 @@ export function DayGrid({
   stylists,
   appointments,
   open,
+  nowMinutes,
+  isPastDay,
   onPickSlot,
   onOpenAppointment,
 }: DayGridProps) {
   const marks = hourMarks();
+  const lines = quarterMarks();
   const shaded = closedBands(open);
 
   return (
@@ -87,7 +103,12 @@ export function DayGrid({
           ))}
         </div>
 
-        <div className="flex relative" style={{ height: "calc(13 * 56px)" }}>
+        <div
+          className="flex relative"
+          style={{
+            height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * HOUR_HEIGHT_PX}px`,
+          }}
+        >
           <div className="w-14 shrink-0 relative">
             {marks.map((m) => (
               <div
@@ -104,12 +125,18 @@ export function DayGrid({
             <StylistColumn
               key={s.name}
               stylist={s}
-              date={date}
               timeZone={timeZone}
               shaded={shaded}
-              marks={marks}
+              lines={lines}
+              nowMinutes={nowMinutes}
+              isPastDay={isPastDay}
               appointments={appointments.filter(
-                (a) => a.stylistName.toLowerCase() === s.name.toLowerCase()
+                (a) =>
+                  a.stylistName.toLowerCase() === s.name.toLowerCase() &&
+                  // The fetch is bounded to this day, but a block is placed by
+                  // its time of day alone — so anything that slipped through
+                  // would be drawn here at the right hour on the wrong date.
+                  isOnDate(new Date(a.startsAt), date, timeZone)
               )}
               onPickSlot={onPickSlot}
               onOpenAppointment={onOpenAppointment}
@@ -125,22 +152,37 @@ function StylistColumn({
   stylist,
   timeZone,
   shaded,
-  marks,
+  lines,
+  nowMinutes,
+  isPastDay,
   appointments,
   onPickSlot,
   onOpenAppointment,
 }: {
   stylist: CalendarStylist;
-  date: string;
   timeZone: string;
   shaded: Array<{ topPct: number; heightPct: number }>;
-  marks: Array<{ hour: number; topPct: number }>;
+  lines: Array<{ minutes: number; topPct: number; major: boolean; half: boolean }>;
+  nowMinutes: number | null;
+  isPastDay: boolean;
   appointments: CalendarAppointment[];
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const bookable = stylist.worksToday && stylist.bookable;
+  const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
+
+  // How much of the column has already been and gone. Booking into it would
+  // be accepted by the database and rejected by physics.
+  const elapsedPct =
+    nowMinutes === null
+      ? isPastDay
+        ? 100
+        : 0
+      : Math.min(
+          Math.max(((nowMinutes - WINDOW_START_MIN) / WINDOW_MINUTES) * 100, 0),
+          100
+        );
 
   const placed: PlacedBlock<CalendarAppointment>[] = layoutColumn(
     appointments,
@@ -152,7 +194,16 @@ function StylistColumn({
     const el = ref.current;
     if (!el || !bookable) return;
     const box = el.getBoundingClientRect();
-    onPickSlot(stylist.name, timeOfRow(rowFromOffset((clientY - box.top) / box.height)));
+    const row = rowFromOffset((clientY - box.top) / box.height);
+
+    // Refuse a time that has already passed. The phone path enforces a lead
+    // time through `earliestBookableStart`; the desk had no equivalent, so a
+    // click on this morning would happily book into it.
+    if (nowMinutes !== null && WINDOW_START_MIN + row * SLOT_MINUTES < nowMinutes) {
+      return;
+    }
+
+    onPickSlot(stylist.name, timeOfRow(row));
   };
 
   return (
@@ -176,18 +227,41 @@ function StylistColumn({
         <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
       )}
 
-      {marks.map((m) => (
+      {/* The overbook strip. Faintly marked so it reads as somewhere you may
+          click, rather than as dead space beside a full column. */}
+      {bookable && placed.length > 0 && (
         <div
-          key={m.hour}
-          className="absolute inset-x-0 border-t border-border/60 pointer-events-none"
-          style={{ top: `${m.topPct}%` }}
+          className="absolute inset-y-0 right-0 border-l border-dashed border-border/60 bg-accent/10 pointer-events-none"
+          style={{ width: `${OVERBOOK_GUTTER_PX}px` }}
+          aria-hidden="true"
+        />
+      )}
+
+      {elapsedPct > 0 && (
+        <div
+          className="absolute inset-x-0 top-0 bg-muted/30 pointer-events-none"
+          style={{ height: `${elapsedPct}%` }}
+        />
+      )}
+
+      {lines.map((l) => (
+        <div
+          key={l.minutes}
+          className={cn(
+            "absolute inset-x-0 border-t pointer-events-none",
+            l.major
+              ? "border-border"
+              : l.half
+                ? "border-border/50"
+                : "border-border/25"
+          )}
+          style={{ top: `${l.topPct}%` }}
         />
       ))}
 
       {placed.map((b) => {
         const a = b.item;
         const tone = APPOINTMENT_STATUS[a.status] ?? APPOINTMENT_STATUS.booked;
-        const width = 100 / b.lanes;
         return (
           <button
             key={a.id}
@@ -208,9 +282,10 @@ function StylistColumn({
             style={{
               top: `${b.topPct}%`,
               height: `${b.heightPct}%`,
-              left: `${b.lane * width}%`,
-              width: `calc(${width}% - 3px)`,
-              marginLeft: "2px",
+              // Every block sits inside the column minus the overbook strip,
+              // so there is always bare column left to click on.
+              left: `calc((100% - ${OVERBOOK_GUTTER_PX}px) * ${b.lane / b.lanes} + 2px)`,
+              width: `calc((100% - ${OVERBOOK_GUTTER_PX}px) / ${b.lanes} - 4px)`,
             }}
           >
             <span className="block font-semibold truncate">

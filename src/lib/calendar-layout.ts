@@ -18,6 +18,19 @@ export const WINDOW_END_HOUR = 21;
 /** Row height of the grid, and the step a click on empty space snaps to. */
 export const SLOT_MINUTES = 15;
 
+/** Pixels per hour. Fifteen-minute rows need the room to be distinguishable. */
+export const HOUR_HEIGHT_PX = 64;
+
+/**
+ * Width kept clear on the right of every column, in pixels.
+ *
+ * Blocks never fill the column. The strip left over is always clickable, so a
+ * stylist who is already booked at two o'clock can still be given a second
+ * client at two o'clock — squeezing a regular in is a normal thing for a
+ * salon to do, and the screen has to let them say it.
+ */
+export const OVERBOOK_GUTTER_PX = 22;
+
 export const WINDOW_START_MIN = WINDOW_START_HOUR * 60;
 export const WINDOW_END_MIN = WINDOW_END_HOUR * 60;
 export const WINDOW_MINUTES = WINDOW_END_MIN - WINDOW_START_MIN;
@@ -149,6 +162,67 @@ export function layoutColumn<T>(
   }));
 }
 
+/**
+ * The UTC instant of a wall-clock time in the salon's zone.
+ *
+ * Reads the guessed instant back through the zone and corrects by whatever
+ * offset it reports. One correction covers every real offset, the half hours
+ * included, without pulling in a date library.
+ */
+export function wallTimeToUtc(
+  date: string,
+  time: string,
+  timeZone: string
+): Date {
+  const [y, mo, d] = date.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+
+  const seen = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(guess));
+
+  const get = (t: string) => Number(seen.find((p) => p.type === t)?.value);
+  const seenUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour") % 24,
+    get("minute")
+  );
+
+  return new Date(guess - (seenUtc - guess));
+}
+
+/**
+ * The instants bounding a salon day, for querying by date.
+ *
+ * A day is not a UTC day. Asking the API for midnight-to-midnight UTC drops
+ * the tail of the salon's evening wherever the offset is negative, and pulls
+ * in the previous evening as well — bookings that would then be drawn on the
+ * wrong day, because the grid places a block by its time of day.
+ */
+export function salonDayRange(
+  date: string,
+  timeZone: string
+): { from: string; to: string } {
+  const start = wallTimeToUtc(date, "00:00", timeZone);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { from: start.toISOString(), to: end.toISOString() };
+}
+
+/** Salon-local "YYYY-MM-DD" for an instant. */
+export function salonDate(at: Date, timeZone: string): string {
+  const { year, month, day } = zonedParts(at, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 /** Row index (0-based) for a click at `offsetRatio` down the grid. */
 export function rowFromOffset(offsetRatio: number): number {
   const row = Math.floor(offsetRatio * ROW_COUNT);
@@ -172,6 +246,25 @@ export function hourMarks(): Array<{ hour: number; label: string; topPct: number
       hour: h,
       label: `${h12}${h < 12 ? "am" : "pm"}`,
       topPct: ((h * 60 - WINDOW_START_MIN) / WINDOW_MINUTES) * 100,
+    });
+  }
+  return out;
+}
+
+/** Quarter-hour lines down the grid; `major` marks the hour. */
+export function quarterMarks(): Array<{
+  minutes: number;
+  topPct: number;
+  major: boolean;
+  half: boolean;
+}> {
+  const out = [];
+  for (let m = WINDOW_START_MIN; m <= WINDOW_END_MIN; m += SLOT_MINUTES) {
+    out.push({
+      minutes: m,
+      topPct: ((m - WINDOW_START_MIN) / WINDOW_MINUTES) * 100,
+      major: m % 60 === 0,
+      half: m % 60 === 30,
     });
   }
   return out;
