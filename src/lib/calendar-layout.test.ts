@@ -7,7 +7,10 @@ import {
   layoutColumn,
   minutesOfDay,
   rowFromOffset,
+  salonDate,
+  salonDayRange,
   timeOfRow,
+  wallTimeToUtc,
   ROW_COUNT,
   WINDOW_MINUTES,
 } from "./calendar-layout";
@@ -192,5 +195,66 @@ describe("closedBands", () => {
 
   it("shades nothing when the salon covers the whole window", () => {
     expect(closedBands({ openMin: 8 * 60, closeMin: 21 * 60 })).toHaveLength(0);
+  });
+});
+
+
+describe("wallTimeToUtc", () => {
+  it("resolves a BST wall time to the right instant", () => {
+    // 14:00 London in September is 13:00Z.
+    expect(wallTimeToUtc("2026-09-18", "14:00", TZ).toISOString()).toBe(
+      "2026-09-18T13:00:00.000Z"
+    );
+  });
+
+  it("resolves a GMT wall time to the right instant", () => {
+    expect(wallTimeToUtc("2026-12-18", "14:00", TZ).toISOString()).toBe(
+      "2026-12-18T14:00:00.000Z"
+    );
+  });
+
+  it("handles a zone with a negative offset", () => {
+    // 14:00 New York in September is 18:00Z (EDT, -4).
+    expect(
+      wallTimeToUtc("2026-09-18", "14:00", "America/New_York").toISOString()
+    ).toBe("2026-09-18T18:00:00.000Z");
+  });
+
+  it("handles a half-hour offset", () => {
+    // 14:00 Kolkata is 08:30Z.
+    expect(
+      wallTimeToUtc("2026-09-18", "14:00", "Asia/Kolkata").toISOString()
+    ).toBe("2026-09-18T08:30:00.000Z");
+  });
+});
+
+describe("salonDayRange", () => {
+  it("bounds a BST day at London midnight, not UTC midnight", () => {
+    const { from, to } = salonDayRange("2026-09-18", TZ);
+    expect(from).toBe("2026-09-17T23:00:00.000Z");
+    expect(to).toBe("2026-09-18T23:00:00.000Z");
+  });
+
+  it("bounds a GMT day at UTC midnight, because they coincide", () => {
+    const { from } = salonDayRange("2026-12-18", TZ);
+    expect(from).toBe("2026-12-18T00:00:00.000Z");
+  });
+
+  it("covers the whole evening for a negative-offset zone", () => {
+    // The bug this replaces: a UTC-midnight window stopped at 19:00 local
+    // in New York and lost the rest of the trading day.
+    const { from, to } = salonDayRange("2026-09-18", "America/New_York");
+    expect(from).toBe("2026-09-18T04:00:00.000Z");
+    expect(to).toBe("2026-09-19T04:00:00.000Z");
+
+    const lateEvening = new Date("2026-09-18T23:30:00Z"); // 19:30 local
+    expect(new Date(from) <= lateEvening && lateEvening < new Date(to)).toBe(true);
+  });
+});
+
+describe("salonDate", () => {
+  it("names the salon's day, not the browser's", () => {
+    expect(salonDate(new Date("2026-09-18T22:30:00Z"), TZ)).toBe("2026-09-18");
+    expect(salonDate(new Date("2026-09-18T23:30:00Z"), TZ)).toBe("2026-09-19");
   });
 });
