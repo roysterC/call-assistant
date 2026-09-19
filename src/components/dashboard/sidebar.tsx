@@ -19,6 +19,7 @@ import {
   Building2,
   Shield,
   TrendingUp,
+  CalendarDays,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -53,6 +54,12 @@ const navItems: Array<{
     requires: "chatbot",
   },
   { href: "/leads", label: "Leads", icon: Users },
+  {
+    href: "/calendar",
+    label: "Diary",
+    icon: CalendarDays,
+    requires: "voice",
+  },
   {
     href: "/appointments",
     label: "Appointments",
