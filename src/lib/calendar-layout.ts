@@ -149,6 +149,67 @@ export function layoutColumn<T>(
   }));
 }
 
+/**
+ * The UTC instant of a wall-clock time in the salon's zone.
+ *
+ * Reads the guessed instant back through the zone and corrects by whatever
+ * offset it reports. One correction covers every real offset, the half hours
+ * included, without pulling in a date library.
+ */
+export function wallTimeToUtc(
+  date: string,
+  time: string,
+  timeZone: string
+): Date {
+  const [y, mo, d] = date.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+
+  const seen = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(guess));
+
+  const get = (t: string) => Number(seen.find((p) => p.type === t)?.value);
+  const seenUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour") % 24,
+    get("minute")
+  );
+
+  return new Date(guess - (seenUtc - guess));
+}
+
+/**
+ * The instants bounding a salon day, for querying by date.
+ *
+ * A day is not a UTC day. Asking the API for midnight-to-midnight UTC drops
+ * the tail of the salon's evening wherever the offset is negative, and pulls
+ * in the previous evening as well — bookings that would then be drawn on the
+ * wrong day, because the grid places a block by its time of day.
+ */
+export function salonDayRange(
+  date: string,
+  timeZone: string
+): { from: string; to: string } {
+  const start = wallTimeToUtc(date, "00:00", timeZone);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { from: start.toISOString(), to: end.toISOString() };
+}
+
+/** Salon-local "YYYY-MM-DD" for an instant. */
+export function salonDate(at: Date, timeZone: string): string {
+  const { year, month, day } = zonedParts(at, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 /** Row index (0-based) for a click at `offsetRatio` down the grid. */
 export function rowFromOffset(offsetRatio: number): number {
   const row = Math.floor(offsetRatio * ROW_COUNT);

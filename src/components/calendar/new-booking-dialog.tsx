@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { TriangleAlert } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
+import { wallTimeToUtc } from "@/lib/calendar-layout";
 
 export interface BookingSlot {
   stylistName: string;
@@ -51,40 +52,6 @@ interface NewBookingDialogProps {
   timeZone: string;
   onClose: () => void;
   onBooked: () => void;
-}
-
-/**
- * Turn a wall-clock time in the salon's zone into a UTC instant.
- *
- * Guesses the offset from a UTC reading of the same wall time, then corrects
- * once. One correction is enough for every real offset, including the half
- * hours, and it avoids pulling in a date library for one conversion.
- */
-function wallTimeToUtc(date: string, time: string, timeZone: string): Date {
-  const [y, mo, d] = date.split("-").map(Number);
-  const [h, mi] = time.split(":").map(Number);
-  const guess = Date.UTC(y, mo - 1, d, h, mi);
-
-  const seen = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date(guess));
-
-  const get = (t: string) => Number(seen.find((p) => p.type === t)?.value);
-  const seenUtc = Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour") % 24,
-    get("minute")
-  );
-
-  return new Date(guess - (seenUtc - guess));
 }
 
 export function NewBookingDialog({

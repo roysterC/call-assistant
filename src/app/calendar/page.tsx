@@ -16,10 +16,16 @@ import { PageHeader } from "@/components/ui/page-header";
 import { apiFetch } from "@/lib/api-fetch";
 import { MonthPanel } from "@/components/calendar/month-panel";
 import {
+  minutesOfDay,
+  salonDate,
+  salonDayRange,
+} from "@/lib/calendar-layout";
+import {
   DayGrid,
   type CalendarAppointment,
   type CalendarStylist,
 } from "@/components/calendar/day-grid";
+import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
 import {
   NewBookingDialog,
   type BookingSlot,
@@ -95,12 +101,22 @@ export default function CalendarPage() {
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
   const [slot, setSlot] = useState<BookingSlot | null>(null);
+  const [openAppointment, setOpenAppointment] =
+    useState<CalendarAppointment | null>(null);
   const [loading, setLoading] = useState(true);
   // Until settings arrive we know nothing about the team, and "no stylists
   // configured" would be a false statement rather than an empty one.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  const today = useMemo(() => dateIn(timeZone), [timeZone]);
+  const today = useMemo(() => salonDate(new Date(), timeZone), [timeZone]);
+
+  // Minutes elapsed today, so the grid can grey out time that has gone. Null
+  // on any day but today: a past day is wholly past, a future one wholly not.
+  const nowMinutes = useMemo(
+    () => (selected === today ? minutesOfDay(new Date(), timeZone) : null),
+    [selected, today, timeZone]
+  );
+  const isPastDay = selected < today;
 
   useEffect(() => {
     (async () => {
@@ -124,11 +140,9 @@ export default function CalendarPage() {
   const loadDay = useCallback(async () => {
     setLoading(true);
     try {
+      const { from, to } = salonDayRange(selected, timeZone);
       const res = await apiFetch(
-        `/api/appointments?status=all&from=${selected}T00:00:00.000Z&to=${shiftDate(
-          selected,
-          1
-        )}T00:00:00.000Z`
+        `/api/appointments?status=all&from=${from}&to=${to}`
       );
       const data = await res.json();
       setAppointments(data.appointments ?? []);
@@ -137,7 +151,7 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [selected]);
+  }, [selected, timeZone]);
 
   useEffect(() => {
     loadDay();
@@ -145,28 +159,32 @@ export default function CalendarPage() {
 
   // Dots on the month panel. A separate, wider fetch so paging days does not
   // refetch the month, and paging months does not disturb the day.
-  useEffect(() => {
-    (async () => {
-      const first = `${view.year}-${String(view.month).padStart(2, "0")}-01`;
-      const nextMonth =
-        view.month === 12
-          ? `${view.year + 1}-01-01`
-          : `${view.year}-${String(view.month + 1).padStart(2, "0")}-01`;
-      try {
-        const res = await apiFetch(
-          `/api/appointments?status=all&from=${first}T00:00:00.000Z&to=${nextMonth}T00:00:00.000Z`
-        );
-        const data = await res.json();
-        const days = new Set<string>();
-        for (const a of data.appointments ?? []) {
-          days.add(dateIn(timeZone, new Date(a.startsAt)));
-        }
-        setMonthBusy(days);
-      } catch {
-        setMonthBusy(new Set());
+  const loadMonth = useCallback(async () => {
+    const first = `${view.year}-${String(view.month).padStart(2, "0")}-01`;
+    const nextMonth =
+      view.month === 12
+        ? `${view.year + 1}-01-01`
+        : `${view.year}-${String(view.month + 1).padStart(2, "0")}-01`;
+    try {
+      const { from } = salonDayRange(first, timeZone);
+      const { from: to } = salonDayRange(nextMonth, timeZone);
+      const res = await apiFetch(
+        `/api/appointments?status=all&from=${from}&to=${to}`
+      );
+      const data = await res.json();
+      const days = new Set<string>();
+      for (const a of data.appointments ?? []) {
+        days.add(salonDate(new Date(a.startsAt), timeZone));
       }
-    })();
+      setMonthBusy(days);
+    } catch {
+      setMonthBusy(new Set());
+    }
   }, [view, timeZone]);
+
+  useEffect(() => {
+    loadMonth();
+  }, [loadMonth]);
 
   const weekday = weekdayOf(selected);
 
@@ -250,12 +268,12 @@ export default function CalendarPage() {
             stylists={columns}
             appointments={appointments}
             open={open}
+            nowMinutes={nowMinutes}
+            isPastDay={isPastDay}
             onPickSlot={(stylistName, time) =>
               setSlot({ stylistName, time, date: selected })
             }
-            onOpenAppointment={(a) => {
-              window.location.href = `/appointments?focus=${a.id}`;
-            }}
+            onOpenAppointment={setOpenAppointment}
           />
         )}
 
@@ -272,12 +290,25 @@ export default function CalendarPage() {
         </aside>
       </div>
 
+      <AppointmentSheet
+        appointment={openAppointment}
+        timeZone={timeZone}
+        onClose={() => setOpenAppointment(null)}
+        onChanged={() => {
+          loadDay();
+          loadMonth();
+        }}
+      />
+
       <NewBookingDialog
         slot={slot}
         services={services}
         timeZone={timeZone}
         onClose={() => setSlot(null)}
-        onBooked={loadDay}
+        onBooked={() => {
+          loadDay();
+          loadMonth();
+        }}
       />
     </div>
   );

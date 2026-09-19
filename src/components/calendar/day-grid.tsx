@@ -14,9 +14,15 @@ import { cn } from "@/lib/utils";
 import {
   closedBands,
   hourMarks,
+  isOnDate,
   layoutColumn,
   rowFromOffset,
   timeOfRow,
+  SLOT_MINUTES,
+  WINDOW_END_HOUR,
+  WINDOW_START_HOUR,
+  WINDOW_START_MIN,
+  WINDOW_MINUTES,
   type PlacedBlock,
 } from "@/lib/calendar-layout";
 import { APPOINTMENT_STATUS } from "@/lib/status-styles";
@@ -47,6 +53,10 @@ interface DayGridProps {
   appointments: CalendarAppointment[];
   /** Opening window in minutes past midnight, or null when shut. */
   open: { openMin: number; closeMin: number } | null;
+  /** Minutes elapsed today, or null when the day shown is not today. */
+  nowMinutes: number | null;
+  /** The whole day is behind us. */
+  isPastDay: boolean;
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
 }
@@ -57,6 +67,8 @@ export function DayGrid({
   stylists,
   appointments,
   open,
+  nowMinutes,
+  isPastDay,
   onPickSlot,
   onOpenAppointment,
 }: DayGridProps) {
@@ -87,7 +99,10 @@ export function DayGrid({
           ))}
         </div>
 
-        <div className="flex relative" style={{ height: "calc(13 * 56px)" }}>
+        <div
+          className="flex relative"
+          style={{ height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * 56}px` }}
+        >
           <div className="w-14 shrink-0 relative">
             {marks.map((m) => (
               <div
@@ -104,12 +119,18 @@ export function DayGrid({
             <StylistColumn
               key={s.name}
               stylist={s}
-              date={date}
               timeZone={timeZone}
               shaded={shaded}
               marks={marks}
+              nowMinutes={nowMinutes}
+              isPastDay={isPastDay}
               appointments={appointments.filter(
-                (a) => a.stylistName.toLowerCase() === s.name.toLowerCase()
+                (a) =>
+                  a.stylistName.toLowerCase() === s.name.toLowerCase() &&
+                  // The fetch is bounded to this day, but a block is placed by
+                  // its time of day alone — so anything that slipped through
+                  // would be drawn here at the right hour on the wrong date.
+                  isOnDate(new Date(a.startsAt), date, timeZone)
               )}
               onPickSlot={onPickSlot}
               onOpenAppointment={onOpenAppointment}
@@ -126,21 +147,36 @@ function StylistColumn({
   timeZone,
   shaded,
   marks,
+  nowMinutes,
+  isPastDay,
   appointments,
   onPickSlot,
   onOpenAppointment,
 }: {
   stylist: CalendarStylist;
-  date: string;
   timeZone: string;
   shaded: Array<{ topPct: number; heightPct: number }>;
   marks: Array<{ hour: number; topPct: number }>;
+  nowMinutes: number | null;
+  isPastDay: boolean;
   appointments: CalendarAppointment[];
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const bookable = stylist.worksToday && stylist.bookable;
+  const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
+
+  // How much of the column has already been and gone. Booking into it would
+  // be accepted by the database and rejected by physics.
+  const elapsedPct =
+    nowMinutes === null
+      ? isPastDay
+        ? 100
+        : 0
+      : Math.min(
+          Math.max(((nowMinutes - WINDOW_START_MIN) / WINDOW_MINUTES) * 100, 0),
+          100
+        );
 
   const placed: PlacedBlock<CalendarAppointment>[] = layoutColumn(
     appointments,
@@ -152,7 +188,16 @@ function StylistColumn({
     const el = ref.current;
     if (!el || !bookable) return;
     const box = el.getBoundingClientRect();
-    onPickSlot(stylist.name, timeOfRow(rowFromOffset((clientY - box.top) / box.height)));
+    const row = rowFromOffset((clientY - box.top) / box.height);
+
+    // Refuse a time that has already passed. The phone path enforces a lead
+    // time through `earliestBookableStart`; the desk had no equivalent, so a
+    // click on this morning would happily book into it.
+    if (nowMinutes !== null && WINDOW_START_MIN + row * SLOT_MINUTES < nowMinutes) {
+      return;
+    }
+
+    onPickSlot(stylist.name, timeOfRow(row));
   };
 
   return (
@@ -174,6 +219,13 @@ function StylistColumn({
 
       {!stylist.worksToday && (
         <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
+      )}
+
+      {elapsedPct > 0 && (
+        <div
+          className="absolute inset-x-0 top-0 bg-muted/30 pointer-events-none"
+          style={{ height: `${elapsedPct}%` }}
+        />
       )}
 
       {marks.map((m) => (
