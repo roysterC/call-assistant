@@ -80,7 +80,7 @@ export function DayGrid({
   const shaded = closedBands(open);
 
   return (
-    <div className="flex-1 min-w-0 overflow-auto">
+    <div className="flex-1 min-w-0 min-h-0 overflow-auto rounded-md border border-border">
       {/* min-width keeps columns readable; the container scrolls rather than
           letting four stylists squeeze into thumbnails on a laptop. */}
       <div className="min-w-[560px]">
