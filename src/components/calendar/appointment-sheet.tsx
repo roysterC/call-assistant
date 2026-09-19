@@ -27,11 +27,13 @@ import { Phone, TriangleAlert } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { APPOINTMENT_STATUS } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
+import { toneFor, type ServiceTone } from "@/lib/service-colours";
 import type { CalendarAppointment } from "./day-grid";
 
 interface AppointmentSheetProps {
   appointment: CalendarAppointment | null;
   timeZone: string;
+  tones: Map<string, ServiceTone>;
   onClose: () => void;
   onChanged: () => void;
 }
@@ -55,6 +57,7 @@ const ACTIONS: Array<{ status: string; label: string }> = [
 export function AppointmentSheet({
   appointment,
   timeZone,
+  tones,
   onClose,
   onChanged,
 }: AppointmentSheetProps) {
@@ -118,7 +121,17 @@ export function AppointmentSheet({
               </dd>
 
               <dt className="text-muted-foreground text-xs pt-0.5">Service</dt>
-              <dd>{a.serviceText}</dd>
+              <dd className="flex items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm shrink-0 border"
+                  style={{
+                    background: toneFor(a.serviceText, tones).fill,
+                    borderColor: toneFor(a.serviceText, tones).border,
+                  }}
+                  aria-hidden="true"
+                />
+                {a.serviceText}
+              </dd>
 
               <dt className="text-muted-foreground text-xs pt-0.5">Stylist</dt>
               <dd>{a.stylistName}</dd>
