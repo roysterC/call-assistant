@@ -25,7 +25,10 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const isFullWidth = pathname?.startsWith("/conversations");
+  // Screens that manage their own height and scroll internally. They get the
+  // full pane and no page padding; anything that scrolls does so inside them.
+  const isFullWidth =
+    pathname?.startsWith("/conversations") || pathname?.startsWith("/calendar");
 
   return (
     <div className="h-full flex flex-col w-full">
