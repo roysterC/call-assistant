@@ -19,6 +19,14 @@ export interface SalonService {
   requiresPatchTest: boolean;
   /** Tidy-up time booked after the appointment; excluded from the slot. */
   bufferMinutes: number;
+  /**
+   * List price in pence, or null when the salon has not set one.
+   *
+   * A guide rather than a fixed figure: hair pricing moves with length and
+   * thickness, which is why the agent is told not to quote. The desk records
+   * what was actually taken on the appointment; this is what it starts from.
+   */
+  priceMinor: number | null;
 }
 
 export interface Stylist {
@@ -71,12 +79,19 @@ export function parseServices(raw: unknown): SalonService[] {
         ? bufferRaw
         : DEFAULT_BUFFER_MINUTES;
 
+    // Null and zero are different facts: "not priced yet" must not total as
+    // a free service, so only a real number becomes a price.
+    const priceRaw = Number(e.priceMinor);
+    const priceMinor =
+      Number.isFinite(priceRaw) && priceRaw >= 0 ? Math.round(priceRaw) : null;
+
     seen.add(key);
     out.push({
       name,
       durationMinutes: Math.round(durationMinutes),
       requiresPatchTest: Boolean(e.requiresPatchTest),
       bufferMinutes: Math.round(bufferMinutes),
+      priceMinor,
     });
   }
 

@@ -20,6 +20,7 @@ import {
   Shield,
   TrendingUp,
   CalendarDays,
+  Receipt,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -66,6 +67,7 @@ const navItems: Array<{
     icon: CalendarCheck,
     requires: "voice",
   },
+  { href: "/sales", label: "Sales", icon: Receipt, requires: "voice" },
   {
     href: "/callbacks",
     label: "Callbacks",

@@ -33,6 +33,7 @@ const CUT: SalonService = {
   durationMinutes: 45,
   requiresPatchTest: false,
   bufferMinutes: 0,
+  priceMinor: 4500,
 };
 
 const BALAYAGE: SalonService = {
@@ -40,6 +41,7 @@ const BALAYAGE: SalonService = {
   durationMinutes: 180,
   requiresPatchTest: true,
   bufferMinutes: 0,
+  priceMinor: 18000,
 };
 
 function stylist(name: string, workingDays: number[] = []): Stylist {

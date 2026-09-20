@@ -14,7 +14,7 @@
  * would be worse than the two records disagreeing.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Phone, TriangleAlert } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
+import { formatMoney, minorToInput, parseMoney } from "@/lib/money";
+import { Input } from "@/components/ui/input";
 import { APPOINTMENT_STATUS } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 import { toneFor, type ServiceTone } from "@/lib/service-colours";
@@ -34,6 +36,8 @@ interface AppointmentSheetProps {
   appointment: CalendarAppointment | null;
   timeZone: string;
   tones: Map<string, ServiceTone>;
+  /** List price for this appointment's service, to start the amount from. */
+  listPriceMinor?: number | null;
   onClose: () => void;
   onChanged: () => void;
 }
@@ -58,21 +62,40 @@ export function AppointmentSheet({
   appointment,
   timeZone,
   tones,
+  listPriceMinor,
   onClose,
   onChanged,
 }: AppointmentSheetProps) {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [amount, setAmount] = useState("");
+
+  // Start from whatever is already recorded, then the price list. Reset per
+  // appointment so last client's figure never rides along into this one.
+  useEffect(() => {
+    if (!appointment) return;
+    setAmount(
+      minorToInput(
+        appointment.amountMinor ?? listPriceMinor ?? null
+      )
+    );
+    setError(null);
+  }, [appointment, listPriceMinor]);
 
   const setStatus = async (status: string) => {
     if (!appointment) return;
     setSaving(status);
     setError(null);
     try {
+      // The amount rides along with the status, so "done" and "this is what
+      // they paid" are one action at the desk rather than two.
+      const body: Record<string, unknown> = { id: appointment.id, status };
+      if (status === "completed") body.amountMinor = parseMoney(amount);
+
       const res = await apiFetch("/api/appointments", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: appointment.id, status }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -151,6 +174,35 @@ export function AppointmentSheet({
                 </>
               )}
             </dl>
+
+            <div className="grid gap-1.5">
+              <label
+                htmlFor="appointment-amount"
+                className="text-muted-foreground text-xs"
+              >
+                Taken
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-sm">£</span>
+                <Input
+                  id="appointment-amount"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="h-8 w-28"
+                />
+                {a.amountMinor === null && listPriceMinor != null && (
+                  <span className="text-xs text-muted-foreground">
+                    list {formatMoney(listPriceMinor)}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Saved when you mark it done. This is the figure the sales
+                report counts.
+              </p>
+            </div>
 
             {a.patchTestRequired && (
               <p className="flex gap-2 text-xs text-amber-400">

@@ -333,6 +333,13 @@ export default function CalendarPage() {
         appointment={openAppointment}
         timeZone={timeZone}
         tones={tones}
+        listPriceMinor={
+          services.find(
+            (s) =>
+              s.name.toLowerCase() ===
+              (openAppointment?.serviceText ?? "").trim().toLowerCase()
+          )?.priceMinor ?? null
+        }
         onClose={() => setOpenAppointment(null)}
         onChanged={() => {
           loadDay();
