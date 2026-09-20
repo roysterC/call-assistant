@@ -26,6 +26,7 @@ import {
   type Stylist,
 } from "@/lib/salon-config";
 import { normalisePhone, speakablePhone } from "@/lib/phone";
+import { nameRequiredMessage, normaliseCallerName } from "@/lib/caller-name";
 import {
   cancellationBody,
   confirmationBody,
@@ -211,7 +212,12 @@ export async function handleSaveCustomerDetails(
 ) {
   const { name, email, phone, company, businessType, issue } = params;
 
-  const cleanName = blankToUndefined(name);
+  // Unlike the booking tools this one is deliberately allowed to save what it
+  // has — it is called early, before the name may be known. But a filler is
+  // worse than nothing: it looks like a captured name in the CRM and stops
+  // anyone noticing the gap. So an unusable one is dropped, not refused.
+  const parsedName = normaliseCallerName(name);
+  const cleanName = parsedName.ok ? parsedName.name : undefined;
   const cleanEmail = validEmail(email);
   const cleanIssue = blankToUndefined(issue);
   const cleanCompany = blankToUndefined(company);
@@ -313,6 +319,16 @@ export async function handleBookCallback(
 ) {
   const { date, time, assignedTo, notes, customerPhone, customerName } = params;
 
+  const parsedCallbackName = normaliseCallerName(customerName);
+  if (!parsedCallbackName.ok) {
+    return {
+      success: false,
+      missingName: true,
+      message: nameRequiredMessage(parsedCallbackName.reason),
+    };
+  }
+  const callbackName = parsedCallbackName.name;
+
   const parsedCallbackPhone = normalisePhone(customerPhone);
   if (!parsedCallbackPhone.ok) {
     return {
@@ -331,7 +347,7 @@ export async function handleBookCallback(
       data: {
         organizationId,
         phone: callbackPhone,
-        name: customerName || null,
+        name: callbackName,
         source: "phone",
       },
     });
@@ -928,6 +944,21 @@ export async function handleBookAppointment(
   }
   const phone = resolvedPhone.e164;
 
+  // Checked before any diary work, because there is no point holding a slot
+  // for someone we cannot name. A transcription miss used to arrive here as
+  // `undefined` and be written to the lead as `null`, which is how an
+  // appointment reached the diary with nobody against it — and why the agent
+  // thanked a caller for a name it had never heard.
+  const resolvedName = normaliseCallerName(customerName);
+  if (!resolvedName.ok) {
+    return {
+      success: false,
+      missingName: true,
+      message: nameRequiredMessage(resolvedName.reason),
+    };
+  }
+  const clientName = resolvedName.name;
+
   const provider = await getBookingProvider(organizationId);
   if (!canCreateBooking(provider)) {
     return {
@@ -1069,11 +1100,11 @@ export async function handleBookAppointment(
 
   const lead = await prisma.lead.upsert({
     where: { organizationId_phone: { organizationId, phone } },
-    update: { ...(customerName && { name: customerName }) },
+    update: { name: clientName },
     create: {
       organizationId,
       phone,
-      name: customerName || null,
+      name: clientName,
       source: "phone",
     },
   });
