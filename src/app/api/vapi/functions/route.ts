@@ -10,6 +10,7 @@ import {
   telemetryLine,
 } from "@/lib/voice-telemetry";
 import {
+  callerNumberFromVapiPayload,
   executeVapiFunction,
   resolveOrgFromVapiPayload,
 } from "@/lib/vapi-functions";
@@ -94,6 +95,14 @@ export async function POST(req: NextRequest) {
         parameters = {};
       }
     }
+
+    // The caller's own number is a fact about the call, not something the
+    // model can know — it never sees the caller ID. `callerNumber` was a tool
+    // parameter nothing could ever fill, so the fallback behind it never ran.
+    // Injected from the payload instead, and it overrides: a model asked for
+    // a number it cannot see will invent one rather than leave it out.
+    const callerNumber = callerNumberFromVapiPayload(body);
+    if (callerNumber) parameters = { ...parameters, callerNumber };
 
     if (!name) {
       console.log("[VAPI] Could not determine function name from payload");

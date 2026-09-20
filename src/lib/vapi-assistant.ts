@@ -439,7 +439,7 @@ Plenty of people ring after hours to cancel or move something, not to book.
 }
 
 /**
- * Getting the caller's name, and not pretending to have it.
+ * Getting the caller's name and number, and not pretending to have either.
  *
  * Not conditional on capabilities: every path that ends in a diary entry or a
  * callback needs a name on it, and the tool schemas now refuse to run without
@@ -452,7 +452,9 @@ Plenty of people ring after hours to cancel or move something, not to book.
  * for a name and given silence, a model will say "Thanks!" and carry on,
  * because that is the likeliest thing to come next. It has to be told not to.
  */
-export const CALLER_IDENTITY_RULES = `# Getting the caller's name
+export const CALLER_IDENTITY_RULES = `# Getting the caller's details
+
+## Their name
 
 You must have the caller's name before you can book anything. \`book_appointment\`
 will refuse without one, so there is no point continuing until you have it.
@@ -478,8 +480,29 @@ Never invent a name, never send a placeholder such as "Unknown" or "Customer",
 and never use their phone number in place of one. If the name you send is
 refused, that is why — ask again and spell it out.
 
-The same goes for every other detail you are told: a phone number, a date, a
-service. If you did not hear it, say so. Guessing is worse than asking twice.`;
+## Their number
+
+**You already have the number they are ringing from.** You cannot see the
+digits yourself, but the tools can, and they will use it.
+
+So when the caller says to use the number they are calling on — *"the one I'm
+ringing from"*, *"this number"* — that is a complete answer. Do not ask them to
+read it out. Call the tool as you normally would; it will fall back to their
+caller ID and tell you in its reply which number it used. **Read that number
+back to them**, because they never said it out loud and this is their only
+chance to catch it being wrong.
+
+Never tell the caller a number works and then ask them for it again. Either you
+have it, in which case confirm it, or you have not, in which case ask — but not
+both in the same breath.
+
+If the tool comes back saying it could not get a number at all, then their
+caller ID is withheld and you do need them to read it out, digit by digit.
+
+## Everything else
+
+The same goes for every other detail you are told: a date, a service, a
+stylist. If you did not hear it, say so. Guessing is worse than asking twice.`;
 
 export interface ComposedPrompt {
   prompt: string;

@@ -69,6 +69,35 @@ import {
  *   3. the assistant id — the only one a web call has, since there is no
  *      number to dial
  */
+/**
+ * The number the caller is ringing from, off the call itself.
+ *
+ * `callerNumber` has been a parameter on the booking tools all along, with a
+ * description telling the model to send it "if the tool supplies it" — but
+ * nothing ever supplied it. The model cannot see the caller ID, so the
+ * parameter was never filled and the fallback behind it never ran. A caller
+ * saying "use the number I'm ringing from" left the agent with nothing, which
+ * is how it ended up agreeing that the number worked and then asking for it.
+ *
+ * Read here instead, from the payload Vapi already sends, and injected by the
+ * route so every handler gets it whatever the model did or did not send.
+ */
+export function callerNumberFromVapiPayload(
+  body: Record<string, unknown>
+): string | null {
+  // Walked defensively, for the same reason resolveOrgFromVapiPayload is:
+  // the shape varies by event and a type here would only be half true.
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const root = body as any;
+  const message = root.message ?? root;
+  const call = message?.call ?? root.call ?? {};
+  const customer = call?.customer ?? message?.customer ?? root.customer ?? null;
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
+  const number = typeof customer?.number === "string" ? customer.number : null;
+  return blankToUndefined(number ?? undefined) ?? null;
+}
+
 export async function resolveOrgFromVapiPayload(
   body: Record<string, unknown>
 ): Promise<string | null> {
@@ -301,7 +330,9 @@ export async function handleSaveCustomerDetails(
     message:
       `Saved for ${lead.name || speakablePhone(normalisedPhone)}.` +
       (resolved.source === "callerId"
-        ? " The number they gave did not parse, so the number they are ringing from was used — confirm it with them."
+        ? ` The number they spoke could not be used, so the one they are ` +
+          `ringing from was taken instead: ${speakablePhone(normalisedPhone)}. ` +
+          `Read that back and check it is the right one to reach them on.`
         : ""),
   };
 }
@@ -1220,12 +1251,20 @@ export async function handleBookAppointment(
     stylist: stylist.name,
     service: service.name,
     textSent: sms.ok,
+    usedCallerId: resolvedPhone.source === "callerId",
     message:
       `Booked: ${service.name} with ${stylist.name} at ` +
       `${spokenTime(written.startsAt, cfg.timeZone)}. Confirm that back to the ` +
       (sms.ok
         ? "caller and let them know they will get a text confirming it."
-        : "caller. Do NOT promise a text — one could not be sent."),
+        : "caller. Do NOT promise a text — one could not be sent.") +
+      // They never said the number out loud, so they have not had the chance
+      // to catch it being wrong — and the confirmation text has just gone to
+      // it.
+      (resolvedPhone.source === "callerId"
+        ? ` It was booked against the number they are ringing from, ` +
+          `${speakablePhone(phone)} — read that back and check it is right.`
+        : ""),
   };
 }
 
