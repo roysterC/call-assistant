@@ -187,7 +187,14 @@ const BOOK_APPOINTMENT: VapiTool = {
             "The number they are ringing from, if the tool supplies it. Used " +
             "only when the number they spoke cannot be parsed.",
         },
-        customerName: { type: "string", description: "Caller's name" },
+        customerName: {
+          type: "string",
+          description:
+            "The caller's name, as they gave it. Required — you cannot book " +
+            "without it. If you did not hear it clearly, ask again, and ask " +
+            "them to spell it out letter by letter rather than guessing. " +
+            "Never send a placeholder such as 'Unknown' or 'Customer'.",
+        },
         clientType: {
           type: "string",
           enum: ["new", "returning", "unknown"],
@@ -195,7 +202,7 @@ const BOOK_APPOINTMENT: VapiTool = {
         },
         notes: { type: "string", description: "Anything the stylist should know" },
       },
-      required: ["date", "time", "service", "customerPhone"],
+      required: ["date", "time", "service", "customerPhone", "customerName"],
     },
   },
 };
@@ -213,14 +220,19 @@ const BOOK_CALLBACK: VapiTool = {
         date: { type: "string", description: "Date to ring back, YYYY-MM-DD" },
         time: { type: "string", description: "Time to ring back, HH:MM" },
         customerPhone: { type: "string", description: "Caller's number" },
-        customerName: { type: "string", description: "Caller's name" },
+        customerName: {
+          type: "string",
+          description:
+            "The caller's name. Required — ask them to spell it out rather " +
+            "than guessing, and never send a placeholder.",
+        },
         assignedTo: { type: "string", description: "Stylist requested, if any" },
         notes: {
           type: "string",
           description: "The full request: service, stylist, preferred times.",
         },
       },
-      required: ["date", "customerPhone"],
+      required: ["date", "customerPhone", "customerName"],
     },
   },
 };
@@ -426,6 +438,49 @@ Plenty of people ring after hours to cancel or move something, not to book.
 - Never tell them it is done until the tool says so.`;
 }
 
+/**
+ * Getting the caller's name, and not pretending to have it.
+ *
+ * Not conditional on capabilities: every path that ends in a diary entry or a
+ * callback needs a name on it, and the tool schemas now refuse to run without
+ * one. This block exists so the model knows that before it finds out the hard
+ * way, mid-call, from a rejected tool call.
+ *
+ * The rule about not acknowledging what you did not receive is the important
+ * one. A transcription miss hands the model an empty user turn, and an empty
+ * turn does not read as "I heard nothing" — it reads as a gap to fill. Asked
+ * for a name and given silence, a model will say "Thanks!" and carry on,
+ * because that is the likeliest thing to come next. It has to be told not to.
+ */
+export const CALLER_IDENTITY_RULES = `# Getting the caller's name
+
+You must have the caller's name before you can book anything. \`book_appointment\`
+will refuse without one, so there is no point continuing until you have it.
+
+**Never thank the caller for something you did not receive.** If their reply was
+silent, cut off, or did not actually contain a name, do not say "thanks", "got
+it", or anything else that implies you heard it. Say that you did not catch it
+and ask again.
+
+Work through it in this order, and do not skip a step:
+
+1. Ask for their name.
+2. **Read it back** so they can correct it: *"Thanks — that's Sarah, is that
+   right?"* A name is the hardest thing on the line to hear correctly, and the
+   read-back is what catches it.
+3. If you did not catch it, say so plainly and ask again:
+   *"Sorry, I didn't quite catch that — could you say your name again?"*
+4. If you still do not have it, **ask them to spell it out**:
+   *"Could you spell that for me, letter by letter?"* Then read the spelling
+   back before you use it.
+
+Never invent a name, never send a placeholder such as "Unknown" or "Customer",
+and never use their phone number in place of one. If the name you send is
+refused, that is why — ask again and spell it out.
+
+The same goes for every other detail you are told: a phone number, a date, a
+service. If you did not hear it, say so. Guessing is worse than asking twice.`;
+
 export interface ComposedPrompt {
   prompt: string;
   toolNames: string[];
@@ -451,6 +506,7 @@ export function composeVoicePrompt(
 
   const sections = [
     buildAvailabilityStance(caps),
+    CALLER_IDENTITY_RULES,
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
     `# Services\n\n${describeServicesForPrompt(cfg.services)}`,
     `# The team\n\n${describeTeamForPrompt(cfg.stylists, cfg.services)}`,
