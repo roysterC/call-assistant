@@ -43,6 +43,7 @@ export interface ServiceOption {
   name: string;
   durationMinutes: number;
   requiresPatchTest: boolean;
+  priceMinor?: number | null;
 }
 
 interface NewBookingDialogProps {

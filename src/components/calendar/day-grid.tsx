@@ -40,6 +40,7 @@ export interface CalendarAppointment {
   status: string;
   source: string;
   patchTestRequired: boolean;
+  amountMinor: number | null;
   lead: { name: string | null; phone: string | null };
 }
 

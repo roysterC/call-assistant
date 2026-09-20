@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_BADGE, PATCH_TEST_BADGE } from "@/lib/status-styles";
 import type { SalonService } from "@/lib/salon-config";
+import { minorToInput, parseMoney } from "@/lib/money";
 
 /**
  * Services and how long each takes.
@@ -39,6 +40,7 @@ export function ServicesEditor({
         durationMinutes: 45,
         requiresPatchTest: false,
         bufferMinutes: 0,
+        priceMinor: null,
       },
     ]);
   }
@@ -78,6 +80,20 @@ export function ServicesEditor({
               aria-label="Duration in minutes"
             />
             <span className="text-xs text-muted-foreground">min</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">£</span>
+            <Input
+              inputMode="decimal"
+              placeholder="—"
+              defaultValue={minorToInput(service.priceMinor)}
+              onBlur={(e) =>
+                update(i, { priceMinor: parseMoney(e.target.value) })
+              }
+              className="h-8 w-20"
+              aria-label="Price in pounds"
+            />
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -133,7 +149,8 @@ export function ServicesEditor({
         Duration decides how much of the stylist&apos;s day is blocked. Tidy-up
         time is kept free afterwards but may run past closing. Colour services
         should be marked as needing a patch test — that forces a 48-hour gap
-        for anyone new.
+        for anyone new. The price is a starting figure for the desk; what gets
+        counted in the sales report is what was actually taken.
       </p>
     </div>
   );

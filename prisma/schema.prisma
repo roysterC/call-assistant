@@ -301,6 +301,11 @@ model Appointment {
   clientType        String  @default("unknown") // new | returning | unknown
   patchTestRequired Boolean @default(false)
 
+  // What was actually taken, in pence. Null until the appointment is marked
+  // done — the price list is a guide, and the figure that belongs in a sales
+  // report is the one the client paid, not the one the catalogue hoped for.
+  amountMinor Int?
+
   status String  @default("booked") // booked | cancelled | completed | no_show
   source String  @default("voice") // voice | manual
   notes  String?

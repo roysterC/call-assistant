@@ -81,7 +81,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, status, notes } = body;
+    const { id, status, notes, amountMinor } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -107,9 +107,27 @@ export async function PATCH(req: NextRequest) {
     if (status !== undefined) data.status = status;
     if (notes !== undefined) data.notes = notes;
 
+    // What was taken, in pence. Explicit null clears it — someone correcting
+    // a mistyped figure has to be able to empty the field, and an empty
+    // field is not the same fact as zero pounds.
+    if (amountMinor !== undefined) {
+      if (amountMinor === null) {
+        data.amountMinor = null;
+      } else {
+        const n = Number(amountMinor);
+        if (!Number.isFinite(n) || n < 0) {
+          return NextResponse.json(
+            { error: "amountMinor must be a non-negative number of pence" },
+            { status: 400 }
+          );
+        }
+        data.amountMinor = Math.round(n);
+      }
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
-        { error: "at least one of status, notes is required" },
+        { error: "at least one of status, notes, amountMinor is required" },
         { status: 400 }
       );
     }
