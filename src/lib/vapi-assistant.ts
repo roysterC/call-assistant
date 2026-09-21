@@ -464,6 +464,14 @@ Plenty of people ring after hours to cancel or move something, not to book.
  * one. This block exists so the model knows that before it finds out the hard
  * way, mid-call, from a rejected tool call.
  *
+ * Reading the number back does double duty. It catches the transcription — in
+ * the call this came from, the number arrived as two separate finals ("07802."
+ * then "612038.") and nobody checked the model had reassembled it correctly.
+ * And it fills the gap: the booking turn on that call had 4.6 seconds of
+ * silence between the caller finishing their number and hearing anything,
+ * because the agent went straight from the question to two tool calls with no
+ * words in between. A read-back puts a natural exchange where the dead air was.
+ *
  * The rule about not acknowledging what you did not receive is the important
  * one. A transcription miss hands the model an empty user turn, and an empty
  * turn does not read as "I heard nothing" — it reads as a gap to fill. Asked
@@ -516,6 +524,12 @@ both in the same breath.
 
 If the tool comes back saying it could not get a number at all, then their
 caller ID is withheld and you do need them to read it out, digit by digit.
+
+**When they do read a number out, read it back before you book anything.** Give
+it back to them in groups, unhurried, and wait for them to say it is right. A
+number spoken down a phone line arrives in pieces and sometimes loses one, and
+the caller is the only person who can tell you it is wrong — whatever you book
+is where the confirmation text goes.
 
 ## Everything else
 
