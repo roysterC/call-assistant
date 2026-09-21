@@ -4,6 +4,7 @@ import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { getSalonConfig } from "@/lib/booking";
 import { PERIOD_KINDS, resolvePeriod, type PeriodKind } from "@/lib/sales-period";
 import { salonDate } from "@/lib/calendar-layout";
+import { splitServiceText } from "@/lib/salon-config";
 import { CURRENCY } from "@/lib/money";
 
 /**
@@ -50,6 +51,26 @@ export async function GET(req: NextRequest) {
       listPrice.set(s.name.toLowerCase(), s.priceMinor);
     }
 
+    // An appointment covering several services is stored under their joined
+    // names, which matches nothing in the list above. Its list price is the
+    // sum of the parts — and only a sum when every part still has a price,
+    // because a partial total read as a whole one understates the day.
+    const listPriceFor = (serviceText: string): number | null => {
+      const direct = listPrice.get(serviceText.toLowerCase());
+      if (direct !== undefined) return direct;
+
+      const parts = splitServiceText(serviceText);
+      if (parts.length < 2) return null;
+
+      let total = 0;
+      for (const part of parts) {
+        const each = listPrice.get(part.toLowerCase());
+        if (each === undefined || each === null) return null;
+        total += each;
+      }
+      return total;
+    };
+
     const appointments = await prisma.appointment.findMany({
       where: {
         organizationId: ctx.organizationId,
@@ -72,7 +93,7 @@ export async function GET(req: NextRequest) {
     const byService = new Map<string, { minor: number; count: number }>();
 
     const rows = appointments.map((a) => {
-      const list = listPrice.get(a.serviceText.toLowerCase()) ?? null;
+      const list = listPriceFor(a.serviceText);
       const settled = a.status === "completed";
       // Only a recorded amount counts as taken. Falling back to list price
       // here would quietly turn a guess into revenue.

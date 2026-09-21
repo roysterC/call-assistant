@@ -103,8 +103,11 @@ const CHECK_AVAILABILITY: VapiTool = {
         service: {
           type: "string",
           description:
-            "The service the caller wants, e.g. 'cut and finish', " +
-            "'balayage'. Required — it determines how long is needed.",
+            "Everything the caller wants done, e.g. 'cut and finish', " +
+            "'balayage'. Required — it determines how long is needed. If " +
+            "they asked for more than one thing, name them all in one " +
+            "string: 'haircut and balayage'. Checking for only one of them " +
+            "offers a time too short for the work.",
         },
         timeOfDay: {
           type: "string",
@@ -173,7 +176,14 @@ const BOOK_APPOINTMENT: VapiTool = {
             "The exact startsAt value from check_availability, or HH:MM " +
             "in 24-hour format.",
         },
-        service: { type: "string", description: "The service being booked" },
+        service: {
+          type: "string",
+          description:
+            "Everything being booked. If the caller asked for more than one " +
+            "thing, name them all in one string — 'haircut and balayage' — " +
+            "exactly as you checked availability for. Booking one of two " +
+            "services puts half the appointment in the diary.",
+        },
         stylist: { type: "string", description: "The stylist's name" },
         customerPhone: {
           type: "string",
@@ -418,6 +428,14 @@ it.
 - Only once the tool confirms it worked may you say they are booked in. If it
   reports a clash, apologise and offer another time. If it fails any other way,
   say the salon will ring to confirm — **do not** tell them they are booked.
+- **If they ask for more than one thing, book it as more than one thing.**
+  Someone who wants a cut and a colour needs a slot long enough for both, so
+  send every service in the same \`service\` value — "haircut and balayage" —
+  to \`check_availability\` and then the same value to \`book_appointment\`.
+  Picking the bigger one and ignoring the rest leaves the stylist short of
+  time and the client expecting work nobody wrote down. If one of the things
+  they asked for is not on the list, say which and ask what it is rather than
+  quietly booking the rest.
 - You must know whether they are a new or returning client before booking any
   colour service. New clients need a skin patch test 48 hours beforehand, so
   the earliest colour appointment is two days away. Explain that plainly if it

@@ -19,6 +19,8 @@
  * — `bg-${hue}-500/15` compiles to nothing at all.
  */
 
+import { splitServiceText } from "@/lib/salon-config";
+
 export type ServiceFamily = "cutting" | "colour" | "finishing" | "treatment" | "other";
 
 export interface ServiceTone {
@@ -139,8 +141,18 @@ export function toneFor(
   serviceText: string,
   tones: Map<string, ServiceTone>
 ): ServiceTone {
-  const hit = tones.get(String(serviceText ?? "").trim().toLowerCase());
+  const text = String(serviceText ?? "").trim();
+  const hit = tones.get(text.toLowerCase());
   if (hit) return hit;
+
+  // An appointment covering several services is coloured by the longest of
+  // them, which is the one `combineServices` puts first. The block should read
+  // as the work that fills most of it rather than as "not a current service".
+  const parts = splitServiceText(text);
+  if (parts.length > 1) {
+    const lead = tones.get(parts[0].toLowerCase());
+    if (lead) return lead;
+  }
 
   // A service that has since been renamed or deleted in settings still has
   // appointments in the diary. Grey is honest: it says "not one of the
