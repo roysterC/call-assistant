@@ -17,8 +17,8 @@ import {
 } from "@/lib/booking/availability";
 import type { TimeSlot } from "@/lib/booking/types";
 import {
-  matchService,
   matchStylist,
+  resolveBookedService,
   serviceIsStaffedOn,
   stylistDoesService,
   stylistsForService,
@@ -224,6 +224,31 @@ function resolveCallerPhone(
       ? fromSpoken.reason
       : "No number was given.",
   };
+}
+
+/**
+ * What to tell the agent when the spoken services did not fully resolve.
+ *
+ * Shared by availability, booking and rescheduling. The half-understood case
+ * gets its own wording on purpose: naming what was recognised lets the model
+ * correct one service rather than start the whole request again.
+ */
+function serviceNotResolvedMessage(
+  spoken: string | undefined,
+  matched: SalonService[],
+  unmatched: string[]
+): string {
+  if (matched.length === 0) {
+    return (
+      `That service was not recognised ("${spoken ?? ""}"). Ask the caller ` +
+      "to describe what they would like done."
+    );
+  }
+  return (
+    `I have ${matched.map((s) => s.name).join(" and ")}, but not ` +
+    `"${unmatched.join('", "')}". Ask the caller what that is, then send ` +
+    "every service they want in one call so the diary allows time for all of it."
+  );
 }
 
 export async function handleSaveCustomerDetails(
@@ -619,17 +644,31 @@ export async function handleCheckAvailability(
   }
 
   const cfg = await getSalonConfig(organizationId);
-  const service = matchService(blankToUndefined(params.service), cfg.services);
+  // Every service the caller named, folded into one appointment. A cut and a
+  // colour is one slot as long as both of them together, and checking for
+  // only one of them offers a time that will not fit the work.
+  const resolvedService = resolveBookedService(
+    blankToUndefined(params.service),
+    cfg.services
+  );
 
-  if (!service) {
+  if (!resolvedService.ok) {
     return {
       available: null,
       canCheck: true,
       message:
-        "Which service is that for? I need to know before I can check the " +
-        "diary, because different services take different amounts of time.",
+        resolvedService.matched.length === 0
+          ? "Which service is that for? I need to know before I can check " +
+            "the diary, because different services take different amounts " +
+            "of time."
+          : serviceNotResolvedMessage(
+              params.service,
+              resolvedService.matched,
+              resolvedService.unmatched
+            ),
     };
   }
+  const service = resolvedService.service;
 
   const clientType = normaliseClientType(
     params.clientType ??
@@ -1001,15 +1040,20 @@ export async function handleBookAppointment(
   }
 
   const cfg = await getSalonConfig(organizationId);
-  const service = matchService(params.service, cfg.services);
-  if (!service) {
+  const bookedService = resolveBookedService(params.service, cfg.services);
+  if (!bookedService.ok) {
     return {
       success: false,
-      message:
-        `That service was not recognised ("${params.service}"). Ask the ` +
-        "caller to describe what they would like done.",
+      message: serviceNotResolvedMessage(
+        params.service,
+        bookedService.matched,
+        bookedService.unmatched
+      ),
     };
   }
+  // One appointment covering everything they asked for: its length is the sum
+  // of the parts, and it carries the patch-test rule of any colour in it.
+  const service = bookedService.service;
 
   const requestedStylist = blankToUndefined(params.stylist);
   let stylist = matchStylist(requestedStylist, cfg.stylists);
@@ -1617,8 +1661,10 @@ export async function handleRescheduleAppointment(
     return { success: false, message: "That date and time did not parse." };
   }
 
-  const service = matchService(appt.serviceText, cfg.services);
-  if (!service) {
+  // Resolved the same way it was booked, so an appointment covering two
+  // services keeps both of them — and its full length — when it moves.
+  const originalService = resolveBookedService(appt.serviceText, cfg.services);
+  if (!originalService.ok) {
     return {
       success: false,
       message:
@@ -1626,6 +1672,7 @@ export async function handleRescheduleAppointment(
         "so its length is unknown. Take a message for the salon.",
     };
   }
+  const service = originalService.service;
 
   // The lead-time rules apply to the new slot as much as the original. A
   // colour moved inside the patch-test window is the same hazard whether it

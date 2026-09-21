@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  combineServices,
   constrainWorkingDays,
   describeTeamForPrompt,
   matchService,
+  matchServices,
+  resolveBookedService,
+  splitServiceText,
   matchStylist,
   parseServices,
   parseStylists,
@@ -232,5 +236,200 @@ describe("serviceIsStaffedOn", () => {
       { name: "Alex", workingDays: [6], services: [] },
     ]);
     expect(serviceIsStaffedOn(cut, noCalendar, 6)).toBe(false);
+  });
+});
+
+/**
+ * A caller who asks for two things must get two things in the diary.
+ *
+ * The live call that prompted this asked for "a haircut and also to dye my
+ * hair" and was booked as a colour alone — two hours in the diary for two and
+ * a half hours of work, and a cut the client was expecting that nobody had
+ * written down.
+ */
+describe("matchServices", () => {
+  const names = (spoken: string) =>
+    matchServices(spoken, SERVICES).matched.map((s) => s.name);
+
+  it("keeps a service whose own name contains a separator", () => {
+    // The whole reason the whole phrase is tried before anything is split.
+    expect(names("Cut and finish")).toEqual(["Cut and finish"]);
+    expect(names("cut and finish")).toEqual(["Cut and finish"]);
+    expect(names("a cut and finish please")).toEqual(["Cut and finish"]);
+  });
+
+  it("finds both services when the caller asks for two", () => {
+    expect(names("gents cut and balayage")).toEqual(["Gents cut", "Balayage"]);
+    expect(names("balayage and a fringe trim")).toEqual([
+      "Balayage",
+      "Fringe trim",
+    ]);
+  });
+
+  it("reads the separators people actually use", () => {
+    expect(names("gents cut, balayage")).toEqual(["Gents cut", "Balayage"]);
+    expect(names("gents cut + balayage")).toEqual(["Gents cut", "Balayage"]);
+    expect(names("gents cut & balayage")).toEqual(["Gents cut", "Balayage"]);
+    expect(names("gents cut plus balayage")).toEqual(["Gents cut", "Balayage"]);
+  });
+
+  it("rejoins a separator that belonged to a service name", () => {
+    // Splits into three fragments, of which the first two only mean anything
+    // put back together.
+    expect(names("cut and finish and balayage")).toEqual([
+      "Cut and finish",
+      "Balayage",
+    ]);
+  });
+
+  it("handles three", () => {
+    expect(names("fringe trim, gents cut and balayage")).toEqual([
+      "Fringe trim",
+      "Gents cut",
+      "Balayage",
+    ]);
+  });
+
+  it("books a service asked for twice only once", () => {
+    expect(names("balayage and balayage")).toEqual(["Balayage"]);
+  });
+
+  it("reports what it could not place rather than dropping it", () => {
+    const r = matchServices("gents cut and a hot stone massage", SERVICES);
+    expect(r.matched.map((s) => s.name)).toEqual(["Gents cut"]);
+    expect(r.unmatched).toEqual(["a hot stone massage"]);
+  });
+
+  it("returns nothing for nothing", () => {
+    expect(matchServices("", SERVICES).matched).toEqual([]);
+    expect(matchServices(undefined, SERVICES).matched).toEqual([]);
+  });
+});
+
+describe("combineServices", () => {
+  const combined = (spoken: string) =>
+    combineServices(matchServices(spoken, SERVICES).matched);
+
+  it("adds the times up", () => {
+    // Gents cut 30 + Balayage 180. Booking this as a colour alone loses the
+    // half hour the cut needs.
+    expect(combined("gents cut and balayage").durationMinutes).toBe(210);
+  });
+
+  it("leads with the longest, so the diary reads by the main job", () => {
+    expect(combined("gents cut and balayage").name).toBe("Balayage + Gents cut");
+  });
+
+  it("carries the patch-test rule in from any part", () => {
+    expect(combined("gents cut and balayage").requiresPatchTest).toBe(true);
+    expect(combined("gents cut and a fringe trim").requiresPatchTest).toBe(false);
+  });
+
+  it("leaves one tidy-up at the end rather than one per service", () => {
+    expect(combined("gents cut and balayage").bufferMinutes).toBe(15);
+  });
+
+  it("passes a single service through untouched", () => {
+    const one = combined("balayage");
+    expect(one.name).toBe("Balayage");
+    expect(one.durationMinutes).toBe(180);
+    expect(one.parts).toHaveLength(1);
+  });
+
+  it("adds prices up, but only when every part has one", () => {
+    const priced = parseServices([
+      { name: "Gents cut", durationMinutes: 30, requiresPatchTest: false, bufferMinutes: 0, priceMinor: 2500 },
+      { name: "Balayage", durationMinutes: 180, requiresPatchTest: true, bufferMinutes: 15, priceMinor: 12000 },
+      { name: "Fringe trim", durationMinutes: 15, requiresPatchTest: false, bufferMinutes: 0 },
+    ]);
+    const both = matchServices("gents cut and balayage", priced).matched;
+    expect(combineServices(both).priceMinor).toBe(14500);
+
+    // One unpriced part makes the total a guess, and a guess quoted as a
+    // total is worse than no total.
+    const withUnpriced = matchServices("balayage and a fringe trim", priced).matched;
+    expect(combineServices(withUnpriced).priceMinor).toBeNull();
+  });
+});
+
+describe("splitServiceText", () => {
+  it("reverses what combineServices wrote", () => {
+    const name = combineServices(
+      matchServices("gents cut and balayage", SERVICES).matched
+    ).name;
+    expect(splitServiceText(name)).toEqual(["Balayage", "Gents cut"]);
+  });
+
+  it("returns a single name unchanged", () => {
+    expect(splitServiceText("Balayage")).toEqual(["Balayage"]);
+    expect(splitServiceText("")).toEqual([]);
+  });
+});
+
+describe("resolveBookedService", () => {
+  it("resolves what it fully understands", () => {
+    const r = resolveBookedService("gents cut and balayage", SERVICES);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.service.durationMinutes).toBe(210);
+  });
+
+  it("refuses a request it only half understands", () => {
+    // Booking the half it recognised is exactly the bug being fixed.
+    const r = resolveBookedService("balayage and a hot stone massage", SERVICES);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.matched.map((s) => s.name)).toEqual(["Balayage"]);
+      expect(r.unmatched).toEqual(["a hot stone massage"]);
+    }
+  });
+
+  it("refuses what it does not recognise at all", () => {
+    const r = resolveBookedService("a hot stone massage", SERVICES);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.matched).toEqual([]);
+  });
+});
+
+/**
+ * The live call this was written for.
+ *
+ * The caller asked for "a haircut and also to dye my hair". The agent sent
+ * `service: "full head colour"` and the diary got a two hour colour with no
+ * cut in it — a stylist half an hour short, and a client expecting work
+ * nobody had written down.
+ */
+describe("the booking that went wrong", () => {
+  const SHOGO = parseServices([
+    { name: "Haircut", durationMinutes: 45, requiresPatchTest: false, bufferMinutes: 0, priceMinor: 4500 },
+    { name: "Full head colour", durationMinutes: 120, requiresPatchTest: true, bufferMinutes: 15, priceMinor: 9500 },
+    { name: "Blow dry", durationMinutes: 30, requiresPatchTest: false, bufferMinutes: 0, priceMinor: 3000 },
+  ]);
+
+  it("books both, however the caller ordered them", () => {
+    for (const spoken of [
+      "haircut and full head colour",
+      "full head colour and haircut",
+      "haircut, full head colour",
+    ]) {
+      const r = resolveBookedService(spoken, SHOGO);
+      expect(r.ok, spoken).toBe(true);
+      if (!r.ok) continue;
+      expect(r.service.durationMinutes, spoken).toBe(165);
+      expect(r.service.name, spoken).toBe("Full head colour + Haircut");
+      expect(r.service.requiresPatchTest, spoken).toBe(true);
+      expect(r.service.priceMinor, spoken).toBe(14000);
+    }
+  });
+
+  it("asks rather than booking half, when half is all it can name", () => {
+    // The model is meant to turn "dye my hair" into a service name. If it
+    // sends the raw phrase instead, the caller must be asked — not given a
+    // haircut and nothing else.
+    const r = resolveBookedService("haircut and also to dye my hair", SHOGO);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.matched.map((s) => s.name)).toEqual(["Haircut"]);
+      expect(r.unmatched).toEqual(["to dye my hair"]);
+    }
   });
 });

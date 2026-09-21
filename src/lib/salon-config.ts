@@ -172,6 +172,164 @@ function tokens(s: string): string[] {
 }
 
 /**
+ * Several services booked back to back as one appointment.
+ *
+ * Shaped like a `SalonService` so that every call site reading `name`,
+ * `durationMinutes` or `requiresPatchTest` keeps working unchanged — the
+ * combination is just a service whose length is the sum of its parts.
+ */
+export interface CombinedService extends SalonService {
+  parts: SalonService[];
+}
+
+/** How a combined service reads in the diary, and how it is split back up. */
+export const SERVICE_JOINER = " + ";
+
+// What a caller puts between two services. `and` is in here and is also a
+// service-name word, which is why a run of fragments that match nothing on
+// their own is joined back up: "Cut and finish" is one service, not two.
+// Deliberately not global — a /g regex carries lastIndex between .test()
+// calls and would match every other time.
+const SERVICE_SEPARATORS = /\s*(?:,|\+|&|\/|\band\b|\bplus\b|\balso\b)\s*/i;
+
+/** Split a stored `serviceText` back into the names that made it. */
+export function splitServiceText(text: string): string[] {
+  return String(text ?? "")
+    .split(SERVICE_JOINER)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Resolve spoken text to every service it names.
+ *
+ * A caller who asks for "a haircut and to dye my hair" wants two things, and
+ * booking only one of them is how a stylist ends up with a two hour slot for
+ * two and a half hours of work — the client arrives expecting a cut that was
+ * never in the diary.
+ *
+ * Unmatched fragments are returned rather than dropped. Quietly discarding the
+ * half it did not understand is the bug this function exists to prevent.
+ */
+export function matchServices(
+  spoken: string | undefined,
+  services: SalonService[]
+): { matched: SalonService[]; unmatched: string[] } {
+  const raw = (spoken ?? "").trim();
+  if (!raw) return { matched: [], unmatched: [] };
+
+  // Nothing to split: the ordinary single-service path, unchanged.
+  if (!SERVICE_SEPARATORS.test(raw)) {
+    const only = matchService(raw, services);
+    return only ? { matched: [only], unmatched: [] } : { matched: [], unmatched: [raw] };
+  }
+
+  const fragments = raw
+    .split(SERVICE_SEPARATORS)
+    .map((f) => f.trim())
+    .filter(Boolean);
+
+  // Each fragment on its own first.
+  //
+  // The tempting shortcut — try the whole phrase, and split only if that
+  // fails — does not work, because `matchService` will happily match "balayage
+  // and a hot stone massage" to Balayage on a subset of its words. That
+  // silently swallows the half it did not understand, which is the exact bug
+  // this function exists to prevent.
+  const hits = fragments.map((f) => matchService(f, services));
+
+  const matched: SalonService[] = [];
+  const unmatched: string[] = [];
+
+  let i = 0;
+  while (i < fragments.length) {
+    if (hits[i]) {
+      // "a cut, and a cut" is one cut. Said twice is not booked twice.
+      const found = hits[i] as SalonService;
+      if (!matched.some((m) => m.name === found.name)) matched.push(found);
+      i++;
+      continue;
+    }
+
+    // A run of fragments that mean nothing apart. This is a separator that
+    // belonged to a service name all along — "Cut and finish" splits into two
+    // halves, neither of which is a service.
+    let end = i;
+    while (end + 1 < fragments.length && !hits[end + 1]) end++;
+
+    let joined: SalonService | null = null;
+    let through = i;
+    for (let j = end + 1; j > i + 1; j--) {
+      const phrase = fragments.slice(i, j).join(" and ");
+      const found = matchService(phrase, services);
+      if (found) {
+        joined = found;
+        through = j - 1;
+        break;
+      }
+    }
+
+    if (joined) {
+      if (!matched.some((m) => m.name === joined.name)) matched.push(joined);
+      i = through + 1;
+      continue;
+    }
+
+    unmatched.push(fragments.slice(i, end + 1).join(" and "));
+    i = end + 1;
+  }
+
+  return { matched, unmatched };
+}
+
+/** Fold several services into the one appointment they will be booked as. */
+export function combineServices(parts: SalonService[]): CombinedService {
+  if (parts.length === 1) return { ...parts[0], parts: [parts[0]] };
+
+  // Longest first, so the diary label leads with the main job and the colour
+  // coding follows the work that fills most of the slot.
+  const ordered = [...parts].sort(
+    (a, b) => b.durationMinutes - a.durationMinutes
+  );
+
+  return {
+    name: ordered.map((p) => p.name).join(SERVICE_JOINER),
+    // Back to back in one slot, so the times add up.
+    durationMinutes: ordered.reduce((n, p) => n + p.durationMinutes, 0),
+    // One tidy-up at the end of the appointment, not one per service.
+    bufferMinutes: Math.max(...ordered.map((p) => p.bufferMinutes)),
+    // Any colour in the mix brings its patch-test rule with it.
+    requiresPatchTest: ordered.some((p) => p.requiresPatchTest),
+    // A total is only a total when every part of it has a price. Adding up
+    // the ones that do would quote the caller less than the appointment costs.
+    priceMinor: ordered.every((p) => p.priceMinor !== null)
+      ? ordered.reduce((n, p) => n + (p.priceMinor ?? 0), 0)
+      : null,
+    parts: ordered,
+  };
+}
+
+/**
+ * Resolve spoken text to the single service an appointment will be booked as,
+ * or say what could not be understood.
+ *
+ * Shared by availability, booking and rescheduling so the three cannot come to
+ * different conclusions about how long the same request takes.
+ */
+export function resolveBookedService(
+  spoken: string | undefined,
+  services: SalonService[]
+):
+  | { ok: true; service: CombinedService }
+  | { ok: false; matched: SalonService[]; unmatched: string[] } {
+  const { matched, unmatched } = matchServices(spoken, services);
+  if (matched.length === 0 || unmatched.length > 0) {
+    return { ok: false, matched, unmatched };
+  }
+  return { ok: true, service: combineServices(matched) };
+}
+
+/**
  * Resolve spoken text to a configured service.
  *
  * Exact match, then containment either way, then best token overlap — but a
