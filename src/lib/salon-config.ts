@@ -185,12 +185,23 @@ export interface CombinedService extends SalonService {
 /** How a combined service reads in the diary, and how it is split back up. */
 export const SERVICE_JOINER = " + ";
 
-// What a caller puts between two services. `and` is in here and is also a
-// service-name word, which is why a run of fragments that match nothing on
-// their own is joined back up: "Cut and finish" is one service, not two.
-// Deliberately not global — a /g regex carries lastIndex between .test()
-// calls and would match every other time.
-const SERVICE_SEPARATORS = /\s*(?:,|\+|&|\/|\band\b|\bplus\b|\balso\b)\s*/i;
+/**
+ * Words that turn up around a service name and are not themselves a service.
+ *
+ * Deliberately generous. A false "I did not understand that" sends the agent
+ * off asking a pointless question mid-call — which is exactly what the first
+ * version of this code did to a caller who asked for a cut and finish. A
+ * genuine second service is a noun phrase; a stray "for me" is not worth
+ * interrogating.
+ */
+const SERVICE_FILLER = new Set([
+  "a", "an", "and", "the", "of", "for", "with", "please", "my", "some",
+  "also", "plus", "just", "only", "want", "wants", "wanted", "would", "like",
+  "need", "needs", "get", "getting", "have", "having", "do", "doing", "book",
+  "booking", "appointment", "appointments", "session", "too", "as", "well",
+  "me", "i", "im", "thanks", "thank", "you", "to", "in", "on", "at", "it",
+  "that", "this", "then", "or", "can", "could",
+]);
 
 /** Split a stored `serviceText` back into the names that made it. */
 export function splitServiceText(text: string): string[] {
@@ -205,11 +216,19 @@ export function splitServiceText(text: string): string[] {
  *
  * A caller who asks for "a haircut and to dye my hair" wants two things, and
  * booking only one of them is how a stylist ends up with a two hour slot for
- * two and a half hours of work — the client arrives expecting a cut that was
- * never in the diary.
+ * two and a half hours of work.
  *
- * Unmatched fragments are returned rather than dropped. Quietly discarding the
- * half it did not understand is the bug this function exists to prevent.
+ * Done by scanning the phrase for service names, longest first, blanking each
+ * as it is found — not by splitting on "and" and matching the pieces. The
+ * splitting version shipped and was wrong within the hour: `matchService` is
+ * fuzzy, so "finish" alone resolves to "Cut and finish" while "cut" stays
+ * ambiguous, and the phrase "cut and finish" therefore came apart into one
+ * match and one complaint. A live caller was asked whether they wanted "a cut
+ * and finish, or just a cut". Scanning for whole names sidesteps the question:
+ * a service name either appears in the phrase or it does not.
+ *
+ * Unmatched words are returned rather than dropped, so the caller can be asked
+ * about the half that was not understood.
  */
 export function matchServices(
   spoken: string | undefined,
@@ -218,68 +237,48 @@ export function matchServices(
   const raw = (spoken ?? "").trim();
   if (!raw) return { matched: [], unmatched: [] };
 
-  // Nothing to split: the ordinary single-service path, unchanged.
-  if (!SERVICE_SEPARATORS.test(raw)) {
-    const only = matchService(raw, services);
-    return only ? { matched: [only], unmatched: [] } : { matched: [], unmatched: [raw] };
-  }
+  // Longest name first, so "Cut and finish" claims its words before "Gents
+  // cut" can match the "cut" sitting inside them.
+  const byLength = [...services]
+    .map((s) => ({ service: s, key: normalise(s.name) }))
+    .filter((e) => e.key.length > 0)
+    .sort((a, b) => b.key.length - a.key.length);
 
-  const fragments = raw
-    .split(SERVICE_SEPARATORS)
-    .map((f) => f.trim())
-    .filter(Boolean);
-
-  // Each fragment on its own first.
-  //
-  // The tempting shortcut — try the whole phrase, and split only if that
-  // fails — does not work, because `matchService` will happily match "balayage
-  // and a hot stone massage" to Balayage on a subset of its words. That
-  // silently swallows the half it did not understand, which is the exact bug
-  // this function exists to prevent.
-  const hits = fragments.map((f) => matchService(f, services));
-
+  // Padded at both ends so ` ${name} ` gives whole-word matching without a
+  // regex — "cut" must not match inside "haircut".
+  let remaining = ` ${normalise(raw)} `;
   const matched: SalonService[] = [];
-  const unmatched: string[] = [];
 
-  let i = 0;
-  while (i < fragments.length) {
-    if (hits[i]) {
-      // "a cut, and a cut" is one cut. Said twice is not booked twice.
-      const found = hits[i] as SalonService;
-      if (!matched.some((m) => m.name === found.name)) matched.push(found);
-      i++;
-      continue;
+  for (const { service, key } of byLength) {
+    let at = remaining.indexOf(` ${key} `);
+    if (at === -1) continue;
+    matched.push(service);
+    // Blank every occurrence, so a service said twice is booked once and its
+    // words cannot be read back as something left over.
+    while (at !== -1) {
+      remaining =
+        remaining.slice(0, at + 1) + remaining.slice(at + 1 + key.length);
+      at = remaining.indexOf(` ${key} `);
     }
-
-    // A run of fragments that mean nothing apart. This is a separator that
-    // belonged to a service name all along — "Cut and finish" splits into two
-    // halves, neither of which is a service.
-    let end = i;
-    while (end + 1 < fragments.length && !hits[end + 1]) end++;
-
-    let joined: SalonService | null = null;
-    let through = i;
-    for (let j = end + 1; j > i + 1; j--) {
-      const phrase = fragments.slice(i, j).join(" and ");
-      const found = matchService(phrase, services);
-      if (found) {
-        joined = found;
-        through = j - 1;
-        break;
-      }
-    }
-
-    if (joined) {
-      if (!matched.some((m) => m.name === joined.name)) matched.push(joined);
-      i = through + 1;
-      continue;
-    }
-
-    unmatched.push(fragments.slice(i, end + 1).join(" and "));
-    i = end + 1;
   }
 
-  return { matched, unmatched };
+  if (matched.length === 0) {
+    // Nothing named outright. Fall back to the fuzzy single-service match, so
+    // "highlights" and the like behave exactly as they always did.
+    const fuzzy = matchService(raw, services);
+    return fuzzy
+      ? { matched: [fuzzy], unmatched: [] }
+      : { matched: [], unmatched: [raw] };
+  }
+
+  const leftover = normalise(remaining)
+    .split(" ")
+    .filter((t) => t && !SERVICE_FILLER.has(t));
+
+  return {
+    matched,
+    unmatched: leftover.length > 0 ? [leftover.join(" ")] : [],
+  };
 }
 
 /** Fold several services into the one appointment they will be booked as. */

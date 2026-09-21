@@ -97,10 +97,18 @@ export async function POST(req: NextRequest) {
     }
 
     // The caller's own number is a fact about the call, not something the
-    // model can know — it never sees the caller ID. `callerNumber` was a tool
-    // parameter nothing could ever fill, so the fallback behind it never ran.
-    // Injected from the payload instead, and it overrides: a model asked for
-    // a number it cannot see will invent one rather than leave it out.
+    // model can know — it never sees the caller ID. Injected from the payload
+    // here, and it overrides: a model asked for a number it cannot see will
+    // invent one rather than leave it out.
+    //
+    // NOTE: this only helps Function/Server tools, which send the full
+    // envelope. The live Shogo assistant uses "API Request" tools, which post
+    // a flat body to `[org]/[name]/route.ts` with no call object in it at all
+    // — see that file's header. For those, `callerNumber` has to be mapped to
+    // the caller's number in each tool's body template in the Vapi console,
+    // and a tool that omits it gets nothing. That is a real trap: it is
+    // configured per tool, so `book_appointment` can have it while
+    // `save_customer_details` does not, and only the second one fails.
     const callerNumber = callerNumberFromVapiPayload(body);
     if (callerNumber) parameters = { ...parameters, callerNumber };
 

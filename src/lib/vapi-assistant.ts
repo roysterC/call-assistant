@@ -536,6 +536,32 @@ is where the confirmation text goes.
 The same goes for every other detail you are told: a date, a service, a
 stylist. If you did not hear it, say so. Guessing is worse than asking twice.`;
 
+/**
+ * How a call ends.
+ *
+ * The end-call tool is configured in the Vapi console and is not in
+ * `buildVoiceTools`, so nothing here can stop the model reaching for it. On
+ * the call this was written for it called that tool 1.02 seconds after the
+ * caller said "That's correct" — no goodbye, no "anything else?", just the
+ * line going dead. `endedReason` was `assistant-ended-call`, so the agent did
+ * that deliberately.
+ *
+ * A caller who answers a question and hears silence assumes the call dropped,
+ * and rings back.
+ */
+export const CALL_CLOSING_RULES = `# Ending the call
+
+**Never hang up without saying goodbye.** Before you end a call:
+
+1. Make sure everything is actually settled — the booking is confirmed, the
+   time is right, and they have heard their number read back.
+2. Ask whether there is anything else they need.
+3. Say goodbye properly, and mention when you will see them:
+   *"Thanks for calling — see you Wednesday at one."*
+
+Only then end the call. Answering someone's last question and cutting the line
+is how a caller decides something went wrong and rings the salon back.`;
+
 export interface ComposedPrompt {
   prompt: string;
   toolNames: string[];
@@ -562,6 +588,7 @@ export function composeVoicePrompt(
   const sections = [
     buildAvailabilityStance(caps),
     CALLER_IDENTITY_RULES,
+    CALL_CLOSING_RULES,
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
     `# Services\n\n${describeServicesForPrompt(cfg.services)}`,
     `# The team\n\n${describeTeamForPrompt(cfg.stylists, cfg.services)}`,
