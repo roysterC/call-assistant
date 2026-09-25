@@ -27,6 +27,11 @@ import {
 } from "@/components/calendar/day-grid";
 import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
 import {
+  EditBookingDialog,
+  MoveConfirmDialog,
+  type PendingMove,
+} from "@/components/calendar/edit-booking-dialog";
+import {
   BlockTimeDialog,
   type BlockDialogState,
 } from "@/components/calendar/block-time-dialog";
@@ -163,6 +168,8 @@ export default function CalendarPage() {
     new Map()
   );
   const [blockDialog, setBlockDialog] = useState<BlockDialogState | null>(null);
+  const [editing, setEditing] = useState<CalendarAppointment | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
   const [slot, setSlot] = useState<BookingSlot | null>(null);
   const [openAppointment, setOpenAppointment] =
@@ -381,6 +388,9 @@ export default function CalendarPage() {
               setSlot({ stylistName, time, date: selected })
             }
             onOpenAppointment={setOpenAppointment}
+            onMoveAppointment={(appointment, stylistName, time) =>
+              setPendingMove({ appointment, stylistName, time, date: selected })
+            }
             blocks={blocks}
             onOpenBlock={(b) => {
               const record = blockRecords.get(b.blockId);
@@ -438,6 +448,10 @@ export default function CalendarPage() {
         tones={tones}
         listPriceMinor={listPriceFor(openAppointment?.serviceText, services)}
         onClose={() => setOpenAppointment(null)}
+        onEdit={() => {
+          setEditing(openAppointment);
+          setOpenAppointment(null);
+        }}
         onChanged={() => {
           loadDay();
           loadMonth();
@@ -462,6 +476,30 @@ export default function CalendarPage() {
             mode: "new",
             initial: newBlockForm(s.date, s.stylistName, s.time),
           });
+        }}
+      />
+
+      <EditBookingDialog
+        appointment={editing}
+        services={services}
+        stylists={stylists.map((s) => s.name)}
+        timeZone={timeZone}
+        dayAppointments={appointments}
+        dayBlocks={blocks}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          loadDay();
+          loadMonth();
+        }}
+      />
+
+      <MoveConfirmDialog
+        move={pendingMove}
+        timeZone={timeZone}
+        onClose={() => setPendingMove(null)}
+        onMoved={() => {
+          loadDay();
+          loadMonth();
         }}
       />
 

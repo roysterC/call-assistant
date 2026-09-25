@@ -240,54 +240,157 @@ export async function bookAppointment(
   return { ok: true, appointment };
 }
 
+/** What is needed of an appointment to move it. */
+export interface MovableAppointment {
+  id: string;
+  organizationId: string;
+  googleEventId: string | null;
+  googleCalendarId: string | null;
+  lead: { id: string; name: string | null; phone: string | null; email?: string | null };
+}
+
+export interface AppointmentMove {
+  startsAt: Date;
+  durationMinutes: number;
+  stylistName: string;
+  /** For the calendar event on a Google diary. */
+  serviceName: string;
+  /**
+   * Move onto another booking or into blocked time. Only the desk, which can
+   * see what it is doing; the phone never gets one.
+   */
+  allowOverlap?: boolean;
+}
+
 /**
- * Move an appointment on the native diary: check the new time is free of
- * everyone else's bookings (not of its own old slot, which it is leaving)
- * and move it, as one step under the same lock a booking takes.
+ * Move an appointment — new time, new stylist or new length — on whichever
+ * diary the salon is on. The desk and the phone both come through here, so a
+ * move means the same thing wherever it was made.
+ *
+ * On the native diary it is one locked check-and-update, checked against
+ * everyone else's bookings but not its own old slot, so moving 2pm to 2:30 is
+ * not refused for overlapping itself.
+ *
+ * On Google the new slot is booked BEFORE the old one is released: if the new
+ * time turned out to be taken, releasing first would leave the client with no
+ * appointment at all. If the old event cannot be removed the move still
+ * stands, and a line in the notes says so.
  */
-export async function moveInNativeDiary(
-  appointmentId: string,
-  organizationId: string,
-  move: { startsAt: Date; durationMinutes: number; stylistName: string },
+export async function moveAppointment(
+  provider: WritableProvider,
+  appt: MovableAppointment,
+  move: AppointmentMove,
   /** Anything else to change on the appointment in the same write. */
   data: Prisma.AppointmentUncheckedUpdateInput = {}
-): Promise<DiaryResult<{ id: string; startsAt: Date; endsAt: Date }>> {
-  const endsAt = new Date(move.startsAt.getTime() + move.durationMinutes * 60_000);
-  try {
-    const appointment = await prisma.$transaction(async (tx) => {
-      await lockStylist(tx, organizationId, move.stylistName);
-      const clash = await findClash(
-        tx,
-        organizationId,
-        move.stylistName,
-        move.startsAt,
-        endsAt,
-        appointmentId
-      );
-      if (clash) throw new SlotTaken(TAKEN);
-      const block = await findBlockClash(
-        tx,
-        organizationId,
-        move.stylistName,
-        move.startsAt,
-        endsAt
-      );
-      if (block) throw new SlotTaken(blockedReason(move.stylistName, block));
-      return tx.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          ...data,
-          startsAt: move.startsAt,
-          endsAt,
-          stylistName: move.stylistName,
-          durationMinutes: move.durationMinutes,
-        },
-        select: { id: true, startsAt: true, endsAt: true },
-      });
-    });
-    return { ok: true, appointment };
-  } catch (err) {
-    if (err instanceof SlotTaken) return { ok: false, conflict: true, reason: err.reason };
-    throw err;
+): Promise<
+  DiaryResult<{ id: string; startsAt: Date; endsAt: Date }> & {
+    /** False when a Google event for the old time could not be removed. */
+    oldCleared?: boolean;
   }
+> {
+  const { organizationId } = appt;
+  const endsAt = new Date(move.startsAt.getTime() + move.durationMinutes * 60_000);
+  const placed = {
+    startsAt: move.startsAt,
+    endsAt,
+    stylistName: move.stylistName,
+    durationMinutes: move.durationMinutes,
+  };
+
+  if (provider.id === "native") {
+    try {
+      const appointment = await prisma.$transaction(async (tx) => {
+        await lockStylist(tx, organizationId, move.stylistName);
+        if (!move.allowOverlap) {
+          const clash = await findClash(
+            tx,
+            organizationId,
+            move.stylistName,
+            move.startsAt,
+            endsAt,
+            appt.id
+          );
+          if (clash) throw new SlotTaken(TAKEN);
+          const block = await findBlockClash(
+            tx,
+            organizationId,
+            move.stylistName,
+            move.startsAt,
+            endsAt
+          );
+          if (block) throw new SlotTaken(blockedReason(move.stylistName, block));
+        }
+        return tx.appointment.update({
+          where: { id: appt.id },
+          data: { ...data, ...placed },
+          select: { id: true, startsAt: true, endsAt: true },
+        });
+      });
+      return { ok: true, appointment };
+    } catch (err) {
+      if (err instanceof SlotTaken) return { ok: false, conflict: true, reason: err.reason };
+      throw err;
+    }
+  }
+
+  if (!move.allowOverlap) {
+    const block = await findBlockClash(
+      prisma,
+      organizationId,
+      move.stylistName,
+      move.startsAt,
+      endsAt
+    );
+    if (block) {
+      return { ok: false, conflict: true, reason: blockedReason(move.stylistName, block) };
+    }
+  }
+
+  const written = await provider.createBooking({
+    organizationId,
+    startsAt: move.startsAt.toISOString(),
+    durationMinutes: move.durationMinutes,
+    serviceName: move.serviceName,
+    stylistName: move.stylistName,
+    clientName: appt.lead.name || appt.lead.phone || "Client",
+    clientPhone: appt.lead.phone ?? "",
+    clientEmail: appt.lead.email ?? null,
+    leadId: appt.lead.id,
+    allowOverlap: move.allowOverlap,
+  });
+  if (!written.ok) return written;
+
+  let oldCleared = true;
+  if (appt.googleEventId && provider.cancelBooking) {
+    try {
+      await provider.cancelBooking(
+        organizationId,
+        appt.googleEventId,
+        appt.googleCalendarId ?? undefined
+      );
+    } catch (err) {
+      oldCleared = false;
+      console.error("[DIARY] Releasing the old slot failed:", err);
+    }
+  }
+
+  const notes =
+    !oldCleared && typeof data.notes === "string"
+      ? `${data.notes} — OLD CALENDAR ENTRY NOT REMOVED, delete it by hand`
+      : data.notes;
+
+  const appointment = await prisma.appointment.update({
+    where: { id: appt.id },
+    data: {
+      ...data,
+      notes,
+      ...placed,
+      startsAt: new Date(written.startsAt),
+      endsAt: new Date(written.endsAt),
+      googleEventId: written.ref,
+      googleCalendarId: written.calendarId ?? null,
+    },
+    select: { id: true, startsAt: true, endsAt: true },
+  });
+  return { ok: true, appointment, oldCleared };
 }

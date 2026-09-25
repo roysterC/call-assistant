@@ -9,18 +9,20 @@
  * A stylist who is not working today is shaded and refuses clicks instead.
  */
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   closedBands,
   hourMarks,
   isOnDate,
   layoutColumn,
+  minutesOfDay,
   rowFromOffset,
   spanGeometry,
   quarterMarks,
   timeOfRow,
   HOUR_HEIGHT_PX,
+  ROW_COUNT,
   OVERBOOK_GUTTER_PX,
   SLOT_MINUTES,
   WINDOW_END_HOUR,
@@ -43,7 +45,17 @@ export interface CalendarAppointment {
   source: string;
   patchTestRequired: boolean;
   amountMinor: number | null;
-  lead: { name: string | null; phone: string | null };
+  clientType: string;
+  notes: string | null;
+  lead: {
+    id: string;
+    name: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    email: string | null;
+    notes: string | null;
+  };
 }
 
 /** A stretch of blocked time as the diary fetch returns it. */
@@ -82,6 +94,21 @@ interface DayGridProps {
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
   onOpenBlock: (block: DiaryBlock) => void;
+  /**
+   * A booking was dragged to a stylist and time. Asks, never moves: the page
+   * confirms before anything changes. Absent, bookings cannot be dragged.
+   */
+  onMoveAppointment?: (
+    appointment: CalendarAppointment,
+    stylistName: string,
+    time: string
+  ) => void;
+}
+
+/** A booking being dragged, and where on it the pointer took hold. */
+interface Drag {
+  appointment: CalendarAppointment;
+  grabOffsetPx: number;
 }
 
 export function DayGrid({
@@ -97,7 +124,10 @@ export function DayGrid({
   onPickSlot,
   onOpenAppointment,
   onOpenBlock,
+  onMoveAppointment,
 }: DayGridProps) {
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const [dropAt, setDropAt] = useState<{ stylistName: string; row: number } | null>(null);
   const marks = hourMarks();
   const lines = quarterMarks();
   const shaded = closedBands(open);
@@ -171,6 +201,23 @@ export function DayGrid({
               onPickSlot={onPickSlot}
               onOpenAppointment={onOpenAppointment}
               onOpenBlock={onOpenBlock}
+              drag={onMoveAppointment ? drag : null}
+              dropRow={dropAt?.stylistName === s.name ? dropAt.row : null}
+              onDragStart={onMoveAppointment ? setDrag : undefined}
+              onDragHover={(row) =>
+                setDropAt(row === null ? null : { stylistName: s.name, row })
+              }
+              onDrop={(row) => {
+                if (drag && onMoveAppointment) {
+                  onMoveAppointment(drag.appointment, s.name, timeOfRow(row));
+                }
+                setDrag(null);
+                setDropAt(null);
+              }}
+              onDragEnd={() => {
+                setDrag(null);
+                setDropAt(null);
+              }}
             />
           ))}
         </div>
@@ -193,6 +240,12 @@ function StylistColumn({
   onPickSlot,
   onOpenAppointment,
   onOpenBlock,
+  drag,
+  dropRow,
+  onDragStart,
+  onDragHover,
+  onDrop,
+  onDragEnd,
 }: {
   stylist: CalendarStylist;
   timeZone: string;
@@ -207,6 +260,13 @@ function StylistColumn({
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
   onOpenBlock: (block: DiaryBlock) => void;
+  drag: Drag | null;
+  /** Where a dragged booking would land in this column, if over it. */
+  dropRow: number | null;
+  onDragStart?: (drag: Drag) => void;
+  onDragHover: (row: number | null) => void;
+  onDrop: (row: number) => void;
+  onDragEnd: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
@@ -229,6 +289,20 @@ function StylistColumn({
     timeZone
   );
 
+  /**
+   * The quarter-hour row the dragged booking's top edge is over, snapped to
+   * the nearest, or null where it may not go (the past, a day off).
+   */
+  const dropRowAt = (clientY: number): number | null => {
+    const el = ref.current;
+    if (!el || !drag || !bookable) return null;
+    const box = el.getBoundingClientRect();
+    const top = clientY - drag.grabOffsetPx - box.top;
+    const row = Math.min(Math.max(Math.round((top / box.height) * ROW_COUNT), 0), ROW_COUNT - 1);
+    if (nowMinutes !== null && WINDOW_START_MIN + row * SLOT_MINUTES < nowMinutes) return null;
+    return row;
+  };
+
   const pick = (clientY: number) => {
     const el = ref.current;
     if (!el || !bookable) return;
@@ -249,6 +323,22 @@ function StylistColumn({
     <div
       ref={ref}
       onClick={(e) => pick(e.clientY)}
+      onDragOver={(e) => {
+        const row = dropRowAt(e.clientY);
+        if (row === null) return onDragHover(null);
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (row !== dropRow) onDragHover(row);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onDragHover(null);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const row = dropRowAt(e.clientY);
+        if (row !== null) onDrop(row);
+        else onDragEnd();
+      }}
       className={cn(
         "flex-1 min-w-0 relative border-l border-border",
         bookable ? "cursor-copy" : "cursor-not-allowed"
@@ -326,13 +416,48 @@ function StylistColumn({
         );
       })}
 
+      {drag && dropRow !== null && (
+        <div
+          className="absolute inset-x-1 z-10 rounded-md border-2 border-dashed border-foreground/70 bg-foreground/5 pointer-events-none"
+          style={{
+            top: `${(dropRow / ROW_COUNT) * 100}%`,
+            height: `${(drag.appointment.durationMinutes / WINDOW_MINUTES) * 100}%`,
+          }}
+          aria-hidden="true"
+        >
+          <span className="block px-1.5 py-0.5 text-[11px] font-medium">
+            {timeOfRow(dropRow)}
+          </span>
+        </div>
+      )}
+
       {placed.map((b) => {
         const a = b.item;
         const tone = toneFor(a.serviceText, tones);
+        // Only a booking still to come can be moved; judged by the same
+        // "now" the grid greys the past with.
+        const draggable =
+          Boolean(onDragStart) &&
+          a.status === "booked" &&
+          !isPastDay &&
+          (nowMinutes === null ||
+            minutesOfDay(new Date(a.startsAt), timeZone) > nowMinutes);
         return (
           <button
             key={a.id}
             type="button"
+            draggable={draggable}
+            onDragStart={(e) => {
+              if (!onDragStart) return;
+              e.dataTransfer.effectAllowed = "move";
+              // Firefox will not start a drag without some data.
+              e.dataTransfer.setData("text/plain", a.id);
+              onDragStart({
+                appointment: a,
+                grabOffsetPx: e.clientY - e.currentTarget.getBoundingClientRect().top,
+              });
+            }}
+            onDragEnd={onDragEnd}
             onClick={(e) => {
               e.stopPropagation();
               onOpenAppointment(a);

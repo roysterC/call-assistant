@@ -4,9 +4,9 @@ import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { getBookingProvider, getSalonConfig } from "@/lib/booking";
 import { canCreateBooking } from "@/lib/booking/types";
 import {
-  combineServices,
   matchService,
   matchStylist,
+  servicesPicked,
   type SalonService,
 } from "@/lib/salon-config";
 import { bookAppointment } from "@/lib/booking/diary";
@@ -211,27 +211,16 @@ export async function POST(req: NextRequest) {
     // a desk booking blocks the same amount of chair time. An override is
     // allowed because the person at the desk can see the client's hair and
     // the catalogue cannot.
-    //
-    // The desk picks services from the catalogue by name, so each one must be
-    // there exactly: fuzzy matching is for what a caller says, not for a value
-    // chosen from a list, where a near miss means the list and the catalogue
-    // have drifted and guessing would book the wrong length.
     let service: SalonService | null;
     if (pickedNames.length > 0) {
-      const parts: SalonService[] = [];
-      for (const name of pickedNames) {
-        const found = cfg.services.find(
-          (s) => s.name.toLowerCase() === name.trim().toLowerCase()
+      const picked = servicesPicked(pickedNames, cfg.services);
+      if (!picked.ok) {
+        return NextResponse.json(
+          { error: `"${picked.missing}" is not on the service list.` },
+          { status: 400 }
         );
-        if (!found) {
-          return NextResponse.json(
-            { error: `"${name}" is not on the service list.` },
-            { status: 400 }
-          );
-        }
-        parts.push(found);
       }
-      service = combineServices(parts);
+      service = picked.service;
     } else {
       service = matchService(serviceText, cfg.services);
     }
