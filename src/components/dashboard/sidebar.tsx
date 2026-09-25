@@ -21,6 +21,7 @@ import {
   TrendingUp,
   CalendarDays,
   Receipt,
+  FlaskConical,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -39,6 +40,8 @@ const navItems: Array<{
   label: string;
   icon: typeof LayoutDashboard;
   requires?: FeatureKey | FeatureKey[];
+  /** Owners and super-admins only: it acts on the real diary. */
+  ownerOnly?: boolean;
 }> = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/calls", label: "Call History", icon: Phone, requires: "voice" },
@@ -74,6 +77,13 @@ const navItems: Array<{
     label: "Callbacks",
     icon: CalendarClock,
     requires: "voice",
+  },
+  {
+    href: "/receptionist",
+    label: "Receptionist lab",
+    icon: FlaskConical,
+    requires: "voice",
+    ownerOnly: true,
   },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -236,7 +246,10 @@ export function Sidebar({
           .filter((item) =>
             // A stylist login's pages are the diary, their bookings and, if
             // allowed, their own takings — whatever the salon has switched on.
-            me?.stylist ? stylistMayVisit(me, item.href) : isNavVisible(item, features)
+            me?.stylist
+              ? stylistMayVisit(me, item.href)
+              : isNavVisible(item, features) &&
+                (!item.ownerOnly || user?.role === "admin" || user?.role === "superAdmin")
           )
           .map((item) => {
             const isActive = pathname === item.href;
