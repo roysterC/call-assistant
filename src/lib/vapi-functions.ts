@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { createNumberedAppointment } from "@/lib/booking-number";
+import { bookAppointment, moveInNativeDiary } from "@/lib/booking/diary";
 import {
   canCreateBooking,
   canReadAvailability,
@@ -435,9 +435,12 @@ export async function handleBookCallback(
   // fails we still record it locally, because losing the lead is worse than
   // losing the diary entry. `book_appointment` takes the opposite view — see
   // handleBookAppointment.
+  //
+  // On the salon's own diary a callback is not written into it at all: it is
+  // a phone call, not a chair, and it lives in the callbacks list.
   let calendarEventId: string | null = null;
   const provider = await getBookingProvider(organizationId);
-  if (canCreateBooking(provider)) {
+  if (canCreateBooking(provider) && provider.id !== "native") {
     const written = await provider.createBooking({
       organizationId,
       startsAt: scheduledAt.toISOString(),
@@ -1185,18 +1188,33 @@ export async function handleBookAppointment(
     },
   });
 
-  const written = await provider.createBooking({
-    organizationId,
-    startsAt: startsAt.toISOString(),
-    durationMinutes: service.durationMinutes,
-    serviceName: service.name,
-    stylistName: stylist.name,
-    clientName: lead.name || speakablePhone(phone),
-    clientPhone: phone,
-    clientEmail: lead.email,
-    notes,
-    leadId: lead.id,
-  });
+  const written = await bookAppointment(
+    provider,
+    {
+      organizationId,
+      startsAt: startsAt.toISOString(),
+      durationMinutes: service.durationMinutes,
+      serviceName: service.name,
+      stylistName: stylist.name,
+      clientName: lead.name || speakablePhone(phone),
+      clientPhone: phone,
+      clientEmail: lead.email,
+      notes,
+      leadId: lead.id,
+    },
+    {
+      organizationId,
+      leadId: lead.id,
+      serviceText: service.name,
+      durationMinutes: service.durationMinutes,
+      stylistName: stylist.name,
+      clientType,
+      patchTestRequired:
+        service.requiresPatchTest && clientType !== "returning",
+      notes: notes || null,
+      source: "voice",
+    }
+  );
 
   if (!written.ok) {
     // No lying-true: the caller must not be told they are booked in. Fall
@@ -1229,22 +1247,7 @@ export async function handleBookAppointment(
     };
   }
 
-  const appointment = await createNumberedAppointment({
-    organizationId,
-    leadId: lead.id,
-    serviceText: service.name,
-    durationMinutes: service.durationMinutes,
-    stylistName: stylist.name,
-    startsAt: new Date(written.startsAt),
-    endsAt: new Date(written.endsAt),
-    googleEventId: written.ref,
-    googleCalendarId: written.calendarId ?? null,
-    clientType,
-    patchTestRequired:
-      service.requiresPatchTest && clientType !== "returning",
-    notes: notes || null,
-    source: "voice",
-  });
+  const { appointment } = written;
 
   // Confirmation text. Deliberately after the appointment is committed and
   // deliberately not awaited into the booking's success: the appointment is
@@ -1263,7 +1266,7 @@ export async function handleBookAppointment(
       clientName: lead.name,
       serviceName: service.name,
       stylistName: stylist.name,
-      whenText: describeAppointmentWhen(new Date(written.startsAt), cfg.timeZone),
+      whenText: describeAppointmentWhen(appointment.startsAt, cfg.timeZone),
       businessName: settings?.businessName ?? "the salon",
       contactPhone: settings?.contactPhone ?? null,
     })
@@ -1290,14 +1293,14 @@ export async function handleBookAppointment(
   return {
     success: true,
     today,
-    startsAt: written.startsAt,
+    startsAt: appointment.startsAt.toISOString(),
     stylist: stylist.name,
     service: service.name,
     textSent: sms.ok,
     usedCallerId: resolvedPhone.source === "callerId",
     message:
       `Booked: ${service.name} with ${stylist.name} at ` +
-      `${spokenTime(written.startsAt, cfg.timeZone)}. Confirm that back to the ` +
+      `${spokenTime(appointment.startsAt.toISOString(), cfg.timeZone)}. Confirm that back to the ` +
       (sms.ok
         ? "caller and let them know they will get a text confirming it."
         : "caller. Do NOT promise a text — one could not be sent.") +
@@ -1700,67 +1703,95 @@ export async function handleRescheduleAppointment(
     };
   }
 
-  // Book the new slot BEFORE releasing the old one. If this ordering were
-  // reversed and the new time turned out to be taken, the caller would be left
-  // with no appointment at all — having rung up to keep one.
-  const written = await provider.createBooking({
-    organizationId,
-    startsAt: startsAt.toISOString(),
-    durationMinutes: service.durationMinutes,
-    serviceName: service.name,
-    stylistName: stylist.name,
-    clientName: appt.lead.name || parsed.e164,
-    clientPhone: parsed.e164,
-    notes: `Moved from ${previousWhenText}`,
-    leadId: appt.lead.id,
+  const refused = (conflict: boolean) => ({
+    success: false,
+    conflict,
+    keptOriginal: true,
+    message: conflict
+      ? `That time is taken. Their original appointment ${previousWhenText} is untouched — offer another time.`
+      : `Could not move it. Their original appointment ${previousWhenText} still stands. Say the salon will ring to sort it.`,
   });
 
-  if (!written.ok) {
-    return {
-      success: false,
-      conflict: Boolean(written.conflict),
-      keptOriginal: true,
-      message: written.conflict
-        ? `That time is taken. Their original appointment ${previousWhenText} is untouched — offer another time.`
-        : `Could not move it. Their original appointment ${previousWhenText} still stands. Say the salon will ring to sort it.`,
-    };
-  }
-
-  // New slot secured; now release the old one.
+  let updated: { startsAt: Date };
   let oldCleared = true;
-  if (appt.googleEventId && provider.cancelBooking) {
-    try {
-      await provider.cancelBooking(
-        organizationId,
-        appt.googleEventId,
-        appt.googleCalendarId ?? undefined
-      );
-    } catch (err) {
-      oldCleared = false;
-      console.error("[VAPI FUNCTIONS] Releasing the old slot failed:", err);
-    }
-  }
-
-  const updated = await prisma.appointment.update({
-    where: { id: appt.id },
-    data: {
-      startsAt: new Date(written.startsAt),
-      endsAt: new Date(written.endsAt),
+  if (provider.id === "native") {
+    // On the salon's own diary the appointment simply moves: one locked
+    // check-and-update, checked against everyone else's bookings but not its
+    // own old slot, so moving 2pm to 2:30 is not refused for overlapping
+    // itself. It keeps the length it was booked at, which the desk may have
+    // set by hand.
+    const moved = await moveInNativeDiary(
+      appt.id,
+      organizationId,
+      {
+        startsAt,
+        durationMinutes: appt.durationMinutes,
+        stylistName: stylist.name,
+      },
+      {
+        // A reminder for the old date must not go out for the new one.
+        reminderSentAt: null,
+        reminderError: null,
+        notes: [appt.notes, `Moved from ${previousWhenText} by phone`]
+          .filter(Boolean)
+          .join("\n"),
+      }
+    );
+    if (!moved.ok) return refused(Boolean(moved.conflict));
+    updated = moved.appointment;
+  } else {
+    // Book the new slot BEFORE releasing the old one. If this ordering were
+    // reversed and the new time turned out to be taken, the caller would be
+    // left with no appointment at all — having rung up to keep one.
+    const written = await provider.createBooking({
+      organizationId,
+      startsAt: startsAt.toISOString(),
+      durationMinutes: service.durationMinutes,
+      serviceName: service.name,
       stylistName: stylist.name,
-      googleEventId: written.ref,
-      googleCalendarId: written.calendarId ?? null,
-      // A reminder for the old date must not go out for the new one.
-      reminderSentAt: null,
-      reminderError: null,
-      notes: [
-        appt.notes,
-        `Moved from ${previousWhenText} by phone` +
-          (oldCleared ? "" : " — OLD CALENDAR ENTRY NOT REMOVED, delete it by hand"),
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    },
-  });
+      clientName: appt.lead.name || parsed.e164,
+      clientPhone: parsed.e164,
+      notes: `Moved from ${previousWhenText}`,
+      leadId: appt.lead.id,
+    });
+
+    if (!written.ok) return refused(Boolean(written.conflict));
+
+    // New slot secured; now release the old one.
+    if (appt.googleEventId && provider.cancelBooking) {
+      try {
+        await provider.cancelBooking(
+          organizationId,
+          appt.googleEventId,
+          appt.googleCalendarId ?? undefined
+        );
+      } catch (err) {
+        oldCleared = false;
+        console.error("[VAPI FUNCTIONS] Releasing the old slot failed:", err);
+      }
+    }
+
+    updated = await prisma.appointment.update({
+      where: { id: appt.id },
+      data: {
+        startsAt: new Date(written.startsAt),
+        endsAt: new Date(written.endsAt),
+        stylistName: stylist.name,
+        googleEventId: written.ref,
+        googleCalendarId: written.calendarId ?? null,
+        // A reminder for the old date must not go out for the new one.
+        reminderSentAt: null,
+        reminderError: null,
+        notes: [
+          appt.notes,
+          `Moved from ${previousWhenText} by phone` +
+            (oldCleared ? "" : " — OLD CALENDAR ENTRY NOT REMOVED, delete it by hand"),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      },
+    });
+  }
 
   const whenText = describeAppointmentWhen(updated.startsAt, cfg.timeZone);
   const ctx = await orgMessageContext(organizationId);

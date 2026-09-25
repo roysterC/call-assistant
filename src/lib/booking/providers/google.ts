@@ -13,21 +13,9 @@
  */
 
 import { google, type calendar_v3 } from "googleapis";
-import type { BusinessHours } from "@/lib/business-hours";
-import {
-  matchService,
-  matchStylist,
-  stylistsForService,
-  type SalonService,
-  type Stylist,
-} from "@/lib/salon-config";
-import {
-  computeForwardSlots,
-  DEFAULT_SEARCH_DAYS,
-  type BusyBlock,
-  type StylistAvailability,
-} from "../availability";
-import { addCalendarDays } from "@/lib/business-hours";
+import { matchStylist, type Stylist } from "@/lib/salon-config";
+import type { BusyBlock } from "../availability";
+import { readAvailability, type DiaryConfig, type LoadBusy } from "./shared";
 import type {
   AvailabilityQuery,
   BookingProvider,
@@ -38,12 +26,7 @@ import type {
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 
-export interface GoogleProviderConfig {
-  timeZone: string;
-  hours: BusinessHours;
-  services: SalonService[];
-  stylists: Stylist[];
-}
+export type GoogleProviderConfig = DiaryConfig;
 
 export function googleCredentialsConfigured(): boolean {
   return Boolean(
@@ -138,41 +121,17 @@ async function fetchBusy(
 export function createGoogleProvider(
   cfg: GoogleProviderConfig
 ): BookingProvider {
-  async function candidatesFor(
-    service: SalonService,
-    stylistPreference: string | undefined,
-    dayStart: Date,
-    dayEnd: Date
-  ): Promise<StylistAvailability[]> {
-    let pool = stylistsForService(service, cfg.stylists);
-
-    const preferred = matchStylist(stylistPreference, cfg.stylists);
-    if (preferred) {
-      // Only if they actually do this service. This used to honour the name
-      // regardless, on the reasoning that "I always see Jo" matters more than
-      // a possibly-incomplete roster — which was right while the service
-      // lists were guesses, and wrong once a salon sets them deliberately.
-      // A colour specialist pinned to colour was still being booked for cuts.
-      //
-      // The handler checks this first and explains who does do it, so
-      // returning nothing here is a backstop rather than the caller's answer.
-      pool = pool.filter((s) => s.name === preferred.name);
-    }
-
-    const ids = pool
-      .map((s) => s.googleCalendarId)
-      .filter((id): id is string => Boolean(id));
+  /** Busy time from each stylist's calendar, in one free/busy request. */
+  const loadBusy: LoadBusy = async (pool, from, to) => {
+    const withCalendar = pool.filter((s) => s.googleCalendarId);
+    const ids = withCalendar.map((s) => s.googleCalendarId as string);
     if (ids.length === 0) return [];
-
-    const busyByCalendar = await fetchBusy(ids, dayStart, dayEnd);
-
-    return pool
-      .filter((s) => s.googleCalendarId)
-      .map((stylist) => ({
-        stylist,
-        busy: busyByCalendar.get(stylist.googleCalendarId as string) ?? [],
-      }));
-  }
+    const busyByCalendar = await fetchBusy(ids, from, to);
+    return withCalendar.map((stylist) => ({
+      stylist,
+      busy: busyByCalendar.get(stylist.googleCalendarId as string) ?? [],
+    }));
+  };
 
   return {
     id: "google",
@@ -188,45 +147,8 @@ export function createGoogleProvider(
       availabilityIsAdvisory: false,
     },
 
-    async getAvailability(q: AvailabilityQuery): Promise<TimeSlot[]> {
-      const service = matchService(q.serviceName, cfg.services);
-      if (!service) return [];
-
-      // Two weeks is the cap rather than the default: a search is only ever
-      // this wide when the caller asked for the soonest, and `freebusy` takes
-      // the whole range in one request regardless of its width.
-      const searchDays = Math.min(
-        Math.max(1, q.searchDays ?? 1),
-        DEFAULT_SEARCH_DAYS
-      );
-      const lastDate = addCalendarDays(q.date, searchDays - 1);
-
-      // Widen the free/busy window by a day either side so appointments that
-      // straddle midnight in the salon's timezone are still seen.
-      const timeMin = new Date(
-        new Date(`${q.date}T00:00:00Z`).getTime() - 24 * 60 * 60 * 1000
-      );
-      const timeMax = new Date(
-        new Date(`${lastDate}T00:00:00Z`).getTime() + 48 * 60 * 60 * 1000
-      );
-
-      const candidates = await candidatesFor(
-        service,
-        q.stylistName,
-        timeMin,
-        timeMax
-      );
-      if (candidates.length === 0) return [];
-
-      return computeForwardSlots({
-        fromDate: q.date,
-        searchDays,
-        timeZone: cfg.timeZone,
-        hours: cfg.hours,
-        service,
-        candidates,
-        clientType: q.clientType ?? "unknown",
-      });
+    getAvailability(q: AvailabilityQuery): Promise<TimeSlot[]> {
+      return readAvailability(cfg, q, loadBusy);
     },
 
     async createBooking(r: BookingWrite): Promise<BookingWriteResult> {

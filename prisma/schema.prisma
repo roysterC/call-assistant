@@ -110,6 +110,12 @@ model OrganizationSettings {
   // via the Vapi function call will also be booked as Cal.com events.
   calComApiKey            String?
   calComEventTypeId       String?
+  // Where the salon's diary lives. "native": our own appointments table is
+  // the diary — availability is read from it and a booking is the row itself,
+  // so no stylist needs an outside calendar. "google": each stylist's Google
+  // Calendar is the diary, as before; kept so a salon that runs its day in
+  // Google can stay there, and as the way back if native ever misbehaves.
+  diaryProvider           String       @default("native")
   // Salon diary. The booking provider is chosen from what is configured here:
   // Google calendar ids on teamMembers -> google; Cal.com creds -> calcom;
   // otherwise the manual provider, which cannot claim availability at all.

@@ -9,18 +9,17 @@ import {
   matchStylist,
   type SalonService,
 } from "@/lib/salon-config";
-import { createNumberedAppointment } from "@/lib/booking-number";
+import { bookAppointment } from "@/lib/booking/diary";
 import { normalisePhone } from "@/lib/phone";
 
 const VALID_STATUSES = ["booked", "cancelled", "completed", "no_show"];
 
 /**
- * Appointments the agent has booked.
+ * The salon's appointments.
  *
- * The diary itself lives in the provider (Google Calendar). This is our own
- * record of what was booked, so the dashboard can show overnight bookings
- * without calling Google on every page load, and so the salon still has a
- * record if an event is later edited or deleted there.
+ * On the salon's own diary (the default) these rows ARE the diary. On a
+ * Google diary they are our record of what was booked there, so the dashboard
+ * can show bookings without calling Google on every page load.
  */
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req);
@@ -155,12 +154,11 @@ export async function PATCH(req: NextRequest) {
 /**
  * Create a booking from the diary screen.
  *
- * Writes to the stylist's Google Calendar first, then records it here — the
- * same order and the same provider the voice agent uses. That order is not
- * incidental: availability is read from Google's freebusy, so a booking that
- * existed only in this database would be invisible to `check_availability`
- * and the agent would cheerfully offer the slot to the next caller. A desk
- * booking has to occupy the diary exactly as a phone booking does.
+ * Goes through `bookAppointment`, the same step the voice agent books with, so
+ * a desk booking occupies the diary exactly as a phone booking does and the
+ * agent will not offer the slot to the next caller. On the salon's own diary
+ * that step is the appointment row; on a Google diary it writes the calendar
+ * event first and records it here after.
  */
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req);
@@ -306,58 +304,57 @@ export async function POST(req: NextRequest) {
 
     const provider = await getBookingProvider(ctx.organizationId);
     if (!canCreateBooking(provider)) {
-      // Half-configured salon: no Google credentials, no stylist calendars,
-      // or no service durations. Saying so beats writing a record of a
-      // booking that no diary anywhere is holding.
+      // Half-configured salon: no team, no service durations or no opening
+      // hours (or, on a Google diary, no credentials or calendars). Saying so
+      // beats writing a record of a booking that no diary is holding.
       return NextResponse.json(
         { error: "This organisation is not set up to take bookings yet." },
         { status: 409 }
       );
     }
 
-    const written = await provider.createBooking({
-      organizationId: ctx.organizationId,
-      startsAt: start.toISOString(),
-      durationMinutes,
-      serviceName: service?.name ?? String(serviceText),
-      stylistName: stylist.name,
-      clientName: lead.name || "Walk-in",
-      clientPhone: phone ?? "",
-      clientEmail: lead.email,
-      notes,
-      leadId: lead.id,
-      // A booking taken at the desk is never refused for clashing. The salon
-      // can see the diary in front of them; overbooking is their call to make.
-      allowOverlap: true,
-    });
+    const booked = await bookAppointment(
+      provider,
+      {
+        organizationId: ctx.organizationId,
+        startsAt: start.toISOString(),
+        durationMinutes,
+        serviceName: service?.name ?? String(serviceText),
+        stylistName: stylist.name,
+        clientName: lead.name || "Walk-in",
+        clientPhone: phone ?? "",
+        clientEmail: lead.email,
+        notes,
+        leadId: lead.id,
+        // A booking taken at the desk is never refused for clashing. The
+        // salon can see the diary in front of them; overbooking is their
+        // call to make.
+        allowOverlap: true,
+      },
+      {
+        organizationId: ctx.organizationId,
+        leadId: lead.id,
+        serviceText: service?.name ?? String(serviceText),
+        durationMinutes,
+        stylistName: stylist.name,
+        clientType: String(clientType),
+        patchTestRequired:
+          Boolean(service?.requiresPatchTest) && clientType !== "returning",
+        notes: notes || null,
+        source: "manual",
+      }
+    );
 
-    if (!written.ok) {
-      // Say so rather than recording a booking the diary does not have.
-      // Clashes no longer reach here (allowOverlap), so anything left is a
-      // real failure to write — say so rather than recording a booking the
-      // diary is not holding.
+    if (!booked.ok) {
+      // Clashes do not reach here (allowOverlap), so anything left is a real
+      // failure to write — say so rather than recording a booking the diary
+      // is not holding.
       return NextResponse.json(
-        { error: `Could not write to the diary: ${written.reason}` },
+        { error: `Could not write to the diary: ${booked.reason}` },
         { status: 502 }
       );
     }
-
-    const appointment = await createNumberedAppointment({
-      organizationId: ctx.organizationId,
-      leadId: lead.id,
-      serviceText: service?.name ?? String(serviceText),
-      durationMinutes,
-      stylistName: stylist.name,
-      startsAt: new Date(written.startsAt),
-      endsAt: new Date(written.endsAt),
-      googleEventId: written.ref,
-      googleCalendarId: written.calendarId ?? null,
-      clientType: String(clientType),
-      patchTestRequired:
-        Boolean(service?.requiresPatchTest) && clientType !== "returning",
-      notes: notes || null,
-      source: "manual",
-    });
+    const { appointment } = booked;
 
     return NextResponse.json({ appointment }, { status: 201 });
   } catch (error) {

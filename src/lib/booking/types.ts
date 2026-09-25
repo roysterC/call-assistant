@@ -108,7 +108,7 @@ export interface BookingCapabilities {
 }
 
 export interface BookingProvider {
-  readonly id: "manual" | "calcom" | "google";
+  readonly id: "manual" | "calcom" | "google" | "native";
   readonly capabilities: BookingCapabilities;
   /** Present only when `capabilities.readAvailability`. */
   getAvailability?(q: AvailabilityQuery): Promise<TimeSlot[]>;
