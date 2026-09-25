@@ -63,15 +63,25 @@ async function main() {
     const url = new URL(req.url ?? "/", "http://voice.local");
     if (url.pathname !== "/voice/lab") return socket.destroy();
     const pass = verifyVoicePass(url.searchParams.get("token") ?? "", secret);
-    if (!pass) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      return socket.destroy();
-    }
     wss.handleUpgrade(req, socket, head, (ws) => {
+      // A refused pass is still answered over the socket, with the reason:
+      // a browser cannot read the status of a failed upgrade, so a bare 401
+      // only ever reached the page as "lost the connection".
+      if (!pass) {
+        const reason = secret
+          ? "The voice server refused the pass. The CRM and the voice server need the same RECEPTIONIST_VOICE_SECRET; restart both after changing it."
+          : "The voice server has no RECEPTIONIST_VOICE_SECRET. Add it to .env and restart call-assistant-voice.";
+        console.warn(`[VOICE] refused a pass: ${secret ? "did not verify" : "no secret set"}`);
+        sendJson(ws, { type: "error", message: reason });
+        return ws.close(4401, "pass refused");
+      }
       void runLabCall(ws, pass).catch((err) => {
         console.error("[VOICE] lab call failed:", err);
-        sendJson(ws, { type: "error", message: "The call could not start." });
-        ws.close();
+        sendJson(ws, {
+          type: "error",
+          message: `The call could not start: ${err instanceof Error ? err.message : String(err)}`,
+        });
+        ws.close(4500, "call failed");
       });
     });
   });
