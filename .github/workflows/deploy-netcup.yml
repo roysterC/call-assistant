@@ -169,4 +169,13 @@ jobs:
             echo "==> Post-deploy backfills"
             as_deploy 'npx tsx scripts/post-deploy.ts'
 
+            # The receptionist's voice server, once it has been installed (see
+            # README: "Voice server"). Skipped until then, and never fails the
+            # deploy: the CRM is already live by this point.
+            VOICE_SERVICE=call-assistant-voice
+            if systemctl cat "$VOICE_SERVICE" >/dev/null 2>&1; then
+              echo "==> Restarting $VOICE_SERVICE"
+              systemctl restart "$VOICE_SERVICE" || echo "WARNING: $VOICE_SERVICE did not restart" >&2
+            fi
+
             echo "==> Deploy complete: $(systemctl show -p ActiveState --value "$SERVICE")"

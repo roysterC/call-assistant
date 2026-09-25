@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-fetch";
+import { VoiceLab } from "@/components/receptionist/voice-lab";
 import { cn } from "@/lib/utils";
 
 type ToolRun = { name: string; input: Record<string, unknown>; result: unknown; isError: boolean };
@@ -38,6 +39,8 @@ const TOOL_LABEL: Record<string, string> = {
 
 export default function ReceptionistLabPage() {
   const [callerNumber, setCallerNumber] = useState("07700 900123");
+  // Typing tests what it says; talking tests how it sounds and how quickly.
+  const [mode, setMode] = useState<"type" | "talk">("type");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
@@ -134,7 +137,7 @@ export default function ReceptionistLabPage() {
     <div className="space-y-6">
       <PageHeader
         title="Receptionist lab"
-        description="Talk to our own receptionist by typing, the way a caller would speak."
+        description="Try our own receptionist by typing or by talking, the way a caller would."
       />
 
       <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -146,6 +149,42 @@ export default function ReceptionistLabPage() {
         </p>
       </div>
 
+      <div className="flex gap-1 rounded-lg bg-muted p-1 w-fit" role="tablist" aria-label="How to talk to it">
+        {(["type", "talk"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={mode === m}
+            disabled={Boolean(sessionId)}
+            onClick={() => setMode(m)}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50",
+              mode === m ? "bg-card text-foreground shadow-surface" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {m === "type" ? "Type" : "Talk"}
+          </button>
+        ))}
+      </div>
+
+      {mode === "talk" ? (
+        <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+          <VoiceLab callerNumber={callerNumber} />
+          <Card className="gap-3 h-fit">
+            <CardContent className="space-y-2">
+              <label className="grid gap-1.5">
+                <span className="text-xs text-muted-foreground">Calling from</span>
+                <Input value={callerNumber} onChange={(e) => setCallerNumber(e.target.value)} placeholder="Withheld" />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Pause when you have finished speaking; the receptionist answers after a short
+                silence. Talk over it to interrupt.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
         <Card className="py-0 gap-0 min-h-[60vh]">
           <div className="flex-1 overflow-y-auto px-4 py-5 space-y-3 max-h-[65vh]">
@@ -234,6 +273,7 @@ export default function ReceptionistLabPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
