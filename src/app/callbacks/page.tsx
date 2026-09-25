@@ -229,7 +229,7 @@ export default function CallbacksPage() {
                       {format(new Date(cb.scheduledAt), "d MMM, HH:mm")}
                       {cb.status === "pending" &&
                         new Date(cb.scheduledAt) < new Date() && (
-                          <span className="block text-[11px] text-amber-400">
+                          <span className="block text-[11px] text-amber-700">
                             Overdue
                           </span>
                         )}

@@ -11,7 +11,7 @@ const LAST_UPDATED = "24 April 2026";
 
 export default function TermsOfServicePage() {
   return (
-    <div className="min-h-screen bg-background text-slate-100 px-6 py-12">
+    <div className="min-h-screen bg-background text-foreground px-6 py-12">
       <article className="mx-auto max-w-3xl space-y-6">
         <header className="space-y-2 border-b border-border pb-6">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -54,7 +54,7 @@ export default function TermsOfServicePage() {
             of their organisation. End customers messaging those businesses do
             not hold accounts; their interaction is governed by our{" "}
             <Link
-              className="text-blue-400 hover:underline"
+              className="text-blue-600 hover:underline"
               href="/privacy-policy"
             >
               Privacy Policy
@@ -190,7 +190,7 @@ export default function TermsOfServicePage() {
           <p>
             Questions about these Terms:{" "}
             <a
-              className="text-blue-400 hover:underline"
+              className="text-blue-600 hover:underline"
               href="mailto:roy962002@hotmail.com"
             >
               roy962002@hotmail.com

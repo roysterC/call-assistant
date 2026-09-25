@@ -497,7 +497,7 @@ export default function ConversationsPage() {
             The channel row only appears when there is a choice to make.
           */}
           {visibleChannelTabs.length > 2 && (
-            <div className="flex gap-1 p-0.5 rounded-lg bg-background">
+            <div className="flex gap-1 p-0.5 rounded-lg bg-muted">
               {visibleChannelTabs.map((tab) => (
                 <button
                   key={tab.value}
@@ -627,7 +627,7 @@ export default function ConversationsPage() {
                     <div className="relative shrink-0">
                       <div
                         className={cn(
-                          "w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold",
+                          "w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold",
                           avatarColorFor(title)
                         )}
                       >
@@ -792,7 +792,7 @@ export default function ConversationsPage() {
                   }
                   aria-label="Reply to this conversation"
                   disabled={replying}
-                  className="flex-1 px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+                  className="flex-1 px-3 py-2 text-sm bg-card border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-3 focus:ring-ring/40 disabled:opacity-50"
                 />
                 <Button type="submit" size="sm" disabled={replying || !reply.trim()}>
                   {replying ? "Sending..." : "Send"}
@@ -825,7 +825,7 @@ export default function ConversationsPage() {
       {contactPanelOpen && contactPanelData && (
         <div className="xl:hidden fixed inset-0 z-50 flex">
           <button
-            className="flex-1 bg-black/60 backdrop-blur-sm"
+            className="flex-1 bg-slate-900/30 backdrop-blur-[2px]"
             onClick={() => setContactPanelOpen(false)}
             aria-label="Close contact panel"
           />

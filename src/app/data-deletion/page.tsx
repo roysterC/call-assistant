@@ -11,7 +11,7 @@ const LAST_UPDATED = "24 April 2026";
 
 export default function DataDeletionPage() {
   return (
-    <div className="min-h-screen bg-background text-slate-100 px-6 py-12">
+    <div className="min-h-screen bg-background text-foreground px-6 py-12">
       <article className="mx-auto max-w-3xl space-y-6">
         <header className="space-y-2 border-b border-border pb-6">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -47,7 +47,7 @@ export default function DataDeletionPage() {
             <li>
               Send an email to{" "}
               <a
-                className="text-blue-400 hover:underline"
+                className="text-blue-600 hover:underline"
                 href="mailto:roy962002@hotmail.com?subject=Data%20deletion%20request"
               >
                 roy962002@hotmail.com
@@ -144,7 +144,7 @@ export default function DataDeletionPage() {
             <li>
               WhatsApp / Instagram / Facebook:{" "}
               <a
-                className="text-blue-400 hover:underline"
+                className="text-blue-600 hover:underline"
                 href="https://www.facebook.com/help"
               >
                 Meta Help Centre
@@ -153,7 +153,7 @@ export default function DataDeletionPage() {
             <li>
               Anthropic:{" "}
               <a
-                className="text-blue-400 hover:underline"
+                className="text-blue-600 hover:underline"
                 href="https://support.anthropic.com/"
               >
                 support.anthropic.com
@@ -161,7 +161,7 @@ export default function DataDeletionPage() {
             </li>
             <li>
               Vapi:{" "}
-              <a className="text-blue-400 hover:underline" href="https://vapi.ai">
+              <a className="text-blue-600 hover:underline" href="https://vapi.ai">
                 vapi.ai
               </a>
             </li>
@@ -176,7 +176,7 @@ export default function DataDeletionPage() {
             Data deletion is one of several rights you have under UK/EU
             GDPR. For the full list, see our{" "}
             <Link
-              className="text-blue-400 hover:underline"
+              className="text-blue-600 hover:underline"
               href="/privacy-policy"
             >
               Privacy Policy
@@ -184,7 +184,7 @@ export default function DataDeletionPage() {
             . You may also lodge a complaint with the UK Information
             Commissioner&rsquo;s Office at{" "}
             <a
-              className="text-blue-400 hover:underline"
+              className="text-blue-600 hover:underline"
               href="https://ico.org.uk"
             >
               ico.org.uk

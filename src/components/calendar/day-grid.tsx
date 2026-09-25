@@ -138,12 +138,12 @@ export function DayGrid({
   const shaded = closedBands(open);
 
   return (
-    <div className="flex-1 min-w-0 min-h-0 overflow-auto rounded-md border border-border">
+    <div className="flex-1 min-w-0 min-h-0 overflow-auto rounded-xl border border-border bg-card shadow-surface">
       {/* min-width keeps columns readable; the container scrolls rather than
           letting four stylists squeeze into thumbnails on a laptop. One
           column (a phone) needs no such help. */}
       <div className={stylists.length > 1 ? "min-w-[560px]" : undefined}>
-        <div className="flex sticky top-0 z-20 bg-background border-b border-border">
+        <div className="flex sticky top-0 z-20 bg-card/95 backdrop-blur border-b border-border">
           <div className="w-14 shrink-0" />
           {stylists.map((s) => (
             <div
@@ -471,8 +471,8 @@ function StylistColumn({
             }}
             title={`${a.lead.name ?? "Client"} — ${a.serviceText}`}
             className={cn(
-              "absolute rounded-md border px-1.5 py-1 text-left overflow-hidden text-slate-100",
-              "text-[11px] leading-tight transition-shadow hover:shadow-md focus-visible:ring-2",
+              "absolute rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
+              "text-[11px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
               // Colour now carries the service, so status needs its own
               // channel rather than competing for the fill.
               a.status === "cancelled" && "opacity-50 line-through",
@@ -495,9 +495,9 @@ function StylistColumn({
             <span className="block font-semibold truncate">
               {a.lead.name ?? "Client"}
             </span>
-            <span className="block truncate opacity-90">{a.serviceText}</span>
+            <span className="block truncate text-foreground/70">{a.serviceText}</span>
             {a.patchTestRequired && (
-              <span className="block truncate opacity-90">patch test</span>
+              <span className="block truncate font-medium text-amber-800">patch test</span>
             )}
           </button>
         );

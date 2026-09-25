@@ -9,9 +9,11 @@
  * still reads as "mostly colour" from across the room.
  *
  * The four family hues were checked with the dataviz validator against the
- * dark chart surface: all four sit inside the L 0.48-0.67 band, clear the
- * chroma floor, hold a CVD separation of ΔE 19.1 at worst (deutan) and 25.5
- * for normal vision, and pass contrast. They are not eyeballed.
+ * old dark chart surface: all four sit inside the L 0.48-0.67 band, clear the
+ * chroma floor, and hold a CVD separation of ΔE 19.1 at worst (deutan) and
+ * 25.5 for normal vision. They are not eyeballed. On the light theme the
+ * block text is the dark foreground over an 18% tint, and the hue is carried
+ * by a 3px leading edge at 70%, so the separation still does the work.
  *
  * Emitted as inline styles rather than Tailwind classes on purpose: the
  * service list comes from settings at runtime, and as the note in

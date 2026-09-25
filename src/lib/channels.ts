@@ -45,7 +45,7 @@ export const CHANNEL_META: Record<Channel, ChannelMeta> = {
 };
 
 /**
- * Get a stable colour class for an avatar background based on a name
+ * Get stable avatar colour classes (fill and text) based on a name
  * or identifier. Same string always produces the same colour.
  */
 export function avatarColorFor(seed: string): string {
@@ -53,15 +53,18 @@ export function avatarColorFor(seed: string): string {
   for (let i = 0; i < seed.length; i++) {
     hash = seed.charCodeAt(i) + ((hash << 5) - hash);
   }
+  // Soft tint with a strong initial, rather than a saturated disc with white
+  // text: a page of forty leads in solid colour reads as confetti on a light
+  // background. Each pair clears 4.5:1.
   const colors = [
-    "bg-blue-600",
-    "bg-emerald-600",
-    "bg-purple-600",
-    "bg-amber-600",
-    "bg-rose-600",
-    "bg-cyan-600",
-    "bg-indigo-600",
-    "bg-orange-600",
+    "bg-blue-100 text-blue-700",
+    "bg-emerald-100 text-emerald-700",
+    "bg-violet-100 text-violet-700",
+    "bg-amber-100 text-amber-800",
+    "bg-rose-100 text-rose-700",
+    "bg-cyan-100 text-cyan-800",
+    "bg-indigo-100 text-indigo-700",
+    "bg-orange-100 text-orange-800",
   ];
   return colors[Math.abs(hash) % colors.length];
 }

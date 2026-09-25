@@ -81,7 +81,7 @@ export function ContactPanel({
         ) : (
           <div
             className={cn(
-              "w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-semibold mb-3",
+              "w-16 h-16 rounded-full flex items-center justify-center text-xl font-semibold mb-3",
               avatarColor
             )}
           >
@@ -114,7 +114,7 @@ export function ContactPanel({
               className={cn(
                 "w-4 h-4",
                 conversation.starred
-                  ? "text-amber-500 fill-amber-500"
+                  ? "text-amber-600 fill-amber-500"
                   : "text-muted-foreground"
               )}
             />

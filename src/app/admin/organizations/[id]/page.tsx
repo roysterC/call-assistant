@@ -456,7 +456,7 @@ export default function OrganizationDetailPage() {
         <span>{plural(org._count.leads, "lead")}</span>
         <span>{plural(org._count.calls, "call")}</span>
         <span>{plural(org._count.websites, "site")}</span>
-        <span className={org.enabled ? "text-emerald-400" : "text-red-400"}>
+        <span className={org.enabled ? "text-emerald-700" : "text-red-600"}>
           {org.enabled ? "Enabled" : "Disabled"}
         </span>
       </p>
@@ -593,7 +593,7 @@ export default function OrganizationDetailPage() {
                 href="https://developers.facebook.com/docs/messenger-platform/instagram/"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-400 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Instagram Messaging setup docs
@@ -664,7 +664,7 @@ export default function OrganizationDetailPage() {
                 href="https://developers.facebook.com/docs/messenger-platform/webhooks/"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-400 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Messenger webhook setup docs
@@ -736,7 +736,7 @@ export default function OrganizationDetailPage() {
                 href="https://dashboard.vapi.ai"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-400 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Open Vapi dashboard
@@ -744,7 +744,7 @@ export default function OrganizationDetailPage() {
 
               {/* Cal.com integration — books an event when the voice agent
                   creates a callback. Optional; leave blank to skip. */}
-              <div className="mt-4 pt-4 border-t border-slate-800">
+              <div className="mt-4 pt-4 border-t border-border">
                 <label className="text-sm font-medium">
                   Cal.com booking (optional)
                 </label>
@@ -757,7 +757,7 @@ export default function OrganizationDetailPage() {
                   href="https://app.cal.com/settings/developer/api-keys"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-blue-400 hover:underline inline-flex items-center gap-1 mt-2"
+                  className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
                 >
                   <ExternalLink className="w-3 h-3" />
                   Get a Cal.com API key
@@ -927,8 +927,8 @@ export default function OrganizationDetailPage() {
                         className={cn(
                           STATUS_BADGE,
                           w.enabled
-                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                            : "bg-red-500/15 text-red-400 border-red-500/30"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-red-50 text-red-700 border-red-200"
                         )}
                       >
                         {w.enabled ? "Enabled" : "Disabled"}
@@ -942,7 +942,7 @@ export default function OrganizationDetailPage() {
                         title="Copy embed code"
                       >
                         {copiedSiteId === w.siteId ? (
-                          <Check className="w-4 h-4 text-emerald-500" />
+                          <Check className="w-4 h-4 text-emerald-600" />
                         ) : (
                           <Copy className="w-4 h-4" />
                         )}

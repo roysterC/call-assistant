@@ -30,7 +30,7 @@ export function MessageBubble({
         impossible to see where a handoff happened.
       */}
       {isAgent && showTail && (
-        <span className="text-[10px] font-medium text-emerald-400 mb-0.5 px-1">
+        <span className="text-[10px] font-medium text-emerald-700 mb-0.5 px-1">
           You
         </span>
       )}
@@ -46,12 +46,12 @@ export function MessageBubble({
           // one in the generated CSS simply wins, and the percentage was being
           // dropped.
           "max-w-[min(75%,52ch)] rounded-2xl px-4 py-2.5 text-sm",
-          isUser && "bg-blue-600 text-white",
+          isUser && "bg-primary text-primary-foreground",
           isUser && (showTail ? "rounded-br-md" : "rounded-br-2xl"),
           isAgent &&
-            "bg-emerald-500/10 text-foreground border border-emerald-500/40",
-          // The bot's bubble used to be a 5%-white wash, barely a shade off the
-          // pane behind it, so replies read as loose text rather than messages.
+            "bg-emerald-50 text-foreground border border-emerald-200",
+          // The bot's bubble is a filled grey with a hairline, not a faint wash of the
+          // pane behind it, which read as loose text rather than messages.
           !isUser && !isAgent && "bg-muted text-foreground border border-border",
           !isUser && (showTail ? "rounded-bl-md" : "rounded-bl-2xl")
         )}
@@ -62,7 +62,7 @@ export function MessageBubble({
         <p
           className={cn(
             "text-[10px] mt-1 tabular-nums",
-            isUser ? "text-blue-100/80" : "text-muted-foreground"
+            isUser ? "text-indigo-100" : "text-muted-foreground"
           )}
         >
           {format(new Date(createdAt), "HH:mm")}

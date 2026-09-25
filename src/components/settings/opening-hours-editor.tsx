@@ -78,7 +78,7 @@ export function OpeningHoursEditor({
                 "px-2.5 py-1 rounded-md text-xs font-medium transition-colors w-16 text-center",
                 d.closed
                   ? "bg-muted text-muted-foreground hover:text-foreground"
-                  : "bg-emerald-500/15 text-emerald-400"
+                  : "bg-emerald-50 text-emerald-700"
               )}
             >
               {d.closed ? "Closed" : "Open"}
@@ -106,7 +106,7 @@ export function OpeningHoursEditor({
                   aria-label={`${DAY_LABELS[day]} closing time`}
                 />
                 {d.open && d.close && d.open >= d.close && (
-                  <span className="text-xs text-red-400">
+                  <span className="text-xs text-red-600">
                     Closing time must be after opening
                   </span>
                 )}

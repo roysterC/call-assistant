@@ -127,7 +127,7 @@ export function TeamLogins({ stylists }: { stylists: string[] }) {
   return (
     <div className="space-y-4">
       {revealed && (
-        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm space-y-1.5">
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm space-y-1.5">
           <p className="font-medium">Temporary password for {revealed.who}</p>
           <p className="text-muted-foreground text-xs">
             Pass this on to them. They sign in with <span className="text-foreground">{revealed.email}</span> and
@@ -185,7 +185,7 @@ export function TeamLogins({ stylists }: { stylists: string[] }) {
               </div>
             </div>
             {!linked && (
-              <p className="flex items-center gap-1.5 text-xs text-amber-400">
+              <p className="flex items-center gap-1.5 text-xs text-amber-700">
                 <CircleAlert className="h-3.5 w-3.5 shrink-0" />
                 No stylist called {l.stylistName} any more, so this login can&apos;t
                 use the diary. Rename the stylist back, or remove the login and add it again.
@@ -312,7 +312,7 @@ export function TeamLogins({ stylists }: { stylists: string[] }) {
         </Button>
       )}
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }

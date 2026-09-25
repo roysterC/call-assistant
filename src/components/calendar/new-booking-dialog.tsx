@@ -214,7 +214,7 @@ export function NewBookingDialog({
         {step.kind === "done" && (
           <div className="grid gap-4">
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-8 w-8 text-emerald-500 shrink-0" />
+              <CheckCircle2 className="h-8 w-8 text-emerald-600 shrink-0" />
               <div>
                 <div className="text-xs text-muted-foreground">Booking number</div>
                 <div className="text-2xl font-semibold tabular-nums">

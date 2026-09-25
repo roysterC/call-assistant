@@ -171,7 +171,7 @@ function WebsitesPageInner() {
                         title="Copy embed code"
                       >
                         {copiedId === site.siteId ? (
-                          <Check className="w-4 h-4 text-emerald-500" />
+                          <Check className="w-4 h-4 text-emerald-600" />
                         ) : (
                           <Copy className="w-4 h-4" />
                         )}

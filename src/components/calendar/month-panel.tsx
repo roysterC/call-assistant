@@ -131,7 +131,7 @@ export function MonthPanel({
                   isSelected
                     ? "bg-primary text-primary-foreground font-semibold"
                     : isToday
-                      ? "text-foreground font-semibold ring-1 ring-inset ring-border"
+                      ? "text-primary font-semibold ring-1 ring-inset ring-primary/30"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
               >

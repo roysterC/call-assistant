@@ -171,7 +171,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "w-64 bg-card text-foreground flex flex-col border-r border-border shrink-0",
+        "w-64 bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border shrink-0",
         // Off-canvas below md, static beside the content from md up. It used to
         // be neither: a permanent 256px column that took two thirds of a phone
         // screen and left the conversation list a sliver — which is also why
@@ -181,18 +181,16 @@ export function Sidebar({
         "overflow-y-auto md:min-h-screen"
       )}
     >
-      <div className="p-6 border-b border-border">
+      <div className="px-5 pt-6 pb-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-            <Bot className="w-5 h-5" />
-          </div>
+          <BrandMark />
           <div className="min-w-0">
-            <h1 className="font-semibold text-sm tracking-tight truncate">
+            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate">
               {activeOrg?.name ||
                 session?.user?.organizationName ||
                 "Call Assistant"}
             </h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {isSuperAdmin && asOrg ? "viewing as super-admin" : "AI CRM"}
             </p>
           </div>
@@ -202,7 +200,7 @@ export function Sidebar({
         {isSuperAdmin && orgs.length > 0 && (
           <div className="mt-3">
             <DropdownMenu>
-              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs text-foreground/80 bg-muted hover:bg-accent border border-border">
+              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-foreground/80 bg-card hover:bg-accent border border-input">
                 <span className="flex items-center gap-1.5">
                   <Building2 className="w-3 h-3" />
                   Switch org
@@ -230,7 +228,10 @@ export function Sidebar({
         )}
       </div>
 
-      <nav className="flex-1 p-3 space-y-0.5">
+      <nav className="flex-1 px-3 pb-3 space-y-0.5">
+        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+          Menu
+        </p>
         {navItems
           .filter((item) =>
             // A stylist login's pages are the diary, their bookings and, if
@@ -245,14 +246,19 @@ export function Sidebar({
                 href={item.href + navSuffix}
                 onClick={onNavigate}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                  "group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-blue-600/15 text-blue-400 border border-blue-500/20"
-                    : "text-muted-foreground hover:text-white hover:bg-accent/50"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-slate-600 hover:text-foreground hover:bg-accent"
                 )}
               >
                 <item.icon
-                  className={cn("w-4 h-4", isActive && "text-blue-400")}
+                  className={cn(
+                    "w-[18px] h-[18px]",
+                    isActive
+                      ? "text-primary"
+                      : "text-slate-400 group-hover:text-slate-600"
+                  )}
                 />
                 {item.label}
               </Link>
@@ -264,29 +270,29 @@ export function Sidebar({
             href={`/admin/organizations${navSuffix}`}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mt-4 border-t border-border pt-4",
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors mt-4",
               pathname?.startsWith("/admin")
-                ? "text-amber-400"
-                : "text-muted-foreground hover:text-amber-400 hover:bg-accent/50"
+                ? "bg-amber-50 text-amber-800"
+                : "text-slate-600 hover:text-amber-800 hover:bg-amber-50"
             )}
           >
-            <Shield className="w-4 h-4" />
+            <Shield className="w-[18px] h-[18px]" />
             Admin
           </Link>
         )}
       </nav>
 
       {/* User menu */}
-      <div className="p-3 border-t border-border">
+      <div className="p-3 border-t border-sidebar-border">
         {user ? (
           <DropdownMenu>
-            <DropdownMenuTrigger className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent/50">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-semibold">
+            <DropdownMenuTrigger className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent">
+              <div className="w-8 h-8 shrink-0 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold">
                 {(user.name || user.email || "?")[0].toUpperCase()}
               </div>
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm truncate">{user.name || user.email}</p>
-                <p className="text-[10px] text-muted-foreground truncate">
+                <p className="text-sm font-medium truncate">{user.name || user.email}</p>
+                <p className="text-[11px] text-muted-foreground truncate">
                   {user.email}
                 </p>
               </div>
@@ -309,12 +315,31 @@ export function Sidebar({
           </DropdownMenu>
         ) : (
           <div className="flex items-center gap-2 px-3 py-2">
-            <div className="w-2 h-2 bg-slate-600 rounded-full" />
+            <div className="w-2 h-2 bg-slate-300 rounded-full" />
             <span className="text-xs text-muted-foreground">Not signed in</span>
           </div>
         )}
       </div>
     </aside>
+  );
+}
+
+/**
+ * The product mark: a rounded indigo tile. Shared with the mobile header and
+ * the sign-in page so the three never drift apart.
+ */
+export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+  const box = size === "sm" ? "w-7 h-7 rounded-lg" : size === "lg" ? "w-11 h-11 rounded-xl" : "w-9 h-9 rounded-xl";
+  const icon = size === "sm" ? "w-4 h-4" : size === "lg" ? "w-6 h-6" : "w-5 h-5";
+  return (
+    <div
+      className={cn(
+        box,
+        "shrink-0 flex items-center justify-center text-white bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_6px_-1px_rgb(79_70_229/0.45)]"
+      )}
+    >
+      <Bot className={icon} />
+    </div>
   );
 }
 

@@ -218,7 +218,7 @@ export default function DashboardPage() {
 
       {/* Voice KPIs — only for accounts with the voice agent. */}
       {showVoice && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <StatCard
             title="Calls today"
             value={stats?.callsToday || 0}
@@ -257,7 +257,7 @@ export default function DashboardPage() {
         account with both does not get the same number twice in one screen.
       */}
       {showChat && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <StatCard
             title="Conversations"
             value={chat?.conversations ?? 0}

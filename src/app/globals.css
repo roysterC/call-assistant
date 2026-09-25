@@ -9,7 +9,9 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-display);
+  --shadow-surface: var(--elev-surface);
+  --shadow-raised: var(--elev-raised);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,93 +50,61 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  /* Dark thumb on a light surface. The CRM never renders light, but the embed
-     widget does, and it shares this stylesheet. */
-  --scrollbar-thumb: oklch(0 0 0 / 20%);
-  --scrollbar-thumb-hover: oklch(0 0 0 / 32%);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
 /*
- * The app runs dark permanently, and it used to run two dark palettes at once:
- * these tokens were the stock neutral greys, while the dashboard, sidebar and
- * conversation pane hardcoded a blue-tinted set (#0d1117 / #161b22 / white/10)
- * in 39 places. A card on the dashboard and a card on the leads page were
- * visibly different colours, which is the sort of thing that reads as unfinished
- * long before anyone can say why.
+ * One light palette, used everywhere.
  *
- * The hardcoded set won — it is what the product actually looks like — so it
- * now lives here as tokens and nothing hardcodes a hex. Converted to oklch to
- * match the format of the rest of the file; the source hex is noted on each.
+ * The app ran permanently dark until September 2026. It now runs permanently
+ * light: a soft grey canvas, white surfaces that lift off it, slate text and a
+ * single indigo accent. Colour is kept for things that carry meaning — service
+ * families in the diary, statuses, charts — so the chrome around them stays
+ * quiet and neutral rather than competing.
+ *
+ * Neutrals carry a faint blue-slate tint (hue ~260) rather than pure grey:
+ * pure grey beside indigo reads as slightly dirty, a tinted grey reads as
+ * deliberate. Text contrast on white: foreground 16:1, muted-foreground 6.1:1,
+ * so even 11px secondary text clears WCAG AA.
  */
-.dark {
-  --background: oklch(0.1763 0.014 258.36); /* #0d1117 */
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.2202 0.0157 256.82); /* #161b22 */
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.2202 0.0157 256.82);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.2666 0.015 256.8); /* #21262d */
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.2458 0.0153 256.81); /* #1c2128 */
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.2666 0.015 256.8);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.7 0.14 254);
-  --chart-2: oklch(0.75 0.16 162);
-  --chart-3: oklch(0.78 0.15 78);
-  --chart-4: oklch(0.7 0.16 16);
-  --chart-5: oklch(0.66 0.15 300);
-  --sidebar: oklch(0.2202 0.0157 256.82);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.2666 0.015 256.8);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-  /* Slightly stronger than --border (10%): a border only has to be noticed,
-     a scrollbar has to be grabbable. */
-  --scrollbar-thumb: oklch(1 0 0 / 16%);
-  --scrollbar-thumb-hover: oklch(1 0 0 / 28%);
+:root {
+  --background: oklch(0.982 0.003 264); /* #f7f8fa canvas */
+  --foreground: oklch(0.216 0.028 264); /* #151b2c */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.216 0.028 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.216 0.028 264);
+  --primary: oklch(0.511 0.215 276); /* #4f46e5 indigo */
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.962 0.006 264); /* #f0f2f6 */
+  --secondary-foreground: oklch(0.262 0.03 264);
+  --muted: oklch(0.967 0.005 264); /* #f2f4f7 */
+  --muted-foreground: oklch(0.49 0.03 262); /* #586275 */
+  --accent: oklch(0.955 0.008 270); /* hover surface */
+  --accent-foreground: oklch(0.216 0.028 264);
+  --destructive: oklch(0.55 0.21 27);
+  --border: oklch(0.918 0.008 264); /* #e3e6ec */
+  --input: oklch(0.885 0.01 264); /* #d7dbe3, a touch firmer than borders */
+  --ring: oklch(0.585 0.2 277);
+  --chart-1: oklch(0.585 0.2 277);
+  --chart-2: oklch(0.63 0.14 165);
+  --chart-3: oklch(0.72 0.15 70);
+  --chart-4: oklch(0.63 0.2 20);
+  --chart-5: oklch(0.62 0.13 230);
+  --radius: 0.75rem;
+  --scrollbar-thumb: oklch(0.3 0.02 264 / 18%);
+  --scrollbar-thumb-hover: oklch(0.3 0.02 264 / 32%);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.262 0.03 264);
+  --sidebar-primary: oklch(0.511 0.215 276);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.962 0.02 277); /* #eef0fd, active nav */
+  --sidebar-accent-foreground: oklch(0.43 0.19 277);
+  --sidebar-border: oklch(0.918 0.008 264);
+  --sidebar-ring: oklch(0.585 0.2 277);
+  /* Surfaces lift off the canvas with a hairline and the faintest shadow.
+     Anything heavier looks like a 2014 dashboard. */
+  --elev-surface: 0 1px 2px 0 oklch(0.216 0.028 264 / 0.04),
+    0 1px 3px 0 oklch(0.216 0.028 264 / 0.04);
+  --elev-raised: 0 4px 6px -2px oklch(0.216 0.028 264 / 0.05),
+    0 12px 24px -6px oklch(0.216 0.028 264 / 0.1);
 }
 
 @layer base {
@@ -146,6 +116,22 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Page and section titles in the display face; body copy stays in Inter,
+     which is the better reader at small sizes and has tabular figures for
+     times and money. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display), var(--font-sans), sans-serif;
+  }
+  /* Plus Jakarta Sans sets its word space narrow; at heading sizes, and with
+     any negative tracking, "Call volume" starts reading as one word. */
+  h1,
+  h2,
+  h3,
+  .font-heading {
+    word-spacing: 0.08em;
   }
 
   /*

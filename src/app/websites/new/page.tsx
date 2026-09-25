@@ -129,7 +129,7 @@ export default function NewWebsitePage() {
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center py-6">
           <div className="w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-3">
-            <Check className="w-6 h-6 text-emerald-500" />
+            <Check className="w-6 h-6 text-emerald-600" />
           </div>
           <h1 className="text-2xl font-bold">{form.name} is ready</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -154,7 +154,7 @@ export default function NewWebsitePage() {
                 }}
               >
                 {copied ? (
-                  <Check className="w-4 h-4 text-emerald-500" />
+                  <Check className="w-4 h-4 text-emerald-600" />
                 ) : (
                   <Copy className="w-4 h-4" />
                 )}
@@ -198,7 +198,7 @@ export default function NewWebsitePage() {
             />
             <p
               className={`text-xs mt-1.5 ${
-                i === step ? "text-slate-200" : "text-muted-foreground"
+                i === step ? "text-foreground" : "text-muted-foreground"
               }`}
             >
               {label}
@@ -353,7 +353,7 @@ export default function NewWebsitePage() {
                 {form.ctaLabel.trim() &&
                   !form.ctaUrl.trim() &&
                   !form.ctaSelector.trim() && (
-                    <p className="text-xs text-amber-400/80">
+                    <p className="text-xs text-amber-700">
                       Add a link or a section id, or the button stays hidden —
                       it has nowhere to send anyone.
                     </p>
@@ -443,7 +443,7 @@ export default function NewWebsitePage() {
                   </div>
                   <span
                     className={`text-xs ${
-                      contrast.meetsAA ? "text-muted-foreground" : "text-amber-500"
+                      contrast.meetsAA ? "text-muted-foreground" : "text-amber-700"
                     }`}
                   >
                     {contrast.meetsAA
@@ -478,7 +478,7 @@ export default function NewWebsitePage() {
             </>
           )}
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
         </CardContent>
       </Card>
 
