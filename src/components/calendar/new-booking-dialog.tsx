@@ -1,35 +1,36 @@
 "use client";
 
 /**
- * Take a booking at the desk.
+ * Take a booking at the desk: client, then details, then the booking number.
  *
- * The service list drives the duration, exactly as it does on the phone, so a
- * three-hour balayage blocks three hours whichever door the booking came in
- * through. The duration stays editable because the person at the desk can see
- * the client's hair and the catalogue cannot.
+ * Client first because it is the question the desk can always answer (the
+ * person is on the phone or standing there), and because knowing who it is
+ * answers two things the details step would otherwise ask: whether they are
+ * new — which decides the skin test — and how to reach them.
+ *
+ * The booking number is shown once the booking is saved. It is allocated in
+ * the same transaction as the appointment (src/lib/booking-number.ts), so it
+ * cannot be known sooner without either reserving numbers that abandoned
+ * bookings would leave as gaps, or showing one the phone assistant might take
+ * in the meantime.
  */
 
 import { useEffect, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { TriangleAlert } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
+import { formatMoney } from "@/lib/money";
+import { combineServices, type SalonService } from "@/lib/salon-config";
+import { ClientPicker, type ClientRow } from "./client-picker";
+import { BookingDetails, type BookingDraft } from "./booking-details";
+import type { CalendarAppointment } from "./day-grid";
 
 export interface BookingSlot {
   stylistName: string;
@@ -39,58 +40,66 @@ export interface BookingSlot {
   date: string;
 }
 
-export interface ServiceOption {
-  name: string;
-  durationMinutes: number;
-  requiresPatchTest: boolean;
-  priceMinor?: number | null;
+interface Booked {
+  bookingNumber: number | null;
+  clientName: string;
+  whenText: string;
+  stylistName: string;
+  serviceText: string;
+  priceMinor: number | null;
 }
+
+type Step =
+  | { kind: "client" }
+  | { kind: "details"; client: ClientRow | null }
+  | { kind: "done"; booked: Booked };
 
 interface NewBookingDialogProps {
   slot: BookingSlot | null;
-  services: ServiceOption[];
+  services: SalonService[];
+  stylists: string[];
   /** Salon zone, so the chosen wall-clock time is sent as the right instant. */
   timeZone: string;
+  /** The appointments on the day shown, for the clash warning. */
+  dayAppointments: CalendarAppointment[];
   onClose: () => void;
   onBooked: () => void;
+}
+
+function describeWhen(date: string, time: string, timeZone: string): string {
+  return wallTimeToUtc(date, time, timeZone).toLocaleString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone,
+  });
 }
 
 export function NewBookingDialog({
   slot,
   services,
+  stylists,
   timeZone,
+  dayAppointments,
   onClose,
   onBooked,
 }: NewBookingDialogProps) {
-  const [service, setService] = useState("");
-  const [duration, setDuration] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientType, setClientType] = useState("unknown");
-  const [notes, setNotes] = useState("");
+  const [step, setStep] = useState<Step>({ kind: "client" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset per slot, so yesterday's half-filled form never rides along into a
-  // new booking and books the wrong client.
+  // Back to the start for every slot, so the last booking's client never
+  // rides along into the next one.
   useEffect(() => {
     if (!slot) return;
-    setService("");
-    setDuration("");
-    setClientName("");
-    setClientPhone("");
-    setClientType("unknown");
-    setNotes("");
+    setStep({ kind: "client" });
     setError(null);
   }, [slot]);
 
-  const chosen = services.find((s) => s.name === service);
-  const effectiveDuration = duration || (chosen ? String(chosen.durationMinutes) : "");
-  const patchTestWarning =
-    Boolean(chosen?.requiresPatchTest) && clientType === "new";
-
-  const submit = async () => {
-    if (!slot || !service) return;
+  const submit = async (client: ClientRow | null, draft: BookingDraft) => {
     setSaving(true);
     setError(null);
     try {
@@ -98,14 +107,15 @@ export function NewBookingDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          startsAt: wallTimeToUtc(slot.date, slot.time, timeZone).toISOString(),
-          stylistName: slot.stylistName,
-          serviceText: service,
-          durationMinutes: Number(effectiveDuration) || undefined,
-          clientName: clientName || undefined,
-          clientPhone: clientPhone || undefined,
-          clientType,
-          notes: notes || undefined,
+          startsAt: wallTimeToUtc(draft.date, draft.time, timeZone).toISOString(),
+          stylistName: draft.stylistName,
+          serviceNames: draft.serviceNames,
+          durationMinutes: draft.durationMinutes,
+          ...(client
+            ? { leadId: client.id }
+            : { clientName: draft.walkInName.trim() || undefined }),
+          clientType: !client ? "unknown" : client.visits > 0 ? "returning" : "new",
+          notes: draft.notes || undefined,
         }),
       });
 
@@ -114,8 +124,21 @@ export function NewBookingDialog({
         setError(data.error || "Could not save that booking.");
         return;
       }
+      const picked = draft.serviceNames
+        .map((n) => services.find((s) => s.name === n))
+        .filter((s): s is SalonService => Boolean(s));
+      setStep({
+        kind: "done",
+        booked: {
+          bookingNumber: data.appointment?.bookingNumber ?? null,
+          clientName: client?.name ?? (draft.walkInName.trim() || "Walk-in"),
+          whenText: describeWhen(draft.date, draft.time, timeZone),
+          stylistName: draft.stylistName,
+          serviceText: data.appointment?.serviceText ?? draft.serviceNames.join(" + "),
+          priceMinor: picked.length ? combineServices(picked).priceMinor : null,
+        },
+      });
       onBooked();
-      onClose();
     } catch {
       setError("Could not reach the server.");
     } finally {
@@ -123,118 +146,98 @@ export function NewBookingDialog({
     }
   };
 
+  const title =
+    step.kind === "client"
+      ? slot
+        ? `${slot.time} with ${slot.stylistName}: who is it for?`
+        : "New booking"
+      : step.kind === "details"
+        ? "Booking details"
+        : "Booked";
+
   return (
     <Dialog open={Boolean(slot)} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className={
+          step.kind === "client" ? "sm:max-w-3xl" : "sm:max-w-lg"
+        }
+      >
         <DialogHeader>
-          <DialogTitle>
-            {slot ? `${slot.time} with ${slot.stylistName}` : "New booking"}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="grid gap-3">
-          <div className="grid gap-1.5">
-            <label htmlFor="booking-service" className="text-xs text-muted-foreground">
-              Service
-            </label>
-            <Select value={service} onValueChange={(v) => setService(v ?? "")}>
-              <SelectTrigger id="booking-service">
-                <SelectValue placeholder="Choose a service" />
-              </SelectTrigger>
-              <SelectContent>
-                {services.map((s) => (
-                  <SelectItem key={s.name} value={s.name}>
-                    {s.name} — {s.durationMinutes} min
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <label htmlFor="booking-duration" className="text-xs text-muted-foreground">
-                Minutes
-              </label>
-              <Input
-                id="booking-duration"
-                inputMode="numeric"
-                value={effectiveDuration}
-                onChange={(e) => setDuration(e.target.value)}
-                placeholder="45"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <label htmlFor="booking-client-type" className="text-xs text-muted-foreground">
-                Client
-              </label>
-              <Select value={clientType} onValueChange={(v) => setClientType(v ?? "unknown")}>
-                <SelectTrigger id="booking-client-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unknown">Not sure</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="returning">Returning</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid gap-1.5">
-            <label htmlFor="booking-name" className="text-xs text-muted-foreground">
-              Name
-            </label>
-            <Input
-              id="booking-name"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              placeholder="Walk-in"
-            />
-          </div>
-
-          <div className="grid gap-1.5">
-            <label htmlFor="booking-phone" className="text-xs text-muted-foreground">
-              Phone (optional)
-            </label>
-            <Input
-              id="booking-phone"
-              value={clientPhone}
-              onChange={(e) => setClientPhone(e.target.value)}
-              placeholder="07700 900123"
-            />
-          </div>
-
-          <div className="grid gap-1.5">
-            <label htmlFor="booking-notes" className="text-xs text-muted-foreground">
-              Notes
-            </label>
-            <Textarea
-              id="booking-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-            />
-          </div>
-
-          {patchTestWarning && (
-            <p className="flex gap-2 text-xs text-amber-400">
-              <TriangleAlert className="h-4 w-4 shrink-0" />
-              New client having colour — needs a skin patch test 48 hours first.
+          <DialogTitle>{title}</DialogTitle>
+          {step.kind !== "done" && (
+            <p className="text-xs text-muted-foreground">
+              Step {step.kind === "client" ? 1 : 2} of 2 ·{" "}
+              {step.kind === "client"
+                ? "Pick a client, or add a new one"
+                : "The booking number is given when you book"}
             </p>
           )}
+        </DialogHeader>
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
-        </div>
+        {slot && step.kind === "client" && (
+          <ClientPicker
+            timeZone={timeZone}
+            onPick={(client) => {
+              setError(null);
+              setStep({ kind: "details", client });
+            }}
+            onWalkIn={() => {
+              setError(null);
+              setStep({ kind: "details", client: null });
+            }}
+          />
+        )}
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={!service || saving}>
-            {saving ? "Booking…" : "Book"}
-          </Button>
-        </DialogFooter>
+        {slot && step.kind === "details" && (
+          <BookingDetails
+            client={step.client}
+            services={services}
+            stylists={stylists}
+            timeZone={timeZone}
+            dayAppointments={dayAppointments}
+            dayShown={slot.date}
+            initial={slot}
+            saving={saving}
+            error={error}
+            onBack={() => setStep({ kind: "client" })}
+            onSubmit={(draft) => submit(step.client, draft)}
+          />
+        )}
+
+        {step.kind === "done" && (
+          <div className="grid gap-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-8 w-8 text-emerald-500 shrink-0" />
+              <div>
+                <div className="text-xs text-muted-foreground">Booking number</div>
+                <div className="text-2xl font-semibold tabular-nums">
+                  {step.booked.bookingNumber !== null
+                    ? `#${step.booked.bookingNumber}`
+                    : "—"}
+                </div>
+              </div>
+            </div>
+            <dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
+              <dt className="text-muted-foreground text-xs pt-0.5">Client</dt>
+              <dd>{step.booked.clientName}</dd>
+              <dt className="text-muted-foreground text-xs pt-0.5">When</dt>
+              <dd>{step.booked.whenText}</dd>
+              <dt className="text-muted-foreground text-xs pt-0.5">Stylist</dt>
+              <dd>{step.booked.stylistName}</dd>
+              <dt className="text-muted-foreground text-xs pt-0.5">Services</dt>
+              <dd>{step.booked.serviceText}</dd>
+              <dt className="text-muted-foreground text-xs pt-0.5">Cost</dt>
+              <dd className="tabular-nums">
+                {step.booked.priceMinor === null
+                  ? "Not priced"
+                  : formatMoney(step.booked.priceMinor)}
+              </dd>
+            </dl>
+            <div className="flex justify-end">
+              <Button onClick={onClose}>Done</Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

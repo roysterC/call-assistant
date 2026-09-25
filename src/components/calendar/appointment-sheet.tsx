@@ -132,6 +132,11 @@ export function AppointmentSheet({
               <span className="text-muted-foreground text-xs">
                 booked {a.source === "voice" ? "by phone" : "at the desk"}
               </span>
+              {a.bookingNumber !== null && (
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  Booking #{a.bookingNumber}
+                </span>
+              )}
             </div>
 
             <dl className="grid grid-cols-[6rem_1fr] gap-y-2">

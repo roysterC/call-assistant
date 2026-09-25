@@ -113,6 +113,11 @@ nothing from you. Anything destructive stops the deploy and prints the SQL, and
 is meant to be applied deliberately — usually as a two-commit dance: ship code
 that stops reading the column, then drop it.
 
+A new column that existing rows need filling in goes in
+`scripts/post-deploy.ts`, which the deploy runs after the restart. Everything
+in it must be idempotent: it runs on every deploy, and after the first it
+should find nothing left to do.
+
 One sharp edge worth knowing: adding a unique constraint over rows that already
 violate it fails when Postgres builds the index. That is a safe failure — the
 schema and the data are left as they were — but the deploy stops, and the

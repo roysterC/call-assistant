@@ -248,46 +248,71 @@ describe("serviceIsStaffedOn", () => {
  * written down.
  */
 describe("matchServices", () => {
-  const names = (spoken: string) =>
-    matchServices(spoken, SERVICES).matched.map((s) => s.name);
+  /**
+   * Asserts BOTH halves. The first version of this helper returned only
+   * `matched`, so a test that looked green was hiding an `unmatched` entry —
+   * and `resolveBookedService` refuses anything with one. "Cut and finish"
+   * shipped as a match plus a complaint about the word "cut", and a live
+   * caller was asked whether they wanted "a cut and finish, or just a cut".
+   */
+  const names = (spoken: string) => {
+    const r = matchServices(spoken, SERVICES);
+    expect(r.unmatched, `unexpected leftovers for ${spoken}`).toEqual([]);
+    return r.matched.map((s) => s.name);
+  };
 
   it("keeps a service whose own name contains a separator", () => {
-    // The whole reason the whole phrase is tried before anything is split.
     expect(names("Cut and finish")).toEqual(["Cut and finish"]);
     expect(names("cut and finish")).toEqual(["Cut and finish"]);
     expect(names("a cut and finish please")).toEqual(["Cut and finish"]);
+    // What the model actually sent on the call this came from.
+    expect(names("cut and finish")).toEqual(["Cut and finish"]);
+  });
+
+  it("does not trip over the filler a model wraps a service in", () => {
+    expect(names("a gents cut for me")).toEqual(["Gents cut"]);
+    expect(names("just a balayage please")).toEqual(["Balayage"]);
+    expect(names("I would like to book a fringe trim")).toEqual(["Fringe trim"]);
   });
 
   it("finds both services when the caller asks for two", () => {
-    expect(names("gents cut and balayage")).toEqual(["Gents cut", "Balayage"]);
-    expect(names("balayage and a fringe trim")).toEqual([
+    expect(names("gents cut and balayage").sort()).toEqual([
+      "Balayage",
+      "Gents cut",
+    ]);
+    expect(names("balayage and a fringe trim").sort()).toEqual([
       "Balayage",
       "Fringe trim",
     ]);
   });
 
   it("reads the separators people actually use", () => {
-    expect(names("gents cut, balayage")).toEqual(["Gents cut", "Balayage"]);
-    expect(names("gents cut + balayage")).toEqual(["Gents cut", "Balayage"]);
-    expect(names("gents cut & balayage")).toEqual(["Gents cut", "Balayage"]);
-    expect(names("gents cut plus balayage")).toEqual(["Gents cut", "Balayage"]);
+    expect(names("gents cut, balayage").sort()).toEqual(["Balayage", "Gents cut"]);
+    expect(names("gents cut + balayage").sort()).toEqual(["Balayage", "Gents cut"]);
+    expect(names("gents cut & balayage").sort()).toEqual(["Balayage", "Gents cut"]);
+    expect(names("gents cut plus balayage").sort()).toEqual(["Balayage", "Gents cut"]);
   });
 
-  it("rejoins a separator that belonged to a service name", () => {
-    // Splits into three fragments, of which the first two only mean anything
-    // put back together.
+  it("reads a separator inside one name and between two", () => {
+    // "Cut and finish" is claimed whole, before "Balayage" is picked out of
+    // what is left.
     expect(names("cut and finish and balayage")).toEqual([
       "Cut and finish",
       "Balayage",
     ]);
   });
 
+  it("does not let a short name eat the words of a longer one", () => {
+    // "Gents cut" must not match the "cut" inside "Cut and finish".
+    const r = matchServices("cut and finish", SERVICES);
+    expect(r.matched.map((s) => s.name)).toEqual(["Cut and finish"]);
+    expect(r.unmatched).toEqual([]);
+  });
+
   it("handles three", () => {
-    expect(names("fringe trim, gents cut and balayage")).toEqual([
-      "Fringe trim",
-      "Gents cut",
-      "Balayage",
-    ]);
+    expect(names("fringe trim, gents cut and balayage").sort()).toEqual(
+      ["Balayage", "Fringe trim", "Gents cut"]
+    );
   });
 
   it("books a service asked for twice only once", () => {
@@ -297,7 +322,7 @@ describe("matchServices", () => {
   it("reports what it could not place rather than dropping it", () => {
     const r = matchServices("gents cut and a hot stone massage", SERVICES);
     expect(r.matched.map((s) => s.name)).toEqual(["Gents cut"]);
-    expect(r.unmatched).toEqual(["a hot stone massage"]);
+    expect(r.unmatched).toEqual(["hot stone massage"]);
   });
 
   it("returns nothing for nothing", () => {
@@ -379,7 +404,7 @@ describe("resolveBookedService", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.matched.map((s) => s.name)).toEqual(["Balayage"]);
-      expect(r.unmatched).toEqual(["a hot stone massage"]);
+      expect(r.unmatched).toEqual(["hot stone massage"]);
     }
   });
 
@@ -429,7 +454,22 @@ describe("the booking that went wrong", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.matched.map((s) => s.name)).toEqual(["Haircut"]);
-      expect(r.unmatched).toEqual(["to dye my hair"]);
+      expect(r.unmatched).toEqual(["dye hair"]);
     }
+  });
+});
+
+describe("parseServices prices", () => {
+  it("reads a missing, null or blank price as unpriced, not free", () => {
+    const [missing, nul, blank, zero] = parseServices([
+      { name: "A", durationMinutes: 30 },
+      { name: "B", durationMinutes: 30, priceMinor: null },
+      { name: "C", durationMinutes: 30, priceMinor: "" },
+      { name: "D", durationMinutes: 30, priceMinor: 0 },
+    ]);
+    expect(missing.priceMinor).toBeNull();
+    expect(nul.priceMinor).toBeNull();
+    expect(blank.priceMinor).toBeNull();
+    expect(zero.priceMinor).toBe(0);
   });
 });

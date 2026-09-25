@@ -18,6 +18,10 @@ model Organization {
   planTier                String   @default("starter")
   anthropicApiKeyOverride String?
   enabled                 Boolean  @default(true)
+  // The next booking number this salon will hand out. Taken with an atomic
+  // increment in the same transaction as the appointment it numbers, so two
+  // bookings saved at once (desk and phone) can never share one.
+  nextBookingNumber       Int      @default(1001)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -196,6 +200,13 @@ model Lead {
   organizationId        String
   organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name                  String?
+  // `name` split for the client list, which sorts and searches on each half.
+  // Derived from `name` by the Prisma client whenever a channel writes only
+  // the full name (src/lib/prisma.ts), and set directly by the desk's client
+  // form, which asks for them separately. `name` stays the display form every
+  // other screen and the voice agent read.
+  firstName             String?
+  lastName              String?
   // Stored lower-cased for the website channel, because it is that channel's
   // identity key and "Sam@x.co.uk" must not become a second lead.
   email                 String?
@@ -231,6 +242,7 @@ model Lead {
   @@unique([organizationId, phone])
   @@unique([organizationId, email])
   @@index([organizationId])
+  @@index([organizationId, lastName, firstName])
   @@index([status])
   @@index([createdAt])
   @@map("ca_leads")
@@ -282,6 +294,12 @@ model Appointment {
   lead           Lead         @relation(fields: [leadId], references: [id])
   callId         String?
 
+  // The number staff and clients quote ("booking 1043"). Unique per salon,
+  // allocated from Organization.nextBookingNumber when the appointment is
+  // written. Nullable only for rows written before numbering existed, which
+  // scripts/post-deploy.ts numbers after each deploy.
+  bookingNumber Int?
+
   // Verbatim as spoken, then resolved against OrganizationSettings.services.
   // Stored as text rather than a foreign key: the agent hears "a half head of
   // highlights with Jo" down a phone line, and a wrong FK match would book a
@@ -322,6 +340,7 @@ model Appointment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([organizationId, bookingNumber])
   @@index([organizationId, startsAt])
   @@index([organizationId, status])
   @@index([leadId])

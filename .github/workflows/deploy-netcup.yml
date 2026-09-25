@@ -163,4 +163,10 @@ jobs:
               exit 1
             }
 
+            # Idempotent data backfills for columns the schema push just added.
+            # After the restart so nothing the old build wrote is missed; see
+            # the header of scripts/post-deploy.ts.
+            echo "==> Post-deploy backfills"
+            as_deploy 'npx tsx scripts/post-deploy.ts'
+
             echo "==> Deploy complete: $(systemctl show -p ActiveState --value "$SERVICE")"

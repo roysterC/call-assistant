@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { createNumberedAppointment } from "@/lib/booking-number";
 import {
   canCreateBooking,
   canReadAvailability,
@@ -1228,23 +1229,21 @@ export async function handleBookAppointment(
     };
   }
 
-  const appointment = await prisma.appointment.create({
-    data: {
-      organizationId,
-      leadId: lead.id,
-      serviceText: service.name,
-      durationMinutes: service.durationMinutes,
-      stylistName: stylist.name,
-      startsAt: new Date(written.startsAt),
-      endsAt: new Date(written.endsAt),
-      googleEventId: written.ref,
-      googleCalendarId: written.calendarId ?? null,
-      clientType,
-      patchTestRequired:
-        service.requiresPatchTest && clientType !== "returning",
-      notes: notes || null,
-      source: "voice",
-    },
+  const appointment = await createNumberedAppointment({
+    organizationId,
+    leadId: lead.id,
+    serviceText: service.name,
+    durationMinutes: service.durationMinutes,
+    stylistName: stylist.name,
+    startsAt: new Date(written.startsAt),
+    endsAt: new Date(written.endsAt),
+    googleEventId: written.ref,
+    googleCalendarId: written.calendarId ?? null,
+    clientType,
+    patchTestRequired:
+      service.requiresPatchTest && clientType !== "returning",
+    notes: notes || null,
+    source: "voice",
   });
 
   // Confirmation text. Deliberately after the appointment is committed and
