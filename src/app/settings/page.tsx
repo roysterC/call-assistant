@@ -37,6 +37,8 @@ interface Settings {
   instagramBusinessId: string | null;
   facebookEnabled: boolean;
   facebookPageId: string | null;
+  /** "native" (our own diary) or "google". */
+  diaryProvider?: string;
 }
 
 interface PhoneNumber {
@@ -349,6 +351,7 @@ export default function SettingsPage() {
                 value={settings.teamMembers}
                 services={settings.services}
                 businessHours={settings.businessHours}
+                usesGoogle={settings.diaryProvider === "google"}
                 onChange={(teamMembers) =>
                   setSettings({ ...settings, teamMembers })
                 }

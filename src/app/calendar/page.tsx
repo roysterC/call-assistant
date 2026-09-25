@@ -3,10 +3,9 @@
 /**
  * The diary: one day across every stylist, with a month panel to jump by.
  *
- * Reads the appointments table only. Google Calendar remains the diary the
- * booking engine checks, so anything entered directly in Google will not
- * appear here — overlaying those events is a later change, and until then
- * this screen shows what came through the system, not everything that exists.
+ * Reads the appointments table, which on the salon's own diary (the default)
+ * is the whole diary. A salon set to Google Calendar keeps its diary there, and
+ * anything entered directly in Google will not appear here.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -121,6 +120,9 @@ export default function CalendarPage() {
   const [stylists, setStylists] = useState<Stylist[]>([]);
   const [services, setServices] = useState<SalonService[]>([]);
   const [hours, setHours] = useState<BusinessHour[]>([]);
+  // On the salon's own diary everyone can be booked; on Google, only
+  // stylists with a calendar shared to us.
+  const [usesGoogle, setUsesGoogle] = useState(false);
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
   const [slot, setSlot] = useState<BookingSlot | null>(null);
@@ -155,6 +157,7 @@ export default function CalendarPage() {
         setStylists(settings?.teamMembers ?? []);
         setServices(parseServices(settings?.services));
         setHours(settings?.businessHours ?? []);
+        setUsesGoogle(settings?.diaryProvider === "google");
         // Column is `timezone`; SalonConfig renames it to `timeZone` but the
         // settings endpoint returns the row as stored.
         if (settings?.timezone) setTimeZone(settings.timezone);
@@ -236,9 +239,9 @@ export default function CalendarPage() {
           Boolean(open) &&
           ((s.workingDays?.length ?? 0) === 0 ||
             (s.workingDays ?? []).includes(weekday)),
-        bookable: Boolean(s.googleCalendarId),
+        bookable: !usesGoogle || Boolean(s.googleCalendarId),
       })),
-    [stylists, open, weekday]
+    [stylists, open, weekday, usesGoogle]
   );
 
   const jump = (date: string) => {

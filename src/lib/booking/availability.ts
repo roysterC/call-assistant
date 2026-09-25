@@ -20,6 +20,7 @@ import {
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
 import {
+  isBookable,
   type SalonService,
   type Stylist,
   stylistWorksOn,
@@ -140,7 +141,7 @@ export function computeBookableSlots(input: SlotComputationInput): TimeSlot[] {
   const slots: TimeSlot[] = [];
 
   for (const { stylist, busy } of candidates) {
-    if (!stylist.googleCalendarId) continue;
+    if (!isBookable(stylist)) continue;
     if (!stylistWorksOn(stylist, weekday)) continue;
 
     for (

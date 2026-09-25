@@ -31,11 +31,18 @@ export function StylistsEditor({
   value,
   services,
   businessHours,
+  usesGoogle = false,
   onChange,
 }: {
   value: Stylist[];
   services: SalonService[];
   businessHours: DayHours[];
+  /**
+   * The salon's diary is Google Calendar, so each stylist needs a calendar to
+   * be bookable. On the salon's own diary (the default) nobody does, and the
+   * field is not shown.
+   */
+  usesGoogle?: boolean;
   onChange: (next: Stylist[]) => void;
 }) {
   // Nobody works a day the salon is shut. With hours unconfigured every day
@@ -77,7 +84,7 @@ export function StylistsEditor({
       )}
 
       {value.map((stylist, i) => {
-        const bookable = Boolean(stylist.googleCalendarId);
+        const bookable = !usesGoogle || Boolean(stylist.googleCalendarId);
         return (
           <div key={i} className="space-y-3 rounded-md border p-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -106,27 +113,29 @@ export function StylistsEditor({
               </Button>
             </div>
 
-            <div>
-              <label className="text-xs text-muted-foreground">
-                Google calendar ID
-              </label>
-              <Input
-                value={stylist.googleCalendarId ?? ""}
-                placeholder="…@group.calendar.google.com"
-                onChange={(e) =>
-                  update(i, { googleCalendarId: e.target.value.trim() })
-                }
-                className="h-8 mt-1 font-mono text-xs"
-                aria-label="Google calendar ID"
-              />
-              {!bookable && (
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-400">
-                  <CircleAlert className="h-3.5 w-3.5 shrink-0" />
-                  Not bookable until a calendar is shared with the service
-                  account.
-                </p>
-              )}
-            </div>
+            {usesGoogle && (
+              <div>
+                <label className="text-xs text-muted-foreground">
+                  Google calendar ID
+                </label>
+                <Input
+                  value={stylist.googleCalendarId ?? ""}
+                  placeholder="…@group.calendar.google.com"
+                  onChange={(e) =>
+                    update(i, { googleCalendarId: e.target.value.trim() })
+                  }
+                  className="h-8 mt-1 font-mono text-xs"
+                  aria-label="Google calendar ID"
+                />
+                {!bookable && (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-400">
+                    <CircleAlert className="h-3.5 w-3.5 shrink-0" />
+                    Not bookable until a calendar is shared with the service
+                    account.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="text-xs text-muted-foreground">

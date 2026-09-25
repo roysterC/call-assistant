@@ -20,16 +20,22 @@ export type NewAppointment = Omit<
   "bookingNumber"
 >;
 
-export async function createNumberedAppointment(data: NewAppointment) {
-  return prisma.$transaction(async (tx) => {
-    const org = await tx.organization.update({
-      where: { id: data.organizationId },
-      data: { nextBookingNumber: { increment: 1 } },
-      select: { nextBookingNumber: true },
-    });
-    return tx.appointment.create({
-      data: { ...data, bookingNumber: org.nextBookingNumber - 1 },
-      include: { lead: true },
-    });
+/** The transaction client handed to a `prisma.$transaction` callback. */
+export type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/** Number and insert inside a transaction the caller already holds. */
+export async function insertNumberedAppointment(tx: Tx, data: NewAppointment) {
+  const org = await tx.organization.update({
+    where: { id: data.organizationId },
+    data: { nextBookingNumber: { increment: 1 } },
+    select: { nextBookingNumber: true },
   });
+  return tx.appointment.create({
+    data: { ...data, bookingNumber: org.nextBookingNumber - 1 },
+    include: { lead: true },
+  });
+}
+
+export async function createNumberedAppointment(data: NewAppointment) {
+  return prisma.$transaction((tx) => insertNumberedAppointment(tx, data));
 }

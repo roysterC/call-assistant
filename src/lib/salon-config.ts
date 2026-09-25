@@ -34,8 +34,15 @@ export interface Stylist {
   email?: string;
   phone?: string;
   role?: string;
-  /** Google Calendar id. Without one the stylist cannot be booked. */
+  /** Google Calendar id. Only needed when the salon's diary is Google. */
   googleCalendarId?: string;
+  /**
+   * Whether the stylist can be booked into at all. Set from the salon's diary
+   * mode when the config is read (getSalonConfig): everyone on our own diary,
+   * only stylists with a calendar on Google's. Unset means the Google rule,
+   * which is what every stylist parsed without a diary mode gets.
+   */
+  bookable?: boolean;
   /** 0 = Sunday ... 6 = Saturday. Empty means "any day the salon is open". */
   workingDays: number[];
   /** Service names this stylist performs. Empty means "all services". */
@@ -405,13 +412,18 @@ export function matchStylist(
   return null;
 }
 
+/** Whether a stylist can be booked into. See `Stylist.bookable`. */
+export function isBookable(stylist: Stylist): boolean {
+  return stylist.bookable ?? Boolean(stylist.googleCalendarId);
+}
+
 /** Stylists who can perform `service` and are bookable at all. */
 export function stylistsForService(
   service: SalonService,
   stylists: Stylist[]
 ): Stylist[] {
   return stylists.filter((s) => {
-    if (!s.googleCalendarId) return false; // not bookable without a calendar
+    if (!isBookable(s)) return false;
     if (s.services.length === 0) return true; // empty means "all services"
     return s.services.some(
       (name) => normalise(name) === normalise(service.name)
@@ -505,7 +517,8 @@ const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  * fails — which is how a roster change turns into a bad phone call weeks later.
  *
  * Bookable and unbookable are listed separately and deliberately. A stylist
- * with no calendar can still be asked for by name, and the agent needs to know
+ * who cannot be booked (on a Google diary, one with no calendar) can still be
+ * asked for by name, and the agent needs to know
  * that taking a message is the right answer rather than discovering mid-call
  * that it cannot book them.
  */
@@ -530,8 +543,8 @@ export function describeTeamForPrompt(
     return live.length > 0 ? live.join(", ") : "everything";
   };
 
-  const bookable = stylists.filter((s) => s.googleCalendarId);
-  const unbookable = stylists.filter((s) => !s.googleCalendarId);
+  const bookable = stylists.filter(isBookable);
+  const unbookable = stylists.filter((s) => !isBookable(s));
 
   const lines: string[] = [];
 
