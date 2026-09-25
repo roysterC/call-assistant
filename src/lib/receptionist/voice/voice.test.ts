@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { TurnHooks, TurnResult } from "../engine";
 import { VoiceCall, type VoiceEvent } from "./call";
 import { SentenceChunker } from "./sentences";
-import { signVoicePass, verifyVoicePass, voiceLabUrl } from "./token";
+import { signVoicePass, verifyVoicePass } from "./token";
 import { evenChunks, type SttHandlers, type TextToSpeech } from "./providers";
 
 const tick = async (n = 5) => {
@@ -57,32 +57,6 @@ describe("voice passes", () => {
     const forged = Buffer.from(JSON.stringify({ ...pass, organizationId: "org2" })).toString("base64url");
     expect(verifyVoicePass(`${forged}.${sig}`, "s", 1_000)).toBeNull();
     expect(verifyVoicePass("nonsense", "s", 1_000)).toBeNull();
-  });
-});
-
-describe("voiceLabUrl", () => {
-  const want = "wss://89-58-45-110.nip.io/voice/lab";
-  it.each([
-    "wss://89-58-45-110.nip.io/voice",
-    "wss://89-58-45-110.nip.io/voice/",
-    "wss://89-58-45-110.nip.io/voice/lab",
-    "https://89-58-45-110.nip.io/voice",
-    "wss://89-58-45-110.nip.io",
-    "89-58-45-110.nip.io",
-    '"wss://89-58-45-110.nip.io/voice"',
-  ])("accepts %s", (setting) => {
-    expect(voiceLabUrl(setting)).toBe(want);
-  });
-
-  it("keeps a local port and plain ws", () => {
-    expect(voiceLabUrl("ws://localhost:4610/voice")).toBe("ws://localhost:4610/voice/lab");
-    expect(voiceLabUrl("http://localhost:4610")).toBe("ws://localhost:4610/voice/lab");
-  });
-
-  it("rejects what is not a URL", () => {
-    expect(voiceLabUrl("")).toBeNull();
-    expect(voiceLabUrl(undefined)).toBeNull();
-    expect(voiceLabUrl("ftp://example.com")).toBeNull();
   });
 });
 

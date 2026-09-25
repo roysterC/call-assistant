@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { normalisePhone } from "@/lib/phone";
-import { signVoicePass, voiceLabUrl } from "@/lib/receptionist/voice/token";
+import { signVoicePass } from "@/lib/receptionist/voice/token";
 
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req);
@@ -18,9 +18,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Only the salon's owner can use the lab." }, { status: 403 });
   }
 
-  const labUrl = voiceLabUrl(process.env.RECEPTIONIST_VOICE_URL);
+  const base = process.env.RECEPTIONIST_VOICE_URL?.replace(/\/+$/, "");
   const secret = process.env.RECEPTIONIST_VOICE_SECRET;
-  if (!labUrl || !secret) {
+  if (!base || !secret) {
     return NextResponse.json(
       {
         error:
@@ -44,5 +44,5 @@ export async function POST(req: NextRequest) {
     { organizationId: ctx.organizationId, userId: ctx.userId, callerNumber, exp: Date.now() + 60_000 },
     secret
   );
-  return NextResponse.json({ url: `${labUrl}?token=${encodeURIComponent(token)}`, callerNumber });
+  return NextResponse.json({ url: `${base}/lab?token=${encodeURIComponent(token)}`, callerNumber });
 }
