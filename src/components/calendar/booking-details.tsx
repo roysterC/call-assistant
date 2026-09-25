@@ -28,7 +28,7 @@ import { formatMoney } from "@/lib/money";
 import { speakablePhone } from "@/lib/phone";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
 import { Field, type ClientRow } from "./client-picker";
-import type { CalendarAppointment } from "./day-grid";
+import type { CalendarAppointment, DiaryBlock } from "./day-grid";
 
 export interface BookingDraft {
   date: string;
@@ -48,6 +48,8 @@ interface BookingDetailsProps {
   timeZone: string;
   /** The day's appointments, to warn about a clash on the day shown. */
   dayAppointments: CalendarAppointment[];
+  /** The day's blocked time, likewise. */
+  dayBlocks: DiaryBlock[];
   dayShown: string;
   initial: { date: string; time: string; stylistName: string };
   saving: boolean;
@@ -62,6 +64,7 @@ export function BookingDetails({
   stylists,
   timeZone,
   dayAppointments,
+  dayBlocks,
   dayShown,
   initial,
   saving,
@@ -106,6 +109,22 @@ export function BookingDetails({
           a.status !== "no_show" &&
           new Date(a.startsAt).getTime() < end &&
           new Date(a.endsAt).getTime() > start
+      ) ?? null
+    );
+  })();
+
+  // Blocked time, on the same terms: the desk is warned but may book it.
+  const blocked = (() => {
+    if (!minutes || !time || date !== dayShown) return null;
+    const start = wallTimeToUtc(date, time, timeZone).getTime();
+    const end = start + minutes * 60_000;
+    return (
+      dayBlocks.find(
+        (b) =>
+          (b.stylistName === null ||
+            b.stylistName.toLowerCase() === stylistName.toLowerCase()) &&
+          new Date(b.start).getTime() < end &&
+          new Date(b.end).getTime() > start
       ) ?? null
     );
   })();
@@ -318,6 +337,15 @@ export function BookingDetails({
         <p className="flex gap-2 text-xs text-amber-400">
           <TriangleAlert className="h-4 w-4 shrink-0" />
           New client having colour: needs a skin patch test 48 hours before.
+        </p>
+      )}
+      {blocked && (
+        <p className="flex gap-2 text-xs text-amber-400">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          {blocked.stylistName === null
+            ? `The salon is blocked for ${blocked.label}.`
+            : `${blocked.stylistName} is blocked for ${blocked.label}.`}{" "}
+          You can still book it.
         </p>
       )}
       {clash && (

@@ -1228,8 +1228,9 @@ export async function handleBookAppointment(
         success: false,
         today,
         conflict: true,
-        message:
-          "That slot was taken while we were talking. Apologise and offer another time.",
+        // "Taken while we were talking", or the stylist is blocked out
+        // (lunch, holiday) or the salon closed — the reason says which.
+        message: `${written.reason} Apologise and offer another time.`,
       };
     }
 

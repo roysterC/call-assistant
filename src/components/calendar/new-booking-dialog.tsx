@@ -30,7 +30,7 @@ import { formatMoney } from "@/lib/money";
 import { combineServices, type SalonService } from "@/lib/salon-config";
 import { ClientPicker, type ClientRow } from "./client-picker";
 import { BookingDetails, type BookingDraft } from "./booking-details";
-import type { CalendarAppointment } from "./day-grid";
+import type { CalendarAppointment, DiaryBlock } from "./day-grid";
 
 export interface BookingSlot {
   stylistName: string;
@@ -62,8 +62,12 @@ interface NewBookingDialogProps {
   timeZone: string;
   /** The appointments on the day shown, for the clash warning. */
   dayAppointments: CalendarAppointment[];
+  /** Blocked time on the day shown, for the same. */
+  dayBlocks: DiaryBlock[];
   onClose: () => void;
   onBooked: () => void;
+  /** The slot was clicked to block it, not to book it. */
+  onBlockInstead: (slot: BookingSlot) => void;
 }
 
 function describeWhen(date: string, time: string, timeZone: string): string {
@@ -84,8 +88,10 @@ export function NewBookingDialog({
   stylists,
   timeZone,
   dayAppointments,
+  dayBlocks,
   onClose,
   onBooked,
+  onBlockInstead,
 }: NewBookingDialogProps) {
   const [step, setStep] = useState<Step>({ kind: "client" });
   const [saving, setSaving] = useState(false);
@@ -185,6 +191,7 @@ export function NewBookingDialog({
               setError(null);
               setStep({ kind: "details", client: null });
             }}
+            onBlockInstead={() => onBlockInstead(slot)}
           />
         )}
 
@@ -195,6 +202,7 @@ export function NewBookingDialog({
             stylists={stylists}
             timeZone={timeZone}
             dayAppointments={dayAppointments}
+            dayBlocks={dayBlocks}
             dayShown={slot.date}
             initial={slot}
             saving={saving}

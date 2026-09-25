@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { apiFetch } from "@/lib/api-fetch";
@@ -23,8 +23,18 @@ import {
   DayGrid,
   type CalendarAppointment,
   type CalendarStylist,
+  type DiaryBlock,
 } from "@/components/calendar/day-grid";
 import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
+import {
+  BlockTimeDialog,
+  type BlockDialogState,
+} from "@/components/calendar/block-time-dialog";
+import {
+  blockToForm,
+  type TimeBlockForm,
+  type TimeBlockRecord,
+} from "@/lib/time-blocks";
 import {
   buildServiceTones,
   familiesInUse,
@@ -109,6 +119,29 @@ function listPriceFor(
   return r.ok ? r.service.priceMinor : null;
 }
 
+/** A new block's form, starting from a day, a person and a time. An hour long. */
+function newBlockForm(
+  date: string,
+  stylistName: string | null,
+  time: string
+): TimeBlockForm {
+  const [h, m] = time.split(":").map(Number);
+  const end = Math.min(h * 60 + m + 60, 23 * 60 + 45);
+  const endTime = `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+  return {
+    stylistName,
+    label: "",
+    allDay: false,
+    repeat: "none",
+    startDate: date,
+    endDate: date,
+    startTime: time,
+    endTime,
+    weekdays: [weekdayOf(date)],
+    untilDate: null,
+  };
+}
+
 export default function CalendarPage() {
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [selected, setSelected] = useState(() => dateIn(DEFAULT_TZ));
@@ -124,6 +157,12 @@ export default function CalendarPage() {
   // stylists with a calendar shared to us.
   const [usesGoogle, setUsesGoogle] = useState(false);
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
+  const [blocks, setBlocks] = useState<DiaryBlock[]>([]);
+  // The stored blocks behind `blocks`, so one can be opened for editing.
+  const [blockRecords, setBlockRecords] = useState<Map<string, TimeBlockRecord>>(
+    new Map()
+  );
+  const [blockDialog, setBlockDialog] = useState<BlockDialogState | null>(null);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
   const [slot, setSlot] = useState<BookingSlot | null>(null);
   const [openAppointment, setOpenAppointment] =
@@ -173,13 +212,31 @@ export default function CalendarPage() {
     setLoading(true);
     try {
       const { from, to } = salonDayRange(selected, timeZone);
-      const res = await apiFetch(
-        `/api/appointments?status=all&from=${from}&to=${to}`
-      );
+      const [res, blockRes] = await Promise.all([
+        apiFetch(`/api/appointments?status=all&from=${from}&to=${to}`),
+        apiFetch(`/api/time-blocks?from=${from}&to=${to}`),
+      ]);
       const data = await res.json();
       setAppointments(data.appointments ?? []);
+      const blockData = blockRes.ok ? await blockRes.json() : {};
+      setBlocks(blockData.occurrences ?? []);
+      setBlockRecords(
+        new Map(
+          (blockData.blocks ?? []).map(
+            (r: TimeBlockRecord & { startsAt: string | null; endsAt: string | null }) => [
+              r.id,
+              {
+                ...r,
+                startsAt: r.startsAt ? new Date(r.startsAt) : null,
+                endsAt: r.endsAt ? new Date(r.endsAt) : null,
+              },
+            ]
+          )
+        )
+      );
     } catch {
       setAppointments([]);
+      setBlocks([]);
     } finally {
       setLoading(false);
     }
@@ -274,6 +331,21 @@ export default function CalendarPage() {
         >
           Today
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() =>
+            setBlockDialog({
+              mode: "new",
+              initial: newBlockForm(selected, stylists[0]?.name ?? null, "13:00"),
+            })
+          }
+          disabled={stylists.length === 0}
+        >
+          <Ban className="h-3.5 w-3.5" />
+          Block time
+        </Button>
         <div className="ml-2 min-w-0">
           <span className="text-sm font-semibold">{prettyDate(selected)}</span>
           {settingsLoaded && !open && (
@@ -309,6 +381,17 @@ export default function CalendarPage() {
               setSlot({ stylistName, time, date: selected })
             }
             onOpenAppointment={setOpenAppointment}
+            blocks={blocks}
+            onOpenBlock={(b) => {
+              const record = blockRecords.get(b.blockId);
+              if (!record) return;
+              setBlockDialog({
+                mode: "edit",
+                blockId: b.blockId,
+                initial: blockToForm(record, timeZone),
+                occurrenceDate: b.date,
+              });
+            }}
           />
         )}
 
@@ -367,11 +450,27 @@ export default function CalendarPage() {
         stylists={stylists.map((s) => s.name)}
         timeZone={timeZone}
         dayAppointments={appointments}
+        dayBlocks={blocks}
         onClose={() => setSlot(null)}
         onBooked={() => {
           loadDay();
           loadMonth();
         }}
+        onBlockInstead={(s) => {
+          setSlot(null);
+          setBlockDialog({
+            mode: "new",
+            initial: newBlockForm(s.date, s.stylistName, s.time),
+          });
+        }}
+      />
+
+      <BlockTimeDialog
+        state={blockDialog}
+        stylists={stylists.map((s) => s.name)}
+        timeZone={timeZone}
+        onClose={() => setBlockDialog(null)}
+        onSaved={loadDay}
       />
     </div>
   );

@@ -11,6 +11,10 @@
  * on each other; two for the same stylist queue, and the second one sees the
  * first one's row. This is stricter than the Google path, whose free/busy
  * check and insert are separate requests.
+ *
+ * Blocked time (lunch, holidays, closures) is checked in the same step, on
+ * either diary: a phone booking into a block is refused exactly like one into
+ * another booking. The desk may book into either, as it may overbook.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -20,6 +24,12 @@ import {
   type Tx,
 } from "@/lib/booking-number";
 import type { Prisma } from "@/generated/prisma/client";
+import { parseTimezone } from "@/lib/business-hours";
+import {
+  blockApplies,
+  expandBlocks,
+  type BlockOccurrence,
+} from "@/lib/time-blocks";
 import type { BusyBlock } from "./availability";
 import type { BookingWrite, WritableProvider } from "./types";
 
@@ -53,6 +63,49 @@ export async function findClash(
   });
 }
 
+/**
+ * Every stretch of blocked time overlapping [from, to), for anyone.
+ *
+ * Weekly blocks are read whole and expanded here; a salon has a handful, and
+ * filtering the rule in SQL would mean re-implementing the expansion there.
+ */
+export async function blocksBetween(
+  db: Tx | typeof prisma,
+  organizationId: string,
+  from: Date,
+  to: Date,
+  timeZone: string
+): Promise<BlockOccurrence[]> {
+  const rows = await db.timeBlock.findMany({
+    where: {
+      organizationId,
+      OR: [{ repeat: "weekly" }, { startsAt: { lt: to }, endsAt: { gt: from } }],
+    },
+  });
+  return expandBlocks(rows, from, to, timeZone);
+}
+
+async function salonTimeZone(db: Tx | typeof prisma, organizationId: string) {
+  const settings = await db.organizationSettings.findUnique({
+    where: { organizationId },
+    select: { timezone: true },
+  });
+  return parseTimezone(settings?.timezone);
+}
+
+/** The first block keeping `stylistName` out of [start, end), if any. */
+export async function findBlockClash(
+  db: Tx | typeof prisma,
+  organizationId: string,
+  stylistName: string,
+  start: Date,
+  end: Date
+): Promise<BlockOccurrence | null> {
+  const timeZone = await salonTimeZone(db, organizationId);
+  const blocks = await blocksBetween(db, organizationId, start, end, timeZone);
+  return blocks.find((b) => blockApplies(b, stylistName)) ?? null;
+}
+
 /** Busy time per stylist (keyed lower-case) from our own appointments. */
 export async function busyFromDiary(
   organizationId: string,
@@ -82,9 +135,24 @@ export async function busyFromDiary(
   return out;
 }
 
-class SlotTaken extends Error {}
+class SlotTaken extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+  }
+}
 
 const TAKEN = "That time was taken while we were talking.";
+
+/**
+ * Why a block refused a booking, as the phone agent will say it. The label is
+ * left out on purpose: it is written for staff ("Doctor's appointment") and
+ * the agent would read it to the caller.
+ */
+function blockedReason(stylistName: string, block: BlockOccurrence): string {
+  return block.stylistName === null
+    ? "The salon is closed then."
+    : `${stylistName} is not available then.`;
+}
 
 /** Everything about an appointment except where the diary put it. */
 export type AppointmentRecord = Omit<
@@ -124,14 +192,37 @@ export async function bookAppointment(
             startsAt,
             endsAt
           );
-          if (clash) throw new SlotTaken();
+          if (clash) throw new SlotTaken(TAKEN);
+          const block = await findBlockClash(
+            tx,
+            write.organizationId,
+            write.stylistName,
+            startsAt,
+            endsAt
+          );
+          if (block) throw new SlotTaken(blockedReason(write.stylistName, block));
         }
         return insertNumberedAppointment(tx, { ...record, startsAt, endsAt });
       });
       return { ok: true, appointment };
     } catch (err) {
-      if (err instanceof SlotTaken) return { ok: false, conflict: true, reason: TAKEN };
+      if (err instanceof SlotTaken) return { ok: false, conflict: true, reason: err.reason };
       throw err;
+    }
+  }
+
+  // Google has no idea about our blocks, so they are checked before it is
+  // asked to write.
+  if (!write.allowOverlap) {
+    const block = await findBlockClash(
+      prisma,
+      write.organizationId,
+      write.stylistName,
+      startsAt,
+      endsAt
+    );
+    if (block) {
+      return { ok: false, conflict: true, reason: blockedReason(write.stylistName, block) };
     }
   }
 
@@ -173,7 +264,15 @@ export async function moveInNativeDiary(
         endsAt,
         appointmentId
       );
-      if (clash) throw new SlotTaken();
+      if (clash) throw new SlotTaken(TAKEN);
+      const block = await findBlockClash(
+        tx,
+        organizationId,
+        move.stylistName,
+        move.startsAt,
+        endsAt
+      );
+      if (block) throw new SlotTaken(blockedReason(move.stylistName, block));
       return tx.appointment.update({
         where: { id: appointmentId },
         data: {
@@ -188,7 +287,7 @@ export async function moveInNativeDiary(
     });
     return { ok: true, appointment };
   } catch (err) {
-    if (err instanceof SlotTaken) return { ok: false, conflict: true, reason: TAKEN };
+    if (err instanceof SlotTaken) return { ok: false, conflict: true, reason: err.reason };
     throw err;
   }
 }

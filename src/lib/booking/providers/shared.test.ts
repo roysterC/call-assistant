@@ -125,6 +125,29 @@ describe("readAvailability", () => {
     expect(new Set(slots.map((s) => s.stylistName))).toEqual(new Set(["Marcus"]));
   });
 
+  it("offers nothing in a block for that stylist, or one for everyone", async () => {
+    const slots = await readAvailability(
+      cfg([person("Jo", { bookable: true }), person("Marcus", { bookable: true })]),
+      { organizationId: "org", date: DAY, serviceName: "Cut and finish" },
+      freeAll(),
+      async () => [
+        { blockId: "l", stylistName: "Jo", label: "Lunch", allDay: false, repeat: "weekly", date: DAY, start: at(13), end: at(14) },
+        { blockId: "c", stylistName: null, label: "Staff meeting", allDay: false, repeat: "none", date: DAY, start: at(9), end: at(10) },
+      ]
+    );
+    const times = (who: string) =>
+      slots.filter((s) => s.stylistName === who).map((s) => new Date(s.start).getTime());
+    // Jo's lunch: nothing that would run into 13:00-14:00.
+    expect(times("Jo")).not.toContain(at(12, 30).getTime());
+    expect(times("Jo")).not.toContain(at(13, 30).getTime());
+    expect(times("Jo")).toContain(at(12, 15).getTime());
+    expect(times("Jo")).toContain(at(14).getTime());
+    // Marcus has no lunch block.
+    expect(times("Marcus")).toContain(at(13).getTime());
+    // Nobody before the meeting ends.
+    expect(Math.min(...times("Jo"), ...times("Marcus"))).toBe(at(10).getTime());
+  });
+
   it("returns nothing for a service that is not on the list", async () => {
     const asked: string[] = [];
     const slots = await readAvailability(
