@@ -15,7 +15,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 import { normalisePhone } from "@/lib/phone";
-import { startReceptionist } from "@/lib/receptionist/session";
+import { receptionistApiKey, startReceptionist } from "@/lib/receptionist/session";
 import { endLabSession, getLabSession, putLabSession } from "@/lib/receptionist/lab-store";
 
 async function labContext(req: NextRequest) {
@@ -31,9 +31,12 @@ export async function POST(req: NextRequest) {
   const ctx = await labContext(req);
   if (isErrorResponse(ctx)) return ctx;
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!(await receptionistApiKey(ctx.organizationId))) {
     return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY is not set on this server, so the receptionist has no model to talk to." },
+      {
+        error:
+          "No Anthropic API key: set one for this salon (Admin → Organizations) or ANTHROPIC_API_KEY on the server.",
+      },
       { status: 503 }
     );
   }
@@ -70,6 +73,7 @@ export async function POST(req: NextRequest) {
       sessionId,
       greeting: session.greeting,
       model: session.model,
+      keySource: session.keySource,
       tools: session.toolNames,
       callerNumber,
     });

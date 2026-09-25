@@ -174,6 +174,14 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
             setFakes(Boolean(msg.fakes));
             setLines([
               { kind: "note", text: data.callerNumber ? `Call from ${data.callerNumber}` : "Call from a withheld number" },
+              ...(msg.keySource
+                ? [
+                    {
+                      kind: "note" as const,
+                      text: msg.keySource === "salon" ? "Charged to this salon's own API key" : "Charged to the shared API key",
+                    },
+                  ]
+                : []),
             ]);
             break;
           case "state":
