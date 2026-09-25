@@ -28,6 +28,12 @@ export function middleware(req: NextRequest) {
     "/widget.js",
     "/test-widget.html",
     "/favicon",
+    // Phones fetch the manifest and icons without the session cookie, so
+    // behind the login redirect they would get the login page instead and
+    // the home-screen icon would never appear.
+    "/manifest.webmanifest",
+    "/icons/",
+    "/apple-icon",
     // Legal pages must be publicly accessible so Meta (app review),
     // Google, and end users can reach them without credentials.
     "/privacy-policy",

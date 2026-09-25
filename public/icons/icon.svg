@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Full bleed, glyph inside the central safe zone, so the same art works
+       as an ordinary icon and as a maskable one that Android crops to a
+       circle or squircle. Source for the PNGs beside it. -->
+  <rect width="512" height="512" fill="#0d1117"/>
+  <rect x="136" y="150" width="240" height="224" rx="36" fill="#2563eb"/>
+  <rect x="136" y="150" width="240" height="68" rx="36" fill="#1e40af"/>
+  <rect x="136" y="186" width="240" height="32" fill="#1e40af"/>
+  <rect x="184" y="120" width="26" height="60" rx="13" fill="#e5e7eb"/>
+  <rect x="302" y="120" width="26" height="60" rx="13" fill="#e5e7eb"/>
+  <g fill="#ffffff">
+    <circle cx="196" cy="266" r="17"/>
+    <circle cx="256" cy="266" r="17"/>
+    <circle cx="316" cy="266" r="17" opacity="0.45"/>
+    <circle cx="196" cy="324" r="17" opacity="0.45"/>
+    <circle cx="256" cy="324" r="17"/>
+    <circle cx="316" cy="324" r="17"/>
+  </g>
+</svg>
