@@ -1217,8 +1217,24 @@ export async function handleBookAppointment(
   );
 
   if (!written.ok) {
-    // No lying-true: the caller must not be told they are booked in. Fall
-    // back to a callback so the lead is still not lost.
+    // No lying-true: the caller must not be told they are booked in.
+    //
+    // A slot taken by someone else is not a failure to hand to the salon:
+    // the agent offers another time and the caller is still on the line to
+    // pick one. Filing a callback there left a "COULD NOT BOOK" message for
+    // someone who usually rebooked a minute later.
+    if (written.conflict) {
+      return {
+        success: false,
+        today,
+        conflict: true,
+        message:
+          "That slot was taken while we were talking. Apologise and offer another time.",
+      };
+    }
+
+    // Anything else is the diary failing, and the caller has been told the
+    // salon will ring. A callback is what makes that true.
     const fallbackAt =
       nextOpenMorning(cfg.hours, cfg.timeZone, new Date()) ?? new Date();
     await prisma.callback.create({
@@ -1240,10 +1256,9 @@ export async function handleBookAppointment(
     return {
       success: false,
       today,
-      conflict: Boolean(written.conflict),
-      message: written.conflict
-        ? "That slot was taken while we were talking. Apologise and offer another time."
-        : "The booking did not go through. Apologise, say the salon will ring to confirm, and do not tell the caller they are booked in.",
+      conflict: false,
+      message:
+        "The booking did not go through. Apologise, say the salon will ring to confirm, and do not tell the caller they are booked in.",
     };
   }
 
