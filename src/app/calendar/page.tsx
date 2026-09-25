@@ -175,6 +175,9 @@ export default function CalendarPage() {
   );
   const [blockDialog, setBlockDialog] = useState<BlockDialogState | null>(null);
   const [editing, setEditing] = useState<CalendarAppointment | null>(null);
+  // Below lg the month picker is folded away, so on a phone the day itself is
+  // what the screen opens on rather than a month of dates above it.
+  const [showMonth, setShowMonth] = useState(false);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
   const [slot, setSlot] = useState<BookingSlot | null>(null);
@@ -361,6 +364,16 @@ export default function CalendarPage() {
         <Button
           variant="outline"
           size="sm"
+          className="gap-1.5 lg:hidden"
+          aria-expanded={showMonth}
+          onClick={() => setShowMonth((v) => !v)}
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          Month
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           className="gap-1.5"
           onClick={() =>
             setBlockDialog({
@@ -425,9 +438,11 @@ export default function CalendarPage() {
           />
         )}
 
-        <aside className="w-full lg:w-60 shrink-0 overflow-y-auto max-h-[38vh] lg:max-h-none lg:border-l lg:border-border lg:pl-4 flex flex-col gap-5">
+        <aside
+          className={`${showMonth ? "flex" : "hidden"} lg:flex w-full lg:w-60 shrink-0 overflow-y-auto max-h-[50vh] lg:max-h-none lg:border-l lg:border-border lg:pl-4 flex-col gap-5`}
+        >
           {legend.length > 0 && (
-            <div>
+            <div className="hidden lg:block">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
                 Services
               </p>
@@ -456,7 +471,10 @@ export default function CalendarPage() {
             viewYear={view.year}
             viewMonth={view.month}
             onViewChange={(year, month) => setView({ year, month })}
-            onSelect={jump}
+            onSelect={(date) => {
+              jump(date);
+              setShowMonth(false);
+            }}
             busyDates={monthBusy}
           />
         </aside>
