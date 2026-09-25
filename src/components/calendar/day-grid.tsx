@@ -32,6 +32,7 @@ import { toneFor, type ServiceTone } from "@/lib/service-colours";
 
 export interface CalendarAppointment {
   id: string;
+  bookingNumber: number | null;
   serviceText: string;
   durationMinutes: number;
   stylistName: string;

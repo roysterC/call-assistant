@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 
 export async function GET(req: NextRequest) {
@@ -59,7 +60,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const data: Record<string, unknown> = {};
+    const data: Prisma.CallbackUncheckedUpdateInput = {};
     if (status !== undefined) data.status = status;
     if (outcome !== undefined) data.outcome = outcome;
     if (notes !== undefined) data.notes = notes;

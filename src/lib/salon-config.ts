@@ -81,7 +81,10 @@ export function parseServices(raw: unknown): SalonService[] {
 
     // Null and zero are different facts: "not priced yet" must not total as
     // a free service, so only a real number becomes a price.
-    const priceRaw = Number(e.priceMinor);
+    // Number(null) is 0, so null and "" are caught before the conversion
+    // rather than coming out as a free service.
+    const priceRaw =
+      e.priceMinor === null || e.priceMinor === "" ? NaN : Number(e.priceMinor);
     const priceMinor =
       Number.isFinite(priceRaw) && priceRaw >= 0 ? Math.round(priceRaw) : null;
 

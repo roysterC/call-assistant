@@ -458,3 +458,18 @@ describe("the booking that went wrong", () => {
     }
   });
 });
+
+describe("parseServices prices", () => {
+  it("reads a missing, null or blank price as unpriced, not free", () => {
+    const [missing, nul, blank, zero] = parseServices([
+      { name: "A", durationMinutes: 30 },
+      { name: "B", durationMinutes: 30, priceMinor: null },
+      { name: "C", durationMinutes: 30, priceMinor: "" },
+      { name: "D", durationMinutes: 30, priceMinor: 0 },
+    ]);
+    expect(missing.priceMinor).toBeNull();
+    expect(nul.priceMinor).toBeNull();
+    expect(blank.priceMinor).toBeNull();
+    expect(zero.priceMinor).toBe(0);
+  });
+});

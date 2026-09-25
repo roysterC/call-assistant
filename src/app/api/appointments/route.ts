@@ -3,7 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { getBookingProvider, getSalonConfig } from "@/lib/booking";
 import { canCreateBooking } from "@/lib/booking/types";
-import { matchService, matchStylist } from "@/lib/salon-config";
+import {
+  combineServices,
+  matchService,
+  matchStylist,
+  type SalonService,
+} from "@/lib/salon-config";
+import { createNumberedAppointment } from "@/lib/booking-number";
 import { normalisePhone } from "@/lib/phone";
 
 const VALID_STATUSES = ["booked", "cancelled", "completed", "no_show"];
@@ -166,6 +172,8 @@ export async function POST(req: NextRequest) {
       startsAt,
       stylistName,
       serviceText,
+      serviceNames,
+      leadId,
       clientName,
       clientPhone,
       durationMinutes: durationOverride,
@@ -173,9 +181,15 @@ export async function POST(req: NextRequest) {
       notes,
     } = body ?? {};
 
-    if (!startsAt || !stylistName || !serviceText) {
+    const pickedNames: string[] = Array.isArray(serviceNames)
+      ? serviceNames.filter(
+          (n: unknown): n is string => typeof n === "string" && n.trim() !== ""
+        )
+      : [];
+
+    if (!startsAt || !stylistName || (!serviceText && pickedNames.length === 0)) {
       return NextResponse.json(
-        { error: "startsAt, stylistName and serviceText are required" },
+        { error: "startsAt, stylistName and a service are required" },
         { status: 400 }
       );
     }
@@ -199,7 +213,30 @@ export async function POST(req: NextRequest) {
     // a desk booking blocks the same amount of chair time. An override is
     // allowed because the person at the desk can see the client's hair and
     // the catalogue cannot.
-    const service = matchService(serviceText, cfg.services);
+    //
+    // The desk picks services from the catalogue by name, so each one must be
+    // there exactly: fuzzy matching is for what a caller says, not for a value
+    // chosen from a list, where a near miss means the list and the catalogue
+    // have drifted and guessing would book the wrong length.
+    let service: SalonService | null;
+    if (pickedNames.length > 0) {
+      const parts: SalonService[] = [];
+      for (const name of pickedNames) {
+        const found = cfg.services.find(
+          (s) => s.name.toLowerCase() === name.trim().toLowerCase()
+        );
+        if (!found) {
+          return NextResponse.json(
+            { error: `"${name}" is not on the service list.` },
+            { status: 400 }
+          );
+        }
+        parts.push(found);
+      }
+      service = combineServices(parts);
+    } else {
+      service = matchService(serviceText, cfg.services);
+    }
     const durationMinutes =
       Number(durationOverride) > 0
         ? Math.round(Number(durationOverride))
@@ -212,43 +249,60 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // A number that will not parse is sent back rather than quietly dropped:
-    // the desk can retype it, and a booking with a mangled number is worse
-    // than one with none, because nobody can ring the client about it.
+    // A client picked from the client list arrives by id. The legacy fields
+    // below (name and number typed into the booking form) are kept for the
+    // walk-in with no details and for any older caller of this endpoint.
+    let lead;
     let phone: string | null = null;
-    if (clientPhone) {
-      const parsed = normalisePhone(String(clientPhone));
-      if (!parsed.ok) {
+    if (leadId) {
+      lead = await prisma.lead.findFirst({
+        where: { id: String(leadId), organizationId: ctx.organizationId },
+      });
+      if (!lead) {
         return NextResponse.json(
-          { error: `That number does not look right: ${parsed.reason}` },
-          { status: 400 }
+          { error: "That client was not found." },
+          { status: 404 }
         );
       }
-      phone = parsed.e164;
-    }
+      phone = lead.phone;
+    } else {
+      // A number that will not parse is sent back rather than quietly dropped:
+      // the desk can retype it, and a booking with a mangled number is worse
+      // than one with none, because nobody can ring the client about it.
+      if (clientPhone) {
+        const parsed = normalisePhone(String(clientPhone));
+        if (!parsed.ok) {
+          return NextResponse.json(
+            { error: `That number does not look right: ${parsed.reason}` },
+            { status: 400 }
+          );
+        }
+        phone = parsed.e164;
+      }
 
-    // A walk-in may give no number at all, and `Lead.phone` is nullable for
-    // exactly that reason. Only the keyed upsert needs a number.
-    const lead = phone
-      ? await prisma.lead.upsert({
-          where: {
-            organizationId_phone: { organizationId: ctx.organizationId, phone },
-          },
-          update: { ...(clientName && { name: clientName }) },
-          create: {
-            organizationId: ctx.organizationId,
-            phone,
-            name: clientName || null,
-            source: "manual",
-          },
-        })
-      : await prisma.lead.create({
-          data: {
-            organizationId: ctx.organizationId,
-            name: clientName || null,
-            source: "manual",
-          },
-        });
+      // A walk-in may give no number at all, and `Lead.phone` is nullable for
+      // exactly that reason. Only the keyed upsert needs a number.
+      lead = phone
+        ? await prisma.lead.upsert({
+            where: {
+              organizationId_phone: { organizationId: ctx.organizationId, phone },
+            },
+            update: { ...(clientName && { name: clientName }) },
+            create: {
+              organizationId: ctx.organizationId,
+              phone,
+              name: clientName || null,
+              source: "manual",
+            },
+          })
+        : await prisma.lead.create({
+            data: {
+              organizationId: ctx.organizationId,
+              name: clientName || null,
+              source: "manual",
+            },
+          });
+    }
 
     const provider = await getBookingProvider(ctx.organizationId);
     if (!canCreateBooking(provider)) {
@@ -288,24 +342,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        organizationId: ctx.organizationId,
-        leadId: lead.id,
-        serviceText: service?.name ?? String(serviceText),
-        durationMinutes,
-        stylistName: stylist.name,
-        startsAt: new Date(written.startsAt),
-        endsAt: new Date(written.endsAt),
-        googleEventId: written.ref,
-        googleCalendarId: written.calendarId ?? null,
-        clientType: String(clientType),
-        patchTestRequired:
-          Boolean(service?.requiresPatchTest) && clientType !== "returning",
-        notes: notes || null,
-        source: "manual",
-      },
-      include: { lead: true },
+    const appointment = await createNumberedAppointment({
+      organizationId: ctx.organizationId,
+      leadId: lead.id,
+      serviceText: service?.name ?? String(serviceText),
+      durationMinutes,
+      stylistName: stylist.name,
+      startsAt: new Date(written.startsAt),
+      endsAt: new Date(written.endsAt),
+      googleEventId: written.ref,
+      googleCalendarId: written.calendarId ?? null,
+      clientType: String(clientType),
+      patchTestRequired:
+        Boolean(service?.requiresPatchTest) && clientType !== "returning",
+      notes: notes || null,
+      source: "manual",
     });
 
     return NextResponse.json({ appointment }, { status: 201 });

@@ -35,8 +35,12 @@ import {
 import {
   NewBookingDialog,
   type BookingSlot,
-  type ServiceOption,
 } from "@/components/calendar/new-booking-dialog";
+import {
+  parseServices,
+  resolveBookedService,
+  type SalonService,
+} from "@/lib/salon-config";
 
 interface Stylist {
   name: string;
@@ -93,6 +97,19 @@ function shiftDate(date: string, days: number): string {
   return next.toISOString().slice(0, 10);
 }
 
+/**
+ * The list price of what an appointment was booked as. A desk booking of two
+ * services is stored as "Full head colour + Cut and finish", which no single
+ * catalogue entry matches, so it is priced as the sum of its parts.
+ */
+function listPriceFor(
+  serviceText: string | undefined,
+  services: SalonService[]
+): number | null {
+  const r = resolveBookedService(serviceText, services);
+  return r.ok ? r.service.priceMinor : null;
+}
+
 export default function CalendarPage() {
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [selected, setSelected] = useState(() => dateIn(DEFAULT_TZ));
@@ -102,7 +119,7 @@ export default function CalendarPage() {
   });
 
   const [stylists, setStylists] = useState<Stylist[]>([]);
-  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [services, setServices] = useState<SalonService[]>([]);
   const [hours, setHours] = useState<BusinessHour[]>([]);
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
@@ -136,7 +153,7 @@ export default function CalendarPage() {
         const res = await apiFetch("/api/settings");
         const { settings } = await res.json();
         setStylists(settings?.teamMembers ?? []);
-        setServices(settings?.services ?? []);
+        setServices(parseServices(settings?.services));
         setHours(settings?.businessHours ?? []);
         // Column is `timezone`; SalonConfig renames it to `timeZone` but the
         // settings endpoint returns the row as stored.
@@ -333,13 +350,7 @@ export default function CalendarPage() {
         appointment={openAppointment}
         timeZone={timeZone}
         tones={tones}
-        listPriceMinor={
-          services.find(
-            (s) =>
-              s.name.toLowerCase() ===
-              (openAppointment?.serviceText ?? "").trim().toLowerCase()
-          )?.priceMinor ?? null
-        }
+        listPriceMinor={listPriceFor(openAppointment?.serviceText, services)}
         onClose={() => setOpenAppointment(null)}
         onChanged={() => {
           loadDay();
@@ -350,7 +361,9 @@ export default function CalendarPage() {
       <NewBookingDialog
         slot={slot}
         services={services}
+        stylists={stylists.map((s) => s.name)}
         timeZone={timeZone}
+        dayAppointments={appointments}
         onClose={() => setSlot(null)}
         onBooked={() => {
           loadDay();
