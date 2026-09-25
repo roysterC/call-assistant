@@ -12,9 +12,10 @@
  *
  *   npx tsx src/voice-server/index.ts
  *
- * Needs, from .env.local / .env: DATABASE_URL, ANTHROPIC_API_KEY,
- * DEEPGRAM_API_KEY, ELEVENLABS_API_KEY and RECEPTIONIST_VOICE_SECRET (the
- * same value the CRM signs passes with). VOICE_PORT defaults to 4610.
+ * Needs, from .env.local / .env: DATABASE_URL, DEEPGRAM_API_KEY,
+ * ELEVENLABS_API_KEY and RECEPTIONIST_VOICE_SECRET (the same value the CRM
+ * signs passes with), plus an Anthropic key: the salon's own override if it
+ * has one, else ANTHROPIC_API_KEY. VOICE_PORT defaults to 4610.
  */
 
 import { config as loadEnv } from "dotenv";
@@ -33,7 +34,7 @@ const FAKES = process.env.VOICE_FAKES === "1" && process.env.NODE_ENV !== "produ
 async function main() {
   // Imported after the environment is loaded: these read it at import time.
   const { prisma } = await import("@/lib/prisma");
-  const { startReceptionist } = await import("@/lib/receptionist/session");
+  const { receptionistApiKey, startReceptionist } = await import("@/lib/receptionist/session");
   const { verifyVoicePass } = await import("@/lib/receptionist/voice/token");
   const { VoiceCall } = await import("@/lib/receptionist/voice/call");
   const { DeepgramStt, ElevenLabsTts } = await import("@/lib/receptionist/voice/providers");
@@ -91,7 +92,10 @@ async function main() {
 
     const missing = FAKES
       ? []
-      : ["ANTHROPIC_API_KEY", "DEEPGRAM_API_KEY", "ELEVENLABS_API_KEY"].filter((k) => !process.env[k]);
+      : [
+          ...((await receptionistApiKey(pass.organizationId)) ? [] : ["an Anthropic API key"]),
+          ...["DEEPGRAM_API_KEY", "ELEVENLABS_API_KEY"].filter((k) => !process.env[k]),
+        ];
     if (missing.length) {
       sendJson(ws, { type: "error", message: `The voice server is missing ${missing.join(", ")}.` });
       return ws.close();
@@ -163,7 +167,7 @@ async function main() {
     ws.on("close", end);
     ws.on("error", end);
 
-    sendJson(ws, { type: "hello", model: session.model, fakes: FAKES, sampleRate: 16000 });
+    sendJson(ws, { type: "hello", model: session.model, keySource: session.keySource, fakes: FAKES, sampleRate: 16000 });
     await call.start();
   }
 

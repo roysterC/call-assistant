@@ -133,11 +133,13 @@ installed, and never fails because of it.
 
 One-time setup on netcup, as root:
 
-1. Add to `/home/deploy/call-assistant/.env.local`:
+1. Add to the app's settings file, `/home/deploy/call-assistant/.env` (the
+   box has no `.env.local`; either would be read):
    `RECEPTIONIST_VOICE_URL=wss://89-58-45-110.nip.io/voice`,
    `RECEPTIONIST_VOICE_SECRET=` (from `openssl rand -hex 32`),
-   `DEEPGRAM_API_KEY=` and `ELEVENLABS_API_KEY=`. `ANTHROPIC_API_KEY` is shared
-   with the CRM.
+   `DEEPGRAM_API_KEY=` and `ELEVENLABS_API_KEY=`. The Anthropic key is the
+   salon's own where one is set (Admin → Organizations → Anthropic API key
+   override, so its usage is billed to that key), else `ANTHROPIC_API_KEY`.
 2. Install the unit:
    `cp /home/deploy/call-assistant/deploy/call-assistant-voice.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now call-assistant-voice`
 3. Route `/voice/` to it in the web server in front of the app, with websocket

@@ -43,6 +43,7 @@ export default function ReceptionistLabPage() {
   const [mode, setMode] = useState<"type" | "talk">("type");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
+  const [keySource, setKeySource] = useState<"salon" | "shared" | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -70,6 +71,7 @@ export default function ReceptionistLabPage() {
       }
       setSessionId(data.sessionId);
       setModel(data.model);
+      setKeySource(data.keySource ?? null);
       setLines([
         {
           kind: "note",
@@ -264,6 +266,14 @@ export default function ReceptionistLabPage() {
                 <p>
                   Model <span className="font-mono text-foreground">{model}</span>
                 </p>
+                {keySource && (
+                  <p>
+                    Charged to{" "}
+                    <span className="text-foreground">
+                      {keySource === "salon" ? "this salon's own API key" : "the shared API key"}
+                    </span>
+                  </p>
+                )}
                 <p>
                   The time under each reply is how long until its first word, then until the
                   whole reply. On the phone, the first number is the silence the caller hears.

@@ -33,6 +33,27 @@ export interface ReceptionistSession {
   greeting: string;
   model: string;
   toolNames: string[];
+  /** Whose Anthropic key the call is charged to. */
+  keySource: "salon" | "shared";
+}
+
+/**
+ * The Anthropic key a salon's receptionist runs on: its own, when one is set
+ * on the organisation (Admin → Organizations → Anthropic API key override), so
+ * its usage is billed separately; otherwise the shared key. Null when neither
+ * exists. The same override the website chat already honours.
+ */
+export async function receptionistApiKey(
+  organizationId: string
+): Promise<{ apiKey: string; source: "salon" | "shared" } | null> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { anthropicApiKeyOverride: true },
+  });
+  const own = org?.anthropicApiKeyOverride?.trim();
+  if (own) return { apiKey: own, source: "salon" };
+  const shared = process.env.ANTHROPIC_API_KEY?.trim();
+  return shared ? { apiKey: shared, source: "shared" } : null;
 }
 
 export async function startReceptionist(
@@ -43,6 +64,10 @@ export async function startReceptionist(
     where: { organizationId },
     select: { businessName: true, voiceSystemPrompt: true },
   });
+  const key = opts.client ? null : await receptionistApiKey(organizationId);
+  if (!opts.client && !key) {
+    throw new Error("No Anthropic API key: neither this salon's own nor the shared one is set.");
+  }
   const cfg = await getSalonConfig(organizationId);
   const caps = selectProvider(cfg).capabilities;
   const tools = toClaudeTools(buildVoiceTools(caps));
@@ -50,7 +75,7 @@ export async function startReceptionist(
   const businessName = settings?.businessName ?? "";
 
   const engine = new ReceptionistEngine({
-    client: opts.client ?? new Anthropic(),
+    client: opts.client ?? new Anthropic({ apiKey: key!.apiKey }),
     model: receptionistModel(),
     system: buildSystem(
       cfg,
@@ -78,5 +103,11 @@ export async function startReceptionist(
     { role: "assistant", content: greeting }
   );
 
-  return { engine, greeting, model: receptionistModel(), toolNames: [...allowed] };
+  return {
+    engine,
+    greeting,
+    model: receptionistModel(),
+    toolNames: [...allowed],
+    keySource: key?.source ?? "shared",
+  };
 }
