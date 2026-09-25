@@ -123,6 +123,45 @@ violate it fails when Postgres builds the index. That is a safe failure — the
 schema and the data are left as they were — but the deploy stops, and the
 duplicates have to be resolved on the box before it will go through.
 
+### Voice server
+
+Our own receptionist (the "Talk" tab of the Receptionist lab, and later the
+phone line) needs a long-lived audio connection, so it runs as its own service
+next to the CRM: `src/voice-server/index.ts` on port 4610, unit
+`call-assistant-voice.service`. A CRM deploy restarts it only once it has been
+installed, and never fails because of it.
+
+One-time setup on netcup, as root:
+
+1. Add to `/home/deploy/call-assistant/.env.local`:
+   `RECEPTIONIST_VOICE_URL=wss://89-58-45-110.nip.io/voice`,
+   `RECEPTIONIST_VOICE_SECRET=` (from `openssl rand -hex 32`),
+   `DEEPGRAM_API_KEY=` and `ELEVENLABS_API_KEY=`. `ANTHROPIC_API_KEY` is shared
+   with the CRM.
+2. Install the unit:
+   `cp /home/deploy/call-assistant/deploy/call-assistant-voice.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now call-assistant-voice`
+3. Route `/voice/` to it in the web server in front of the app, with websocket
+   upgrades allowed. For nginx, inside the site's `server` block:
+
+   ```nginx
+   location /voice/ {
+       proxy_pass http://127.0.0.1:4610;
+       proxy_http_version 1.1;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "upgrade";
+       proxy_read_timeout 3600s;
+   }
+   ```
+
+   (For Caddy: `handle /voice/* { reverse_proxy 127.0.0.1:4610 }`.)
+4. Restart the CRM so it reads the two new settings:
+   `systemctl restart call-assistant`, then check
+   `curl https://89-58-45-110.nip.io/voice/health`.
+
+Locally, `VOICE_FAKES=1 npx tsx src/voice-server/index.ts` runs it with a
+stand-in model, recogniser and voice, so the audio path can be tried with no
+provider accounts.
+
 ### Manual operations
 
 ```bash
