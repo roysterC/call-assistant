@@ -27,6 +27,7 @@ import {
 } from "@/components/calendar/day-grid";
 import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
 import { useMe } from "@/components/providers/me-provider";
+import { useIsPhone } from "@/lib/use-is-phone";
 import {
   EditBookingDialog,
   MoveConfirmDialog,
@@ -262,6 +263,17 @@ export default function CalendarPage() {
     loadDay();
   }, [loadDay]);
 
+  // A phone app sits in the background for hours. Coming back to it should
+  // show the booking the phone assistant took meanwhile, without anyone
+  // having to think of refreshing.
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState === "visible") loadDay();
+    };
+    document.addEventListener("visibilitychange", onShow);
+    return () => document.removeEventListener("visibilitychange", onShow);
+  }, [loadDay]);
+
   // Dots on the month panel. A separate, wider fetch so paging days does not
   // refetch the month, and paging months does not disturb the day.
   const loadMonth = useCallback(async () => {
@@ -331,6 +343,35 @@ export default function CalendarPage() {
     [stylists, open, weekday, usesGoogle, me]
   );
 
+  // A phone shows one stylist at a time: five columns at phone width are
+  // five slivers nobody can tap. The one picked, else the login's own
+  // column, else whoever is working today.
+  const isPhone = useIsPhone();
+  const [phonePick, setPhonePick] = useState<string | null>(null);
+  const phoneColumn =
+    columns.find((c) => c.name === phonePick) ??
+    columns.find((c) => ownColumn !== null && c.name.toLowerCase() === ownColumn.toLowerCase()) ??
+    columns.find((c) => c.worksToday) ??
+    columns[0];
+  const visibleColumns = isPhone && phoneColumn ? [phoneColumn] : columns;
+
+  // A stylist glancing at their phone between clients wants to know who is
+  // next. Today only, their own column only.
+  const nextClient = useMemo(() => {
+    if (!ownColumn || selected !== today) return null;
+    const now = new Date().getTime();
+    return (
+      appointments
+        .filter(
+          (a) =>
+            a.status === "booked" &&
+            a.stylistName.toLowerCase() === ownColumn.toLowerCase() &&
+            new Date(a.endsAt).getTime() > now
+        )
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null
+    );
+  }, [appointments, ownColumn, selected, today]);
+
   const jump = (date: string) => {
     setSelected(date);
     const [y, m] = date.split("-").map(Number);
@@ -397,6 +438,59 @@ export default function CalendarPage() {
         </div>
       </div>
 
+      {ownColumn !== null && selected === today && settingsLoaded && (
+        <div className="shrink-0 pb-3">
+          {nextClient ? (
+            <button
+              type="button"
+              onClick={() => setOpenAppointment(nextClient)}
+              className="w-full rounded-md border border-border bg-card px-3 py-2.5 text-left hover:bg-accent"
+            >
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {new Date(nextClient.startsAt).getTime() <= new Date().getTime() ? "Now" : "Next"}
+              </span>
+              <span className="block text-sm">
+                <span className="font-semibold tabular-nums">
+                  {new Date(nextClient.startsAt).toLocaleTimeString("en-GB", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                    timeZone,
+                  })}
+                </span>{" "}
+                · {nextClient.lead.name ?? "Client"} · {nextClient.serviceText}
+              </span>
+            </button>
+          ) : (
+            <p className="text-sm text-muted-foreground">No more bookings today.</p>
+          )}
+        </div>
+      )}
+
+      {isPhone && columns.length > 1 && (
+        <div className="shrink-0 -mx-4 px-4 pb-3 flex gap-2 overflow-x-auto" role="tablist" aria-label="Stylist">
+          {columns.map((c) => {
+            const on = c.name === phoneColumn?.name;
+            return (
+              <button
+                key={c.name}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setPhonePick(c.name)}
+                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm ${
+                  on
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border text-muted-foreground"
+                } ${c.worksToday ? "" : "opacity-60"}`}
+              >
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex gap-4 flex-1 min-h-0 overflow-hidden flex-col-reverse lg:flex-row">
         {!settingsLoaded ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground py-16">
@@ -411,7 +505,8 @@ export default function CalendarPage() {
           <DayGrid
             date={selected}
             timeZone={timeZone}
-            stylists={columns}
+            stylists={visibleColumns}
+            hourHeightPx={isPhone ? 96 : undefined}
             appointments={appointments}
             open={open}
             nowMinutes={nowMinutes}

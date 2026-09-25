@@ -20,6 +20,7 @@ import { CheckCircle2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  PHONE_FULL_SCREEN,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -164,9 +165,7 @@ export function NewBookingDialog({
   return (
     <Dialog open={Boolean(slot)} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className={
-          step.kind === "client" ? "sm:max-w-3xl" : "sm:max-w-lg"
-        }
+        className={`${step.kind === "client" ? "sm:max-w-3xl" : "sm:max-w-lg"} ${PHONE_FULL_SCREEN}`}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
