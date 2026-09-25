@@ -51,7 +51,8 @@ export async function PUT(req: NextRequest) {
     const newHash = await hashPassword(newPassword);
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { passwordHash: newHash },
+      // Choosing their own password is what a temporary one was waiting for.
+      data: { passwordHash: newHash, mustChangePassword: false },
     });
 
     return NextResponse.json({ success: true });

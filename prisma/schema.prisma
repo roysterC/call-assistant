@@ -48,8 +48,19 @@ model User {
   emailVerified  DateTime?
   image          String?
   passwordHash   String?
-  role           String        @default("member") // member, admin, superAdmin
+  role           String        @default("member") // member, admin, superAdmin, stylist
   organizationId String?
+  // Stylist logins only (role "stylist"). A stylist login belongs to one
+  // column of the diary — linked by name, as bookings are — and sees what the
+  // owner allows. Every other role is unaffected by these.
+  stylistName        String?
+  /// "own": only their column. "salon": every column, others read-only.
+  diaryScope         String  @default("salon")
+  /// Their own takings on the sales page. Never anyone else's.
+  canSeeTakings      Boolean @default(true)
+  /// Set when the owner creates the login or resets its password; the
+  /// stylist cannot use anything else until they have chosen their own.
+  mustChangePassword Boolean @default(false)
   organization   Organization? @relation(fields: [organizationId], references: [id])
   accounts       Account[]
   sessions       Session[]

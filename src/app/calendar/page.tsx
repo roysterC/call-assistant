@@ -26,6 +26,7 @@ import {
   type DiaryBlock,
 } from "@/components/calendar/day-grid";
 import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
+import { useMe } from "@/components/providers/me-provider";
 import {
   EditBookingDialog,
   MoveConfirmDialog,
@@ -148,6 +149,11 @@ function newBlockForm(
 }
 
 export default function CalendarPage() {
+  const me = useMe();
+  // A stylist login changes only their own column; null is the owner.
+  const ownColumn = me?.stylist?.name ?? null;
+  const mine = (name: string) =>
+    ownColumn === null || name.toLowerCase() === ownColumn.toLowerCase();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [selected, setSelected] = useState(() => dateIn(DEFAULT_TZ));
   const [view, setView] = useState(() => {
@@ -293,9 +299,18 @@ export default function CalendarPage() {
     return { openMin, closeMin };
   }, [hours, weekday]);
 
+  // Who this login can book, move and block for.
+  const writableStylists = stylists.map((s) => s.name).filter(mine);
+
   const columns: CalendarStylist[] = useMemo(
     () =>
-      stylists.map((s) => ({
+      stylists
+        .filter(
+          (s) =>
+            me?.stylist?.diaryScope !== "own" ||
+            s.name.toLowerCase() === me.stylist.name.toLowerCase()
+        )
+        .map((s) => ({
         name: s.name,
         // An empty list means "any day the salon is open", the same rule the
         // booking engine applies.
@@ -303,9 +318,14 @@ export default function CalendarPage() {
           Boolean(open) &&
           ((s.workingDays?.length ?? 0) === 0 ||
             (s.workingDays ?? []).includes(weekday)),
-        bookable: !usesGoogle || Boolean(s.googleCalendarId),
+        // A colleague's column is there to see, not to book into.
+        bookable:
+          (!usesGoogle || Boolean(s.googleCalendarId)) &&
+          (!me?.stylist || s.name.toLowerCase() === me.stylist.name.toLowerCase()),
+        readOnly:
+          Boolean(me?.stylist) && s.name.toLowerCase() !== me?.stylist?.name.toLowerCase(),
       })),
-    [stylists, open, weekday, usesGoogle]
+    [stylists, open, weekday, usesGoogle, me]
   );
 
   const jump = (date: string) => {
@@ -345,7 +365,7 @@ export default function CalendarPage() {
           onClick={() =>
             setBlockDialog({
               mode: "new",
-              initial: newBlockForm(selected, stylists[0]?.name ?? null, "13:00"),
+              initial: newBlockForm(selected, ownColumn ?? stylists[0]?.name ?? null, "13:00"),
             })
           }
           disabled={stylists.length === 0}
@@ -444,6 +464,7 @@ export default function CalendarPage() {
 
       <AppointmentSheet
         appointment={openAppointment}
+        readOnly={Boolean(openAppointment && !mine(openAppointment.stylistName))}
         timeZone={timeZone}
         tones={tones}
         listPriceMinor={listPriceFor(openAppointment?.serviceText, services)}
@@ -461,7 +482,7 @@ export default function CalendarPage() {
       <NewBookingDialog
         slot={slot}
         services={services}
-        stylists={stylists.map((s) => s.name)}
+        stylists={writableStylists}
         timeZone={timeZone}
         dayAppointments={appointments}
         dayBlocks={blocks}
@@ -482,7 +503,7 @@ export default function CalendarPage() {
       <EditBookingDialog
         appointment={editing}
         services={services}
-        stylists={stylists.map((s) => s.name)}
+        stylists={writableStylists}
         timeZone={timeZone}
         dayAppointments={appointments}
         dayBlocks={blocks}
@@ -505,7 +526,8 @@ export default function CalendarPage() {
 
       <BlockTimeDialog
         state={blockDialog}
-        stylists={stylists.map((s) => s.name)}
+        allowEveryone={ownColumn === null}
+        stylists={writableStylists}
         timeZone={timeZone}
         onClose={() => setBlockDialog(null)}
         onSaved={loadDay}

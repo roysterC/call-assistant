@@ -75,6 +75,8 @@ export interface CalendarStylist {
   name: string;
   worksToday: boolean;
   bookable: boolean;
+  /** A colleague's column seen by a stylist login: shown, not bookable. */
+  readOnly?: boolean;
 }
 
 interface DayGridProps {
@@ -146,7 +148,7 @@ export function DayGrid({
             >
               <div className="text-sm font-semibold truncate">{s.name}</div>
               <div className="text-[11px] text-muted-foreground truncate">
-                {!s.bookable
+                {!s.bookable && !s.readOnly
                   ? "no calendar"
                   : s.worksToday
                     ? "working"
@@ -438,6 +440,7 @@ function StylistColumn({
         // "now" the grid greys the past with.
         const draggable =
           Boolean(onDragStart) &&
+          stylist.bookable &&
           a.status === "booked" &&
           !isPastDay &&
           (nowMinutes === null ||

@@ -1,13 +1,20 @@
 /**
  * Blocked time in the diary: list it for a range, add it.
  *
- * Anyone who can sign in may block anyone's time for now. When logins are
- * tied to stylists, a stylist will block only their own and the owner anyone's.
+ * The owner blocks anyone's time, or everyone's. A stylist login blocks only
+ * their own, and sees a colleague's blocks as "Unavailable": why someone is
+ * off is theirs to share.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireTenant, isErrorResponse } from "@/lib/tenant";
+import {
+  canWriteColumn,
+  isStylist,
+  notYourColumn,
+  requireTenant,
+  isErrorResponse,
+} from "@/lib/tenant";
 import { getSalonConfig } from "@/lib/booking";
 import { matchStylist } from "@/lib/salon-config";
 import { expandBlocks, parseTimeBlockForm } from "@/lib/time-blocks";
@@ -17,7 +24,7 @@ const MAX_RANGE_DAYS = 62;
 
 /** Every stretch of blocked time in [from, to), with the blocks they come from. */
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { stylists: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -38,12 +45,24 @@ export async function GET(req: NextRequest) {
         OR: [{ repeat: "weekly" }, { startsAt: { lt: to }, endsAt: { gt: from } }],
       },
     });
-    const occurrences = expandBlocks(rows, from, to, cfg.timeZone);
+    let occurrences = expandBlocks(rows, from, to, cfg.timeZone);
+    let records = rows;
+    if (ctx.stylist) {
+      const mine = (name: string | null) => name !== null && isStylist(ctx, name);
+      if (ctx.stylist.diaryScope === "own") {
+        occurrences = occurrences.filter((o) => o.stylistName === null || mine(o.stylistName));
+      }
+      occurrences = occurrences.map((o) =>
+        o.stylistName === null || mine(o.stylistName) ? o : { ...o, label: "Unavailable" }
+      );
+      // Only their own blocks can be opened for editing.
+      records = rows.filter((r) => mine(r.stylistName));
+    }
     const used = new Set(occurrences.map((o) => o.blockId));
 
     return NextResponse.json({
       occurrences,
-      blocks: rows.filter((r) => used.has(r.id)),
+      blocks: records.filter((r) => used.has(r.id)),
     });
   } catch (error) {
     console.error("[TIME BLOCKS API] GET error:", error);
@@ -56,7 +75,7 @@ export async function GET(req: NextRequest) {
  * bookings that fall inside it, so the form can show them first.
  */
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { stylists: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -76,6 +95,10 @@ export async function POST(req: NextRequest) {
         );
       }
       data.stylistName = stylist.name;
+    }
+    // A stylist blocks their own time, never the whole salon's.
+    if (ctx.stylist && (data.stylistName === null || !canWriteColumn(ctx, data.stylistName))) {
+      return notYourColumn();
     }
 
     const affected = await bookingsInBlock(ctx.organizationId, data, cfg.timeZone);

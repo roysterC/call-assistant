@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireTenant, isErrorResponse } from "@/lib/tenant";
+import {
+  canWriteColumn,
+  isStylist,
+  notYourColumn,
+  requireTenant,
+  isErrorResponse,
+} from "@/lib/tenant";
 import { getBookingProvider, getSalonConfig } from "@/lib/booking";
 import { canCreateBooking } from "@/lib/booking/types";
 import {
@@ -22,7 +28,7 @@ const VALID_STATUSES = ["booked", "cancelled", "completed", "no_show"];
  * can show bookings without calling Google on every page load.
  */
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { stylists: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -34,6 +40,10 @@ export async function GET(req: NextRequest) {
       organizationId: ctx.organizationId,
     };
     if (status !== "all") where.status = status;
+    // A stylist allowed only their own column sees only their own bookings.
+    if (ctx.stylist?.diaryScope === "own") {
+      where.stylistName = { equals: ctx.stylist.name, mode: "insensitive" };
+    }
 
     // An explicit window wins over the scope shortcut: the day view asks for
     // one day and wants everything in it, including what has already been and
@@ -73,6 +83,32 @@ export async function GET(req: NextRequest) {
       take: 200,
     });
 
+    // A stylist who can see the whole salon sees who is in and for what in a
+    // colleague's column, but not how to reach their clients or what they
+    // paid: those are the colleague's business.
+    if (ctx.stylist) {
+      return NextResponse.json({
+        appointments: appointments.map((a) =>
+          isStylist(ctx, a.stylistName)
+            ? a
+            : {
+                ...a,
+                notes: null,
+                amountMinor: null,
+                lead: {
+                  id: "",
+                  name: a.lead.name,
+                  firstName: a.lead.firstName,
+                  lastName: a.lead.lastName,
+                  phone: null,
+                  email: null,
+                  notes: null,
+                },
+              }
+        ),
+      });
+    }
+
     return NextResponse.json({ appointments });
   } catch (error) {
     console.error("[APPOINTMENTS API] GET error:", error);
@@ -81,7 +117,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { stylists: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -102,11 +138,12 @@ export async function PATCH(req: NextRequest) {
     // Verify ownership before touching anything.
     const existing = await prisma.appointment.findUnique({
       where: { id },
-      select: { organizationId: true },
+      select: { organizationId: true, stylistName: true },
     });
     if (!existing || existing.organizationId !== ctx.organizationId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    if (!canWriteColumn(ctx, existing.stylistName)) return notYourColumn();
 
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
@@ -161,7 +198,7 @@ export async function PATCH(req: NextRequest) {
  * event first and records it here after.
  */
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { stylists: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -206,6 +243,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    // Stylists book into their own column; the owner and the phone book anyone.
+    if (!canWriteColumn(ctx, stylist.name)) return notYourColumn();
 
     // Duration comes from the service catalogue, as it does on the phone, so
     // a desk booking blocks the same amount of chair time. An override is

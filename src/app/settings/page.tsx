@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
 import { ServicesEditor } from "@/components/settings/services-editor";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
+import { TeamLogins } from "@/components/settings/team-logins";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 
@@ -334,10 +335,12 @@ export default function SettingsPage() {
           <Card className="gap-0">
             <CardHeader className="border-b pb-3">
               <CardTitle className="text-base">Stylists</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Each needs a Google calendar shared with the service account
-                before they can be booked.
-              </p>
+              {settings.diaryProvider === "google" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Each needs a Google calendar shared with the service account
+                  before they can be booked.
+                </p>
+              )}
             </CardHeader>
             <CardContent className="pt-4">
               {settings.teamMembers.length === 0 ? (
@@ -355,6 +358,25 @@ export default function SettingsPage() {
                 onChange={(teamMembers) =>
                   setSettings({ ...settings, teamMembers })
                 }
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="gap-0">
+            <CardHeader className="border-b pb-3">
+              <CardTitle className="text-base">Team logins</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                A login lets a stylist use their own column of the diary from
+                their phone. They see only their own clients, and never the
+                salon&apos;s calls, settings or anyone else&apos;s takings.
+                Changes here take effect straight away.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <TeamLogins
+                stylists={settings.teamMembers
+                  .map((m) => m.name)
+                  .filter((n): n is string => Boolean(n && n.trim()))}
               />
             </CardContent>
           </Card>
