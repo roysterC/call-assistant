@@ -115,7 +115,7 @@ export function ConversationListItem({
         ) : (
           <div
             className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold",
+              "w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold",
               avatarColor
             )}
           >
@@ -161,7 +161,7 @@ export function ConversationListItem({
             <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
           )}
           {starred && (
-            <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+            <Star className="w-3 h-3 text-amber-600 fill-amber-500 shrink-0" />
           )}
           <p
             className={cn(

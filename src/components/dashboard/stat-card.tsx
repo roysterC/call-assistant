@@ -23,7 +23,7 @@ interface StatCardProps {
  * The label used to be `text-slate-500`, which measures 3.6:1 against the card
  * — under the 4.5:1 AA floor for text this size. On the first screen a client
  * sees, the words naming each number were the least readable thing on it. They
- * now use the muted token, at 8.3:1.
+ * now use the muted token, at 6.1:1 on white.
  */
 export function StatCard({
   title,
@@ -34,13 +34,13 @@ export function StatCard({
   accent,
 }: StatCardProps) {
   return (
-    <Card className="gap-0 transition-colors hover:ring-foreground/20">
-      <CardContent className="p-5">
+    <Card className="gap-0 py-0 transition-shadow hover:shadow-raised">
+      <CardContent className="p-4 md:p-5">
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-[13px] md:text-sm font-medium text-muted-foreground">{title}</p>
           {Icon && (
-            <div className="w-9 h-9 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Icon className="w-[18px] h-[18px] text-muted-foreground" />
+            <div className="w-8 h-8 md:w-9 md:h-9 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Icon className="w-[18px] h-[18px] text-primary" />
             </div>
           )}
         </div>
@@ -48,8 +48,8 @@ export function StatCard({
             over, which is what made four cards in a row look unaligned. */}
         <p
           className={cn(
-            "text-3xl font-semibold mt-2 tabular-nums tracking-tight",
-            accent ? "text-emerald-400" : "text-foreground"
+            "font-heading text-2xl md:text-[2rem] leading-none font-semibold mt-3 tabular-nums tracking-tight",
+            accent ? "text-emerald-700" : "text-foreground"
           )}
         >
           {value}
@@ -57,9 +57,9 @@ export function StatCard({
         {subtitle && (
           <p
             className={cn(
-              "text-xs mt-1.5",
-              trend === "up" && "text-emerald-400",
-              trend === "down" && "text-red-400",
+              "text-xs mt-2.5",
+              trend === "up" && "text-emerald-700",
+              trend === "down" && "text-red-600",
               (!trend || trend === "neutral") && "text-muted-foreground"
             )}
           >

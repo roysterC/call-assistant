@@ -200,7 +200,7 @@ export default function SalesPage() {
         )}
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       {totals && (
         <div className="grid gap-px bg-border border border-border sm:grid-cols-2 lg:grid-cols-4">
@@ -208,7 +208,7 @@ export default function SalesPage() {
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
               Taken
             </p>
-            <p className="text-2xl font-semibold tabular-nums text-emerald-400">
+            <p className="text-2xl font-semibold tabular-nums text-emerald-700">
               {formatMoneyShort(totals.takenMinor)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">

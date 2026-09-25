@@ -20,7 +20,7 @@ export function RecentCalls({ calls }: { calls: Call[] }) {
   return (
     <Card className="border-border bg-card">
       <CardHeader>
-        <CardTitle className="text-lg text-white">Recent Calls</CardTitle>
+        <CardTitle>Recent Calls</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {calls.length === 0 ? (
@@ -31,14 +31,14 @@ export function RecentCalls({ calls }: { calls: Call[] }) {
           calls.map((call) => (
             <div
               key={call.id}
-              className="flex items-start gap-4 p-3 rounded-xl border border-border/60 bg-white/[0.02] hover:bg-accent/50 transition-colors"
+              className="flex items-start gap-4 p-3 rounded-xl border border-border bg-card hover:bg-accent/60 transition-colors"
             >
               <div className="w-9 h-9 bg-blue-600/15 rounded-full flex items-center justify-center shrink-0">
-                <Phone className="w-4 h-4 text-blue-400" />
+                <Phone className="w-4 h-4 text-blue-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-white">
+                  <span className="font-medium text-sm text-foreground">
                     {call.lead?.name || call.phoneNumber}
                   </span>
                   {call.lead?.company && (

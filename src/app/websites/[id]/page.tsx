@@ -209,7 +209,7 @@ export default function WebsiteEditPage() {
           {site.siteId}
         </code>
         <span>{plural(site._count.conversations, "conversation")}</span>
-        <span className={site.enabled ? "text-emerald-400" : "text-amber-400"}>
+        <span className={site.enabled ? "text-emerald-700" : "text-amber-700"}>
           {site.enabled ? "Live" : "Disabled"}
         </span>
       </p>
@@ -225,7 +225,7 @@ export default function WebsiteEditPage() {
             </code>
             <Button variant="outline" size="sm" onClick={copyEmbed}>
               {copied ? (
-                <Check className="w-4 h-4 text-emerald-500" />
+                <Check className="w-4 h-4 text-emerald-600" />
               ) : (
                 <Copy className="w-4 h-4" />
               )}
@@ -312,7 +312,7 @@ export default function WebsiteEditPage() {
                   </div>
                   <span
                     className={`text-xs ${
-                      c.meetsAA ? "text-muted-foreground" : "text-amber-500"
+                      c.meetsAA ? "text-muted-foreground" : "text-amber-700"
                     }`}
                   >
                     {c.meetsAA
@@ -584,14 +584,14 @@ export default function WebsiteEditPage() {
           </div>
 
           {!site.ctaLabel?.trim() && (
-            <p className="text-xs text-amber-400/80">
+            <p className="text-xs text-amber-700">
               No label set — the button is hidden.
             </p>
           )}
           {site.ctaLabel?.trim() &&
             !site.ctaSelector?.trim() &&
             !site.ctaUrl?.trim() && (
-              <p className="text-xs text-amber-400/80">
+              <p className="text-xs text-amber-700">
                 Add a selector or a link, or the button stays hidden — it has
                 nowhere to send anyone.
               </p>
@@ -668,7 +668,7 @@ export default function WebsiteEditPage() {
                 </div>
               </div>
               {!site.proactiveMessage?.trim() && (
-                <p className="text-xs text-amber-500">
+                <p className="text-xs text-amber-700">
                   Enabled but no message set — nothing will be shown.
                 </p>
               )}

@@ -151,7 +151,7 @@ export default function InsightsPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4">
             <StatCard title="Conversations" value={String(t.conversations)} />
             <StatCard
               title="Leads captured"

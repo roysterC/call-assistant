@@ -11,7 +11,7 @@ const LAST_UPDATED = "24 April 2026";
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-background text-slate-100 px-6 py-12">
+    <div className="min-h-screen bg-background text-foreground px-6 py-12">
       <article className="mx-auto max-w-3xl space-y-6">
         <header className="space-y-2 border-b border-border pb-6">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
             <br />
             Contact:{" "}
             <a
-              className="text-blue-400 hover:underline"
+              className="text-blue-600 hover:underline"
               href="mailto:roy962002@hotmail.com"
             >
               roy962002@hotmail.com
@@ -197,7 +197,7 @@ export default function PrivacyPolicyPage() {
               Request erasure of your data (&ldquo;right to be
               forgotten&rdquo;) &mdash; see{" "}
               <Link
-                className="text-blue-400 hover:underline"
+                className="text-blue-600 hover:underline"
                 href="/data-deletion"
               >
                 our data-deletion procedure
@@ -209,7 +209,7 @@ export default function PrivacyPolicyPage() {
               Lodge a complaint with the Information Commissioner&rsquo;s
               Office (ICO) at{" "}
               <a
-                className="text-blue-400 hover:underline"
+                className="text-blue-600 hover:underline"
                 href="https://ico.org.uk"
               >
                 ico.org.uk
@@ -220,7 +220,7 @@ export default function PrivacyPolicyPage() {
           <p className="mt-2">
             To exercise any of these rights, email{" "}
             <a
-              className="text-blue-400 hover:underline"
+              className="text-blue-600 hover:underline"
               href="mailto:roy962002@hotmail.com"
             >
               roy962002@hotmail.com
@@ -246,7 +246,7 @@ export default function PrivacyPolicyPage() {
           <p>
             Questions about this policy or about how your data is handled:{" "}
             <a
-              className="text-blue-400 hover:underline"
+              className="text-blue-600 hover:underline"
               href="mailto:roy962002@hotmail.com"
             >
               roy962002@hotmail.com

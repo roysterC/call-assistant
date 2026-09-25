@@ -30,11 +30,11 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+        <h1 className="font-heading text-[1.65rem] leading-tight font-semibold tracking-[-0.01em] text-foreground">
           {title}
         </h1>
         {description && (
-          <p className="text-sm text-muted-foreground mt-1">{description}</p>
+          <p className="text-sm text-muted-foreground mt-1.5">{description}</p>
         )}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}

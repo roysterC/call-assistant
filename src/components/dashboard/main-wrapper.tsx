@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
-import { Sidebar } from "@/components/dashboard/sidebar";
+import { BrandMark, Sidebar } from "@/components/dashboard/sidebar";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,7 +38,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         into what was left — the conversations list rendered about 119px wide.
         Below md the rail is now a drawer behind this button.
       */}
-      <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-border bg-card">
+      <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-border bg-card/95 backdrop-blur">
         <button
           onClick={() => setNavOpen(true)}
           aria-label="Open navigation"
@@ -47,13 +47,14 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         >
           <Menu className="w-5 h-5" />
         </button>
-        <span className="font-semibold text-sm truncate">Kikai</span>
+        <BrandMark size="sm" />
+        <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate">Kikai</span>
       </header>
 
       <div className="flex flex-1 min-h-0 w-full">
         {navOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/60 md:hidden"
+            className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[2px] md:hidden"
             onClick={() => setNavOpen(false)}
             aria-hidden
           />
@@ -78,7 +79,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
 function SidebarFallback() {
   return (
     <aside
-      className="hidden md:block w-64 bg-card border-r border-border shrink-0"
+      className="hidden md:block w-64 bg-sidebar border-r border-sidebar-border shrink-0"
       aria-hidden
     />
   );

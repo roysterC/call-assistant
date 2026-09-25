@@ -387,7 +387,7 @@ export default function CalendarPage() {
         />
       </div>
 
-      <div className="flex items-center gap-2 px-1 pb-3 shrink-0 flex-wrap">
+      <div className="flex items-center gap-2 pt-4 pb-3 shrink-0 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => jump(shiftDate(selected, -1))}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -427,8 +427,8 @@ export default function CalendarPage() {
           <Ban className="h-3.5 w-3.5" />
           Block time
         </Button>
-        <div className="ml-2 min-w-0">
-          <span className="text-sm font-semibold">{prettyDate(selected)}</span>
+        <div className="ml-1 sm:ml-2 min-w-0">
+          <span className="font-heading text-base font-semibold">{prettyDate(selected)}</span>
           {settingsLoaded && !open && (
             <span className="ml-2 text-xs text-muted-foreground">closed</span>
           )}
@@ -480,8 +480,8 @@ export default function CalendarPage() {
                 onClick={() => setPhonePick(c.name)}
                 className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm ${
                   on
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border text-muted-foreground"
+                    ? "border-primary bg-primary text-primary-foreground shadow-[0_1px_2px_0_rgb(79_70_229/0.25)]"
+                    : "border-input bg-card text-slate-600"
                 } ${c.worksToday ? "" : "opacity-60"}`}
               >
                 {c.name}

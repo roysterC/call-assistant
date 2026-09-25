@@ -182,8 +182,8 @@ export default function OrganizationsPage() {
                         className={cn(
                           STATUS_BADGE,
                           org.enabled
-                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                            : "bg-red-500/15 text-red-400 border-red-500/30"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-red-50 text-red-700 border-red-200"
                         )}
                       >
                         {org.enabled ? "Enabled" : "Disabled"}

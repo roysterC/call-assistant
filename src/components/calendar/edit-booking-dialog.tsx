@@ -320,7 +320,7 @@ function MoveConfirm({
                 Text the client about the change
               </label>
             )}
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-xs text-red-600">{error}</p>}
             <DialogFooter>
               <Button variant="ghost" onClick={onClose} disabled={saving}>
                 Cancel

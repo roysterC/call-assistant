@@ -130,7 +130,7 @@ export default function AppointmentsPage() {
       {/* The diary itself lives in Google. Saying so stops anyone treating a
           status change here as a cancellation the stylist will see. */}
       {failedTexts > 0 && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <TriangleAlert className="h-4 w-4 shrink-0 mt-px" />
           <span>
             {failedTexts} confirmation {failedTexts === 1 ? "text" : "texts"} did
@@ -284,14 +284,14 @@ export default function AppointmentsPage() {
                 {detail.confirmationSentAt
                   ? `Sent ${format(new Date(detail.confirmationSentAt), "d MMM, HH:mm")}`
                   : detail.confirmationError
-                    ? <span className="text-red-400">{detail.confirmationError}</span>
+                    ? <span className="text-red-600">{detail.confirmationError}</span>
                     : "Not sent"}
               </Row>
               <Row label="Reminder">
                 {detail.reminderSentAt
                   ? `Sent ${format(new Date(detail.reminderSentAt), "d MMM, HH:mm")}`
                   : detail.reminderError
-                    ? <span className="text-red-400">{detail.reminderError}</span>
+                    ? <span className="text-red-600">{detail.reminderError}</span>
                     : "Goes out the day before"}
               </Row>
               {detail.notes && <Row label="Notes">{detail.notes}</Row>}

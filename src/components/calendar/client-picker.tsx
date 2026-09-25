@@ -410,7 +410,7 @@ function NewClientForm({
       </Field>
 
       {error && (
-        <p className="text-xs text-red-400">
+        <p className="text-xs text-red-600">
           {error}{" "}
           {existing && (
             <button

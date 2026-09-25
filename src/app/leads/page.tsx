@@ -236,7 +236,7 @@ export default function LeadsPage() {
                             ) : (
                               <div
                                 className={cn(
-                                  "w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold",
+                                  "w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold",
                                   avatarColor
                                 )}
                               >

@@ -18,7 +18,7 @@ export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {
   return (
     <Card className="border-border bg-card">
       <CardHeader>
-        <CardTitle className="text-lg text-white">Upcoming Callbacks</CardTitle>
+        <CardTitle>Upcoming Callbacks</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {callbacks.length === 0 ? (
@@ -29,14 +29,14 @@ export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {
           callbacks.map((cb) => (
             <div
               key={cb.id}
-              className="flex items-center gap-4 p-3 rounded-xl border border-border/60 bg-white/[0.02]"
+              className="flex items-center gap-4 p-3 rounded-xl border border-border bg-card"
             >
-              <div className="w-9 h-9 bg-amber-500/15 rounded-full flex items-center justify-center shrink-0">
-                <CalendarClock className="w-4 h-4 text-amber-400" />
+              <div className="w-9 h-9 bg-amber-50 rounded-full flex items-center justify-center shrink-0">
+                <CalendarClock className="w-4 h-4 text-amber-700" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-white">
+                  <span className="font-medium text-sm text-foreground">
                     {cb.lead.name || cb.lead.phone}
                   </span>
                   <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">

@@ -219,13 +219,13 @@ export function AppointmentSheet({
             )}
 
             {a.patchTestRequired && (
-              <p className="flex gap-2 text-xs text-amber-400">
+              <p className="flex gap-2 text-xs text-amber-700">
                 <TriangleAlert className="h-4 w-4 shrink-0" />
                 Needs a skin patch test 48 hours before the colour.
               </p>
             )}
 
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-xs text-red-600">{error}</p>}
           </div>
         )}
 
@@ -250,7 +250,9 @@ export function AppointmentSheet({
             {!readOnly && ACTIONS.filter((x) => x.status !== a?.status).map((x) => (
               <Button
                 key={x.status}
-                variant={x.status === "cancelled" ? "outline" : "default"}
+                // One primary action: "done" is what the desk does to almost
+                // every booking. The other two are exceptions.
+                variant={x.status === "completed" ? "default" : "outline"}
                 size="sm"
                 // Thumb-sized on a phone, shared across the width.
                 className="max-md:h-11 max-md:flex-1"
