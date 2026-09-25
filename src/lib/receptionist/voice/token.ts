@@ -45,3 +45,29 @@ export function verifyVoicePass(token: string, secret: string, now = Date.now())
     return null;
   }
 }
+
+/**
+ * Where the browser opens a lab call, from RECEPTIONIST_VOICE_URL.
+ *
+ * Forgiving about how the setting was written, because a near miss fails
+ * silently: "/voice/lab" became "/voice/lab/lab" and was dropped, and a bare
+ * host sent the call to the CRM instead. So https/http become wss/ws, a
+ * trailing /lab or slash is dropped, and /voice is added when missing. Null
+ * when the setting is not a URL at all.
+ */
+export function voiceLabUrl(setting: string | undefined): string | null {
+  const raw = setting?.trim().replace(/^["']|["']$/g, "");
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(/^[a-z]+:\/\//i.test(raw) ? raw : `wss://${raw}`);
+  } catch {
+    return null;
+  }
+  if (url.protocol === "https:") url.protocol = "wss:";
+  else if (url.protocol === "http:") url.protocol = "ws:";
+  else if (url.protocol !== "wss:" && url.protocol !== "ws:") return null;
+  let path = url.pathname.replace(/\/+$/, "").replace(/\/lab$/, "");
+  if (!path.endsWith("/voice")) path += "/voice";
+  return `${url.protocol}//${url.host}${path}/lab`;
+}
