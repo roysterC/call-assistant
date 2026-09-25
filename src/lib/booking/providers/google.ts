@@ -15,6 +15,8 @@
 import { google, type calendar_v3 } from "googleapis";
 import { matchStylist, type Stylist } from "@/lib/salon-config";
 import type { BusyBlock } from "../availability";
+import { prisma } from "@/lib/prisma";
+import { blocksBetween } from "../diary";
 import { readAvailability, type DiaryConfig, type LoadBusy } from "./shared";
 import type {
   AvailabilityQuery,
@@ -148,7 +150,9 @@ export function createGoogleProvider(
     },
 
     getAvailability(q: AvailabilityQuery): Promise<TimeSlot[]> {
-      return readAvailability(cfg, q, loadBusy);
+      return readAvailability(cfg, q, loadBusy, (from, to) =>
+        blocksBetween(prisma, q.organizationId, from, to, cfg.timeZone)
+      );
     },
 
     async createBooking(r: BookingWrite): Promise<BookingWriteResult> {

@@ -36,6 +36,7 @@ model Organization {
   socialConversations   SocialConversation[]
   phoneNumbers          PhoneNumber[]
   appointments          Appointment[]
+  timeBlocks            TimeBlock[]
 
   @@map("ca_organizations")
 }
@@ -604,4 +605,47 @@ model SocialMessage {
   @@index([conversationId])
   @@index([createdAt])
   @@map("ca_social_messages")
+}
+
+/// Time a stylist (or the whole salon) cannot be booked: lunch, a holiday,
+/// training, a bank holiday closure.
+///
+/// Two shapes. A one-off block is a pair of instants, which covers an hour, a
+/// day or a fortnight's holiday alike. A weekly block is a rule — these
+/// weekdays, this wall-clock window, between these dates — expanded per day in
+/// the salon's timezone when read (src/lib/time-blocks.ts), so "1pm to 2pm"
+/// stays 1pm to 2pm across the clock change. Storing each week as its own row
+/// would drift at the change and need topping up forever.
+model TimeBlock {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// Null blocks everyone: the salon is shut.
+  stylistName String?
+  label       String
+  allDay      Boolean @default(false)
+
+  /// "none" | "weekly"
+  repeat String @default("none")
+
+  // One-off: the instants it runs between.
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  // Weekly: 0 = Sunday ... 6 = Saturday, "HH:MM" wall-clock times ("24:00"
+  // for end of day), and the YYYY-MM-DD dates it runs from and until
+  // (inclusive, until optional). skipDates are single weeks taken out.
+  weekdays  Int[]    @default([])
+  startTime String?
+  endTime   String?
+  fromDate  String?
+  untilDate String?
+  skipDates String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@map("ca_time_blocks")
 }

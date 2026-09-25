@@ -17,6 +17,7 @@ import {
   isOnDate,
   layoutColumn,
   rowFromOffset,
+  spanGeometry,
   quarterMarks,
   timeOfRow,
   HOUR_HEIGHT_PX,
@@ -45,6 +46,19 @@ export interface CalendarAppointment {
   lead: { name: string | null; phone: string | null };
 }
 
+/** A stretch of blocked time as the diary fetch returns it. */
+export interface DiaryBlock {
+  blockId: string;
+  stylistName: string | null;
+  label: string;
+  allDay: boolean;
+  repeat: "none" | "weekly";
+  /** Salon date the stretch starts on. */
+  date: string;
+  start: string;
+  end: string;
+}
+
 export interface CalendarStylist {
   name: string;
   worksToday: boolean;
@@ -56,6 +70,7 @@ interface DayGridProps {
   timeZone: string;
   stylists: CalendarStylist[];
   appointments: CalendarAppointment[];
+  blocks: DiaryBlock[];
   /** Opening window in minutes past midnight, or null when shut. */
   open: { openMin: number; closeMin: number } | null;
   /** Minutes elapsed today, or null when the day shown is not today. */
@@ -66,6 +81,7 @@ interface DayGridProps {
   tones: Map<string, ServiceTone>;
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
+  onOpenBlock: (block: DiaryBlock) => void;
 }
 
 export function DayGrid({
@@ -73,12 +89,14 @@ export function DayGrid({
   timeZone,
   stylists,
   appointments,
+  blocks,
   open,
   nowMinutes,
   isPastDay,
   tones,
   onPickSlot,
   onOpenAppointment,
+  onOpenBlock,
 }: DayGridProps) {
   const marks = hourMarks();
   const lines = quarterMarks();
@@ -144,8 +162,15 @@ export function DayGrid({
                   // would be drawn here at the right hour on the wrong date.
                   isOnDate(new Date(a.startsAt), date, timeZone)
               )}
+              blocks={blocks.filter(
+                (b) =>
+                  b.stylistName === null ||
+                  b.stylistName.toLowerCase() === s.name.toLowerCase()
+              )}
+              date={date}
               onPickSlot={onPickSlot}
               onOpenAppointment={onOpenAppointment}
+              onOpenBlock={onOpenBlock}
             />
           ))}
         </div>
@@ -163,8 +188,11 @@ function StylistColumn({
   isPastDay,
   tones,
   appointments,
+  blocks,
+  date,
   onPickSlot,
   onOpenAppointment,
+  onOpenBlock,
 }: {
   stylist: CalendarStylist;
   timeZone: string;
@@ -174,8 +202,11 @@ function StylistColumn({
   isPastDay: boolean;
   tones: Map<string, ServiceTone>;
   appointments: CalendarAppointment[];
+  blocks: DiaryBlock[];
+  date: string;
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
+  onOpenBlock: (block: DiaryBlock) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
@@ -266,6 +297,34 @@ function StylistColumn({
           style={{ top: `${l.topPct}%` }}
         />
       ))}
+
+      {/* Blocked time sits under the bookings, so a booking made into a
+          block (the desk may) is still there to click. */}
+      {blocks.map((b) => {
+        const g = spanGeometry(new Date(b.start), new Date(b.end), date, timeZone);
+        if (!g) return null;
+        return (
+          <button
+            key={`${b.blockId}-${b.date}`}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenBlock(b);
+            }}
+            title={b.stylistName === null ? `${b.label} (everyone)` : b.label}
+            className="absolute inset-x-0 overflow-hidden border-y border-border/60 px-1.5 py-1 text-left text-[11px] leading-tight text-muted-foreground hover:text-foreground focus-visible:ring-2"
+            style={{
+              top: `${g.topPct}%`,
+              height: `${g.heightPct}%`,
+              backgroundImage:
+                "repeating-linear-gradient(135deg, color-mix(in oklab, var(--muted-foreground) 14%, transparent) 0 6px, transparent 6px 12px)",
+              backgroundColor: "color-mix(in oklab, var(--muted) 55%, transparent)",
+            }}
+          >
+            <span className="font-medium">{b.label}</span>
+          </button>
+        );
+      })}
 
       {placed.map((b) => {
         const a = b.item;

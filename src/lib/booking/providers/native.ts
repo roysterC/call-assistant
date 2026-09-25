@@ -15,7 +15,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { busyFromDiary, findClash } from "../diary";
+import { blocksBetween, busyFromDiary, findClash } from "../diary";
 import { readAvailability, type DiaryConfig, type LoadBusy } from "./shared";
 import type {
   AvailabilityQuery,
@@ -55,7 +55,12 @@ export function createNativeProvider(cfg: DiaryConfig): BookingProvider {
     },
 
     getAvailability(q: AvailabilityQuery): Promise<TimeSlot[]> {
-      return readAvailability(cfg, q, busyLoader(q.organizationId));
+      return readAvailability(
+        cfg,
+        q,
+        busyLoader(q.organizationId),
+        (from, to) => blocksBetween(prisma, q.organizationId, from, to, cfg.timeZone)
+      );
     },
 
     async createBooking(r: BookingWrite): Promise<BookingWriteResult> {

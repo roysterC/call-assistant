@@ -102,6 +102,33 @@ export function blockGeometry(
 }
 
 /**
+ * Position a stretch of time that may run across days — a holiday, a closed
+ * week — on the one day shown. The part before this day and the part after
+ * are cut off; what is left is clipped to the window like a booking.
+ */
+export function spanGeometry(
+  start: Date,
+  end: Date,
+  date: string,
+  timeZone: string
+): { topPct: number; heightPct: number } | null {
+  const startsToday = isOnDate(start, date, timeZone);
+  const endsToday = isOnDate(end, date, timeZone);
+  const dayStart = wallTimeToUtc(date, "00:00", timeZone);
+  // Not on this day at all.
+  if (!startsToday && start > dayStart) return null;
+  if (!endsToday && end <= dayStart) return null;
+
+  const from = Math.max(startsToday ? minutesOfDay(start, timeZone) : 0, WINDOW_START_MIN);
+  const to = Math.min(endsToday ? minutesOfDay(end, timeZone) : 24 * 60, WINDOW_END_MIN);
+  if (to <= from) return null;
+  return {
+    topPct: ((from - WINDOW_START_MIN) / WINDOW_MINUTES) * 100,
+    heightPct: ((to - from) / WINDOW_MINUTES) * 100,
+  };
+}
+
+/**
  * Lay out one stylist's bookings, side by side where they overlap.
  *
  * Two bookings on one stylist at one time should not happen, but data gets

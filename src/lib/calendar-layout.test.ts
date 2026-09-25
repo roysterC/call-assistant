@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  spanGeometry,
   blockGeometry,
   closedBands,
   hourMarks,
@@ -275,5 +276,33 @@ describe("quarterMarks", () => {
     expect(marks[1].major).toBe(false);
     expect(marks[2].half).toBe(true);
     expect(marks[4].major).toBe(true);
+  });
+});
+
+describe("spanGeometry", () => {
+  const TZ_ = "Europe/London";
+  const on = (date: string, time: string) => wallTimeToUtc(date, time, TZ_);
+
+  it("places a block inside the day like a booking", () => {
+    const g = spanGeometry(on("2026-10-20", "13:00"), on("2026-10-20", "14:00"), "2026-10-20", TZ_);
+    expect(g?.topPct).toBeCloseTo(((13 - 8) / 13) * 100);
+    expect(g?.heightPct).toBeCloseTo((1 / 13) * 100);
+  });
+
+  it("fills the whole window for a middle day of a holiday", () => {
+    const g = spanGeometry(on("2026-10-12", "00:00"), on("2026-10-20", "00:00"), "2026-10-15", TZ_);
+    expect(g).toEqual({ topPct: 0, heightPct: 100 });
+  });
+
+  it("stops at the midnight a holiday ends on", () => {
+    expect(
+      spanGeometry(on("2026-10-12", "00:00"), on("2026-10-20", "00:00"), "2026-10-20", TZ_)
+    ).toBeNull();
+  });
+
+  it("ignores a block on another day", () => {
+    expect(
+      spanGeometry(on("2026-10-21", "13:00"), on("2026-10-21", "14:00"), "2026-10-20", TZ_)
+    ).toBeNull();
   });
 });

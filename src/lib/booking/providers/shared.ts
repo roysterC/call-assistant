@@ -20,6 +20,7 @@ import {
   DEFAULT_SEARCH_DAYS,
   type StylistAvailability,
 } from "../availability";
+import { blockApplies, type BlockOccurrence } from "@/lib/time-blocks";
 import type { AvailabilityQuery, TimeSlot } from "../types";
 
 export interface DiaryConfig {
@@ -36,10 +37,16 @@ export type LoadBusy = (
   to: Date
 ) => Promise<StylistAvailability[]>;
 
+/** Blocked time (lunch, holidays, closures) between `from` and `to`. */
+export type LoadBlocks = (from: Date, to: Date) => Promise<BlockOccurrence[]>;
+
+const noBlocks: LoadBlocks = async () => [];
+
 export async function readAvailability(
   cfg: DiaryConfig,
   q: AvailabilityQuery,
-  loadBusy: LoadBusy
+  loadBusy: LoadBusy,
+  loadBlocks: LoadBlocks = noBlocks
 ): Promise<TimeSlot[]> {
   // Resolved the way a booking is, so "Full head colour + Cut and finish" is
   // one appointment of both lengths rather than a name no single service has.
@@ -72,8 +79,23 @@ export async function readAvailability(
   const from = new Date(new Date(`${q.date}T00:00:00Z`).getTime() - 24 * 60 * 60 * 1000);
   const to = new Date(new Date(`${lastDate}T00:00:00Z`).getTime() + 48 * 60 * 60 * 1000);
 
-  const candidates = await loadBusy(pool, from, to);
-  if (candidates.length === 0) return [];
+  const [loaded, blocks] = await Promise.all([
+    loadBusy(pool, from, to),
+    loadBlocks(from, to),
+  ]);
+  if (loaded.length === 0) return [];
+
+  // Blocked time is busy time: it goes in beside the bookings, so every rule
+  // that keeps a slot off a booking keeps it off lunch too.
+  const candidates = loaded.map(({ stylist, busy }) => ({
+    stylist,
+    busy: [
+      ...busy,
+      ...blocks
+        .filter((b) => blockApplies(b, stylist.name))
+        .map((b) => ({ start: b.start, end: b.end })),
+    ],
+  }));
 
   return computeForwardSlots({
     fromDate: q.date,

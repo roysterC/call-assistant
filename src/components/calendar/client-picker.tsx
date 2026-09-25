@@ -41,6 +41,7 @@ interface ClientPickerProps {
   timeZone: string;
   onPick: (client: ClientRow) => void;
   onWalkIn: () => void;
+  onBlockInstead?: () => void;
 }
 
 function shortDate(iso: string, timeZone: string): string {
@@ -64,7 +65,12 @@ function shortDateTime(iso: string, timeZone: string): string {
   });
 }
 
-export function ClientPicker({ timeZone, onPick, onWalkIn }: ClientPickerProps) {
+export function ClientPicker({
+  timeZone,
+  onPick,
+  onWalkIn,
+  onBlockInstead,
+}: ClientPickerProps) {
   const [mode, setMode] = useState<"search" | "new">("search");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("firstName");
@@ -234,13 +240,24 @@ export function ClientPicker({ timeZone, onPick, onWalkIn }: ClientPickerProps) 
                 ? `Showing ${rows.length} of ${total}. Type more to narrow it down.`
                 : `${total} client${total === 1 ? "" : "s"}`)}
         </span>
-        <button
-          type="button"
-          onClick={onWalkIn}
-          className="underline underline-offset-2 hover:text-foreground shrink-0"
-        >
-          Walk-in, no details
-        </button>
+        <span className="flex gap-3 shrink-0">
+          {onBlockInstead && (
+            <button
+              type="button"
+              onClick={onBlockInstead}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Block this time instead
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onWalkIn}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Walk-in, no details
+          </button>
+        </span>
       </div>
     </div>
   );
