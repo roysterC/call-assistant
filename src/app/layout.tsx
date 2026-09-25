@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { MainWrapper } from "@/components/dashboard/main-wrapper";
 import { SessionProvider } from "@/components/providers/session-provider";
+import { MeProvider } from "@/components/providers/me-provider";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -31,7 +32,9 @@ export default function RootLayout({
     >
       <body className="h-full bg-background text-slate-200 overflow-hidden">
         <SessionProvider>
-          <MainWrapper>{children}</MainWrapper>
+          <MeProvider>
+            <MainWrapper>{children}</MainWrapper>
+          </MeProvider>
         </SessionProvider>
       </body>
     </html>

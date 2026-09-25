@@ -16,7 +16,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { requireTenant, isErrorResponse } from "@/lib/tenant";
+import {
+  canWriteColumn,
+  notYourColumn,
+  requireTenant,
+  isErrorResponse,
+} from "@/lib/tenant";
 import { getBookingProvider, getSalonConfig } from "@/lib/booking";
 import { canCreateBooking } from "@/lib/booking/types";
 import { moveAppointment } from "@/lib/booking/diary";
@@ -27,7 +32,7 @@ import { rescheduleBody, sendSms } from "@/lib/sms";
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { stylists: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -39,6 +44,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       include: { lead: true },
     });
     if (!appt) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!canWriteColumn(ctx, appt.stylistName)) return notYourColumn();
     if (appt.status === "cancelled") {
       return NextResponse.json(
         { error: "A cancelled booking can't be changed. Book a new one instead." },
@@ -68,6 +74,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         );
       }
       stylistName = stylist.name;
+      if (!canWriteColumn(ctx, stylistName)) return notYourColumn();
     }
 
     // --- What --------------------------------------------------------------

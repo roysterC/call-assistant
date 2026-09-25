@@ -20,8 +20,14 @@ import { CURRENCY } from "@/lib/money";
  * wants to see them, but they count towards neither total.
  */
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { stylists: true });
   if (isErrorResponse(ctx)) return ctx;
+  // A stylist sees their own takings if the owner allows it, and never the
+  // rest of the salon's: in a chair-rental salon each stylist's takings are
+  // their own business.
+  if (ctx.stylist && !ctx.stylist.canSeeTakings) {
+    return NextResponse.json({ error: "Takings are not shared with this login." }, { status: 403 });
+  }
 
   try {
     const { searchParams } = new URL(req.url);
@@ -76,6 +82,9 @@ export async function GET(req: NextRequest) {
         organizationId: ctx.organizationId,
         startsAt: { gte: new Date(period.from), lt: new Date(period.to) },
         status: { not: "cancelled" },
+        ...(ctx.stylist
+          ? { stylistName: { equals: ctx.stylist.name, mode: "insensitive" as const } }
+          : {}),
       },
       include: { lead: { select: { name: true, phone: true } } },
       orderBy: { startsAt: "asc" },

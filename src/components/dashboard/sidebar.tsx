@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { apiFetch } from "@/lib/api-fetch";
+import { stylistMayVisit, useMe } from "@/components/providers/me-provider";
 
 type FeatureKey = "voice" | "chatbot" | "whatsapp" | "instagram" | "facebook" | null;
 
@@ -100,6 +101,7 @@ export function Sidebar({
 
   const isSuperAdmin = session?.user?.role === "superAdmin";
   const user = session?.user;
+  const me = useMe();
 
   const [features, setFeatures] = useState<{
     chatbotEnabled: boolean;
@@ -230,7 +232,11 @@ export function Sidebar({
 
       <nav className="flex-1 p-3 space-y-0.5">
         {navItems
-          .filter((item) => isNavVisible(item, features))
+          .filter((item) =>
+            // A stylist login's pages are the diary, their bookings and, if
+            // allowed, their own takings — whatever the salon has switched on.
+            me?.stylist ? stylistMayVisit(me, item.href) : isNavVisible(item, features)
+          )
           .map((item) => {
             const isActive = pathname === item.href;
             return (

@@ -72,7 +72,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           organizationName:
             (token.organizationName as string | null) || null,
           role:
-            (token.role as "member" | "admin" | "superAdmin") || "member",
+            (token.role as "member" | "admin" | "superAdmin" | "stylist") || "member",
         },
       };
     },
