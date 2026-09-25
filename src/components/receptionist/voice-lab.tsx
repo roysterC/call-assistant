@@ -215,12 +215,25 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
             break;
         }
       };
-      sock.onclose = () => {
+      // The server's own explanation, when it sends one, is the message to
+      // show; the close code is the fallback when the line simply dropped.
+      let explained = false;
+      const onMessage = sock.onmessage;
+      sock.onmessage = (e) => {
+        if (typeof e.data === "string" && e.data.includes('"type":"error"')) explained = true;
+        return onMessage?.call(sock, e);
+      };
+      sock.onclose = (e) => {
+        if (!explained && e.code !== 1000 && e.code !== 1005) {
+          setError(
+            `The voice server closed the connection (code ${e.code}${e.reason ? `: ${e.reason}` : ""}).` +
+              (e.code === 1006 ? " It may have restarted, or the web server isn't passing /voice/ through." : "")
+          );
+        }
         setState("idle");
         setLines((ls) => [...ls, { kind: "note", text: "Call ended" }]);
         teardown();
       };
-      sock.onerror = () => setError("Lost the connection to the voice server.");
     } catch (err) {
       setError(
         err instanceof DOMException && err.name === "NotAllowedError"
