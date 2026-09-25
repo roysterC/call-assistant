@@ -155,7 +155,7 @@ export function ClientPicker({
         </Button>
       </div>
 
-      <div className="rounded-md border border-border overflow-auto max-h-[50vh]">
+      <div className="rounded-md border border-border overflow-auto max-h-[50vh] max-md:max-h-[60dvh]">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-popover">
             <tr className="border-b border-border text-left">

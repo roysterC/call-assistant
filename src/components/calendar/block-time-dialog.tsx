@@ -13,6 +13,7 @@ import { TriangleAlert } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  PHONE_FULL_SCREEN,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -186,7 +187,7 @@ export function BlockTimeDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={`sm:max-w-lg ${PHONE_FULL_SCREEN}`}>
         <DialogHeader>
           <DialogTitle>{state.mode === "edit" ? "Blocked time" : "Block time"}</DialogTitle>
           <p className="text-xs text-muted-foreground">

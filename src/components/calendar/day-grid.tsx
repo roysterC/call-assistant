@@ -96,6 +96,8 @@ interface DayGridProps {
   onPickSlot: (stylistName: string, time: string) => void;
   onOpenAppointment: (appointment: CalendarAppointment) => void;
   onOpenBlock: (block: DiaryBlock) => void;
+  /** Taller on a phone, so a quarter-hour is about a fingertip high. */
+  hourHeightPx?: number;
   /**
    * A booking was dragged to a stylist and time. Asks, never moves: the page
    * confirms before anything changes. Absent, bookings cannot be dragged.
@@ -127,6 +129,7 @@ export function DayGrid({
   onOpenAppointment,
   onOpenBlock,
   onMoveAppointment,
+  hourHeightPx = HOUR_HEIGHT_PX,
 }: DayGridProps) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [dropAt, setDropAt] = useState<{ stylistName: string; row: number } | null>(null);
@@ -137,8 +140,9 @@ export function DayGrid({
   return (
     <div className="flex-1 min-w-0 min-h-0 overflow-auto rounded-md border border-border">
       {/* min-width keeps columns readable; the container scrolls rather than
-          letting four stylists squeeze into thumbnails on a laptop. */}
-      <div className="min-w-[560px]">
+          letting four stylists squeeze into thumbnails on a laptop. One
+          column (a phone) needs no such help. */}
+      <div className={stylists.length > 1 ? "min-w-[560px]" : undefined}>
         <div className="flex sticky top-0 z-20 bg-background border-b border-border">
           <div className="w-14 shrink-0" />
           {stylists.map((s) => (
@@ -161,7 +165,7 @@ export function DayGrid({
         <div
           className="flex relative"
           style={{
-            height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * HOUR_HEIGHT_PX}px`,
+            height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * hourHeightPx}px`,
           }}
         >
           <div className="w-14 shrink-0 relative">

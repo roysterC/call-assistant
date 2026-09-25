@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  PHONE_SHEET,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -122,7 +123,7 @@ export function AppointmentSheet({
 
   return (
     <Dialog open={Boolean(a)} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={`sm:max-w-md ${PHONE_SHEET}`}>
         <DialogHeader>
           <DialogTitle>{a?.lead.name ?? "Client"}</DialogTitle>
         </DialogHeader>
@@ -234,17 +235,25 @@ export function AppointmentSheet({
               Close
             </Button>
             {a && a.status !== "cancelled" && !readOnly && (
-              <Button variant="outline" size="sm" onClick={onEdit} disabled={Boolean(saving)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="max-md:h-11 max-md:px-4"
+                onClick={onEdit}
+                disabled={Boolean(saving)}
+              >
                 Edit
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 max-md:w-full">
             {!readOnly && ACTIONS.filter((x) => x.status !== a?.status).map((x) => (
               <Button
                 key={x.status}
                 variant={x.status === "cancelled" ? "outline" : "default"}
                 size="sm"
+                // Thumb-sized on a phone, shared across the width.
+                className="max-md:h-11 max-md:flex-1"
                 onClick={() => setStatus(x.status)}
                 disabled={Boolean(saving)}
               >

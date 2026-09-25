@@ -12,6 +12,8 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
+  PHONE_FULL_SCREEN,
+  PHONE_SHEET,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -164,7 +166,9 @@ function EditBooking({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className={picking ? "sm:max-w-3xl" : "sm:max-w-lg"}>
+      <DialogContent
+        className={`${picking ? "sm:max-w-3xl" : "sm:max-w-lg"} ${PHONE_FULL_SCREEN}`}
+      >
         <DialogHeader>
           <DialogTitle>
             {picking
@@ -283,7 +287,7 @@ function MoveConfirm({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={`sm:max-w-md ${PHONE_SHEET}`}>
         <DialogHeader>
           <DialogTitle>Move this booking?</DialogTitle>
         </DialogHeader>
