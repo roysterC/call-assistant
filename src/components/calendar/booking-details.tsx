@@ -38,6 +38,16 @@ export interface BookingDraft {
   durationMinutes: number;
   notes: string;
   walkInName: string;
+  /** Editing only: text the client that their booking has moved. */
+  notifyClient: boolean;
+}
+
+/** Set when the screen is changing an existing booking rather than making one. */
+export interface EditingBooking {
+  /** The booking itself, left out of its own clash check. */
+  appointmentId: string;
+  /** Done, no-show or past: services, notes and client only. */
+  lockWhen: boolean;
 }
 
 interface BookingDetailsProps {
@@ -51,10 +61,20 @@ interface BookingDetailsProps {
   /** The day's blocked time, likewise. */
   dayBlocks: DiaryBlock[];
   dayShown: string;
-  initial: { date: string; time: string; stylistName: string };
+  initial: {
+    date: string;
+    time: string;
+    stylistName: string;
+    serviceNames?: string[];
+    minutes?: number;
+    notes?: string | null;
+  };
+  editing?: EditingBooking;
   saving: boolean;
   error: string | null;
   onBack: () => void;
+  /** Editing: leave without saving. */
+  onCancel?: () => void;
   onSubmit: (draft: BookingDraft) => void;
 }
 
@@ -67,18 +87,35 @@ export function BookingDetails({
   dayBlocks,
   dayShown,
   initial,
+  editing,
   saving,
   error,
   onBack,
+  onCancel,
   onSubmit,
 }: BookingDetailsProps) {
   const [date, setDate] = useState(initial.date);
   const [time, setTime] = useState(initial.time);
   const [stylistName, setStylistName] = useState(initial.stylistName);
-  const [lines, setLines] = useState<string[]>([""]);
-  const [minutesOverride, setMinutesOverride] = useState("");
-  const [notes, setNotes] = useState("");
+  const [lines, setLines] = useState<string[]>(() =>
+    initial.serviceNames?.length ? initial.serviceNames : [""]
+  );
+  // An existing booking whose length differs from its services' keeps it,
+  // shown as an override so changing a service does not silently reset it.
+  const [minutesOverride, setMinutesOverride] = useState(() => {
+    if (!initial.minutes || !initial.serviceNames?.length) return "";
+    const listed = initial.serviceNames
+      .map((n) => services.find((s) => s.name === n))
+      .filter((s): s is SalonService => Boolean(s));
+    const natural = listed.length ? combineServices(listed).durationMinutes : 0;
+    return natural === initial.minutes ? "" : String(initial.minutes);
+  });
+  const [notes, setNotes] = useState(initial.notes ?? "");
   const [walkInName, setWalkInName] = useState("");
+  const [notifyClient, setNotifyClient] = useState(true);
+  const locked = Boolean(editing?.lockWhen);
+  const whenChanged =
+    date !== initial.date || time !== initial.time || stylistName !== initial.stylistName;
 
   const picked = useMemo(
     () =>
@@ -105,6 +142,7 @@ export function BookingDetails({
       dayAppointments.find(
         (a) =>
           a.stylistName.toLowerCase() === stylistName.toLowerCase() &&
+          a.id !== editing?.appointmentId &&
           a.status !== "cancelled" &&
           a.status !== "no_show" &&
           new Date(a.startsAt).getTime() < end &&
@@ -160,6 +198,7 @@ export function BookingDetails({
           durationMinutes: minutes,
           notes,
           walkInName,
+          notifyClient: Boolean(editing) && whenChanged && notifyClient,
         });
       }}
     >
@@ -208,9 +247,23 @@ export function BookingDetails({
         </p>
       )}
 
+      {locked && (
+        <p className="text-xs text-muted-foreground">
+          This booking is finished or in the past, so its time and stylist
+          stay as they were. Services, notes and client can still change.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <Field label="Date" id="booking-date">
-          <Input id="booking-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <Input
+            id="booking-date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            disabled={locked}
+            required
+          />
         </Field>
         <Field label="Time" id="booking-time">
           <Input
@@ -219,12 +272,17 @@ export function BookingDetails({
             step={900}
             value={time}
             onChange={(e) => setTime(e.target.value)}
+            disabled={locked}
             required
           />
         </Field>
         <div className="col-span-2 sm:col-span-1">
           <Field label="Stylist" id="booking-stylist">
-            <Select value={stylistName} onValueChange={(v) => setStylistName(v ?? "")}>
+            <Select
+              value={stylistName}
+              onValueChange={(v) => setStylistName(v ?? "")}
+              disabled={locked}
+            >
               <SelectTrigger id="booking-stylist" className="w-full">
                 <SelectValue placeholder="Choose" />
               </SelectTrigger>
@@ -304,6 +362,7 @@ export function BookingDetails({
             value={minutesOverride || (combined ? String(combined.durationMinutes) : "")}
             onChange={(e) => setMinutesOverride(e.target.value)}
             placeholder="—"
+            disabled={locked}
             className="h-8 w-24 tabular-nums"
           />
           {endTime && (
@@ -355,14 +414,30 @@ export function BookingDetails({
           {clash.stylistName}. You can still book it.
         </p>
       )}
+      {editing && whenChanged && client?.phone && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={notifyClient}
+            onChange={(e) => setNotifyClient(e.target.checked)}
+            className="h-4 w-4 accent-foreground"
+          />
+          Text the client about the change
+        </label>
+      )}
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       <div className="flex justify-between gap-2">
-        <Button type="button" variant="ghost" onClick={onBack} disabled={saving}>
-          Back
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={editing && onCancel ? onCancel : onBack}
+          disabled={saving}
+        >
+          {editing ? "Cancel" : "Back"}
         </Button>
         <Button type="submit" disabled={!canBook || saving}>
-          {saving ? "Booking…" : "Book"}
+          {editing ? (saving ? "Saving…" : "Save changes") : saving ? "Booking…" : "Book"}
         </Button>
       </div>
     </form>

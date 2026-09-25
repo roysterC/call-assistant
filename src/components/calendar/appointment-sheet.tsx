@@ -40,6 +40,8 @@ interface AppointmentSheetProps {
   listPriceMinor?: number | null;
   onClose: () => void;
   onChanged: () => void;
+  /** Open the booking for changing: time, stylist, services, client. */
+  onEdit: () => void;
 }
 
 function clockRange(startsAt: string, endsAt: string, timeZone: string): string {
@@ -65,6 +67,7 @@ export function AppointmentSheet({
   listPriceMinor,
   onClose,
   onChanged,
+  onEdit,
 }: AppointmentSheetProps) {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -221,9 +224,16 @@ export function AppointmentSheet({
         )}
 
         <DialogFooter className="gap-2 sm:justify-between">
-          <Button variant="ghost" onClick={onClose} disabled={Boolean(saving)}>
-            Close
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onClose} disabled={Boolean(saving)}>
+              Close
+            </Button>
+            {a && a.status !== "cancelled" && (
+              <Button variant="outline" size="sm" onClick={onEdit} disabled={Boolean(saving)}>
+                Edit
+              </Button>
+            )}
+          </div>
           <div className="flex gap-2">
             {ACTIONS.filter((x) => x.status !== a?.status).map((x) => (
               <Button

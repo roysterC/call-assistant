@@ -40,7 +40,8 @@ const PAGE = 50;
 interface ClientPickerProps {
   timeZone: string;
   onPick: (client: ClientRow) => void;
-  onWalkIn: () => void;
+  /** Absent when a walk-in makes no sense, e.g. changing a booking's client. */
+  onWalkIn?: () => void;
   onBlockInstead?: () => void;
 }
 
@@ -250,13 +251,15 @@ export function ClientPicker({
               Block this time instead
             </button>
           )}
-          <button
-            type="button"
-            onClick={onWalkIn}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Walk-in, no details
-          </button>
+          {onWalkIn && (
+            <button
+              type="button"
+              onClick={onWalkIn}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Walk-in, no details
+            </button>
+          )}
         </span>
       </div>
     </div>

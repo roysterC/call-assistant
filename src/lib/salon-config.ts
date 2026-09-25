@@ -319,6 +319,29 @@ export function combineServices(parts: SalonService[]): CombinedService {
 }
 
 /**
+ * Services picked from the list at the desk, as the one appointment they make.
+ *
+ * Each must be on the list exactly: fuzzy matching is for what a caller says,
+ * not for a value chosen from a list, where a near miss means the list and
+ * the catalogue have drifted and guessing would book the wrong length.
+ */
+export function servicesPicked(
+  names: string[],
+  services: SalonService[]
+): { ok: true; service: CombinedService } | { ok: false; missing: string } {
+  const parts: SalonService[] = [];
+  for (const name of names) {
+    const found = services.find(
+      (s) => s.name.toLowerCase() === name.trim().toLowerCase()
+    );
+    if (!found) return { ok: false, missing: name };
+    parts.push(found);
+  }
+  if (parts.length === 0) return { ok: false, missing: "" };
+  return { ok: true, service: combineServices(parts) };
+}
+
+/**
  * Resolve spoken text to the single service an appointment will be booked as,
  * or say what could not be understood.
  *

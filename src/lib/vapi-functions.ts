@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { bookAppointment, moveInNativeDiary } from "@/lib/booking/diary";
+import { bookAppointment, moveAppointment } from "@/lib/booking/diary";
 import {
   canCreateBooking,
   canReadAvailability,
@@ -1728,86 +1728,29 @@ export async function handleRescheduleAppointment(
       : `Could not move it. Their original appointment ${previousWhenText} still stands. Say the salon will ring to sort it.`,
   });
 
-  let updated: { startsAt: Date };
-  let oldCleared = true;
-  if (provider.id === "native") {
-    // On the salon's own diary the appointment simply moves: one locked
-    // check-and-update, checked against everyone else's bookings but not its
-    // own old slot, so moving 2pm to 2:30 is not refused for overlapping
-    // itself. It keeps the length it was booked at, which the desk may have
-    // set by hand.
-    const moved = await moveInNativeDiary(
-      appt.id,
-      organizationId,
-      {
-        startsAt,
-        durationMinutes: appt.durationMinutes,
-        stylistName: stylist.name,
-      },
-      {
-        // A reminder for the old date must not go out for the new one.
-        reminderSentAt: null,
-        reminderError: null,
-        notes: [appt.notes, `Moved from ${previousWhenText} by phone`]
-          .filter(Boolean)
-          .join("\n"),
-      }
-    );
-    if (!moved.ok) return refused(Boolean(moved.conflict));
-    updated = moved.appointment;
-  } else {
-    // Book the new slot BEFORE releasing the old one. If this ordering were
-    // reversed and the new time turned out to be taken, the caller would be
-    // left with no appointment at all — having rung up to keep one.
-    const written = await provider.createBooking({
-      organizationId,
-      startsAt: startsAt.toISOString(),
-      durationMinutes: service.durationMinutes,
-      serviceName: service.name,
+  // The appointment keeps the length it was booked at, which the desk may
+  // have set by hand. The phone never overlaps another booking or a block.
+  const moved = await moveAppointment(
+    provider,
+    { ...appt, organizationId },
+    {
+      startsAt,
+      durationMinutes: appt.durationMinutes,
       stylistName: stylist.name,
-      clientName: appt.lead.name || parsed.e164,
-      clientPhone: parsed.e164,
-      notes: `Moved from ${previousWhenText}`,
-      leadId: appt.lead.id,
-    });
-
-    if (!written.ok) return refused(Boolean(written.conflict));
-
-    // New slot secured; now release the old one.
-    if (appt.googleEventId && provider.cancelBooking) {
-      try {
-        await provider.cancelBooking(
-          organizationId,
-          appt.googleEventId,
-          appt.googleCalendarId ?? undefined
-        );
-      } catch (err) {
-        oldCleared = false;
-        console.error("[VAPI FUNCTIONS] Releasing the old slot failed:", err);
-      }
+      serviceName: service.name,
+    },
+    {
+      // A reminder for the old date must not go out for the new one.
+      reminderSentAt: null,
+      reminderError: null,
+      notes: [appt.notes, `Moved from ${previousWhenText} by phone`]
+        .filter(Boolean)
+        .join("\n"),
     }
-
-    updated = await prisma.appointment.update({
-      where: { id: appt.id },
-      data: {
-        startsAt: new Date(written.startsAt),
-        endsAt: new Date(written.endsAt),
-        stylistName: stylist.name,
-        googleEventId: written.ref,
-        googleCalendarId: written.calendarId ?? null,
-        // A reminder for the old date must not go out for the new one.
-        reminderSentAt: null,
-        reminderError: null,
-        notes: [
-          appt.notes,
-          `Moved from ${previousWhenText} by phone` +
-            (oldCleared ? "" : " — OLD CALENDAR ENTRY NOT REMOVED, delete it by hand"),
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      },
-    });
-  }
+  );
+  if (!moved.ok) return refused(Boolean(moved.conflict));
+  const updated = moved.appointment;
+  const oldCleared = moved.oldCleared ?? true;
 
   const whenText = describeAppointmentWhen(updated.startsAt, cfg.timeZone);
   const ctx = await orgMessageContext(organizationId);
