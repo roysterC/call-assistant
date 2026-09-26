@@ -167,6 +167,8 @@ async function main() {
         },
         clear: () => sendJson(ws, { type: "clear" }),
         event: (e) => sendJson(ws, e),
+        // The receptionist said goodbye and it has been heard.
+        hangup: () => ws.close(1000, "call ended"),
       },
     });
 

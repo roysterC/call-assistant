@@ -136,7 +136,9 @@ export default function ReceptionistLabPage() {
           cacheRead: data.usage?.cacheRead,
           costPence: data.costPence,
         },
+        ...(data.ended ? [{ kind: "note" as const, text: "The receptionist ended the call" }] : []),
       ]);
+      if (data.ended) setSessionId(null);
     } catch {
       setError("Could not reach the server.");
     } finally {

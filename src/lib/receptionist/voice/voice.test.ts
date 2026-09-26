@@ -140,6 +140,9 @@ function harness(
     },
   };
   const engine = { respond: vi.fn(respond) };
+  const hangup = vi.fn();
+  // Waits (before hanging up) are held until the test lets them pass.
+  const waits: Array<() => void> = [];
   const call = new VoiceCall({
     engine,
     stt: {
@@ -149,9 +152,16 @@ function harness(
       },
     },
     tts,
-    out: { audio: (b) => audio.push(b), clear, event: (e) => events.push(e) },
+    out: { audio: (b) => audio.push(b), clear, event: (e) => events.push(e), hangup },
     greeting: "Thank you for calling Shogo.",
     now: () => clock,
+    sleep: (ms) =>
+      new Promise<void>((resolve) =>
+        waits.push(() => {
+          clock += ms;
+          resolve();
+        })
+      ),
   });
   return {
     call,
@@ -160,16 +170,60 @@ function harness(
     events,
     audio,
     clear,
+    hangup,
+    /** Let every pending wait run out. */
+    wait: () => waits.splice(0).forEach((w) => w()),
     stt: () => stt!,
     advance: (ms: number) => (clock += ms),
   };
 }
 
-const done = (text: string): TurnResult => ({
+const done = (text: string, endCall = false): TurnResult => ({
   text,
   tools: [],
   stopReason: "end_turn",
+  endCall,
   usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+});
+
+describe("VoiceCall hanging up", () => {
+  const goodbye = async (_t: string, hooks: TurnHooks) => {
+    hooks.onText?.("Thanks for calling, see you Wednesday. Bye! ");
+    hooks.onToolStart?.("end_call", {});
+    return done("Thanks for calling, see you Wednesday. Bye!", true);
+  };
+
+  it("puts the phone down once the goodbye has played, with no filler first", async () => {
+    const h = harness(goodbye);
+    await h.call.start();
+    await tick();
+    h.advance(5_000);
+    h.stt().onFinal("no that's everything thanks");
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    expect(h.spoken.slice(1)).toEqual(["Thanks for calling, see you Wednesday.", "Bye!"]);
+    expect(h.hangup).not.toHaveBeenCalled();
+    h.wait();
+    await tick(5);
+    expect(h.hangup).toHaveBeenCalledTimes(1);
+    expect(h.events).toContainEqual({ type: "ended", by: "receptionist" });
+  });
+
+  it("stays on the line if the caller speaks up during the goodbye", async () => {
+    const h = harness(goodbye);
+    await h.call.start();
+    await tick();
+    h.advance(5_000);
+    h.stt().onFinal("no that's everything thanks");
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    h.stt().onFinal("oh wait");
+    h.wait();
+    await tick(5);
+    expect(h.hangup).not.toHaveBeenCalled();
+  });
 });
 
 describe("VoiceCall", () => {

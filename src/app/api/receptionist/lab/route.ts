@@ -120,10 +120,13 @@ export async function POST(req: NextRequest) {
         cacheWriteTokens: turn.usage.cacheWrite,
       },
     });
+    if (turn.endCall) endLabSession(body.sessionId);
     return NextResponse.json({
       reply: turn.text,
       tools: turn.tools,
       stopReason: turn.stopReason,
+      // The receptionist hung up; this reply was its goodbye.
+      ended: turn.endCall,
       usage: turn.usage,
       // How long until the first word, which is what a caller feels, and
       // until the whole reply.

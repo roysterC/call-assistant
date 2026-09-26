@@ -117,12 +117,18 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
   // Hang up if the page is left mid-call.
   useEffect(() => () => teardown(), []);
 
-  function teardown() {
+  /**
+   * `letFinish` keeps the speakers on until what is queued has played: when
+   * the receptionist hangs up, its goodbye may still be coming out.
+   */
+  function teardown(letFinish = false) {
     ws.current?.close();
     ws.current = null;
     mic.current?.getTracks().forEach((t) => t.stop());
     mic.current = null;
-    void ctx.current?.close().catch(() => {});
+    const ac = ctx.current;
+    const left = ac && letFinish ? Math.max(0, nextStart.current - ac.currentTime) : 0;
+    setTimeout(() => void ac?.close().catch(() => {}), left * 1000);
     ctx.current = null;
     playing.current = [];
   }
@@ -206,6 +212,8 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
       node.port.onmessage = (e) => {
         if (sock.readyState === WebSocket.OPEN) sock.send(e.data as ArrayBuffer);
       };
+      // Set when the receptionist hangs up, so the close reads as its doing.
+      let endedByReceptionist = false;
       sock.onmessage = (e) => {
         if (e.data instanceof ArrayBuffer) return play(e.data);
         const msg = JSON.parse(e.data as string);
@@ -257,6 +265,9 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
           case "metrics":
             if (msg.firstAudioMs != null) setLatencies((l) => [...l, msg.firstAudioMs]);
             break;
+          case "ended":
+            endedByReceptionist = true;
+            break;
           case "error":
             setError(msg.message);
             break;
@@ -278,8 +289,11 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
           );
         }
         setState("idle");
-        setLines((ls) => [...ls, { kind: "note", text: "Call ended" }]);
-        teardown();
+        setLines((ls) => [
+          ...ls,
+          { kind: "note", text: endedByReceptionist ? "The receptionist ended the call" : "Call ended" },
+        ]);
+        teardown(endedByReceptionist);
       };
     } catch (err) {
       setError(

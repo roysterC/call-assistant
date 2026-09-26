@@ -86,7 +86,11 @@ export function fakeModel(): StreamingClient {
         const wantsDiary =
           typeof last.content === "string" && /monday|tuesday|wednesday|thursday|friday|saturday/i.test(last.content);
         const toolTurn = wantsDiary && typeof last.content === "string";
-        const text = toolTurn
+        // "Bye" from the caller: say goodbye and hang up, as the real one should.
+        const hangUp = typeof last.content === "string" && /\b(bye|goodbye)\b/i.test(last.content);
+        const text = hangUp
+          ? "Thanks for calling, bye for now!"
+          : toolTurn
           ? ""
           : typeof last.content === "string"
             ? `You said: ${last.content}. Is there anything else?`
@@ -100,7 +104,9 @@ export function fakeModel(): StreamingClient {
           async finalMessage() {
             await new Promise((r) => setTimeout(r, 150)); // model thinking time
             for (const word of text.split(/(?<= )/)) onText?.(word);
-            const content = toolTurn
+            const content = hangUp
+              ? [{ type: "text", text }, { type: "tool_use", id: `f${i}`, name: "end_call", input: {} }]
+              : toolTurn
               ? [{ type: "tool_use", id: `f${i}`, name: "check_availability", input: { date: "Tuesday", service: "cut and finish" } }]
               : [{ type: "text", text }];
             return {
@@ -109,7 +115,7 @@ export function fakeModel(): StreamingClient {
               role: "assistant",
               model: "fake",
               content,
-              stop_reason: toolTurn ? "tool_use" : "end_turn",
+              stop_reason: toolTurn || hangUp ? "tool_use" : "end_turn",
               stop_sequence: null,
               usage: { input_tokens: 0, output_tokens: 0 },
             } as unknown as Anthropic.Message;

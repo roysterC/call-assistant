@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { buildVoiceTools } from "@/lib/vapi-assistant";
 import { executeVapiFunction, isVapiFunctionName } from "@/lib/vapi-functions";
-import { ReceptionistEngine, type StreamingClient } from "./engine";
+import { END_CALL_TOOL, ReceptionistEngine, type StreamingClient } from "./engine";
 import { buildSystem, greetingFor } from "./prompt";
 import { toClaudeTools, withCallerContext } from "./tools";
 import { salonKeyterms } from "./voice/keyterms";
@@ -87,7 +87,9 @@ export async function startReceptionist(
       opts.now ?? new Date(),
       opts.callerNumber
     ),
-    tools,
+    // Hanging up is the engine's own, not the salon's; it goes last so the
+    // salon's tools keep their place in the cached prefix.
+    tools: [...tools, END_CALL_TOOL],
     // Only the tools this salon was given. The model cannot name its way
     // into one it was not offered.
     execute: async (name, input) => {
@@ -110,7 +112,7 @@ export async function startReceptionist(
     engine,
     greeting,
     model: receptionistModel(),
-    toolNames: [...allowed],
+    toolNames: [...allowed, END_CALL_TOOL.name],
     keySource: key?.source ?? "shared",
     keyterms: salonKeyterms({ businessName, stylists: cfg.stylists, services: cfg.services }),
   };
