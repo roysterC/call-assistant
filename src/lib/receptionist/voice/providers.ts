@@ -140,7 +140,7 @@ export class ElevenLabsTts implements TextToSpeech {
   constructor(
     private readonly apiKey: string,
     encoding: AudioEncoding,
-    private readonly opts: { voiceId?: string; model?: string } = {}
+    private readonly opts: { voiceId?: string; model?: string; speed?: number } = {}
   ) {
     if (encoding.kind === "mulaw8k") {
       this.format = "ulaw_8000";
@@ -160,7 +160,11 @@ export class ElevenLabsTts implements TextToSpeech {
       {
         method: "POST",
         headers: { "xi-api-key": this.apiKey, "Content-Type": "application/json" },
-        body: JSON.stringify({ text, model_id: this.opts.model ?? "eleven_flash_v2_5" }),
+        body: JSON.stringify({
+          text,
+          model_id: this.opts.model ?? "eleven_flash_v2_5",
+          voice_settings: { speed: speakingSpeed(this.opts.speed) },
+        }),
         signal,
       }
     );
@@ -169,6 +173,20 @@ export class ElevenLabsTts implements TextToSpeech {
     }
     yield* evenChunks(res.body, this.format.startsWith("pcm") ? 2 : 1);
   }
+}
+
+/**
+ * How fast the receptionist talks, as ElevenLabs takes it: 1 is the voice's
+ * natural pace. Kept within 0.7 to 1.2, the range ElevenLabs gives for voice
+ * agents; further out, the speech starts to sound processed. Slightly under 1 by default,
+ * because a caller writing down a time or a price needs a moment more than a
+ * listener to a narration does. Anything unset or unreadable falls back to it.
+ */
+export const DEFAULT_SPEAKING_SPEED = 0.9;
+
+export function speakingSpeed(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return DEFAULT_SPEAKING_SPEED;
+  return Math.min(1.2, Math.max(0.7, value));
 }
 
 /**

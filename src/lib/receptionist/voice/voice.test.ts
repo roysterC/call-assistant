@@ -3,7 +3,7 @@ import type { TurnHooks, TurnResult } from "../engine";
 import { VoiceCall, type VoiceEvent } from "./call";
 import { SentenceChunker } from "./sentences";
 import { signVoicePass, verifyVoicePass } from "./token";
-import { evenChunks, type SttHandlers, type TextToSpeech } from "./providers";
+import { ElevenLabsTts, evenChunks, speakingSpeed, type SttHandlers, type TextToSpeech } from "./providers";
 
 const tick = async (n = 5) => {
   for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r));
@@ -75,6 +75,39 @@ describe("evenChunks", () => {
     const out: number[][] = [];
     for await (const b of evenChunks(body, 2)) out.push([...b]);
     expect(out).toEqual([[1, 2], [3, 4], [5, 6]]);
+  });
+});
+
+// --- Speaking speed -----------------------------------------------------------
+
+describe("speaking speed", () => {
+  it("defaults to 0.9 and stays inside what ElevenLabs accepts", () => {
+    expect(speakingSpeed(undefined)).toBe(0.9);
+    expect(speakingSpeed(Number("not a number"))).toBe(0.9);
+    expect(speakingSpeed(1)).toBe(1);
+    expect(speakingSpeed(0.5)).toBe(0.7);
+    expect(speakingSpeed(2)).toBe(1.2);
+  });
+
+  it("is sent with every sentence", async () => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      calls.push({ url, body: JSON.parse(init.body as string) });
+      return new Response(new Uint8Array([0, 0, 1, 1]), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const tts = new ElevenLabsTts("key", { kind: "pcm16", sampleRate: 16000 }, { voiceId: "v1" });
+      for await (const chunk of tts.synth("Hello there.", new AbortController().signal)) expect(chunk.length).toBe(4);
+      expect(calls[0].url).toContain("/v1/text-to-speech/v1/stream?output_format=pcm_16000");
+      expect(calls[0].body).toEqual({
+        text: "Hello there.",
+        model_id: "eleven_flash_v2_5",
+        voice_settings: { speed: 0.9 },
+      });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });
 
