@@ -164,6 +164,23 @@ Locally, `VOICE_FAKES=1 npx tsx src/voice-server/index.ts` runs it with a
 stand-in model, recogniser and voice, so the audio path can be tried with no
 provider accounts.
 
+### Stress-testing the receptionist
+
+`scripts/receptionist-stress.ts` puts our own receptionist through twenty
+simulated callers (a model playing each one): people who change their mind,
+mumble, give dates in words, ring from withheld numbers, try to talk it into
+cancelling everything, or ask about someone else's booking. Each call is
+checked against what actually landed in the diary, a set of fixed rules, and
+a grader model reading the transcript against the salon's prices, hours and
+team. It books into the database it is pointed at, so it only runs against a
+local one, and deletes what it booked.
+
+    ANTHROPIC_API_KEY=… npx tsx scripts/receptionist-stress.ts          # all calls
+    ANTHROPIC_API_KEY=… npx tsx scripts/receptionist-stress.ts privacy  # one scenario
+    npx tsx scripts/receptionist-stress.ts --dry                        # the harness only, no key
+
+Transcripts and failures go to `receptionist-stress-report.md`.
+
 ### Manual operations
 
 ```bash
