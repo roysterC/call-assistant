@@ -33,6 +33,11 @@
 import { config as loadEnv } from "dotenv";
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
+// Cloud coding sessions keep ANTHROPIC_API_KEY for their own sign-in, so the
+// key for these calls can be given as STRESS_ANTHROPIC_API_KEY instead.
+if (!process.env.ANTHROPIC_API_KEY && process.env.STRESS_ANTHROPIC_API_KEY) {
+  process.env.ANTHROPIC_API_KEY = process.env.STRESS_ANTHROPIC_API_KEY;
+}
 
 import { writeFileSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
@@ -574,7 +579,7 @@ async function main() {
     process.exit(1);
   }
   if (!dry && !process.env.ANTHROPIC_API_KEY) {
-    console.error("ANTHROPIC_API_KEY is not set. (Use --dry to check the harness without one.)");
+    console.error("Neither ANTHROPIC_API_KEY nor STRESS_ANTHROPIC_API_KEY is set. (Use --dry to check the harness without one.)");
     process.exit(1);
   }
 

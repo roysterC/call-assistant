@@ -179,7 +179,9 @@ local one, and deletes what it booked.
     ANTHROPIC_API_KEY=… npx tsx scripts/receptionist-stress.ts privacy  # one scenario
     npx tsx scripts/receptionist-stress.ts --dry                        # the harness only, no key
 
-Transcripts and failures go to `receptionist-stress-report.md`.
+Transcripts and failures go to `receptionist-stress-report.md`. In a cloud
+coding session, put the key in the environment as `STRESS_ANTHROPIC_API_KEY`
+(the session keeps `ANTHROPIC_API_KEY` for itself); both scripts read either.
 
 ### Manual operations
 
