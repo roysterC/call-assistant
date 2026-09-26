@@ -278,7 +278,13 @@ const FIND_APPOINTMENT: VapiTool = {
           type: "string",
           description:
             "The booking number from their confirmation text, if they have " +
-            "it. Enough on its own to find the booking, whoever is calling.",
+            "it. With bookingName, enough to find the booking, whoever is calling.",
+        },
+        bookingName: {
+          type: "string",
+          description:
+            "The name the booking is under, as the caller gave it. Needed " +
+            "with bookingNumber.",
         },
       },
       required: [],
@@ -314,7 +320,13 @@ const CANCEL_APPOINTMENT: VapiTool = {
           type: "string",
           description:
             "The booking number from their confirmation text, if they have " +
-            "it. Enough on its own to find the booking, whoever is calling.",
+            "it. With bookingName, enough to find the booking, whoever is calling.",
+        },
+        bookingName: {
+          type: "string",
+          description:
+            "The name the booking is under, as the caller gave it. Needed " +
+            "with bookingNumber.",
         },
         appointmentId: {
           type: "string",
@@ -361,7 +373,13 @@ const RESCHEDULE_APPOINTMENT: VapiTool = {
           type: "string",
           description:
             "The booking number from their confirmation text, if they have " +
-            "it. Enough on its own to find the booking, whoever is calling.",
+            "it. With bookingName, enough to find the booking, whoever is calling.",
+        },
+        bookingName: {
+          type: "string",
+          description:
+            "The name the booking is under, as the caller gave it. Needed " +
+            "with bookingNumber.",
         },
         appointmentId: {
           type: "string",
@@ -496,7 +514,8 @@ Plenty of people ring after hours to cancel or move something, not to book.
 
 - Call \`find_appointment\` straight away: with no number it looks up the
   one they are ringing from. Ask for another number only if that finds nothing.
-  Their booking number, from the confirmation text, finds it whoever is calling.
+  The booking number from the confirmation text, with the name it is under,
+  finds it whoever is calling.
 - **Read the appointment back before you change anything.** Service, stylist
   and time. Wait for them to confirm it is the right one.
 - To move it, check the new time with \`check_availability\` first, then call

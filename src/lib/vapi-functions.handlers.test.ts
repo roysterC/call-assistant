@@ -184,14 +184,24 @@ describe("by booking number", () => {
     expect(parseBookingNumber(undefined)).toBeNull();
   });
 
-  it("is enough on its own: a friend on another phone, giving no name, may hear it", async () => {
+  it("is not enough on its own: a friend on another phone is asked whose name it is under", async () => {
     const r = await handleFindAppointment("org", { bookingNumber: "1043", callerNumber: OLIVIA });
-    expect(r).toMatchObject({ found: true, bookingNumber: 1043, service: "Cut and finish", stylist: "Jo" });
+    expect(r).toMatchObject({ found: true, needsBookingName: true });
+    expect(r).not.toHaveProperty("when");
+    expect(JSON.stringify(r)).not.toMatch(/Sarah/);
   });
 
-  it("lets the friend cancel, and texts the client, not the friend", async () => {
+  it("with the name it is under, lets a friend hear it and cancel it, and texts the client", async () => {
+    const found = await handleFindAppointment("org", {
+      bookingNumber: "1043",
+      bookingName: "Sarah Friend",
+      callerNumber: OLIVIA,
+    });
+    expect(found).toMatchObject({ found: true, bookingNumber: 1043, service: "Cut and finish", stylist: "Jo" });
+
     const r = await handleCancelAppointment("org", {
       bookingNumber: "1043",
+      bookingName: "Sarah",
       callerNumber: OLIVIA,
       callerName: "Olivia Hart",
     });
@@ -200,6 +210,37 @@ describe("by booking number", () => {
       expect.objectContaining({ where: { id: "appt-1" }, data: expect.objectContaining({ status: "cancelled" }) })
     );
     expect(texts.send).toHaveBeenCalledWith("org", SARAH, expect.any(String));
+  });
+
+  it("takes the client's own name when she is the one ringing", async () => {
+    const r = await handleFindAppointment("org", { bookingNumber: "1043", callerName: "Sarah Friend", callerNumber: OLIVIA });
+    expect(r).toMatchObject({ found: true, service: "Cut and finish" });
+  });
+
+  it("refuses a number with the wrong name, without saying whose it is, and changes nothing", async () => {
+    const r = await handleCancelAppointment("org", {
+      bookingNumber: "1043",
+      bookingName: "Nina Ward",
+      callerNumber: OLIVIA,
+    });
+    expect(r).toMatchObject({ success: false, found: false, nameDidNotMatch: true });
+    expect(JSON.stringify(r)).not.toMatch(/Sarah|Cut and finish|Jo\b/);
+    expect(db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("matches the person a booking on someone else's phone is for", async () => {
+    db.appointment.findFirst.mockResolvedValueOnce({
+      id: "appt-2",
+      bookingNumber: 1044,
+      startsAt: new Date(Date.now() + 3 * 86_400_000),
+      serviceText: "Cut and finish",
+      stylistName: "Jo",
+      notes: "For Amy Burns",
+      googleEventId: null,
+      lead: { id: "lead-claire", name: "Claire Burns", phone: "+447700900721" },
+    });
+    const r = await handleFindAppointment("org", { bookingNumber: "1044", bookingName: "Amy Burns", callerNumber: OLIVIA });
+    expect(r).toMatchObject({ found: true, bookingNumber: 1044 });
   });
 
   it("finds nothing for a number that is not a booking, and changes nothing", async () => {

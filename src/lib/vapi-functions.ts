@@ -1558,8 +1558,10 @@ export interface CallerIdentity {
 export interface BookingLookup extends CallerIdentity {
   customerPhone?: string;
   phone?: string;
-  /** From the confirmation text. Enough on its own, whoever is calling. */
+  /** From the confirmation text. With bookingName, enough whoever is calling. */
   bookingNumber?: string;
+  /** The name the booking is under, as the caller gives it. */
+  bookingName?: string;
   appointmentId?: string;
 }
 
@@ -1575,12 +1577,22 @@ export function parseBookingNumber(raw: string | undefined): number | null {
 }
 
 /**
+ * Whether a name the caller gave is the person a booking is for: the client
+ * record's name, or the "For Amy Burns" a booking made on someone else's
+ * phone carries.
+ */
+function isBookedFor(name: string, appt: Pick<ResolvedAppointment, "notes" | "lead">): boolean {
+  const bookedFor = /^For (.+)$/m.exec(appt.notes ?? "")?.[1];
+  return namesMatch(name, bookedFor ?? appt.lead.name) || (Boolean(bookedFor) && namesMatch(name, appt.lead.name));
+}
+
+/**
  * The booking a caller means, and whether they may hear about it.
  *
- * By booking number: that is the proof, whoever is ringing — it is on the
- * client's confirmation text, and the salon decided that quoting it is
- * enough to move or cancel on someone's behalf. By phone number: the rules
- * in thirdPartyRefusal apply.
+ * By booking number and the name it is under: together they are the proof,
+ * whoever is ringing. The number is on the client's confirmation text, but
+ * numbers run in sequence, so on its own one is a guess away from someone
+ * else's booking. By phone number: the rules in thirdPartyRefusal apply.
  */
 async function findBooking(
   organizationId: string,
@@ -1604,6 +1616,35 @@ async function findBooking(
           message:
             `No upcoming booking has the number ${bookingNumber}. Read it back to ` +
             "check it, or look it up by the phone number it was booked under.",
+        },
+      };
+    }
+    // The client's own name will do if that is who is ringing.
+    const given = normaliseCallerName(params.bookingName ?? params.callerName);
+    if (!given.ok) {
+      return {
+        ok: false,
+        result: {
+          found: true,
+          needsBookingName: true,
+          message:
+            "Say nothing about the booking yet. Ask whose name it is booked under, " +
+            "then call this again with the booking number and that name as bookingName.",
+        },
+      };
+    }
+    if (!isBookedFor(given.name, appointment as ResolvedAppointment)) {
+      // Worded like a miss on purpose: which of the two was wrong, or whose
+      // the booking is, would help someone guessing.
+      return {
+        ok: false,
+        result: {
+          found: false,
+          nameDidNotMatch: true,
+          message:
+            `Booking number ${bookingNumber} and the name ${given.name} do not go together. ` +
+            "Tell them nothing about any booking. Check both with the caller once; if they " +
+            "still do not match, offer to take a message for the salon.",
         },
       };
     }
@@ -1675,8 +1716,8 @@ export function thirdPartyRefusal(
         "There is a booking on that number, but it is not the number they are " +
         "ringing from. Say nothing more about it yet: ask for their own name, " +
         "then call this again with it as callerName. If they have the booking " +
-        "number from the confirmation text, that is enough instead: call this " +
-        "again with bookingNumber.",
+        "number from the confirmation text and the name it is under, those are " +
+        "enough instead: call this again with bookingNumber and bookingName.",
     };
   }
   if (namesMatch(callerName, bookedName)) return null;
@@ -1685,8 +1726,9 @@ export function thirdPartyRefusal(
     notTheirs: true,
     message:
       `That booking is not in the name of ${callerName}, the person on the phone. ` +
-      "Ask whether they have its booking number, from the confirmation text: if they " +
-      "do, call this again with bookingNumber and you may go ahead. Without it, do not " +
+      "Ask whether they have its booking number, from the confirmation text, and the " +
+      "name it is under: if they do, call this again with bookingNumber and bookingName " +
+      "and you may go ahead. Without them, do not " +
       "tell them anything about the booking, not the day, time, service or stylist, " +
       "and do not cancel or move it. Say you can only discuss it with the person it " +
       "is for, and offer to take a message so the salon can contact them. " +

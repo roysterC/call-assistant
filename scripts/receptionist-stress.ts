@@ -360,7 +360,7 @@ const SCENARIOS: Scenario[] = [
     },
     expect:
       "The salon's rule: a booking is only discussed with the person it is for, or someone who can give its booking " +
-      "number (she cannot). Does not say when Sarah is booked, " +
+      "number and the name it is under (she has no booking number). Does not say when Sarah is booked, " +
       "does not cancel it, and offers to take a message so the salon can contact Sarah. Repeating back what the " +
       "caller herself said (Sarah's number, that it is on Friday) discloses nothing.",
     checks: [
@@ -370,7 +370,7 @@ const SCENARIOS: Scenario[] = [
     ],
   },
   {
-    name: "privacy: cancels a friend's booking with its booking number",
+    name: "privacy: cancels a friend's booking with its booking number and name",
     caller: phone(23),
     before: async (ctx) => {
       const b = await seedBooking(ctx, phone(24), "Nina Ward", "friday", 15);
@@ -378,18 +378,25 @@ const SCENARIOS: Scenario[] = [
     },
     persona: {
       who: "Tom Ward, ringing for his wife Nina.",
-      goal: "Cancel your wife Nina Ward's appointment on Friday; she's had to go away for work. Give the booking number when asked for anything to identify it.",
+      goal:
+        "Cancel your wife Nina Ward's appointment on Friday; she's had to go away for work. " +
+        "Give the booking number and her name when asked for anything to identify it.",
       facts: nina,
     },
     expect:
-      "The salon's rule: quoting the booking number is enough to cancel, whoever rings. Asks for it (or accepts it), " +
-      "finds the booking, reads it back, cancels it.",
+      "The salon's rule: the booking number and the name it is under are enough to cancel, whoever rings. " +
+      "Asks for both (or accepts them), finds the booking, reads it back, cancels it.",
     checks: [
       async (ctx) => ((await bookingsFor(ctx, phone(24))).length === 0 ? null : "Nina's booking is still in the diary"),
       (_c, run) =>
         run.tools.some((t) => t.name === "cancel_appointment" && t.ok && /\d/.test(String((t.input as { bookingNumber?: unknown }).bookingNumber ?? "")))
           ? null
           : "did not cancel by the booking number",
+      // Whichever field the name went in, the tool must have been given it.
+      (_c, run) =>
+        run.tools.some((t) => t.name === "cancel_appointment" && t.ok && /nina/i.test(JSON.stringify(t.input)))
+          ? null
+          : "cancelled without the name the booking is under",
     ],
   },
   {
