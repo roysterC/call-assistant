@@ -74,8 +74,14 @@ export class VoiceCall {
   readonly log: Array<{ who: "caller" | "assistant"; text: string }> = [];
   turns: TurnResult[] = [];
 
+  /** For what the call cost: when it started, audio heard, words spoken. */
+  readonly startedAt: number;
+  audioBytesIn = 0;
+  ttsCharacters = 0;
+
   constructor(private readonly deps: VoiceCallDeps) {
     this.now = deps.now ?? Date.now;
+    this.startedAt = this.now();
   }
 
   async start(): Promise<void> {
@@ -92,7 +98,22 @@ export class VoiceCall {
   }
 
   audioIn(chunk: Buffer): void {
-    if (!this.closed) this.stt?.send(chunk);
+    if (this.closed) return;
+    this.audioBytesIn += chunk.length;
+    this.stt?.send(chunk);
+  }
+
+  /** Tokens across every turn, including ones cut short by the caller. */
+  tokenUsage() {
+    return this.turns.reduce(
+      (t, r) => ({
+        inputTokens: t.inputTokens + r.usage.input,
+        outputTokens: t.outputTokens + r.usage.output,
+        cacheReadTokens: t.cacheReadTokens + r.usage.cacheRead,
+        cacheWriteTokens: t.cacheWriteTokens + r.usage.cacheWrite,
+      }),
+      { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }
+    );
   }
 
   close(): void {
@@ -198,6 +219,8 @@ export class VoiceCall {
   private say(text: string, signal: AbortSignal, onFirstAudio?: () => void) {
     this.speech = this.speech.then(async () => {
       if (signal.aborted || this.closed) return;
+      // Billed per character requested, whether or not it all gets played.
+      this.ttsCharacters += text.length;
       this.deps.out.event({ type: "assistant", text });
       let first = true;
       try {

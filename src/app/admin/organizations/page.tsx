@@ -27,6 +27,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
+import { AdminUsageTable } from "@/components/usage/admin-usage-table";
 
 interface Organization {
   id: string;
@@ -199,6 +200,8 @@ export default function OrganizationsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <AdminUsageTable names={Object.fromEntries(orgs.map((o) => [o.id, o.name]))} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

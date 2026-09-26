@@ -16,12 +16,21 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-fetch";
 import { VoiceLab } from "@/components/receptionist/voice-lab";
+import { formatPence } from "@/lib/usage/cost";
 import { cn } from "@/lib/utils";
 
 type ToolRun = { name: string; input: Record<string, unknown>; result: unknown; isError: boolean };
 
 type Line =
-  | { kind: "assistant"; text: string; firstTextMs?: number | null; totalMs?: number; cacheRead?: number }
+  | {
+      kind: "assistant";
+      text: string;
+      firstTextMs?: number | null;
+      totalMs?: number;
+      cacheRead?: number;
+      /** What the turn cost us; only sent to super-admins. */
+      costPence?: number;
+    }
   | { kind: "caller"; text: string }
   | { kind: "tool"; run: ToolRun }
   | { kind: "note"; text: string };
@@ -125,6 +134,7 @@ export default function ReceptionistLabPage() {
           firstTextMs: data.firstTextMs,
           totalMs: data.totalMs,
           cacheRead: data.usage?.cacheRead,
+          costPence: data.costPence,
         },
       ]);
     } catch {
@@ -332,6 +342,7 @@ function LineView({ line }: { line: Line }) {
           {line.firstTextMs != null ? `${(line.firstTextMs / 1000).toFixed(1)}s to first word · ` : ""}
           {(line.totalMs / 1000).toFixed(1)}s total
           {line.cacheRead ? ` · ${line.cacheRead.toLocaleString()} tokens from cache` : ""}
+          {line.costPence !== undefined ? ` · cost ${formatPence(line.costPence)}` : ""}
         </span>
       )}
     </div>

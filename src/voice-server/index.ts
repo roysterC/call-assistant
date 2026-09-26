@@ -37,6 +37,7 @@ async function main() {
   const { receptionistApiKey, startReceptionist } = await import("@/lib/receptionist/session");
   const { verifyVoicePass } = await import("@/lib/receptionist/voice/token");
   const { VoiceCall } = await import("@/lib/receptionist/voice/call");
+  const { recordUsage } = await import("@/lib/usage/record");
   const { DeepgramStt, ElevenLabsTts } = await import("@/lib/receptionist/voice/providers");
   const fakes = FAKES ? await import("./fakes") : null;
 
@@ -167,6 +168,21 @@ async function main() {
       clearInterval(ping);
       call.close();
       labCalls--;
+      // What this lab call cost us. Lab usage is never charged to the salon,
+      // but it is on our bill, so it is counted.
+      if (!fakes) {
+        void recordUsage(pass.organizationId, {
+          source: "lab_voice",
+          startedAt: new Date(call.startedAt),
+          durationSeconds: (Date.now() - call.startedAt) / 1000,
+          counts: {
+            model: session.model,
+            ...call.tokenUsage(),
+            sttSeconds: call.audioBytesIn / (encoding.sampleRate * 2),
+            ttsCharacters: call.ttsCharacters,
+          },
+        });
+      }
     };
 
     ws.on("message", (data, isBinary) => {

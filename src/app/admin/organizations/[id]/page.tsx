@@ -54,6 +54,7 @@ interface Org {
   slug: string;
   planTier: string;
   anthropicApiKeyOverride: string | null;
+  usageMarkupPercent: number | null;
   enabled: boolean;
   settings: {
     businessName: string;
@@ -256,6 +257,7 @@ export default function OrganizationDetailPage() {
           name: org.name,
           planTier: org.planTier,
           anthropicApiKeyOverride: org.anthropicApiKeyOverride,
+          usageMarkupPercent: org.usageMarkupPercent,
           enabled: org.enabled,
         }),
       });
@@ -498,6 +500,29 @@ export default function OrganizationDetailPage() {
               className="mt-1"
               type="password"
             />
+          </div>
+          <div>
+            <label htmlFor="usage-markup" className="text-sm font-medium">
+              Markup on AI call costs
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <Input
+                id="usage-markup"
+                inputMode="numeric"
+                value={org.usageMarkupPercent ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9]/g, "");
+                  setOrg({ ...org, usageMarkupPercent: v === "" ? null : Number(v) });
+                }}
+                placeholder="Not set"
+                className="w-28"
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              What the salon is charged on top of what its calls cost us: 100% shows them double our cost.
+              Blank hides charges from the salon altogether. Only super-admins ever see the cost itself.
+            </p>
           </div>
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium">Enabled</label>

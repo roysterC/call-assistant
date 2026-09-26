@@ -51,6 +51,22 @@ export async function PUT(
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
     }
+    // A whole-number percentage, or null to hide charges from the salon.
+    if ("usageMarkupPercent" in body) {
+      const v = body.usageMarkupPercent;
+      if (v === null || v === "") {
+        data.usageMarkupPercent = null;
+      } else {
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 0 || n > 10_000) {
+          return NextResponse.json(
+            { error: "Markup must be a whole-number percentage from 0 to 10,000, or blank." },
+            { status: 400 }
+          );
+        }
+        data.usageMarkupPercent = n;
+      }
+    }
 
     const org = await prisma.organization.update({
       where: { id },
