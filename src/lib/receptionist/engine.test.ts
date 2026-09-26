@@ -299,14 +299,8 @@ describe("receptionist tools", () => {
     expect(withCallerContext("book_appointment", { customerPhone: "" }, "+447700900123").customerPhone).toBe("");
   });
 
-  it("looks a booking up by the caller's number when none was given", () => {
-    expect(withCallerContext("find_appointment", {}, "+447700900123").customerPhone).toBe("+447700900123");
-    expect(withCallerContext("cancel_appointment", { customerPhone: " " }, "+447700900123").customerPhone).toBe(
-      "+447700900123"
-    );
-    expect(
-      withCallerContext("find_appointment", { customerPhone: "07700 900999" }, "+447700900123").customerPhone
-    ).toBe("07700 900999");
+  it("leaves the look-up tools' phone alone too; the handlers fall back to caller ID themselves", () => {
+    expect(withCallerContext("find_appointment", {}, "+447700900123")).toEqual({ callerNumber: "+447700900123" });
     // Withheld: nothing is invented.
     expect(withCallerContext("find_appointment", {}, null)).toEqual({});
   });

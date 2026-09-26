@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           _count: { select: { calls: true, callbacks: true } },
+          // A client reached through someone else's number has none of their own.
+          contactLead: { select: { name: true, phone: true } },
           // Pull just the most-recent social/whatsapp conversation so the
           // list page can render the right contact identifier (handle,
           // avatar, profile-derived name) without an N+1 round trip.

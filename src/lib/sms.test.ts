@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confirmationBody, reminderBody } from "./sms";
+import { cancellationBody, confirmationBody, reminderBody, rescheduleBody } from "./sms";
 import { describeAppointmentWhen } from "./business-hours";
 
 const TZ = "Europe/London";
@@ -45,6 +45,26 @@ describe("message bodies", () => {
     // several parts, which looks broken on some handsets.
     expect(confirmationBody(base).length).toBeLessThanOrEqual(160);
     expect(reminderBody(base).length).toBeLessThanOrEqual(160);
+    expect(confirmationBody({ ...base, bookingNumber: 1043 }).length).toBeLessThanOrEqual(160);
+  });
+
+  it("gives the booking number, which is enough to change the booking by phone", () => {
+    expect(confirmationBody({ ...base, bookingNumber: 1043 })).toContain("Booking no. 1043.");
+    expect(reminderBody({ ...base, bookingNumber: 1043 })).toContain("Booking no. 1043.");
+    expect(
+      rescheduleBody({ ...base, bookingNumber: 1043, previousWhenText: "Wednesday at 2pm" })
+    ).toContain("Booking no. 1043.");
+    // Older bookings have none: no blank "Booking no. null".
+    expect(confirmationBody({ ...base, bookingNumber: null })).not.toContain("Booking no.");
+  });
+
+  it("greets the parent and names the child when it goes to the number she is reached through", () => {
+    const parent = { ...base, clientName: "Claire", forName: "Amy" };
+    expect(confirmationBody(parent)).toMatch(/^Hi Claire — Amy is booked in Thursday at 2pm for a cut and finish/);
+    expect(reminderBody(parent)).toContain("a reminder Amy is booked in");
+    expect(cancellationBody(parent)).toContain("Amy's appointment Thursday at 2pm");
+    expect(rescheduleBody({ ...parent, previousWhenText: "Wednesday at 2pm" })).toContain("Amy's cut and finish has moved");
+    expect(confirmationBody({ ...parent, bookingNumber: 1044 }).length).toBeLessThanOrEqual(160);
   });
 });
 

@@ -27,6 +27,10 @@ export interface ClientRow {
   phone: string | null;
   email: string | null;
   notes: string | null;
+  /** Set when they have no number of their own and are reached through this client's. */
+  contactLead?: { id: string; name: string | null; phone: string | null } | null;
+  /** Other clients with exactly the same name: shown as a possible duplicate. */
+  possibleDuplicates?: number;
   lastVisit: string | null;
   visits: number;
   nextBooking: string | null;
@@ -193,9 +197,16 @@ export function ClientPicker({
                 className="border-b border-border last:border-0 cursor-pointer hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
               >
                 <td className="px-3 py-2 font-medium">{c.firstName || "—"}</td>
-                <td className="px-3 py-2 font-medium">{c.lastName || ""}</td>
+                <td className="px-3 py-2 font-medium">
+                  {c.lastName || ""}
+                  <DuplicateFlag client={c} className="ml-2" />
+                </td>
                 <td className="px-3 py-2 tabular-nums whitespace-nowrap">
-                  {c.phone ? speakablePhone(c.phone) : ""}
+                  {c.phone ? (
+                    speakablePhone(c.phone)
+                  ) : (
+                    <span className="text-muted-foreground">{reachedThrough(c) ?? ""}</span>
+                  )}
                 </td>
                 <td className="hidden md:table-cell px-3 py-2 text-muted-foreground truncate max-w-[14rem]">
                   {c.email ?? ""}
@@ -332,20 +343,24 @@ function NewClientForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<ClientRow | null>(null);
+  // The clash was on the number: maybe a family sharing a phone.
+  const [numberTaken, setNumberTaken] = useState(false);
 
-  const save = async () => {
+  const save = async (contactThrough = false) => {
     setSaving(true);
     setError(null);
     setExisting(null);
+    setNumberTaken(false);
     try {
       const res = await apiFetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, phone, email, notes }),
+        body: JSON.stringify({ firstName, lastName, phone, email, notes, contactThrough }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 409 && data.existing) {
         setError(data.error);
+        setNumberTaken(data.matched === "phone");
         setExisting({
           ...data.existing,
           lastVisit: null,
@@ -421,6 +436,18 @@ function NewClientForm({
               Book {existing.name ?? "them"} instead
             </button>
           )}
+          {existing && numberTaken && (
+            <>
+              {" or "}
+              <button
+                type="button"
+                className="underline underline-offset-2 text-foreground"
+                onClick={() => save(true)}
+              >
+                add {firstName.trim() || "them"} as reached through {existing.name ?? "their"}&apos;s number
+              </button>
+            </>
+          )}
         </p>
       )}
 
@@ -451,6 +478,138 @@ export function Field({
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+/** "via Claire Burns · 07700 900 721", for a client with no number of their own. */
+export function reachedThrough(c: Pick<ClientRow, "phone" | "contactLead">): string | null {
+  if (c.phone || !c.contactLead) return null;
+  const via = c.contactLead;
+  return [`via ${via.name ?? "another client"}`, via.phone && speakablePhone(via.phone)].filter(Boolean).join(" · ");
+}
+
+/**
+ * Flags a client who shares their exact name with another record: most often
+ * a child first booked on a parent's phone who has since rung from their own,
+ * which makes a second record the desk is best placed to spot.
+ */
+export function DuplicateFlag({ client, className }: { client: ClientRow; className?: string }) {
+  const n = client.possibleDuplicates ?? 0;
+  if (n === 0) return null;
+  return (
+    <span
+      title={`${n === 1 ? "Another client is" : `${n} other clients are`} also called ${client.name}. If it is the same person, their bookings are split across records.`}
+      className={cn(
+        "inline-block rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-normal text-amber-800 whitespace-nowrap align-middle",
+        className
+      )}
+    >
+      Possible duplicate
+    </span>
+  );
+}
+
+/**
+ * For a client reached through someone else's number: where their texts go,
+ * and the two ways out of it. Giving them their own number sends their texts
+ * there; unlinking (only once they have one) stops the other number managing
+ * their bookings.
+ */
+export function ClientLink({ client }: { client: ClientRow }) {
+  const [phone, setPhone] = useState(client.phone);
+  const [via, setVia] = useState(client.contactLead ?? null);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Who they were linked to, to say so once unlinked here.
+  const [unlinkedFrom, setUnlinkedFrom] = useState<string | null>(null);
+  if (!via) {
+    return unlinkedFrom && phone ? (
+      <p className="mt-1 text-xs text-muted-foreground">
+        Own number {speakablePhone(phone)}. No longer linked to {unlinkedFrom}.
+      </p>
+    ) : null;
+  }
+
+  const change = async (body: { phone?: string; unlink?: boolean }) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/clients/${client.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(res.status === 403 ? "Only the salon owner can change this." : data.error || "Could not save that.");
+        return;
+      }
+      setPhone(data.client.phone);
+      if (!data.client.contactLead) setUnlinkedFrom(via?.name ?? "them");
+      setVia(data.client.contactLead);
+      setAdding(false);
+    } catch {
+      setError("Could not reach the server.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const viaName = via.name ?? "the client they are linked to";
+  return (
+    <div className="mt-1 grid gap-1 text-xs text-muted-foreground">
+      <p>
+        {phone
+          ? `Own number ${speakablePhone(phone)}. Still linked to ${viaName}: a call from their number can manage these bookings.`
+          : `No number of their own. Texts go to ${viaName}${via.phone ? ` on ${speakablePhone(via.phone)}` : ""}.`}
+      </p>
+      {adding ? (
+        <div className="flex items-center gap-2">
+          <Input
+            type="tel"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              // Inside the booking form: Enter saves the number, not the booking.
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (draft.trim() && !busy) change({ phone: draft });
+              }
+            }}
+            placeholder="07700 900123"
+            className="h-7 w-40 text-xs"
+            autoFocus
+          />
+          <Button type="button" size="sm" className="h-7" disabled={!draft.trim() || busy} onClick={() => change({ phone: draft })}>
+            Save
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setAdding(false)}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          {!phone && (
+            <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => setAdding(true)}>
+              Add their own number
+            </button>
+          )}
+          {phone && (
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-foreground"
+              disabled={busy}
+              onClick={() => change({ unlink: true })}
+            >
+              Unlink from {viaName}
+            </button>
+          )}
+        </div>
+      )}
+      {error && <p className="text-red-600">{error}</p>}
     </div>
   );
 }

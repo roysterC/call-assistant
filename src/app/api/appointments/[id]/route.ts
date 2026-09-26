@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { textRecipient } from "@/lib/client-link";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   canWriteColumn,
@@ -197,22 +198,35 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // --- Tell the client ---------------------------------------------------
     let textSent = false;
     let textError: string | null = null;
-    if (body.notifyClient === true && (timeChanged || stylistChanged) && lead.phone) {
+    const notify = body.notifyClient === true && (timeChanged || stylistChanged);
+    // Their own number, or the one they are reached through (a child on a
+    // parent's phone), whose owner the text then greets.
+    const recipient = notify
+      ? textRecipient(
+          (await prisma.lead.findUnique({
+            where: { id: lead.id },
+            include: { contactLead: { select: { name: true, phone: true } } },
+          })) ?? lead
+        )
+      : null;
+    if (recipient) {
       const settings = await prisma.organizationSettings.findUnique({
         where: { organizationId: ctx.organizationId },
         select: { businessName: true, contactPhone: true },
       });
       const sms = await sendSms(
         ctx.organizationId,
-        lead.phone,
+        recipient.to,
         rescheduleBody({
-          clientName: lead.name,
+          clientName: recipient.greet,
+          forName: recipient.forName,
           serviceName: serviceText,
           stylistName,
           whenText: describeAppointmentWhen(updatedStartsAt, cfg.timeZone),
           previousWhenText: describeAppointmentWhen(appt.startsAt, cfg.timeZone),
           businessName: settings?.businessName ?? "the salon",
           contactPhone: settings?.contactPhone ?? null,
+          bookingNumber: appt.bookingNumber,
         })
       );
       textSent = sms.ok;

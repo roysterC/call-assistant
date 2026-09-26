@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joinName, parseClientQuery, splitName } from "./client-name";
+import { joinName, namesMatch, parseClientQuery, splitName } from "./client-name";
 
 describe("splitName", () => {
   it("splits on the first space", () => {
@@ -100,5 +100,21 @@ describe("parseClientQuery", () => {
 
   it("reads an @ as an email", () => {
     expect(parseClientQuery("Sam@Ex")).toEqual({ kind: "email", text: "sam@ex" });
+  });
+});
+
+
+describe("namesMatch", () => {
+  it("matches the same person however much of the name was given", () => {
+    expect(namesMatch("Sarah", "Sarah Friend")).toBe(true);
+    expect(namesMatch("sarah friend", "Sarah Friend")).toBe(true);
+    expect(namesMatch("Zoë O'Neill", "Zoe ONeill")).toBe(true);
+  });
+
+  it("does not match a different person, even one in the same family", () => {
+    expect(namesMatch("Olivia Hart", "Sarah Friend")).toBe(false);
+    expect(namesMatch("Amy Burns", "Claire Burns")).toBe(false);
+    expect(namesMatch("Sarah Jones", "Sarah Friend")).toBe(false);
+    expect(namesMatch("", "Sarah Friend")).toBe(false);
   });
 });

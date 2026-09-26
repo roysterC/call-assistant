@@ -42,6 +42,8 @@ const PLACEHOLDERS = new Set([
   "empty",
   "guest",
   "inaudible",
+  "me",
+  "myself",
   "n/a",
   "na",
   "new caller",
@@ -65,6 +67,8 @@ const PLACEHOLDERS = new Set([
   "unknown caller",
   "unspecified",
   "user",
+  "you",
+  "yourself",
 ]);
 
 /**
