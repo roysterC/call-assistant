@@ -79,8 +79,8 @@ async function main() {
         sendJson(ws, { type: "error", message: reason });
         return ws.close(4401, "pass refused");
       }
-      // "phone" makes the voice as the phone line will: 8kHz mu-law, so the
-      // lab can be heard the way a caller will hear it.
+      // "phone" carries audio both ways as the phone line will, 8kHz mu-law,
+      // so the lab sounds and is transcribed the way a caller's call will be.
       const sound = url.searchParams.get("sound") === "phone" ? "phone" : "clear";
       void runLabCall(ws, pass, sound).catch((err) => {
         console.error("[VOICE] lab call failed:", err);
@@ -122,21 +122,31 @@ async function main() {
       return ws.close();
     }
 
-    // The microphone comes in at 16kHz, all the recogniser needs. The voice
-    // goes out at its own rate: clearer than that in the lab, or exactly what
-    // the phone line will carry when previewing a call.
-    const encoding = { kind: "pcm16", sampleRate: 16000 } as const;
+    // Clear sound: the microphone comes in at 16kHz, all the recogniser needs,
+    // and the voice goes out clearer than that. Phone sound: both ways as the
+    // phone line carries them, 8kHz mu-law, so the lab hears and is heard
+    // exactly as a caller would be.
+    const micEncoding: AudioEncoding =
+      sound === "phone" ? { kind: "mulaw8k" } : { kind: "pcm16", sampleRate: 16000 };
+    const micBytesPerSecond = micEncoding.kind === "mulaw8k" ? 8000 : micEncoding.sampleRate * 2;
     const voiceEncoding: AudioEncoding =
       sound === "phone"
         ? { kind: "mulaw8k" }
         : { kind: "pcm16", sampleRate: labVoiceRate(process.env.ELEVENLABS_LAB_SAMPLE_RATE) };
+
+    const session = await startReceptionist(pass.organizationId, {
+      callerNumber: pass.callerNumber,
+      client: fakes ? fakes.fakeModel() : undefined,
+    });
+
     const fakeStt = fakes ? new fakes.FakeStt() : null;
     const stt =
       fakeStt ??
-      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, encoding, {
+      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, micEncoding, {
         model: process.env.DEEPGRAM_MODEL || undefined,
         language: process.env.DEEPGRAM_LANGUAGE || undefined,
         endpointingMs: process.env.DEEPGRAM_ENDPOINTING_MS ? Number(process.env.DEEPGRAM_ENDPOINTING_MS) : undefined,
+        keyterms: session.keyterms,
       });
     const tts = fakes
       ? new fakes.FakeTts(voiceEncoding)
@@ -145,11 +155,6 @@ async function main() {
           model: process.env.ELEVENLABS_MODEL || undefined,
           speed: process.env.ELEVENLABS_SPEED ? Number(process.env.ELEVENLABS_SPEED) : undefined,
         });
-
-    const session = await startReceptionist(pass.organizationId, {
-      callerNumber: pass.callerNumber,
-      client: fakes ? fakes.fakeModel() : undefined,
-    });
 
     const call = new VoiceCall({
       engine: session.engine,
@@ -193,7 +198,7 @@ async function main() {
           counts: {
             model: session.model,
             ...call.tokenUsage(),
-            sttSeconds: call.audioBytesIn / (encoding.sampleRate * 2),
+            sttSeconds: call.audioBytesIn / micBytesPerSecond,
             ttsCharacters: call.ttsCharacters,
           },
         });
@@ -227,6 +232,8 @@ async function main() {
         voiceEncoding.kind === "mulaw8k"
           ? { encoding: "mulaw", sampleRate: 8000 }
           : { encoding: "pcm16", sampleRate: voiceEncoding.sampleRate },
+      mic: micEncoding.kind === "mulaw8k" ? { encoding: "mulaw", sampleRate: 8000 } : { encoding: "pcm16", sampleRate: 16000 },
+      keyterms: session.keyterms.length,
     });
     await call.start();
   }

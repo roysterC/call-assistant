@@ -15,6 +15,7 @@ import { executeVapiFunction, isVapiFunctionName } from "@/lib/vapi-functions";
 import { ReceptionistEngine, type StreamingClient } from "./engine";
 import { buildSystem, greetingFor } from "./prompt";
 import { toClaudeTools, withCallerContext } from "./tools";
+import { salonKeyterms } from "./voice/keyterms";
 
 /**
  * Claude Haiku 4.5 by default: a receptionist's turns are short and the rules
@@ -35,6 +36,8 @@ export interface ReceptionistSession {
   toolNames: string[];
   /** Whose Anthropic key the call is charged to. */
   keySource: "salon" | "shared";
+  /** The salon's own words for the recogniser to listen for. */
+  keyterms: string[];
 }
 
 /**
@@ -109,5 +112,6 @@ export async function startReceptionist(
     model: receptionistModel(),
     toolNames: [...allowed],
     keySource: key?.source ?? "shared",
+    keyterms: salonKeyterms({ businessName, stylists: cfg.stylists, services: cfg.services }),
   };
 }

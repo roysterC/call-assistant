@@ -4,7 +4,8 @@
  * Talk to the receptionist through the computer's microphone.
  *
  * The browser does the audio plumbing only: it records the microphone, turns
- * it into 16kHz 16-bit samples, sends them to the voice server, and plays the
+ * it into 16kHz 16-bit samples (or phone-line audio, in phone quality), sends
+ * them to the voice server, and plays the
  * voice that comes back in the order it arrives, in whatever format the server
  * says it is sending: clear 24kHz audio, or phone-line audio when previewing
  * what a caller will hear. Everything else — hearing,
@@ -39,17 +40,30 @@ function mulawToFloat(byte: number): number {
 }
 
 /**
- * Runs in the audio thread. Averages the microphone down to 16kHz and posts
- * 20ms frames of 16-bit samples, which is what the recogniser is sent.
+ * Runs in the audio thread. Averages the microphone down to the rate the
+ * recogniser is sent and posts 20ms frames: 16kHz 16-bit samples normally,
+ * or 8kHz mu-law bytes, the phone network's own audio, in phone quality.
  */
 const CAPTURE_WORKLET = `
 class Capture extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
-    this.step = sampleRate / ${RATE};
+    const o = options.processorOptions || {};
+    this.mulaw = !!o.mulaw;
+    const rate = o.rate || ${RATE};
+    this.step = sampleRate / rate;
     this.next = this.step;
     this.pos = 0; this.sum = 0; this.n = 0;
-    this.frame = new Int16Array(${RATE / 50}); this.fill = 0;
+    this.frame = this.mulaw ? new Uint8Array(rate / 50) : new Int16Array(rate / 50); this.fill = 0;
+  }
+  encode(v) {
+    const s = v < 0 ? v * 0x8000 : v * 0x7fff;
+    if (!this.mulaw) return s;
+    const sign = s < 0 ? 0x80 : 0;
+    const m = Math.min(Math.abs(Math.round(s)), 32635) + 0x84;
+    let e = 7;
+    for (let mask = 0x4000; (m & mask) === 0 && e > 0; mask >>= 1) e--;
+    return ~(sign | (e << 4) | ((m >> (e + 3)) & 0x0f)) & 0xff;
   }
   process(inputs) {
     const ch = inputs[0] && inputs[0][0];
@@ -57,8 +71,7 @@ class Capture extends AudioWorkletProcessor {
     for (let i = 0; i < ch.length; i++) {
       this.sum += ch[i]; this.n++; this.pos++;
       if (this.pos >= this.next) {
-        const v = Math.max(-1, Math.min(1, this.sum / this.n));
-        this.frame[this.fill++] = v < 0 ? v * 0x8000 : v * 0x7fff;
+        this.frame[this.fill++] = this.encode(Math.max(-1, Math.min(1, this.sum / this.n)));
         this.sum = 0; this.n = 0; this.next += this.step;
         if (this.fill === this.frame.length) {
           this.port.postMessage(this.frame.buffer.slice(0));
@@ -172,8 +185,19 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
       const url = URL.createObjectURL(new Blob([CAPTURE_WORKLET], { type: "application/javascript" }));
       await ac.audioWorklet.addModule(url);
       URL.revokeObjectURL(url);
-      const node = new AudioWorkletNode(ac, "capture");
-      ac.createMediaStreamSource(stream).connect(node);
+      const node = new AudioWorkletNode(ac, "capture", {
+        processorOptions: phoneSound ? { rate: 8000, mulaw: true } : { rate: RATE, mulaw: false },
+      });
+      const source = ac.createMediaStreamSource(stream);
+      if (phoneSound) {
+        // A phone line passes roughly 300Hz to 3.4kHz and nothing else; the
+        // recogniser should get no more than a caller's handset would send.
+        const low = new BiquadFilterNode(ac, { type: "highpass", frequency: 300 });
+        const high = new BiquadFilterNode(ac, { type: "lowpass", frequency: 3400 });
+        source.connect(low).connect(high).connect(node);
+      } else {
+        source.connect(node);
+      }
 
       voice.current = { encoding: "pcm16", sampleRate: RATE };
       const sock = new WebSocket(phoneSound ? `${data.url}&sound=phone` : data.url);
@@ -192,7 +216,10 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
             setLines([
               { kind: "note", text: data.callerNumber ? `Call from ${data.callerNumber}` : "Call from a withheld number" },
               ...(msg.voice?.encoding === "mulaw"
-                ? [{ kind: "note" as const, text: "Phone quality: heard as a caller will hear it" }]
+                ? [{ kind: "note" as const, text: "Phone quality: you hear, and are heard, as on a phone call" }]
+                : []),
+              ...(msg.keyterms
+                ? [{ kind: "note" as const, text: `Listening out for ${msg.keyterms} salon words` }]
                 : []),
               ...(msg.keySource
                 ? [
