@@ -3,7 +3,7 @@ import type { TurnHooks, TurnResult } from "../engine";
 import { VoiceCall, type VoiceEvent } from "./call";
 import { SentenceChunker } from "./sentences";
 import { signVoicePass, verifyVoicePass } from "./token";
-import { ElevenLabsTts, evenChunks, speakingSpeed, type SttHandlers, type TextToSpeech } from "./providers";
+import { ElevenLabsTts, evenChunks, labVoiceRate, speakingSpeed, type SttHandlers, type TextToSpeech } from "./providers";
 
 const tick = async (n = 5) => {
   for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r));
@@ -87,6 +87,13 @@ describe("speaking speed", () => {
     expect(speakingSpeed(1)).toBe(1);
     expect(speakingSpeed(0.5)).toBe(0.7);
     expect(speakingSpeed(2)).toBe(1.2);
+  });
+
+  it("makes the lab's voice at 24kHz unless another PCM rate is set", () => {
+    expect(labVoiceRate(undefined)).toBe(24000);
+    expect(labVoiceRate("")).toBe(24000);
+    expect(labVoiceRate("44100")).toBe(44100);
+    expect(labVoiceRate("12345")).toBe(24000);
   });
 
   it("is sent with every sentence", async () => {

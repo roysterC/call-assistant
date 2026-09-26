@@ -5,7 +5,9 @@
  *
  * The browser does the audio plumbing only: it records the microphone, turns
  * it into 16kHz 16-bit samples, sends them to the voice server, and plays the
- * voice that comes back in the order it arrives. Everything else — hearing,
+ * voice that comes back in the order it arrives, in whatever format the server
+ * says it is sending: clear 24kHz audio, or phone-line audio when previewing
+ * what a caller will hear. Everything else — hearing,
  * deciding, speaking, being interrupted — happens on the server, the same as
  * it will on the phone.
  */
@@ -26,6 +28,15 @@ type Line =
   | { kind: "note"; text: string };
 
 const RATE = 16000;
+
+type VoiceFormat = { encoding: "pcm16" | "mulaw"; sampleRate: number };
+
+/** G.711 mu-law, the phone network's audio, back to a sample between -1 and 1. */
+function mulawToFloat(byte: number): number {
+  const u = ~byte & 0xff;
+  const magnitude = ((((u & 0x0f) << 3) + 0x84) << ((u & 0x70) >> 4)) - 0x84;
+  return (u & 0x80 ? -magnitude : magnitude) / 0x8000;
+}
 
 /**
  * Runs in the audio thread. Averages the microphone down to 16kHz and posts
@@ -76,12 +87,14 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
   const [fakes, setFakes] = useState(false);
   const [pretend, setPretend] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [phoneSound, setPhoneSound] = useState(false);
 
   const ws = useRef<WebSocket | null>(null);
   const ctx = useRef<AudioContext | null>(null);
   const mic = useRef<MediaStream | null>(null);
   const playing = useRef<AudioBufferSourceNode[]>([]);
   const nextStart = useRef(0);
+  const voice = useRef<VoiceFormat>({ encoding: "pcm16", sampleRate: RATE });
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -116,11 +129,13 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
   function play(data: ArrayBuffer) {
     const ac = ctx.current;
     if (!ac) return;
-    const pcm = new Int16Array(data);
-    if (!pcm.length) return;
-    const buf = ac.createBuffer(1, pcm.length, RATE);
+    const { encoding, sampleRate } = voice.current;
+    const samples = encoding === "mulaw" ? new Uint8Array(data) : new Int16Array(data);
+    if (!samples.length) return;
+    const buf = ac.createBuffer(1, samples.length, sampleRate);
     const ch = buf.getChannelData(0);
-    for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 0x8000;
+    if (encoding === "mulaw") for (let i = 0; i < samples.length; i++) ch[i] = mulawToFloat(samples[i]);
+    else for (let i = 0; i < samples.length; i++) ch[i] = samples[i] / 0x8000;
     const src = ac.createBufferSource();
     src.buffer = buf;
     src.connect(ac.destination);
@@ -160,7 +175,8 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
       const node = new AudioWorkletNode(ac, "capture");
       ac.createMediaStreamSource(stream).connect(node);
 
-      const sock = new WebSocket(data.url);
+      voice.current = { encoding: "pcm16", sampleRate: RATE };
+      const sock = new WebSocket(phoneSound ? `${data.url}&sound=phone` : data.url);
       sock.binaryType = "arraybuffer";
       ws.current = sock;
       node.port.onmessage = (e) => {
@@ -172,8 +188,12 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
         switch (msg.type) {
           case "hello":
             setFakes(Boolean(msg.fakes));
+            if (msg.voice?.sampleRate) voice.current = msg.voice;
             setLines([
               { kind: "note", text: data.callerNumber ? `Call from ${data.callerNumber}` : "Call from a withheld number" },
+              ...(msg.voice?.encoding === "mulaw"
+                ? [{ kind: "note" as const, text: "Phone quality: heard as a caller will hear it" }]
+                : []),
               ...(msg.keySource
                 ? [
                     {
@@ -269,10 +289,21 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
             Hang up
           </Button>
         ) : (
-          <Button className="gap-1.5" onClick={start}>
-            <Mic className="h-4 w-4" />
-            Start talking
-          </Button>
+          <>
+            <Button className="gap-1.5" onClick={start}>
+              <Mic className="h-4 w-4" />
+              Start talking
+            </Button>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={phoneSound}
+                onChange={(e) => setPhoneSound(e.target.checked)}
+              />
+              Phone quality
+            </label>
+          </>
         )}
         <span
           className={cn(

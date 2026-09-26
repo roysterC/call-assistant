@@ -190,6 +190,22 @@ export function speakingSpeed(value: number | undefined): number {
 }
 
 /**
+ * The sample rate the lab's voice is made at. Kept apart from the microphone's
+ * 16kHz: the recogniser needs no more, but a voice at 16kHz loses everything
+ * above 8kHz — the hiss of an "s", the snap of a "t" — and sounds muffled next
+ * to the same voice on ElevenLabs' site. 24kHz keeps nearly all of it and is
+ * on every ElevenLabs plan; 44.1kHz PCM needs a paid one. Only rates
+ * ElevenLabs offers as PCM are taken; anything else falls back to 24kHz.
+ */
+export const DEFAULT_LAB_VOICE_RATE = 24000;
+const PCM_RATES = [8000, 16000, 22050, 24000, 44100, 48000];
+
+export function labVoiceRate(value: string | undefined): number {
+  const n = Number(value);
+  return PCM_RATES.includes(n) ? n : DEFAULT_LAB_VOICE_RATE;
+}
+
+/**
  * Re-cut a byte stream so no chunk splits a sample. A 16-bit sample torn
  * across two network chunks plays as a click.
  */

@@ -24,6 +24,7 @@ loadEnv({ path: ".env" });
 
 import http from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
+import type { AudioEncoding } from "@/lib/receptionist/voice/providers";
 
 const PORT = Number(process.env.VOICE_PORT || 4610);
 const HOST = process.env.VOICE_HOST || "127.0.0.1";
@@ -38,7 +39,7 @@ async function main() {
   const { verifyVoicePass } = await import("@/lib/receptionist/voice/token");
   const { VoiceCall } = await import("@/lib/receptionist/voice/call");
   const { recordUsage } = await import("@/lib/usage/record");
-  const { DeepgramStt, ElevenLabsTts } = await import("@/lib/receptionist/voice/providers");
+  const { DeepgramStt, ElevenLabsTts, labVoiceRate } = await import("@/lib/receptionist/voice/providers");
   const fakes = FAKES ? await import("./fakes") : null;
 
   const secret = process.env.RECEPTIONIST_VOICE_SECRET ?? "";
@@ -78,7 +79,10 @@ async function main() {
         sendJson(ws, { type: "error", message: reason });
         return ws.close(4401, "pass refused");
       }
-      void runLabCall(ws, pass).catch((err) => {
+      // "phone" makes the voice as the phone line will: 8kHz mu-law, so the
+      // lab can be heard the way a caller will hear it.
+      const sound = url.searchParams.get("sound") === "phone" ? "phone" : "clear";
+      void runLabCall(ws, pass, sound).catch((err) => {
         console.error("[VOICE] lab call failed:", err);
         sendJson(ws, {
           type: "error",
@@ -89,7 +93,11 @@ async function main() {
     });
   });
 
-  async function runLabCall(ws: WebSocket, pass: { organizationId: string; callerNumber: string | null }) {
+  async function runLabCall(
+    ws: WebSocket,
+    pass: { organizationId: string; callerNumber: string | null },
+    sound: "clear" | "phone"
+  ) {
     if (labCalls >= MAX_LAB_CALLS) {
       sendJson(ws, { type: "error", message: "Too many lab calls at once. Try again shortly." });
       return ws.close();
@@ -114,7 +122,14 @@ async function main() {
       return ws.close();
     }
 
+    // The microphone comes in at 16kHz, all the recogniser needs. The voice
+    // goes out at its own rate: clearer than that in the lab, or exactly what
+    // the phone line will carry when previewing a call.
     const encoding = { kind: "pcm16", sampleRate: 16000 } as const;
+    const voiceEncoding: AudioEncoding =
+      sound === "phone"
+        ? { kind: "mulaw8k" }
+        : { kind: "pcm16", sampleRate: labVoiceRate(process.env.ELEVENLABS_LAB_SAMPLE_RATE) };
     const fakeStt = fakes ? new fakes.FakeStt() : null;
     const stt =
       fakeStt ??
@@ -124,8 +139,8 @@ async function main() {
         endpointingMs: process.env.DEEPGRAM_ENDPOINTING_MS ? Number(process.env.DEEPGRAM_ENDPOINTING_MS) : undefined,
       });
     const tts = fakes
-      ? new fakes.FakeTts()
-      : new ElevenLabsTts(process.env.ELEVENLABS_API_KEY!, encoding, {
+      ? new fakes.FakeTts(voiceEncoding)
+      : new ElevenLabsTts(process.env.ELEVENLABS_API_KEY!, voiceEncoding, {
           voiceId: process.env.ELEVENLABS_VOICE_ID || undefined,
           model: process.env.ELEVENLABS_MODEL || undefined,
           speed: process.env.ELEVENLABS_SPEED ? Number(process.env.ELEVENLABS_SPEED) : undefined,
@@ -203,7 +218,16 @@ async function main() {
     ws.on("close", end);
     ws.on("error", end);
 
-    sendJson(ws, { type: "hello", model: session.model, keySource: session.keySource, fakes: FAKES, sampleRate: 16000 });
+    sendJson(ws, {
+      type: "hello",
+      model: session.model,
+      keySource: session.keySource,
+      fakes: FAKES,
+      voice:
+        voiceEncoding.kind === "mulaw8k"
+          ? { encoding: "mulaw", sampleRate: 8000 }
+          : { encoding: "pcm16", sampleRate: voiceEncoding.sampleRate },
+    });
     await call.start();
   }
 

@@ -10,7 +10,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { StreamingClient } from "@/lib/receptionist/engine";
-import type { SpeechToText, SttHandlers, TextToSpeech } from "@/lib/receptionist/voice/providers";
+import type { AudioEncoding, SpeechToText, SttHandlers, TextToSpeech } from "@/lib/receptionist/voice/providers";
 
 export class FakeStt implements SpeechToText {
   handlers: SttHandlers | null = null;
@@ -36,24 +36,44 @@ export class FakeStt implements SpeechToText {
 }
 
 export class FakeTts implements TextToSpeech {
-  readonly bytesPerSecond = 32000; // 16kHz 16-bit mono
+  readonly bytesPerSecond: number;
+  private readonly rate: number;
+  private readonly mulaw: boolean;
+
+  constructor(encoding: AudioEncoding = { kind: "pcm16", sampleRate: 16000 }) {
+    this.mulaw = encoding.kind === "mulaw8k";
+    this.rate = encoding.kind === "mulaw8k" ? 8000 : encoding.sampleRate;
+    this.bytesPerSecond = this.mulaw ? 8000 : this.rate * 2;
+  }
 
   async *synth(text: string, signal: AbortSignal): AsyncIterable<Buffer> {
     // ~60ms of a quiet 440Hz tone per word, sent in 100ms chunks.
     const seconds = Math.max(0.4, text.split(/\s+/).length * 0.06);
-    const total = Math.round(seconds * 16000);
-    const chunk = 1600;
+    const total = Math.round(seconds * this.rate);
+    const chunk = this.rate / 10;
     for (let start = 0; start < total; start += chunk) {
       if (signal.aborted) return;
       const n = Math.min(chunk, total - start);
-      const buf = Buffer.alloc(n * 2);
+      const buf = Buffer.alloc(this.mulaw ? n : n * 2);
       for (let i = 0; i < n; i++) {
-        buf.writeInt16LE(Math.round(Math.sin(((start + i) / 16000) * 2 * Math.PI * 440) * 3000), i * 2);
+        const v = Math.round(Math.sin(((start + i) / this.rate) * 2 * Math.PI * 440) * 3000);
+        if (this.mulaw) buf[i] = linearToMulaw(v);
+        else buf.writeInt16LE(v, i * 2);
       }
       await new Promise((r) => setTimeout(r, 20));
       yield buf;
     }
   }
+}
+
+/** G.711 mu-law encoding of one 16-bit sample. */
+function linearToMulaw(sample: number): number {
+  const sign = sample < 0 ? 0x80 : 0;
+  const v = Math.min(Math.abs(sample), 32635) + 0x84;
+  let exponent = 7;
+  for (let mask = 0x4000; (v & mask) === 0 && exponent > 0; mask >>= 1) exponent--;
+  const mantissa = (v >> (exponent + 3)) & 0x0f;
+  return ~(sign | (exponent << 4) | mantissa) & 0xff;
 }
 
 export function fakeModel(): StreamingClient {
