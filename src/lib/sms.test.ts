@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confirmationBody, reminderBody, rescheduleBody } from "./sms";
+import { cancellationBody, confirmationBody, reminderBody, rescheduleBody } from "./sms";
 import { describeAppointmentWhen } from "./business-hours";
 
 const TZ = "Europe/London";
@@ -56,6 +56,15 @@ describe("message bodies", () => {
     ).toContain("Booking no. 1043.");
     // Older bookings have none: no blank "Booking no. null".
     expect(confirmationBody({ ...base, bookingNumber: null })).not.toContain("Booking no.");
+  });
+
+  it("greets the parent and names the child when it goes to the number she is reached through", () => {
+    const parent = { ...base, clientName: "Claire", forName: "Amy" };
+    expect(confirmationBody(parent)).toMatch(/^Hi Claire — Amy is booked in Thursday at 2pm for a cut and finish/);
+    expect(reminderBody(parent)).toContain("a reminder Amy is booked in");
+    expect(cancellationBody(parent)).toContain("Amy's appointment Thursday at 2pm");
+    expect(rescheduleBody({ ...parent, previousWhenText: "Wednesday at 2pm" })).toContain("Amy's cut and finish has moved");
+    expect(confirmationBody({ ...parent, bookingNumber: 1044 }).length).toBeLessThanOrEqual(160);
   });
 });
 

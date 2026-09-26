@@ -51,6 +51,7 @@ interface Lead {
   _count: { calls: number; callbacks: number };
   socialContact: SocialContact | null;
   whatsappContact: WhatsAppContact | null;
+  contactLead: { name: string | null; phone: string | null } | null;
 }
 
 // Source values stored on Lead → Channel union used by CHANNEL_META.
@@ -117,6 +118,10 @@ function displayIdentifier(lead: Lead): string {
   // longer creates `website-{session}` at all, but rows written before that
   // change still carry one.
   const phone = lead.phone;
+  // Reached through someone else's number (a child on a parent's phone).
+  if (!phone && lead.contactLead) {
+    return [`via ${lead.contactLead.name ?? "another client"}`, lead.contactLead.phone].filter(Boolean).join(" · ");
+  }
   if (
     !phone ||
     phone.startsWith("instagram-") ||

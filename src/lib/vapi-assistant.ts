@@ -201,8 +201,10 @@ const BOOK_APPOINTMENT: VapiTool = {
         customerName: {
           type: "string",
           description:
-            "The caller's name, as they gave it. Required — you cannot book " +
-            "without it. If you did not hear it clearly, ask again, and ask " +
+            "The name of the person the appointment is for, as the caller " +
+            "gave it: the caller's own, or the person they are booking for " +
+            "(a parent booking for a child gives the child's). Required — you " +
+            "cannot book without it. If you did not hear it clearly, ask again, and ask " +
             "them to spell it out letter by letter rather than guessing. " +
             "Never send a placeholder such as 'Unknown' or 'Customer'.",
         },

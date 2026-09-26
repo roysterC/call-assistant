@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { textRecipient } from "@/lib/client-link";
 import { timingSafeEqual, createHash } from "crypto";
 import {
   describeAppointmentWhen,
@@ -89,11 +90,14 @@ export async function POST(req: NextRequest) {
         reminderSentAt: null,
         startsAt: { gte: from, lt: to },
       },
-      include: { lead: true },
+      include: { lead: { include: { contactLead: { select: { name: true, phone: true } } } } },
     });
 
     for (const appt of due) {
-      if (!appt.lead?.phone) {
+      // Their own number, or the one they are reached through (a child on a
+      // parent's phone), whose owner the text then greets.
+      const to = appt.lead ? textRecipient(appt.lead) : null;
+      if (!to) {
         skipped++;
         continue;
       }
@@ -102,7 +106,7 @@ export async function POST(req: NextRequest) {
         summary.push({
           organizationId: org.organizationId,
           appointmentId: appt.id,
-          to: appt.lead.phone,
+          to: to.to,
           when: describeAppointmentWhen(appt.startsAt, tz),
           wouldSend: true,
         });
@@ -117,9 +121,10 @@ export async function POST(req: NextRequest) {
 
       const result = await sendSms(
         org.organizationId,
-        appt.lead.phone,
+        to.to,
         reminderBody({
-          clientName: appt.lead.name,
+          clientName: to.greet,
+          forName: to.forName,
           serviceName: appt.serviceText,
           stylistName: appt.stylistName,
           whenText: describeAppointmentWhen(appt.startsAt, tz),

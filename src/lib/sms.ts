@@ -139,6 +139,16 @@ export interface AppointmentMessageInput {
    * describes a booking that still stands.
    */
   bookingNumber?: number | null;
+  /**
+   * Set when the text goes to the person a client is reached through (a
+   * parent), and `clientName` is then theirs: "Hi Claire — Amy is booked in".
+   */
+  forName?: string | null;
+}
+
+/** "you're" or "Amy is", "your" or "Amy's", as the text is for them or about them. */
+function subject(i: AppointmentMessageInput): { is: string; whose: string } {
+  return i.forName ? { is: `${i.forName} is`, whose: `${i.forName}'s` } : { is: "you're", whose: "your" };
 }
 
 function bookingRef(n: number | null | undefined): string {
@@ -169,7 +179,7 @@ function signOff(contactPhone: string | null, businessName: string): string {
 export function confirmationBody(i: AppointmentMessageInput): string {
   const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
   return (
-    `${greeting}you're booked in ${i.whenText} for ${withArticle(i.serviceName)} ` +
+    `${greeting}${subject(i).is} booked in ${i.whenText} for ${withArticle(i.serviceName)} ` +
     `with ${i.stylistName}. ${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
   );
 }
@@ -177,7 +187,7 @@ export function confirmationBody(i: AppointmentMessageInput): string {
 export function reminderBody(i: AppointmentMessageInput): string {
   const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
   return (
-    `${greeting}a reminder you're booked in ${i.whenText} for ` +
+    `${greeting}a reminder ${subject(i).is} booked in ${i.whenText} for ` +
     `${withArticle(i.serviceName)} with ${i.stylistName}. ` +
     `${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
   );
@@ -186,7 +196,7 @@ export function reminderBody(i: AppointmentMessageInput): string {
 export function cancellationBody(i: AppointmentMessageInput): string {
   const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
   return (
-    `${greeting}your appointment ${i.whenText} for ${withArticle(i.serviceName)} ` +
+    `${greeting}${subject(i).whose} appointment ${i.whenText} for ${withArticle(i.serviceName)} ` +
     `has been cancelled. ${signOff(i.contactPhone, i.businessName)}`
   );
 }
@@ -196,7 +206,7 @@ export function rescheduleBody(
 ): string {
   const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
   return (
-    `${greeting}your ${i.serviceName.toLowerCase()} has moved from ` +
+    `${greeting}${subject(i).whose} ${i.serviceName.toLowerCase()} has moved from ` +
     `${i.previousWhenText} to ${i.whenText} with ${i.stylistName}. ` +
     `${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
   );

@@ -84,10 +84,17 @@ const TEST_PREFIX = "+4477009007";
 const phone = (n: number) => `${TEST_PREFIX}${String(n).padStart(2, "0")}`;
 const spoken = (e164: string) => `0${e164.slice(3, 7)} ${e164.slice(7, 10)} ${e164.slice(10)}`;
 
-/** Appointments for a number, as the diary has them now. */
+/**
+ * Appointments for a number, as the diary has them now: its own client's, and
+ * those of anyone reached through it (a daughter booked on her mum's phone).
+ */
 async function bookingsFor(ctx: Ctx, number: string, status = "booked") {
   return ctx.prisma.appointment.findMany({
-    where: { organizationId: ctx.organizationId, status, lead: { phone: number } },
+    where: {
+      organizationId: ctx.organizationId,
+      status,
+      lead: { OR: [{ phone: number }, { contactLead: { phone: number } }] },
+    },
     include: { lead: true },
     orderBy: { startsAt: "asc" },
   });
@@ -488,12 +495,57 @@ const SCENARIOS: Scenario[] = [
       async (ctx) => {
         const b = await bookingsFor(ctx, phone(21));
         if (b.length !== 2) return `expected two bookings, found ${b.length}`;
-        // One number, two people: whose each one is shows on the appointment.
-        const who = b.map((a: { notes: string | null; lead: { name: string | null } }) => /^For (.+)$/m.exec(a.notes ?? "")?.[1] ?? a.lead.name ?? "");
-        return who.some((n: string) => /claire/i.test(n)) && who.some((n: string) => /amy/i.test(n))
-          ? null
-          : `the diary shows the two bookings as ${who.join(" and ")}`;
+        // One number, two people: Amy on a record of her own, reached
+        // through her mum's number, and her mum's left as her mum's.
+        const leads = b.map((a: { lead: { name: string | null; phone: string | null } }) => a.lead);
+        const claire = leads.find((l: { name: string | null }) => /claire/i.test(l.name ?? ""));
+        const amy = leads.find((l: { name: string | null }) => /amy/i.test(l.name ?? ""));
+        if (!claire || !amy) return `the diary shows the two bookings as ${leads.map((l: { name: string | null }) => l.name).join(" and ")}`;
+        return claire.phone === phone(21) && amy.phone === null ? null : "Amy is not on her own record reached through her mum's number";
       },
+    ],
+  },
+  {
+    name: "daughter rings from her own phone about the booking her mum made",
+    caller: phone(26),
+    before: async (ctx) => {
+      // Her mum booked her in on her own phone, so Amy's record has no number
+      // of its own and is reached through her mum's.
+      const mum = await ctx.prisma.lead.create({
+        data: { organizationId: ctx.organizationId, phone: phone(25), name: "Claire Lane", source: "phone" },
+      });
+      const amy = await ctx.prisma.lead.create({
+        data: { organizationId: ctx.organizationId, name: "Amy Lane", source: "phone", contactLeadId: mum.id },
+      });
+      const [y, m, d] = ctx.resolve("friday").split("-").map(Number);
+      const startsAt = ctx.wallTime(y, m, d, 11, 0);
+      const { createNumberedAppointment } = await import("../src/lib/booking-number");
+      await createNumberedAppointment({
+        organizationId: ctx.organizationId,
+        leadId: amy.id,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 45 * 60_000),
+        durationMinutes: 45,
+        serviceText: "Cut and finish",
+        stylistName: "Jo",
+        status: "booked",
+        source: "voice",
+      });
+    },
+    persona: {
+      who: "Amy Lane, 17, ringing from her own mobile for the first time.",
+      goal: "Cancel your haircut on Friday. Your mum booked it for you on her phone.",
+      facts: [
+        "Your name is Amy Lane.",
+        `Your mum, Claire Lane, booked it on her mobile, ${spoken(phone(25))}.`,
+        "You don't have the booking number.",
+      ],
+    },
+    expect:
+      "Can't find it under her own number, asks for the number it was booked on, finds Amy's own booking under her " +
+      "mum's number (Amy is the client), reads it back and cancels it.",
+    checks: [
+      async (ctx) => ((await bookingsFor(ctx, phone(25))).length === 0 ? null : "Amy's booking is still in the diary"),
     ],
   },
   {
@@ -678,8 +730,19 @@ async function main() {
   const scenarios = SCENARIOS.filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()));
   const startedAt = new Date();
 
+  // Test clients go too, not only their bookings: a name left on a test
+  // number by one run (or one version of the code) decides who the next
+  // run's caller is taken to be.
   const tidy = async () => {
-    await prisma.appointment.deleteMany({ where: { organizationId: org.id, lead: { phone: { startsWith: TEST_PREFIX } } } });
+    const test = {
+      organizationId: org.id,
+      OR: [{ phone: { startsWith: TEST_PREFIX } }, { contactLead: { phone: { startsWith: TEST_PREFIX } } }],
+    };
+    await prisma.appointment.deleteMany({ where: { organizationId: org.id, lead: test } });
+    await prisma.callback.deleteMany({ where: { organizationId: org.id, lead: test } });
+    await prisma.call.updateMany({ where: { lead: test }, data: { leadId: null } });
+    await prisma.lead.deleteMany({ where: { ...test, phone: null } });
+    await prisma.lead.deleteMany({ where: test });
   };
   await tidy();
 

@@ -62,6 +62,7 @@ function clientOf(a: CalendarAppointment): ClientRow {
     phone: a.lead.phone,
     email: a.lead.email,
     notes: a.lead.notes,
+    contactLead: a.lead.contactLead ?? null,
     lastVisit: null,
     // Only used to decide the skin-test warning; the booking already knows.
     visits: a.clientType === "returning" ? 1 : 0,

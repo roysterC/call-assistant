@@ -55,6 +55,8 @@ export interface CalendarAppointment {
     phone: string | null;
     email: string | null;
     notes: string | null;
+    /** Reached through another client's number (a child on a parent's phone). */
+    contactLead?: { id: string; name: string | null; phone: string | null } | null;
   };
 }
 

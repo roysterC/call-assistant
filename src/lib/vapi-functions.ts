@@ -50,7 +50,8 @@ import {
   hoursForWeekday,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
-import { namesMatch } from "@/lib/client-name";
+import { namesMatch, splitName } from "@/lib/client-name";
+import { clientForBooking, peopleOnNumber, textRecipient } from "@/lib/client-link";
 
 /**
  * The Vapi tool handlers.
@@ -1296,31 +1297,12 @@ export async function handleBookAppointment(
   }
 
   // One number, one client record, but not always one person: a mum books
-  // herself and her daughter on her own phone. Renaming the record to each
-  // name in turn left both appointments under the daughter's. A different
-  // person keeps the record's name and has theirs on the appointment; the
-  // same person ("Sarah" becoming "Sarah Jones") updates it.
-  const existing = await prisma.lead.findUnique({
-    where: { organizationId_phone: { organizationId, phone } },
-    select: { name: true },
-  });
-  const forSomeoneElse = Boolean(existing?.name) && !namesMatch(existing?.name, clientName);
-  const bookingNotes = [forSomeoneElse ? `For ${clientName}` : null, blankToUndefined(notes)]
-    .filter(Boolean)
-    .join("\n") || undefined;
+  // herself and her daughter on her own phone. The daughter goes on a record
+  // of her own, reached through her mum's number (src/lib/client-link.ts).
+  const { lead, contact } = await clientForBooking(organizationId, phone, clientName);
+  const bookingNotes = blankToUndefined(notes);
 
   const needsSkinTest = service.requiresPatchTest && clientType !== "returning";
-
-  const lead = await prisma.lead.upsert({
-    where: { organizationId_phone: { organizationId, phone } },
-    update: forSomeoneElse ? {} : { name: clientName },
-    create: {
-      organizationId,
-      phone,
-      name: clientName,
-      source: "phone",
-    },
-  });
 
   const written = await bookAppointment(
     provider,
@@ -1408,11 +1390,14 @@ export async function handleBookAppointment(
     select: { businessName: true, contactPhone: true },
   });
 
+  // To the number it was booked on; a parent booking for a child is greeted
+  // themselves and told whose booking it is.
   const sms = await sendSms(
     organizationId,
     phone,
     confirmationBody({
-      clientName,
+      clientName: contact ? contact.name : clientName,
+      forName: contact ? (splitName(clientName).firstName ?? clientName) : null,
       bookingNumber: appointment.bookingNumber,
       serviceName: service.name,
       stylistName: stylist.name,
@@ -1543,8 +1528,24 @@ interface ResolvedAppointment {
   clientType: string;
   notes: string | null;
   bookingNumber: number | null;
-  lead: { id: string; name: string | null; phone: string | null };
+  lead: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    /** Set for a client reached through someone else's number. */
+    contactLead: { name: string | null; phone: string | null } | null;
+  };
 }
+
+/** What every booking look-up reads of the client, for names and texts. */
+const LEAD_FOR_LOOKUP = {
+  select: {
+    id: true,
+    name: true,
+    phone: true,
+    contactLead: { select: { name: true, phone: true } },
+  },
+} as const;
 
 /** Who is on the phone, as far as the line and the caller have said. */
 export interface CallerIdentity {
@@ -1577,13 +1578,12 @@ export function parseBookingNumber(raw: string | undefined): number | null {
 }
 
 /**
- * Whether a name the caller gave is the person a booking is for: the client
- * record's name, or the "For Amy Burns" a booking made on someone else's
- * phone carries.
+ * Whether a name the caller gave goes with a booking: the client's own, or,
+ * for a client reached through someone else's number, that person's (a
+ * parent can quote their child's booking under their own name).
  */
-function isBookedFor(name: string, appt: Pick<ResolvedAppointment, "notes" | "lead">): boolean {
-  const bookedFor = /^For (.+)$/m.exec(appt.notes ?? "")?.[1];
-  return namesMatch(name, bookedFor ?? appt.lead.name) || (Boolean(bookedFor) && namesMatch(name, appt.lead.name));
+function isBookedFor(name: string, appt: Pick<ResolvedAppointment, "lead">): boolean {
+  return namesMatch(name, appt.lead.name) || namesMatch(name, appt.lead.contactLead?.name);
 }
 
 /**
@@ -1606,7 +1606,7 @@ async function findBooking(
   if (bookingNumber !== null) {
     const appointment = await prisma.appointment.findFirst({
       where: { organizationId, bookingNumber, status: "booked", startsAt: { gte: new Date() } },
-      include: { lead: { select: { id: true, name: true, phone: true } } },
+      include: { lead: LEAD_FOR_LOOKUP },
     });
     if (!appointment) {
       return {
@@ -1688,6 +1688,11 @@ export function lookupPhone(given: string | undefined, callerNumber: string | un
   return { ok: false, reason: "No number was given, and their caller ID is withheld." };
 }
 
+function isOwnNumber(phone: string, callerNumber: string | undefined): boolean {
+  const own = normalisePhone(blankToUndefined(callerNumber));
+  return own.ok && own.e164 === phone;
+}
+
 /**
  * Why a booking may not be discussed with this caller, or null when it may.
  *
@@ -1699,11 +1704,14 @@ export function lookupPhone(given: string | undefined, callerNumber: string | un
 export function thirdPartyRefusal(
   phone: string,
   who: CallerIdentity,
-  bookedName: string | null
+  /** Everyone on the number: its own client, and any reached through it. */
+  bookedNames: string | null | Array<string | null>
 ): Record<string, unknown> | null {
-  const own = normalisePhone(blankToUndefined(who.callerNumber));
-  if (own.ok && own.e164 === phone) return null;
-  if (!bookedName?.trim()) return null;
+  if (isOwnNumber(phone, who.callerNumber)) return null;
+  const names = (Array.isArray(bookedNames) ? bookedNames : [bookedNames]).filter((n): n is string =>
+    Boolean(n?.trim())
+  );
+  if (names.length === 0) return null;
 
   // "yourself" and the like are the model filling a field, not a name.
   const given = normaliseCallerName(who.callerName);
@@ -1720,7 +1728,7 @@ export function thirdPartyRefusal(
         "enough instead: call this again with bookingNumber and bookingName.",
     };
   }
-  if (namesMatch(callerName, bookedName)) return null;
+  if (names.some((n) => namesMatch(callerName, n))) return null;
   return {
     found: true,
     notTheirs: true,
@@ -1755,12 +1763,11 @@ async function resolveAppointment(
   | { ok: true; appointment: ResolvedAppointment }
   | { ok: false; result: Record<string, unknown> }
 > {
-  const lead = await prisma.lead.findUnique({
-    where: { organizationId_phone: { organizationId, phone } },
-    select: { id: true, name: true },
-  });
+  // The number's own client, and anyone reached through it (a child booked
+  // on a parent's phone): one call from it manages all of their bookings.
+  const people = await peopleOnNumber(organizationId, phone);
 
-  if (!lead) {
+  if (people.length === 0) {
     return {
       ok: false,
       result: {
@@ -1772,18 +1779,18 @@ async function resolveAppointment(
     };
   }
 
-  const upcoming = await prisma.appointment.findMany({
+  const all = await prisma.appointment.findMany({
     where: {
       organizationId,
-      leadId: lead.id,
+      leadId: { in: people.map((p) => p.id) },
       status: "booked",
       startsAt: { gte: new Date() },
     },
-    include: { lead: { select: { id: true, name: true, phone: true } } },
+    include: { lead: LEAD_FOR_LOOKUP },
     orderBy: { startsAt: "asc" },
   });
 
-  if (upcoming.length === 0) {
+  if (all.length === 0) {
     return {
       ok: false,
       result: {
@@ -1798,8 +1805,21 @@ async function resolveAppointment(
   // Before anything about the booking is handed over, not after: a model
   // given the details alongside an instruction not to read them out read
   // them out, then cancelled the booking for the friend who asked.
-  const refusal = thirdPartyRefusal(phone, who, lead.name);
+  const refusal = thirdPartyRefusal(phone, who, people.map((p) => p.name));
   if (refusal) return { ok: false, result: refusal };
+
+  // From another phone, a client reached through this number sees their own
+  // bookings; the number's own client, like a call from the number itself,
+  // sees everyone's.
+  const given = normaliseCallerName(who.callerName);
+  const holder = people.find((p) => p.isHolder);
+  const upcoming =
+    isOwnNumber(phone, who.callerNumber) || !given.ok || namesMatch(given.name, holder?.name)
+      ? all
+      : all.filter((a) => namesMatch(given.name, a.lead.name));
+  if (upcoming.length === 0) {
+    return { ok: false, result: { found: false, message: "No upcoming appointments for them on that number." } };
+  }
 
   if (appointmentId) {
     const match = upcoming.find((a) => a.id === appointmentId);
@@ -1826,29 +1846,33 @@ async function resolveAppointment(
       ambiguous: true,
       appointments: upcoming.map((a) => ({
         appointmentId: a.id,
+        for: a.lead.name,
         when: describeAppointmentWhen(a.startsAt, timeZone),
         service: a.serviceText,
         stylist: a.stylistName,
       })),
       message:
-        "There is more than one booked. Read them out, ask which they mean, " +
-        "then call again with that appointmentId.",
+        "There is more than one booked. Read them out, saying whose each is if " +
+        "they are not all for the same person, ask which they mean, then call " +
+        "again with that appointmentId.",
     },
   };
 }
 
 /**
- * Text the client about their own booking, at the number it is under. Not the
- * caller's: when a friend quotes the booking number and cancels, the client
- * is the one who needs to hear about it.
+ * Text the client about their own booking, at their number, or the number
+ * they are reached through (greeting its owner). Not the caller's: when a
+ * friend quotes the booking number and cancels, the client is the one who
+ * needs to hear about it.
  */
 async function textClient(
   organizationId: string,
   appt: ResolvedAppointment,
-  body: string
+  body: (to: { clientName: string | null; forName: string | null }) => string
 ): Promise<SmsResult> {
-  if (!appt.lead.phone) return { ok: false, configured: true, reason: "No number on the booking." };
-  return sendSms(organizationId, appt.lead.phone, body);
+  const to = textRecipient(appt.lead);
+  if (!to) return { ok: false, configured: true, reason: "No number on the booking." };
+  return sendSms(organizationId, to.to, body({ clientName: to.greet, forName: to.forName }));
 }
 
 async function orgMessageContext(organizationId: string) {
@@ -1880,10 +1904,12 @@ export async function handleFindAppointment(
     service: a.serviceText,
     stylist: a.stylistName,
     clientName: a.lead.name,
+    // Whose it is, by name: a daughter who rang about the booking her mum
+    // made on her phone was told it was "your mum's" when it was her own.
     message:
-      `They have ${a.serviceText.toLowerCase()} with ${a.stylistName} ` +
-      `${describeAppointmentWhen(a.startsAt, cfg.timeZone)}. Read that back ` +
-      "and confirm it is the one they mean before changing anything.",
+      `${a.lead.name ?? "The client"} has ${a.serviceText.toLowerCase()} with ${a.stylistName} ` +
+      `${describeAppointmentWhen(a.startsAt, cfg.timeZone)}. Read that back, ` +
+      "saying whose it is, and confirm it is the one they mean before changing anything.",
   };
 }
 
@@ -1933,11 +1959,9 @@ export async function handleCancelAppointment(
   });
 
   const ctx = await orgMessageContext(organizationId);
-  const sms = await textClient(
-    organizationId,
-    appt,
+  const sms = await textClient(organizationId, appt, (to) =>
     cancellationBody({
-      clientName: appt.lead.name,
+      ...to,
       serviceName: appt.serviceText,
       stylistName: appt.stylistName,
       whenText,
@@ -1953,7 +1977,7 @@ export async function handleCancelAppointment(
     // caller has been told it was.
     calendarCleared,
     message:
-      `Cancelled: ${appt.serviceText} with ${appt.stylistName} ${whenText}. ` +
+      `Cancelled: ${appt.lead.name ? `${appt.lead.name}'s ` : ""}${appt.serviceText} with ${appt.stylistName} ${whenText}. ` +
       "Confirm that back to the caller" +
       (sms.ok ? " and say a text is coming." : ", but do not promise a text.") +
       " Offer to rebook if they want another time.",
@@ -2095,11 +2119,9 @@ export async function handleRescheduleAppointment(
 
   const whenText = describeAppointmentWhen(updated.startsAt, cfg.timeZone);
   const ctx = await orgMessageContext(organizationId);
-  const sms = await textClient(
-    organizationId,
-    appt,
+  const sms = await textClient(organizationId, appt, (to) =>
     rescheduleBody({
-      clientName: appt.lead.name,
+      ...to,
       serviceName: service.name,
       stylistName: stylist.name,
       whenText,
@@ -2123,7 +2145,7 @@ export async function handleRescheduleAppointment(
     textSent: sms.ok,
     oldSlotReleased: oldCleared,
     message:
-      `Moved to ${whenText} with ${stylist.name}. Confirm that back to the ` +
+      `Moved${appt.lead.name ? ` ${appt.lead.name}'s booking` : ""} to ${whenText} with ${stylist.name}. Confirm that back to the ` +
       "caller" +
       (sms.ok ? " and say a text is coming." : ", but do not promise a text."),
   };
