@@ -61,13 +61,7 @@ async function main() {
 
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://voice.local");
-    // Every attempt is logged, so a call that never arrives can be told apart
-    // from one that arrived and was refused.
-    if (url.pathname !== "/voice/lab") {
-      console.warn(`[VOICE] connection to unknown path ${url.pathname}; expected /voice/lab`);
-      return socket.destroy();
-    }
-    console.log("[VOICE] lab connection attempt");
+    if (url.pathname !== "/voice/lab") return socket.destroy();
     const pass = verifyVoicePass(url.searchParams.get("token") ?? "", secret);
     wss.handleUpgrade(req, socket, head, (ws) => {
       // A refused pass is still answered over the socket, with the reason:
