@@ -51,7 +51,9 @@ async function main() {
   const server = http.createServer((req, res) => {
     if (req.url === "/voice/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, labCalls, audioBytesIn, fakes: FAKES }));
+      // activeCalls is what the deploy waits on before restarting this
+      // server; the phone line adds its calls to it in step 3.
+      res.end(JSON.stringify({ ok: true, activeCalls: labCalls, labCalls, audioBytesIn, fakes: FAKES }));
       return;
     }
     res.writeHead(404).end();
@@ -111,7 +113,6 @@ async function main() {
       return ws.close();
     }
 
-    labCalls++;
     const encoding = { kind: "pcm16", sampleRate: 16000 } as const;
     const fakeStt = fakes ? new fakes.FakeStt() : null;
     const stt =
@@ -147,6 +148,14 @@ async function main() {
       },
     });
 
+    // The browser may have gone while the call was being set up; its close
+    // event has then already fired and would never reach the handler below.
+    if (ws.readyState !== ws.OPEN) return;
+
+    // Counted from here, where the close handler that uncounts it is attached
+    // in the same tick. The deploy waits on this number before restarting the
+    // server, so it must never be left stuck above zero.
+    labCalls++;
     const limit = setTimeout(() => ws.close(), MAX_CALL_MS);
     const ping = setInterval(() => ws.ping(), 20_000);
     let ended = false;
