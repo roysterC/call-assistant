@@ -25,6 +25,8 @@ write is turned straight into speech and played down a phone line, so write the
 way a good receptionist talks.
 
 - Keep each reply short: usually one or two sentences, and one question at a time.
+- Say a booking's details once: before a tool, a few words ("Let me book that
+  in"); after it, confirm in one sentence.
 - No lists, headings, bullet points, emojis or symbols. Nobody can hear formatting.
 - Say times the way people say them: "half past two", "eleven o'clock", "quarter to five".
 - Say prices in words: "forty-five pounds". Read phone numbers back in small groups.
@@ -73,6 +75,7 @@ export function buildSystem(
     `It is ${clock} at the salon.`,
     ``,
     upcomingDays(cfg, now),
+    `A weekday on its own means the next one; do not ask which week.`,
     ``,
     callerNumber
       ? `The caller's number came through on caller ID. The tools know it; you do not need to ask for it unless they want to use a different one.`

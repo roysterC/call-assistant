@@ -130,6 +130,27 @@ export function zonedDateString(at: Date, timeZone: string): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/**
+ * An instant as ISO 8601 in the salon's own clock, with its offset:
+ * "2026-10-06T13:15:00+01:00" rather than "2026-10-06T12:15:00.000Z".
+ *
+ * The same instant either way, and `new Date()` reads both. But a model handed
+ * the UTC form reads its digits as the time: offered "quarter past one", it
+ * booked "12:15", which in British Summer Time is quarter past twelve. In this
+ * form the digits are the time the caller heard.
+ */
+export function zonedIsoString(at: Date, timeZone: string): string {
+  const { year, month, day, hour, minute } = zonedParts(at, timeZone);
+  const offset = Math.round(tzOffsetMs(at, timeZone) / 60_000);
+  const sign = offset < 0 ? "-" : "+";
+  const abs = Math.abs(offset);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${year}-${two(month)}-${two(day)}T${two(hour)}:${two(minute)}:${two(at.getUTCSeconds())}` +
+    `${sign}${two(Math.floor(abs / 60))}:${two(abs % 60)}`
+  );
+}
+
 /** Parse "YYYY-MM-DD" without letting the host timezone shift the date. */
 export function parseDateOnly(date: string): {
   year: number;

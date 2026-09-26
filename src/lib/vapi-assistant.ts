@@ -209,7 +209,9 @@ const BOOK_APPOINTMENT: VapiTool = {
         clientType: {
           type: "string",
           enum: ["new", "returning", "unknown"],
-          description: "Whether they have been to the salon before",
+          description:
+            "Whether they have been to the salon before. Required for a " +
+            "colour service: ask if you do not know.",
         },
         notes: { type: "string", description: "Anything the stylist should know" },
       },
@@ -261,10 +263,19 @@ const FIND_APPOINTMENT: VapiTool = {
       properties: {
         customerPhone: {
           type: "string",
-          description: "The number the appointment was booked under",
+          description:
+            "The number the appointment was booked under. Leave it empty " +
+            "for the number they are ringing from.",
+        },
+        callerName: {
+          type: "string",
+          description:
+            "The name of the person you are speaking to (not the person the " +
+            "booking is for). Needed when the booking is on a number other " +
+            "than the one they are ringing from.",
         },
       },
-      required: ["customerPhone"],
+      required: [],
     },
   },
 };
@@ -282,7 +293,16 @@ const CANCEL_APPOINTMENT: VapiTool = {
       properties: {
         customerPhone: {
           type: "string",
-          description: "The number the appointment was booked under",
+          description:
+            "The number the appointment was booked under. Leave it empty " +
+            "for the number they are ringing from.",
+        },
+        callerName: {
+          type: "string",
+          description:
+            "The name of the person you are speaking to (not the person the " +
+            "booking is for). Needed when the booking is on a number other " +
+            "than the one they are ringing from.",
         },
         appointmentId: {
           type: "string",
@@ -295,7 +315,7 @@ const CANCEL_APPOINTMENT: VapiTool = {
           description: "Why, if they say. Recorded for the salon.",
         },
       },
-      required: ["customerPhone"],
+      required: [],
     },
   },
 };
@@ -314,7 +334,16 @@ const RESCHEDULE_APPOINTMENT: VapiTool = {
       properties: {
         customerPhone: {
           type: "string",
-          description: "The number the appointment was booked under",
+          description:
+            "The number the appointment was booked under. Leave it empty " +
+            "for the number they are ringing from.",
+        },
+        callerName: {
+          type: "string",
+          description:
+            "The name of the person you are speaking to (not the person the " +
+            "booking is for). Needed when the booking is on a number other " +
+            "than the one they are ringing from.",
         },
         appointmentId: {
           type: "string",
@@ -339,7 +368,7 @@ const RESCHEDULE_APPOINTMENT: VapiTool = {
             "one is kept.",
         },
       },
-      required: ["customerPhone", "date", "time"],
+      required: ["date", "time"],
     },
   },
 };
@@ -439,14 +468,16 @@ it.
   quietly booking the rest.
 - You must know whether they are a new or returning client before booking any
   colour service. New clients need a skin patch test 48 hours beforehand, so
-  the earliest colour appointment is two days away. Explain that plainly if it
-  comes up; do not treat it as negotiable.
+  the earliest colour appointment is two days after the salon is next open. Explain that plainly if it
+  comes up; do not treat it as negotiable. The skin test is not part of the
+  colour appointment and you cannot book it: the salon arranges it.
 
 ## Changing an existing appointment
 
 Plenty of people ring after hours to cancel or move something, not to book.
 
-- Ask for the number it was booked under, then \`find_appointment\`.
+- Call \`find_appointment\` straight away: with no number it looks up the
+  one they are ringing from. Ask for another number only if that finds nothing.
 - **Read the appointment back before you change anything.** Service, stylist
   and time. Wait for them to confirm it is the right one.
 - To move it, check the new time with \`check_availability\` first, then call

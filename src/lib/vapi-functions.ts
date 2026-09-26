@@ -44,10 +44,12 @@ import {
   parseSpokenTime,
   resolveSpokenDate,
   zonedDateString,
+  zonedIsoString,
   zonedParts,
   hoursForWeekday,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
+import { namesMatch } from "@/lib/client-name";
 
 /**
  * The Vapi tool handlers.
@@ -331,13 +333,25 @@ export async function handleSaveCustomerDetails(
 
   const normalisedPhone = resolved.e164;
 
+  // A message left on someone else's number (a friend ringing about a
+  // client) must not rename the client's record to the friend. Same rule as
+  // booking: a different person's name goes on the note instead.
+  const existing = cleanName
+    ? await prisma.lead.findUnique({
+        where: { organizationId_phone: { organizationId, phone: normalisedPhone } },
+        select: { name: true },
+      })
+    : null;
+  const someoneElse = Boolean(existing?.name) && !namesMatch(existing?.name, cleanName);
+  const issueText = someoneElse && noteIssue ? `From ${cleanName}: ${noteIssue}` : noteIssue;
+
   const lead = await prisma.lead.upsert({
     where: { organizationId_phone: { organizationId, phone: normalisedPhone } },
     update: {
-      ...(cleanName && { name: cleanName }),
+      ...(cleanName && !someoneElse && { name: cleanName }),
       ...(cleanEmail && { email: cleanEmail }),
       ...(cleanCompany && { company: cleanCompany }),
-      ...(noteIssue && { issue: noteIssue }),
+      ...(issueText && { issue: issueText }),
     },
     create: {
       organizationId,
@@ -357,7 +371,10 @@ export async function handleSaveCustomerDetails(
     usedCallerId: resolved.source === "callerId",
     leadId: lead.id,
     message:
-      `Saved for ${lead.name || speakablePhone(normalisedPhone)}.` +
+      (someoneElse
+        ? `That number is ${lead.name}'s, not ${cleanName}'s: saved as a message from ${cleanName} on it. ` +
+          "It has not changed any booking."
+        : `Saved for ${lead.name || speakablePhone(normalisedPhone)}.`) +
       (resolved.source === "callerId"
         ? ` The number they spoke could not be used, so the one they are ` +
           `ringing from was taken instead: ${speakablePhone(normalisedPhone)}. ` +
@@ -611,7 +628,32 @@ function spokenDay(date: string, timeZone: string, now = new Date()): string {
   return `${name} the ${day}${suffix}`;
 }
 
+/**
+ * "Saturday", said on a Saturday, means a week today: today is its own word.
+ * But a caller ringing on a Saturday afternoon may well mean today, and a
+ * receptionist handed next week's diary without being told so said "this
+ * Saturday is fully booked". So the answer says which Saturday it is about.
+ */
 export async function handleCheckAvailability(
+  organizationId: string,
+  params: Parameters<typeof checkAvailability>[1]
+) {
+  const result = await checkAvailability(organizationId, params);
+  const asked = (params.date || params.day || "").trim().toLowerCase().replace(/^(this|on)\s+/, "");
+  const r = result as { today?: string; date?: string; requestedDate?: string; message?: unknown };
+  if (!r.today || typeof r.message !== "string") return result;
+  const todayName = DAY_NAMES[new Date(`${r.today}T12:00:00Z`).getUTCDay()];
+  const answeredFor = r.requestedDate ?? r.date;
+  if (asked !== todayName.toLowerCase() || !answeredFor || answeredFor === r.today) return result;
+  return {
+    ...result,
+    message:
+      `Today is ${todayName}, so "${params.date || params.day}" was taken as a week today, ` +
+      `not today; if they meant today, check "today". ${r.message}`,
+  };
+}
+
+async function checkAvailability(
   organizationId: string,
   params: {
     date?: string;
@@ -824,7 +866,8 @@ export async function handleCheckAvailability(
       slots: sameDay,
       options: picked.map((s) => ({
         time: spokenTime(s.start, cfg.timeZone),
-        startsAt: s.start,
+        // In the salon's clock, so the digits match the time just spoken.
+        startsAt: zonedIsoString(new Date(s.start), cfg.timeZone),
         stylist: s.stylistName,
       })),
     };
@@ -833,7 +876,7 @@ export async function handleCheckAvailability(
   if (slots.length === 0) {
     // Distinguish "fully booked" from "too soon": the caller can act on the
     // second one, whereas the first just sounds like a brush-off.
-    const floor = earliestBookableStart(service, clientType, new Date());
+    const floor = earliestBookableStart(service, clientType, new Date(), undefined, undefined, cfg);
 
     // "Try another day" makes the caller do the work, and usually ends the
     // call. Look forward and name one instead. This is a second read, and it
@@ -889,6 +932,13 @@ export async function handleCheckAvailability(
     // better explanation when both are true.
     const unstaffed = !closed && !serviceStaffedOnDate(cfg, service, date);
 
+    // Later today than the service can still fit: the day is over, not full.
+    const window = closed ? null : openWindowFor(cfg.hours, cfg.timeZone, date);
+    const overForToday =
+      date === today &&
+      window !== null &&
+      Date.now() + service.durationMinutes * 60_000 > window.end.getTime();
+
     if (floor.reason === "patch_test") {
       return {
         available: false,
@@ -899,8 +949,9 @@ export async function handleCheckAvailability(
         nextAvailable,
         message:
           `Nothing on that date. ${service.name} needs a skin patch test at ` +
-          "least 48 hours beforehand for a new client, so the earliest we can " +
-          `look at is two days away.${offer || " Offer a later date."}`,
+          "least 48 hours beforehand for a new client, done at the salon while it " +
+          `is open, so the earliest is ${spokenDay(zonedDateString(floor.at, cfg.timeZone), cfg.timeZone)}.` +
+          `${offer || " Offer a later date."}`,
       };
     }
 
@@ -921,6 +972,9 @@ export async function handleCheckAvailability(
         : closed
           ? `The salon is closed on ${spokenDay(date, cfg.timeZone)} — say ` +
             `that, not that it is booked up.${offer || " Ask which other day suits."}`
+          : overForToday
+            ? "It is too late in the day for that today: the salon is closing or " +
+              `has closed. Say that, not that it is booked up.${offer || " Ask which other day suits."}`
           : unstaffed
             ? `Nobody who does ${service.name.toLowerCase()} works ` +
               `${spokenDay(date, cfg.timeZone)} — say that it is not a day we ` +
@@ -1145,7 +1199,11 @@ export async function handleBookAppointment(
       const atThatTime = slots.filter((sl) => sl.start === iso);
       const free = [...new Set(atThatTime.map((sl) => sl.stylistName ?? ""))];
       names = free;
-      if (free.length === 1 && free[0]) {
+      // Several free: the first is the one check_availability named when it
+      // offered this time (it keeps the first slot at each start), so that
+      // is who the caller was told. Asking "with whom?" instead sent one
+      // call round in circles until the receptionist said "booked" anyway.
+      if (free[0]) {
         stylist = matchStylist(free[0], cfg.stylists);
       }
     } catch (err) {
@@ -1198,10 +1256,23 @@ export async function handleBookAppointment(
           : undefined)
   );
 
+  // The rule the prompt states, enforced: colour needs to know. Treating
+  // "unknown" as new is safe for the diary, but a regular who had colour
+  // here last month was booked as new and told she needed a skin test.
+  if (service.requiresPatchTest && clientType === "unknown") {
+    return {
+      success: false,
+      needsClientType: true,
+      message:
+        `${service.name} is a colour service. Ask whether they have had colour here before, ` +
+        "then book again with clientType 'returning' if they have, or 'new' if not.",
+    };
+  }
+
   // Re-apply the lead-time rules here as well as in availability. The model
   // can reach book_appointment without ever calling check_availability, and a
   // patch-test window is not something to enforce only on the happy path.
-  const floor = earliestBookableStart(service, clientType, new Date());
+  const floor = earliestBookableStart(service, clientType, new Date(), undefined, undefined, cfg);
   if (startsAt < floor.at) {
     return {
       success: false,
@@ -1223,9 +1294,25 @@ export async function handleBookAppointment(
     return { success: false, today, notAvailable: true, message: slotProblem };
   }
 
+  // One number, one client record, but not always one person: a mum books
+  // herself and her daughter on her own phone. Renaming the record to each
+  // name in turn left both appointments under the daughter's. A different
+  // person keeps the record's name and has theirs on the appointment; the
+  // same person ("Sarah" becoming "Sarah Jones") updates it.
+  const existing = await prisma.lead.findUnique({
+    where: { organizationId_phone: { organizationId, phone } },
+    select: { name: true },
+  });
+  const forSomeoneElse = Boolean(existing?.name) && !namesMatch(existing?.name, clientName);
+  const bookingNotes = [forSomeoneElse ? `For ${clientName}` : null, blankToUndefined(notes)]
+    .filter(Boolean)
+    .join("\n") || undefined;
+
+  const needsSkinTest = service.requiresPatchTest && clientType !== "returning";
+
   const lead = await prisma.lead.upsert({
     where: { organizationId_phone: { organizationId, phone } },
-    update: { name: clientName },
+    update: forSomeoneElse ? {} : { name: clientName },
     create: {
       organizationId,
       phone,
@@ -1242,10 +1329,10 @@ export async function handleBookAppointment(
       durationMinutes: service.durationMinutes,
       serviceName: service.name,
       stylistName: stylist.name,
-      clientName: lead.name || speakablePhone(phone),
+      clientName,
       clientPhone: phone,
       clientEmail: lead.email,
-      notes,
+      notes: bookingNotes,
       leadId: lead.id,
     },
     {
@@ -1255,9 +1342,8 @@ export async function handleBookAppointment(
       durationMinutes: service.durationMinutes,
       stylistName: stylist.name,
       clientType,
-      patchTestRequired:
-        service.requiresPatchTest && clientType !== "returning",
-      notes: notes || null,
+      patchTestRequired: needsSkinTest,
+      notes: bookingNotes ?? null,
       source: "voice",
     }
   );
@@ -1293,7 +1379,7 @@ export async function handleBookAppointment(
         notes: [
           `COULD NOT BOOK: ${written.reason}`,
           `Wanted: ${service.name} with ${stylist.name} at ${startsAt.toISOString()}`,
-          notes,
+          bookingNotes,
         ]
           .filter(Boolean)
           .join("\n"),
@@ -1325,7 +1411,7 @@ export async function handleBookAppointment(
     organizationId,
     phone,
     confirmationBody({
-      clientName: lead.name,
+      clientName,
       serviceName: service.name,
       stylistName: stylist.name,
       whenText: describeAppointmentWhen(appointment.startsAt, cfg.timeZone),
@@ -1352,26 +1438,45 @@ export async function handleBookAppointment(
     data: { status: "resolved" },
   });
 
+  // The day as well as the time, so the read-back is the tool's words rather
+  // than the model's own calendar arithmetic.
+  const bookedDay = spokenDay(zonedDateString(appointment.startsAt, cfg.timeZone), cfg.timeZone);
+  const bookedWhen =
+    `${bookedDay === "today" || bookedDay === "tomorrow" ? bookedDay : `on ${bookedDay}`} ` +
+    `at ${spokenTime(appointment.startsAt.toISOString(), cfg.timeZone)}`;
+
   return {
     success: true,
     today,
-    startsAt: appointment.startsAt.toISOString(),
+    startsAt: zonedIsoString(appointment.startsAt, cfg.timeZone),
     stylist: stylist.name,
     service: service.name,
+    clientName,
     textSent: sms.ok,
     usedCallerId: resolvedPhone.source === "callerId",
+    patchTestRequired: needsSkinTest,
     message:
-      `Booked: ${service.name} with ${stylist.name} at ` +
-      `${spokenTime(appointment.startsAt.toISOString(), cfg.timeZone)}. Confirm that back to the ` +
-      (sms.ok
-        ? "caller and let them know they will get a text confirming it."
-        : "caller. Do NOT promise a text — one could not be sent.") +
+      `Booked: ${service.name} for ${clientName} with ${stylist.name} ${bookedWhen}. Confirm that ` +
+      "in one sentence, without repeating what you said before booking" +
+      (sms.ok ? ", and say a text is on its way." : ". Do NOT promise a text — one could not be sent.") +
+      // A model left to explain the skin test invented one: "Jo will do it
+      // as part of the colour appointment", which is the one thing it is not.
+      (needsSkinTest
+        ? " Also tell them, in one sentence: as a new colour client they need a quick skin " +
+          "test at the salon at least 48 hours before, which is separate and which the salon " +
+          "will be in touch to arrange."
+        : "") +
       // They never said the number out loud, so they have not had the chance
       // to catch it being wrong — and the confirmation text has just gone to
       // it.
+      // Told only "check it", a receptionist given a correction saved the new
+      // number on the client's record and said "all updated", leaving the
+      // booking (and its text) on the old one; another booked everything
+      // again and left the first two in the diary.
       (resolvedPhone.source === "callerId"
         ? ` It was booked against the number they are ringing from, ` +
-          `${speakablePhone(phone)} — read that back and check it is right.`
+          `${speakablePhone(phone)} — read that back and check it is right. ` +
+          "If it is wrong, the booking is on that number: cancel it and book it again on the right one."
         : ""),
   };
 }
@@ -1437,6 +1542,79 @@ interface ResolvedAppointment {
   lead: { id: string; name: string | null; phone: string | null };
 }
 
+/** Who is on the phone, as far as the line and the caller have said. */
+export interface CallerIdentity {
+  /** Caller ID, when the number is not withheld. */
+  callerNumber?: string;
+  /** The name the caller gave for themselves. */
+  callerName?: string;
+}
+
+/**
+ * The number to look a booking up by.
+ *
+ * Caller ID when no number was said, or when what was sent has no digits in
+ * it at all: the model sends "caller_id" or "this number" for "the one I'm
+ * ringing from", and refusing that sent a client with a booking under their
+ * own number round in circles until the salon had to ring back. A number
+ * that was actually said but will not parse is asked for again, not
+ * swapped for caller ID: they meant a different number.
+ */
+export function lookupPhone(given: string | undefined, callerNumber: string | undefined): ResolvedPhone {
+  const spoken = blankToUndefined(given);
+  if (spoken && /\d/.test(spoken)) {
+    const parsed = normalisePhone(spoken);
+    return parsed.ok ? { ok: true, e164: parsed.e164, source: "given" } : { ok: false, reason: parsed.reason };
+  }
+  const fromCaller = normalisePhone(blankToUndefined(callerNumber));
+  if (fromCaller.ok) return { ok: true, e164: fromCaller.e164, source: "callerId" };
+  return { ok: false, reason: "No number was given, and their caller ID is withheld." };
+}
+
+/**
+ * Why a booking may not be discussed with this caller, or null when it may.
+ *
+ * A booking belongs to the person it is for. Someone ringing from the number
+ * it is under is taken to be them (or the person who made it, such as a parent
+ * who booked on their own phone). Anyone else has to be the client by name.
+ * The booking's name is never told to them: "is that Sarah?" invites "yes".
+ */
+export function thirdPartyRefusal(
+  phone: string,
+  who: CallerIdentity,
+  bookedName: string | null
+): Record<string, unknown> | null {
+  const own = normalisePhone(blankToUndefined(who.callerNumber));
+  if (own.ok && own.e164 === phone) return null;
+  if (!bookedName?.trim()) return null;
+
+  // "yourself" and the like are the model filling a field, not a name.
+  const given = normaliseCallerName(who.callerName);
+  const callerName = given.ok ? given.name : undefined;
+  if (!callerName) {
+    return {
+      found: true,
+      needsCallerName: true,
+      message:
+        "There is a booking on that number, but it is not the number they are " +
+        "ringing from. Say nothing more about it yet: ask for their own name, " +
+        "then call this again with it as callerName.",
+    };
+  }
+  if (namesMatch(callerName, bookedName)) return null;
+  return {
+    found: true,
+    notTheirs: true,
+    message:
+      `That booking is not in the name of ${callerName}, the person on the phone. ` +
+      "Do not tell them anything about it, not the day, time, service or stylist, " +
+      "and do not cancel or move it. Say you can only discuss a booking with the " +
+      "person it is for, and offer to take a message so the salon can contact them. " +
+      "A message is save_customer_details with the caller's own name and number, " +
+      "and who it is for and what they want in `issue`.",
+  };
+}
+
 /**
  * Find the appointment a caller means.
  *
@@ -1449,14 +1627,15 @@ async function resolveAppointment(
   organizationId: string,
   phone: string,
   appointmentId: string | undefined,
-  timeZone: string
+  timeZone: string,
+  who: CallerIdentity
 ): Promise<
   | { ok: true; appointment: ResolvedAppointment }
   | { ok: false; result: Record<string, unknown> }
 > {
   const lead = await prisma.lead.findUnique({
     where: { organizationId_phone: { organizationId, phone } },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 
   if (!lead) {
@@ -1493,6 +1672,12 @@ async function resolveAppointment(
       },
     };
   }
+
+  // Before anything about the booking is handed over, not after: a model
+  // given the details alongside an instruction not to read them out read
+  // them out, then cancelled the booking for the friend who asked.
+  const refusal = thirdPartyRefusal(phone, who, lead.name);
+  if (refusal) return { ok: false, result: refusal };
 
   if (appointmentId) {
     const match = upcoming.find((a) => a.id === appointmentId);
@@ -1543,9 +1728,9 @@ async function orgMessageContext(organizationId: string) {
 
 export async function handleFindAppointment(
   organizationId: string,
-  params: { customerPhone?: string; phone?: string }
+  params: { customerPhone?: string; phone?: string; callerNumber?: string; callerName?: string }
 ) {
-  const parsed = normalisePhone(params.customerPhone ?? params.phone);
+  const parsed = lookupPhone(params.customerPhone ?? params.phone, params.callerNumber);
   if (!parsed.ok) {
     return { found: false, message: `${parsed.reason} Ask for it again.` };
   }
@@ -1555,7 +1740,8 @@ export async function handleFindAppointment(
     organizationId,
     parsed.e164,
     undefined,
-    cfg.timeZone
+    cfg.timeZone,
+    params
   );
 
   if (!resolved.ok) return resolved.result;
@@ -1580,11 +1766,13 @@ export async function handleCancelAppointment(
   params: {
     customerPhone?: string;
     phone?: string;
+    callerNumber?: string;
+    callerName?: string;
     appointmentId?: string;
     reason?: string;
   }
 ) {
-  const parsed = normalisePhone(params.customerPhone ?? params.phone);
+  const parsed = lookupPhone(params.customerPhone ?? params.phone, params.callerNumber);
   if (!parsed.ok) {
     return { success: false, message: `${parsed.reason} Ask for it again.` };
   }
@@ -1594,7 +1782,8 @@ export async function handleCancelAppointment(
     organizationId,
     parsed.e164,
     blankToUndefined(params.appointmentId),
-    cfg.timeZone
+    cfg.timeZone,
+    params
   );
   if (!resolved.ok) return { success: false, ...resolved.result };
 
@@ -1668,6 +1857,8 @@ export async function handleRescheduleAppointment(
   params: {
     customerPhone?: string;
     phone?: string;
+    callerNumber?: string;
+    callerName?: string;
     appointmentId?: string;
     date?: string;
     day?: string;
@@ -1675,7 +1866,7 @@ export async function handleRescheduleAppointment(
     stylist?: string;
   }
 ) {
-  const parsed = normalisePhone(params.customerPhone ?? params.phone);
+  const parsed = lookupPhone(params.customerPhone ?? params.phone, params.callerNumber);
   if (!parsed.ok) {
     return { success: false, message: `${parsed.reason} Ask for it again.` };
   }
@@ -1695,7 +1886,8 @@ export async function handleRescheduleAppointment(
     organizationId,
     parsed.e164,
     blankToUndefined(params.appointmentId),
-    cfg.timeZone
+    cfg.timeZone,
+    params
   );
   if (!resolved.ok) return { success: false, ...resolved.result };
 
@@ -1743,7 +1935,7 @@ export async function handleRescheduleAppointment(
   // was booked that way or moved there.
   const clientType =
     appt.clientType === "returning" ? "returning" : appt.patchTestRequired ? "new" : "unknown";
-  const floor = earliestBookableStart(service, clientType, new Date());
+  const floor = earliestBookableStart(service, clientType, new Date(), undefined, undefined, cfg);
   if (startsAt < floor.at) {
     return {
       success: false,
@@ -1935,6 +2127,19 @@ function normaliseParameters(parameters: Record<string, any> | null | undefined)
   return out;
 }
 
+/**
+ * A refused booking says so first, whatever the reason. The reasons read as
+ * next steps ("which stylist is that with?"), and after three of them in a
+ * row one call answered the next "just book it" with "that's booked in".
+ */
+export function saysNotBooked<T>(result: T): T {
+  const r = result as { success?: boolean; message?: unknown };
+  if (r && r.success === false && typeof r.message === "string" && !r.message.startsWith("NOT booked")) {
+    return { ...r, message: `NOT booked. ${r.message}` } as T;
+  }
+  return result;
+}
+
 export async function executeVapiFunction(
   name: string,
   organizationId: string,
@@ -1950,7 +2155,9 @@ export async function executeVapiFunction(
     case "check_availability":
       return handleCheckAvailability(organizationId, parameters as Parameters<typeof handleCheckAvailability>[1]);
     case "book_appointment":
-      return handleBookAppointment(organizationId, parameters as Parameters<typeof handleBookAppointment>[1]);
+      return saysNotBooked(
+        await handleBookAppointment(organizationId, parameters as Parameters<typeof handleBookAppointment>[1])
+      );
     case "find_appointment":
       return handleFindAppointment(organizationId, parameters as Parameters<typeof handleFindAppointment>[1]);
     case "cancel_appointment":
