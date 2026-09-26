@@ -133,6 +133,16 @@ export interface AppointmentMessageInput {
   whenText: string;
   businessName: string;
   contactPhone: string | null;
+  /**
+   * The salon's number for the booking. Quoting it on the phone is enough to
+   * move or cancel it, whoever is ringing, so it goes on every text that
+   * describes a booking that still stands.
+   */
+  bookingNumber?: number | null;
+}
+
+function bookingRef(n: number | null | undefined): string {
+  return n ? `Booking no. ${n}. ` : "";
 }
 
 /**
@@ -160,7 +170,7 @@ export function confirmationBody(i: AppointmentMessageInput): string {
   const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
   return (
     `${greeting}you're booked in ${i.whenText} for ${withArticle(i.serviceName)} ` +
-    `with ${i.stylistName}. ${signOff(i.contactPhone, i.businessName)}`
+    `with ${i.stylistName}. ${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
   );
 }
 
@@ -169,7 +179,7 @@ export function reminderBody(i: AppointmentMessageInput): string {
   return (
     `${greeting}a reminder you're booked in ${i.whenText} for ` +
     `${withArticle(i.serviceName)} with ${i.stylistName}. ` +
-    `${signOff(i.contactPhone, i.businessName)}`
+    `${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
   );
 }
 
@@ -188,6 +198,6 @@ export function rescheduleBody(
   return (
     `${greeting}your ${i.serviceName.toLowerCase()} has moved from ` +
     `${i.previousWhenText} to ${i.whenText} with ${i.stylistName}. ` +
-    `${signOff(i.contactPhone, i.businessName)}`
+    `${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
   );
 }

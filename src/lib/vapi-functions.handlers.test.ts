@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   lead: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
-  appointment: { findMany: vi.fn(), update: vi.fn() },
+  appointment: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
   organizationSettings: { findUnique: vi.fn() },
 }));
 
@@ -54,9 +54,10 @@ vi.mock("@/lib/booking/diary", async (original) => ({
     return { ok: true, appointment: { id: "appt-new", startsAt: new Date(write.startsAt) } };
   },
 }));
+const texts = vi.hoisted(() => ({ send: vi.fn(async () => ({ ok: false, configured: false, reason: "not in tests" })) }));
 vi.mock("@/lib/sms", async (original) => ({
   ...(await original<typeof import("@/lib/sms")>()),
-  sendSms: async () => ({ ok: false, reason: "not in tests" }),
+  sendSms: texts.send,
 }));
 
 import {
@@ -66,6 +67,7 @@ import {
   handleFindAppointment,
   handleSaveCustomerDetails,
   lookupPhone,
+  parseBookingNumber,
   saysNotBooked,
   thirdPartyRefusal,
 } from "./vapi-functions";
@@ -80,17 +82,18 @@ beforeEach(() => {
   db.lead.findUnique.mockImplementation(async ({ where }) =>
     where.organizationId_phone.phone === SARAH ? { id: "lead-sarah", name: "Sarah Friend" } : null
   );
-  db.appointment.findMany.mockResolvedValue([
-    {
-      id: "appt-1",
-      startsAt: new Date(Date.now() + 3 * 86_400_000),
-      serviceText: "Cut and finish",
-      stylistName: "Jo",
-      notes: null,
-      googleEventId: null,
-      lead: { id: "lead-sarah", name: "Sarah Friend", phone: SARAH },
-    },
-  ]);
+  const sarahsBooking = {
+    id: "appt-1",
+    bookingNumber: 1043,
+    startsAt: new Date(Date.now() + 3 * 86_400_000),
+    serviceText: "Cut and finish",
+    stylistName: "Jo",
+    notes: null,
+    googleEventId: null,
+    lead: { id: "lead-sarah", name: "Sarah Friend", phone: SARAH },
+  };
+  db.appointment.findMany.mockResolvedValue([sarahsBooking]);
+  db.appointment.findFirst.mockImplementation(async ({ where }) => (where.bookingNumber === 1043 ? sarahsBooking : null));
   db.organizationSettings.findUnique.mockResolvedValue({ businessName: "Shogo", contactPhone: null });
 });
 
@@ -169,6 +172,45 @@ describe("find_appointment and cancel_appointment", () => {
     expect(db.appointment.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "appt-1" }, data: expect.objectContaining({ status: "cancelled" }) })
     );
+  });
+});
+
+describe("by booking number", () => {
+  it("reads the number however the model sent it", () => {
+    expect(parseBookingNumber("1043")).toBe(1043);
+    expect(parseBookingNumber("booking 1043")).toBe(1043);
+    expect(parseBookingNumber("#10 43")).toBe(1043);
+    expect(parseBookingNumber("the one on her text")).toBeNull();
+    expect(parseBookingNumber(undefined)).toBeNull();
+  });
+
+  it("is enough on its own: a friend on another phone, giving no name, may hear it", async () => {
+    const r = await handleFindAppointment("org", { bookingNumber: "1043", callerNumber: OLIVIA });
+    expect(r).toMatchObject({ found: true, bookingNumber: 1043, service: "Cut and finish", stylist: "Jo" });
+  });
+
+  it("lets the friend cancel, and texts the client, not the friend", async () => {
+    const r = await handleCancelAppointment("org", {
+      bookingNumber: "1043",
+      callerNumber: OLIVIA,
+      callerName: "Olivia Hart",
+    });
+    expect(r).toMatchObject({ success: true });
+    expect(db.appointment.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "appt-1" }, data: expect.objectContaining({ status: "cancelled" }) })
+    );
+    expect(texts.send).toHaveBeenCalledWith("org", SARAH, expect.any(String));
+  });
+
+  it("finds nothing for a number that is not a booking, and changes nothing", async () => {
+    const r = await handleCancelAppointment("org", { bookingNumber: "9999", callerNumber: OLIVIA });
+    expect(r).toMatchObject({ success: false, found: false });
+    expect(db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("is what a refused caller is asked for", () => {
+    const r = thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "Olivia Hart" }, "Sarah Friend");
+    expect(r?.message).toMatch(/bookingNumber/);
   });
 });
 

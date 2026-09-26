@@ -34,6 +34,7 @@ import {
   confirmationBody,
   rescheduleBody,
   sendSms,
+  type SmsResult,
 } from "@/lib/sms";
 import {
   addCalendarDays,
@@ -1412,6 +1413,7 @@ export async function handleBookAppointment(
     phone,
     confirmationBody({
       clientName,
+      bookingNumber: appointment.bookingNumber,
       serviceName: service.name,
       stylistName: stylist.name,
       whenText: describeAppointmentWhen(appointment.startsAt, cfg.timeZone),
@@ -1449,6 +1451,7 @@ export async function handleBookAppointment(
     success: true,
     today,
     startsAt: zonedIsoString(appointment.startsAt, cfg.timeZone),
+    bookingNumber: appointment.bookingNumber,
     stylist: stylist.name,
     service: service.name,
     clientName,
@@ -1539,6 +1542,7 @@ interface ResolvedAppointment {
   patchTestRequired: boolean;
   clientType: string;
   notes: string | null;
+  bookingNumber: number | null;
   lead: { id: string; name: string | null; phone: string | null };
 }
 
@@ -1548,6 +1552,78 @@ export interface CallerIdentity {
   callerNumber?: string;
   /** The name the caller gave for themselves. */
   callerName?: string;
+}
+
+/** What a caller can quote to find a booking, beyond who they are. */
+export interface BookingLookup extends CallerIdentity {
+  customerPhone?: string;
+  phone?: string;
+  /** From the confirmation text. Enough on its own, whoever is calling. */
+  bookingNumber?: string;
+  appointmentId?: string;
+}
+
+/**
+ * A booking number as the model sent it: "1043", "booking 1043", "#1043".
+ * Null when there is no run of digits a booking number could be.
+ */
+export function parseBookingNumber(raw: string | undefined): number | null {
+  const digits = (blankToUndefined(raw) ?? "").replace(/[\s-]/g, "").match(/\d+/)?.[0];
+  if (!digits || digits.length > 9) return null;
+  const n = Number(digits);
+  return n > 0 ? n : null;
+}
+
+/**
+ * The booking a caller means, and whether they may hear about it.
+ *
+ * By booking number: that is the proof, whoever is ringing — it is on the
+ * client's confirmation text, and the salon decided that quoting it is
+ * enough to move or cancel on someone's behalf. By phone number: the rules
+ * in thirdPartyRefusal apply.
+ */
+async function findBooking(
+  organizationId: string,
+  params: BookingLookup,
+  timeZone: string
+): Promise<
+  | { ok: true; appointment: ResolvedAppointment }
+  | { ok: false; result: Record<string, unknown> }
+> {
+  const bookingNumber = parseBookingNumber(params.bookingNumber);
+  if (bookingNumber !== null) {
+    const appointment = await prisma.appointment.findFirst({
+      where: { organizationId, bookingNumber, status: "booked", startsAt: { gte: new Date() } },
+      include: { lead: { select: { id: true, name: true, phone: true } } },
+    });
+    if (!appointment) {
+      return {
+        ok: false,
+        result: {
+          found: false,
+          message:
+            `No upcoming booking has the number ${bookingNumber}. Read it back to ` +
+            "check it, or look it up by the phone number it was booked under.",
+        },
+      };
+    }
+    return { ok: true, appointment: appointment as ResolvedAppointment };
+  }
+
+  const parsed = lookupPhone(params.customerPhone ?? params.phone, params.callerNumber);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      result: { found: false, message: `${parsed.reason} Ask for it again, or for their booking number.` },
+    };
+  }
+  return resolveAppointment(
+    organizationId,
+    parsed.e164,
+    blankToUndefined(params.appointmentId),
+    timeZone,
+    params
+  );
 }
 
 /**
@@ -1598,7 +1674,9 @@ export function thirdPartyRefusal(
       message:
         "There is a booking on that number, but it is not the number they are " +
         "ringing from. Say nothing more about it yet: ask for their own name, " +
-        "then call this again with it as callerName.",
+        "then call this again with it as callerName. If they have the booking " +
+        "number from the confirmation text, that is enough instead: call this " +
+        "again with bookingNumber.",
     };
   }
   if (namesMatch(callerName, bookedName)) return null;
@@ -1607,9 +1685,11 @@ export function thirdPartyRefusal(
     notTheirs: true,
     message:
       `That booking is not in the name of ${callerName}, the person on the phone. ` +
-      "Do not tell them anything about it, not the day, time, service or stylist, " +
-      "and do not cancel or move it. Say you can only discuss a booking with the " +
-      "person it is for, and offer to take a message so the salon can contact them. " +
+      "Ask whether they have its booking number, from the confirmation text: if they " +
+      "do, call this again with bookingNumber and you may go ahead. Without it, do not " +
+      "tell them anything about the booking, not the day, time, service or stylist, " +
+      "and do not cancel or move it. Say you can only discuss it with the person it " +
+      "is for, and offer to take a message so the salon can contact them. " +
       "A message is save_customer_details with the caller's own name and number, " +
       "and who it is for and what they want in `issue`.",
   };
@@ -1715,6 +1795,20 @@ async function resolveAppointment(
   };
 }
 
+/**
+ * Text the client about their own booking, at the number it is under. Not the
+ * caller's: when a friend quotes the booking number and cancels, the client
+ * is the one who needs to hear about it.
+ */
+async function textClient(
+  organizationId: string,
+  appt: ResolvedAppointment,
+  body: string
+): Promise<SmsResult> {
+  if (!appt.lead.phone) return { ok: false, configured: true, reason: "No number on the booking." };
+  return sendSms(organizationId, appt.lead.phone, body);
+}
+
 async function orgMessageContext(organizationId: string) {
   const settings = await prisma.organizationSettings.findUnique({
     where: { organizationId },
@@ -1728,21 +1822,10 @@ async function orgMessageContext(organizationId: string) {
 
 export async function handleFindAppointment(
   organizationId: string,
-  params: { customerPhone?: string; phone?: string; callerNumber?: string; callerName?: string }
+  params: Omit<BookingLookup, "appointmentId">
 ) {
-  const parsed = lookupPhone(params.customerPhone ?? params.phone, params.callerNumber);
-  if (!parsed.ok) {
-    return { found: false, message: `${parsed.reason} Ask for it again.` };
-  }
-
   const cfg = await getSalonConfig(organizationId);
-  const resolved = await resolveAppointment(
-    organizationId,
-    parsed.e164,
-    undefined,
-    cfg.timeZone,
-    params
-  );
+  const resolved = await findBooking(organizationId, params, cfg.timeZone);
 
   if (!resolved.ok) return resolved.result;
 
@@ -1750,6 +1833,7 @@ export async function handleFindAppointment(
   return {
     found: true,
     appointmentId: a.id,
+    bookingNumber: a.bookingNumber,
     when: describeAppointmentWhen(a.startsAt, cfg.timeZone),
     service: a.serviceText,
     stylist: a.stylistName,
@@ -1763,28 +1847,10 @@ export async function handleFindAppointment(
 
 export async function handleCancelAppointment(
   organizationId: string,
-  params: {
-    customerPhone?: string;
-    phone?: string;
-    callerNumber?: string;
-    callerName?: string;
-    appointmentId?: string;
-    reason?: string;
-  }
+  params: BookingLookup & { reason?: string }
 ) {
-  const parsed = lookupPhone(params.customerPhone ?? params.phone, params.callerNumber);
-  if (!parsed.ok) {
-    return { success: false, message: `${parsed.reason} Ask for it again.` };
-  }
-
   const cfg = await getSalonConfig(organizationId);
-  const resolved = await resolveAppointment(
-    organizationId,
-    parsed.e164,
-    blankToUndefined(params.appointmentId),
-    cfg.timeZone,
-    params
-  );
+  const resolved = await findBooking(organizationId, params, cfg.timeZone);
   if (!resolved.ok) return { success: false, ...resolved.result };
 
   const appt = resolved.appointment;
@@ -1825,9 +1891,9 @@ export async function handleCancelAppointment(
   });
 
   const ctx = await orgMessageContext(organizationId);
-  const sms = await sendSms(
+  const sms = await textClient(
     organizationId,
-    parsed.e164,
+    appt,
     cancellationBody({
       clientName: appt.lead.name,
       serviceName: appt.serviceText,
@@ -1854,22 +1920,13 @@ export async function handleCancelAppointment(
 
 export async function handleRescheduleAppointment(
   organizationId: string,
-  params: {
-    customerPhone?: string;
-    phone?: string;
-    callerNumber?: string;
-    callerName?: string;
-    appointmentId?: string;
+  params: BookingLookup & {
     date?: string;
     day?: string;
     time: string;
     stylist?: string;
   }
 ) {
-  const parsed = lookupPhone(params.customerPhone ?? params.phone, params.callerNumber);
-  if (!parsed.ok) {
-    return { success: false, message: `${parsed.reason} Ask for it again.` };
-  }
 
   const cfg = await getSalonConfig(organizationId);
   const provider = await getBookingProvider(organizationId);
@@ -1882,13 +1939,7 @@ export async function handleRescheduleAppointment(
     };
   }
 
-  const resolved = await resolveAppointment(
-    organizationId,
-    parsed.e164,
-    blankToUndefined(params.appointmentId),
-    cfg.timeZone,
-    params
-  );
+  const resolved = await findBooking(organizationId, params, cfg.timeZone);
   if (!resolved.ok) return { success: false, ...resolved.result };
 
   const appt = resolved.appointment;
@@ -2002,15 +2053,16 @@ export async function handleRescheduleAppointment(
 
   const whenText = describeAppointmentWhen(updated.startsAt, cfg.timeZone);
   const ctx = await orgMessageContext(organizationId);
-  const sms = await sendSms(
+  const sms = await textClient(
     organizationId,
-    parsed.e164,
+    appt,
     rescheduleBody({
       clientName: appt.lead.name,
       serviceName: service.name,
       stylistName: stylist.name,
       whenText,
       previousWhenText,
+      bookingNumber: appt.bookingNumber,
       ...ctx,
     })
   );

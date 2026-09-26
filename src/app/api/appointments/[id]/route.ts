@@ -213,6 +213,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           previousWhenText: describeAppointmentWhen(appt.startsAt, cfg.timeZone),
           businessName: settings?.businessName ?? "the salon",
           contactPhone: settings?.contactPhone ?? null,
+          bookingNumber: appt.bookingNumber,
         })
       );
       textSent = sms.ok;

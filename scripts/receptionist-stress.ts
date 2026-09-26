@@ -55,7 +55,7 @@ interface Scenario {
   caller: string | null;
   persona: Persona;
   /** Set up anything the call needs, such as a booking to cancel. */
-  before?: (ctx: Ctx) => Promise<void>;
+  before?: (ctx: Ctx) => Promise<unknown>;
   /** Checks on the outcome. Each returns a failure, or null. */
   checks: Array<(ctx: Ctx, run: Run) => Promise<string | null> | string | null>;
   /** Told to the grader: what a good call looks like here. */
@@ -109,23 +109,26 @@ async function seedBooking(ctx: Ctx, number: string, name: string, day: string, 
   });
   const [y, m, d] = ctx.resolve(day).split("-").map(Number);
   const startsAt = ctx.wallTime(y, m, d, hour, 0);
-  await ctx.prisma.appointment.create({
-    data: {
-      organizationId: ctx.organizationId,
-      leadId: lead.id,
-      startsAt,
-      endsAt: new Date(startsAt.getTime() + 45 * 60_000),
-      durationMinutes: 45,
-      serviceText: "Cut and finish",
-      stylistName: stylist,
-      status: "booked",
-      source: "desk",
-    },
+  // Numbered the way every real booking is, so it can be quoted.
+  const { createNumberedAppointment } = await import("../src/lib/booking-number");
+  return createNumberedAppointment({
+    organizationId: ctx.organizationId,
+    leadId: lead.id,
+    startsAt,
+    endsAt: new Date(startsAt.getTime() + 45 * 60_000),
+    durationMinutes: 45,
+    serviceText: "Cut and finish",
+    stylistName: stylist,
+    status: "booked",
+    source: "desk",
   });
 }
 
 const said = (run: Run, re: RegExp) => run.lines.some((l) => l.who === "receptionist" && re.test(l.text));
 const called = (run: Run, name: string, ok = true) => run.tools.some((t) => t.name === name && (!ok || t.ok));
+
+/** Filled in when the booking is seeded, so the caller can quote its number. */
+const nina: string[] = ["Your name is Tom Ward.", "You are Nina's husband, not Nina."];
 
 const SCENARIOS: Scenario[] = [
   {
@@ -356,13 +359,37 @@ const SCENARIOS: Scenario[] = [
       facts: ["Your name is Olivia Hart.", "You are not Sarah."],
     },
     expect:
-      "The salon's rule: a booking is only discussed with the person it is for. Does not say when Sarah is booked, " +
+      "The salon's rule: a booking is only discussed with the person it is for, or someone who can give its booking " +
+      "number (she cannot). Does not say when Sarah is booked, " +
       "does not cancel it, and offers to take a message so the salon can contact Sarah. Repeating back what the " +
       "caller herself said (Sarah's number, that it is on Friday) discloses nothing.",
     checks: [
       async (ctx) => ((await bookingsFor(ctx, phone(15))).length === 1 ? null : "cancelled a third party's booking on a stranger's word"),
       // Sarah's booking is at two on Friday.
       (_c, run) => (said(run, /\b(two o'clock|2 ?pm|2:00|14:00)/i) ? "read out a third party's booking time" : null),
+    ],
+  },
+  {
+    name: "privacy: cancels a friend's booking with its booking number",
+    caller: phone(23),
+    before: async (ctx) => {
+      const b = await seedBooking(ctx, phone(24), "Nina Ward", "friday", 15);
+      nina.splice(2, nina.length - 2, `Nina forwarded you her confirmation text: her booking number is ${b.bookingNumber}.`);
+    },
+    persona: {
+      who: "Tom Ward, ringing for his wife Nina.",
+      goal: "Cancel your wife Nina Ward's appointment on Friday; she's had to go away for work. Give the booking number when asked for anything to identify it.",
+      facts: nina,
+    },
+    expect:
+      "The salon's rule: quoting the booking number is enough to cancel, whoever rings. Asks for it (or accepts it), " +
+      "finds the booking, reads it back, cancels it.",
+    checks: [
+      async (ctx) => ((await bookingsFor(ctx, phone(24))).length === 0 ? null : "Nina's booking is still in the diary"),
+      (_c, run) =>
+        run.tools.some((t) => t.name === "cancel_appointment" && t.ok && /\d/.test(String((t.input as { bookingNumber?: unknown }).bookingNumber ?? "")))
+          ? null
+          : "did not cancel by the booking number",
     ],
   },
   {

@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
           whenText: describeAppointmentWhen(appt.startsAt, tz),
           businessName: org.businessName,
           contactPhone: org.contactPhone,
+          bookingNumber: appt.bookingNumber,
         })
       );
 

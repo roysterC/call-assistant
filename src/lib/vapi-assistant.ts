@@ -274,6 +274,12 @@ const FIND_APPOINTMENT: VapiTool = {
             "booking is for). Needed when the booking is on a number other " +
             "than the one they are ringing from.",
         },
+        bookingNumber: {
+          type: "string",
+          description:
+            "The booking number from their confirmation text, if they have " +
+            "it. Enough on its own to find the booking, whoever is calling.",
+        },
       },
       required: [],
     },
@@ -303,6 +309,12 @@ const CANCEL_APPOINTMENT: VapiTool = {
             "The name of the person you are speaking to (not the person the " +
             "booking is for). Needed when the booking is on a number other " +
             "than the one they are ringing from.",
+        },
+        bookingNumber: {
+          type: "string",
+          description:
+            "The booking number from their confirmation text, if they have " +
+            "it. Enough on its own to find the booking, whoever is calling.",
         },
         appointmentId: {
           type: "string",
@@ -344,6 +356,12 @@ const RESCHEDULE_APPOINTMENT: VapiTool = {
             "The name of the person you are speaking to (not the person the " +
             "booking is for). Needed when the booking is on a number other " +
             "than the one they are ringing from.",
+        },
+        bookingNumber: {
+          type: "string",
+          description:
+            "The booking number from their confirmation text, if they have " +
+            "it. Enough on its own to find the booking, whoever is calling.",
         },
         appointmentId: {
           type: "string",
@@ -478,6 +496,7 @@ Plenty of people ring after hours to cancel or move something, not to book.
 
 - Call \`find_appointment\` straight away: with no number it looks up the
   one they are ringing from. Ask for another number only if that finds nothing.
+  Their booking number, from the confirmation text, finds it whoever is calling.
 - **Read the appointment back before you change anything.** Service, stylist
   and time. Wait for them to confirm it is the right one.
 - To move it, check the new time with \`check_availability\` first, then call
