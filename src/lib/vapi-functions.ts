@@ -9,6 +9,7 @@ import {
   summariseSlotsForSpeech,
   type SalonConfig,
 } from "@/lib/booking";
+import type { BookingProvider } from "@/lib/booking/types";
 import {
   DEFAULT_SEARCH_DAYS,
   filterSlotsByPreference,
@@ -40,9 +41,11 @@ import {
   nextOpenMorning,
   openWindowFor,
   parseDateOnly,
+  parseSpokenTime,
   resolveSpokenDate,
   zonedDateString,
   zonedParts,
+  hoursForWeekday,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
 
@@ -685,6 +688,22 @@ export async function handleCheckAvailability(
   const stylistName =
     blankToUndefined(params.stylist) ?? blankToUndefined(params.teamMember);
 
+  // A name that is nobody here. Searching everyone instead would read out
+  // other stylists' times as if they were the one asked for. Usually the
+  // line mishearing a name ("Joe" for "Jo"), so the team is listed.
+  if (stylistName && !matchStylist(stylistName, cfg.stylists)) {
+    return {
+      available: null,
+      canCheck: true,
+      unknownStylist: true,
+      team: cfg.stylists.map((st) => st.name),
+      message:
+        `"${stylistName}" is not a stylist here. The team is ` +
+        `${cfg.stylists.map((st) => st.name).join(", ")}. Check the name ` +
+        "with the caller, then call this again.",
+    };
+  }
+
   const pairing = stylistServiceProblem(stylistName, service, cfg.stylists);
   if (pairing) {
     return { available: null, canCheck: true, message: pairing };
@@ -1077,10 +1096,12 @@ export async function handleBookAppointment(
   // plain "HH:MM" on `date`. Prefer the ISO form — it is unambiguous, and it
   // is what the tool result told the model to send back.
   let startsAt: Date;
-  if (/^\d{4}-\d{2}-\d{2}T/.test(time)) {
+  if (/^\d{4}-\d{2}-\d{2}T/.test(String(time))) {
     startsAt = new Date(time);
   } else {
-    const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(time).trim());
+    // "14:00", or however it was said: "2pm", "half two", "quarter to four".
+    const clock = parseSpokenTime(time);
+    const m = clock ? /^(\d{2}):(\d{2})$/.exec(clock) : null;
     if (!m) {
       return {
         success: false,
@@ -1112,19 +1133,36 @@ export async function handleBookAppointment(
   // No stylist named: work out who owns the slot that was offered.
   if (!stylist && canReadAvailability(provider)) {
     const iso = startsAt.toISOString();
+    let names: string[] | null = null;
     try {
       const slots = await provider.getAvailability({
         organizationId,
-        date: resolveSpokenDate(params.date || params.day, cfg.timeZone) ?? "",
+        // The day the slot is on, whichever way it was given: an exact
+        // time from check_availability arrives with no separate date.
+        date: zonedDateString(startsAt, cfg.timeZone),
         serviceName: service.name,
       });
       const atThatTime = slots.filter((sl) => sl.start === iso);
-      const names = [...new Set(atThatTime.map((sl) => sl.stylistName))];
-      if (names.length === 1 && names[0]) {
-        stylist = matchStylist(names[0], cfg.stylists);
+      const free = [...new Set(atThatTime.map((sl) => sl.stylistName ?? ""))];
+      names = free;
+      if (free.length === 1 && free[0]) {
+        stylist = matchStylist(free[0], cfg.stylists);
       }
     } catch (err) {
       console.warn("[VAPI FUNCTIONS] Stylist inference failed:", err);
+    }
+    // Nobody can take it: closed, outside hours, too late to fit the
+    // service, or already booked. Asking "with whom?" would send the caller
+    // round in a circle for a slot that does not exist.
+    if (names && names.length === 0) {
+      return {
+        success: false,
+        notAvailable: true,
+        message:
+          "Nobody can take that time: the salon may be closed then, it may " +
+          "run past closing, or it is booked. Call check_availability for " +
+          "that day and offer one of the times it gives.",
+      };
     }
   }
 
@@ -1175,6 +1213,14 @@ export async function handleBookAppointment(
           ? `${service.name} needs a skin patch test at least 48 hours beforehand for a new client. Explain that and offer a later date.`
           : "That is too soon. Offer a later time.",
     };
+  }
+
+  const slotProblem = await phoneSlotProblem(provider, organizationId, cfg, startsAt, service, stylist, {
+    clientType,
+    offeredOnly: true,
+  });
+  if (slotProblem) {
+    return { success: false, today, notAvailable: true, message: slotProblem };
   }
 
   const lead = await prisma.lead.upsert({
@@ -1656,19 +1702,19 @@ export async function handleRescheduleAppointment(
   const appt = resolved.appointment;
   const previousWhenText = describeAppointmentWhen(appt.startsAt, cfg.timeZone);
 
-  const newDate = resolveSpokenDate(params.date || params.day, cfg.timeZone);
-  if (!newDate) {
-    return {
-      success: false,
-      message: "Which day did they want to move to? Ask, then call again.",
-    };
-  }
-
   let startsAt: Date;
-  if (/^\d{4}-\d{2}-\d{2}T/.test(params.time)) {
+  if (/^\d{4}-\d{2}-\d{2}T/.test(String(params.time))) {
     startsAt = new Date(params.time);
   } else {
-    const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(params.time).trim());
+    const newDate = resolveSpokenDate(params.date || params.day, cfg.timeZone);
+    if (!newDate) {
+      return {
+        success: false,
+        message: "Which day did they want to move to? Ask, then call again.",
+      };
+    }
+    const clock = parseSpokenTime(params.time);
+    const m = clock ? /^(\d{2}):(\d{2})$/.exec(clock) : null;
     if (!m) {
       return { success: false, message: `That time did not parse ("${params.time}").` };
     }
@@ -1717,6 +1763,16 @@ export async function handleRescheduleAppointment(
       success: false,
       message: `"${stylistName}" is not a stylist here. Confirm who they want.`,
     };
+  }
+
+  // Hours and working days only: the diary would count this appointment's
+  // own current slot as busy, so "offered times" would refuse a move by
+  // half an hour. The move itself still refuses any real clash.
+  const slotProblem = await phoneSlotProblem(provider, organizationId, cfg, startsAt, service, stylist, {
+    offeredOnly: false,
+  });
+  if (slotProblem) {
+    return { success: false, notAvailable: true, message: slotProblem };
   }
 
   const refused = (conflict: boolean) => ({
@@ -1794,12 +1850,98 @@ export async function handleRescheduleAppointment(
  * names in the schema, so each handler normalises what it is given rather than
  * relying on the caller to have got it right.
  */
+/**
+ * Why a phone booking cannot go at `startsAt`, or null when it can.
+ *
+ * The diary write checks clashes and blocked time but not opening hours, on
+ * purpose: the desk may book whatever it likes. The phone may not. Without
+ * this, a stylist named and a time sent straight to book_appointment (no
+ * check_availability first) put a cut in at 3am, and one running past
+ * closing. So: the salon open that day, the whole service inside its hours,
+ * the stylist in that day; and for a new booking, a time the diary would
+ * actually offer, which also covers the stylist's own blocks and bookings.
+ */
+export async function phoneSlotProblem(
+  provider: BookingProvider,
+  organizationId: string,
+  cfg: SalonConfig,
+  startsAt: Date,
+  service: SalonService,
+  stylist: Stylist,
+  opts: { clientType?: "new" | "returning" | "unknown"; offeredOnly: boolean }
+): Promise<string | null> {
+  const endsAt = new Date(startsAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60_000);
+  const start = zonedParts(startsAt, cfg.timeZone);
+  const end = zonedParts(endsAt, cfg.timeZone);
+  const dayName = DAY_NAMES_LONG[start.weekday];
+  const hours = hoursForWeekday(cfg.hours, start.weekday);
+  if (!hours || hours.closed) {
+    return `The salon is closed on ${dayName}s. Offer another day.`;
+  }
+  const hhmm = (p: { hour: number; minute: number }) =>
+    `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+  const sameDay = zonedDateString(startsAt, cfg.timeZone) === zonedDateString(endsAt, cfg.timeZone);
+  if (hhmm(start) < hours.open || !sameDay || hhmm(end) > hours.close) {
+    return (
+      `That is outside opening hours: on ${dayName}s the salon is open ` +
+      `${hours.open} to ${hours.close}, and ${service.name.toLowerCase()} takes ` +
+      `${service.durationMinutes} minutes. Offer a time that fits.`
+    );
+  }
+  if (stylist.workingDays.length > 0 && !stylist.workingDays.includes(start.weekday)) {
+    return `${stylist.name} does not work on ${dayName}s. Offer another day, or someone else.`;
+  }
+  if (opts.offeredOnly && canReadAvailability(provider)) {
+    try {
+      const slots = await provider.getAvailability({
+        organizationId,
+        date: zonedDateString(startsAt, cfg.timeZone),
+        serviceName: service.name,
+        stylistName: stylist.name,
+        clientType: opts.clientType,
+      });
+      const iso = startsAt.toISOString();
+      if (!slots.some((sl) => sl.start === iso)) {
+        return (
+          `${stylist.name} cannot take that time: it is booked, blocked, or ` +
+          "not a time the diary offers. Call check_availability for that day " +
+          "and offer one of the times it gives."
+        );
+      }
+    } catch (err) {
+      // The write itself still refuses a clash; hours were checked above.
+      console.warn("[VAPI FUNCTIONS] Slot check failed:", err);
+    }
+  }
+  return null;
+}
+
+const DAY_NAMES_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/**
+ * The handlers are written for strings; a model does not always send them.
+ * `service: 123` crashed on `.trim()` rather than getting an answer. Numbers
+ * become text, and null becomes absent, which every handler already treats
+ * as "not given". Anything else is left for the handler's own checks.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normaliseParameters(parameters: Record<string, any> | null | undefined): Record<string, any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: Record<string, any> = {};
+  for (const [key, value] of Object.entries(parameters ?? {})) {
+    if (value === null) continue;
+    out[key] = typeof value === "number" ? String(value) : value;
+  }
+  return out;
+}
+
 export async function executeVapiFunction(
   name: string,
   organizationId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parameters: Record<string, any>
 ): Promise<unknown> {
+  parameters = normaliseParameters(parameters);
   switch (name) {
     case "save_customer_details":
       return handleSaveCustomerDetails(organizationId, parameters as Parameters<typeof handleSaveCustomerDetails>[1]);

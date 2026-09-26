@@ -14,6 +14,10 @@
  *   not already said some.
  * - When to put the phone down? When the receptionist ends the call, once its
  *   goodbye has finished playing, unless the caller speaks up first.
+ * - What if the caller goes quiet? Check they are still there, then say
+ *   goodbye and hang up rather than holding the line open.
+ * - What if the recogniser drops? Reconnect; failing that, apologise and hang
+ *   up rather than carry on deaf.
  *
  * Transport-free: audio comes in through `audioIn`, and goes out through the
  * `out` callbacks. The browser lab and the phone line differ only there.
@@ -58,7 +62,28 @@ export interface VoiceCallDeps {
   hangupGraceMs?: number;
   /** Waits; stood in for by tests, which run on their own clock. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * How long a caller may say nothing before being asked if they are still
+   * there, and then before the call is ended. Null turns the check off.
+   */
+  silence?: { promptMs: number; hangupMs: number } | null;
 }
+
+export const SILENCE_PROMPT = "Are you still there?";
+export const SILENCE_GOODBYE =
+  "I think we've lost each other, so I'll let you go. Please do ring back any time. Goodbye.";
+export const CANNOT_HEAR =
+  "Sorry, I'm having trouble hearing you. Someone from the salon will ring you back. Goodbye.";
+
+const DEFAULT_SILENCE = { promptMs: 8000, hangupMs: 8000 };
+/** Attempts to get the recogniser back after it drops, before giving up. */
+const STT_RETRIES = 2;
+/**
+ * How long after its own speech the receptionist still treats hearing its
+ * own words as echo. Short: a caller confirming by repeating ("Tuesday at
+ * ten") usually does so just after the question, and must be heard.
+ */
+const ECHO_TAIL_MS = 600;
 
 /**
  * Words heard over the reply before it counts as an interruption. One word is
@@ -82,6 +107,21 @@ export class VoiceCall {
   /** When the audio already sent will have finished playing at the far end. */
   private playbackEndsAt = 0;
   private closed = false;
+  /**
+   * Settles when the model has finished with the latest turn. The next turn
+   * waits on it: a booking still being written when the caller talked over it
+   * must be in the conversation before the model is asked anything else, or
+   * it will make the booking a second time.
+   */
+  private settling: Promise<void> = Promise.resolve();
+  /** Caller words from a turn overtaken before the model ever saw it. */
+  private carry = "";
+  /** The receptionist's recent words, to tell its own echo from the caller. */
+  private recentSpeech = "";
+  private lastActivity: number;
+  private silencePrompted = false;
+  private silenceTimer: ReturnType<typeof setInterval> | null = null;
+  private hangingUp = false;
 
   readonly log: Array<{ who: "caller" | "assistant"; text: string }> = [];
   turns: TurnResult[] = [];
@@ -94,19 +134,96 @@ export class VoiceCall {
   constructor(private readonly deps: VoiceCallDeps) {
     this.now = deps.now ?? Date.now;
     this.startedAt = this.now();
+    this.lastActivity = this.startedAt;
   }
 
   async start(): Promise<void> {
-    this.stt = await this.deps.stt.open({
-      onInterim: (text) => this.onInterim(text),
-      onFinal: (text) => this.onFinal(text),
-      onEndOfTurn: () => this.onEndOfTurn(),
-      onError: (err) => this.deps.out.event({ type: "error", message: `Speech recognition: ${err.message}` }),
-    });
+    this.stt = await this.openStt();
     // The greeting can be talked over like any reply.
     this.turn = new AbortController();
     this.say(this.deps.greeting, this.turn.signal);
     this.log.push({ who: "assistant", text: this.deps.greeting });
+    this.watchSilence();
+  }
+
+  /** Resolves once the model has finished with every turn so far. */
+  settled(): Promise<void> {
+    return this.settling;
+  }
+
+  private openStt(): Promise<SttStream> {
+    return this.deps.stt.open({
+      onInterim: (text) => this.onInterim(text),
+      onFinal: (text) => this.onFinal(text),
+      onEndOfTurn: () => this.onEndOfTurn(),
+      onError: (err) => this.deps.out.event({ type: "error", message: `Speech recognition: ${err.message}` }),
+      onClose: () => void this.recoverStt(),
+    });
+  }
+
+  /**
+   * The recogniser's connection dropped mid-call. Without it the receptionist
+   * is deaf, and would sit in silence until the caller gave up. Reconnect, a
+   * couple of times if need be; if it will not come back, say so and hang up.
+   */
+  private async recoverStt() {
+    if (this.closed) return;
+    this.stt = null;
+    const sleep = this.deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    for (let attempt = 1; attempt <= STT_RETRIES; attempt++) {
+      await sleep(300 * attempt);
+      if (this.closed) return;
+      try {
+        this.stt = await this.openStt();
+        return;
+      } catch (err) {
+        this.deps.out.event({
+          type: "error",
+          message: `Speech recognition dropped and did not come back: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    }
+    this.sayGoodbyeAndHangUp(CANNOT_HEAR, { evenIfSpokenTo: true });
+  }
+
+  /**
+   * Silence on the line. Timed from when the receptionist last stopped
+   * talking, so its own thinking and speaking never count; any word from the
+   * caller starts it again.
+   */
+  private watchSilence() {
+    const silence = this.deps.silence === undefined ? DEFAULT_SILENCE : this.deps.silence;
+    if (!silence) return;
+    this.silenceTimer = setInterval(() => {
+      if (this.closed || this.hangingUp) return;
+      const now = this.now();
+      if (this.turnRunning || now < this.playbackEndsAt || this.heard.length || this.interim) {
+        this.lastActivity = now;
+        return;
+      }
+      const quiet = now - this.lastActivity;
+      if (!this.silencePrompted && quiet >= silence.promptMs) {
+        this.silencePrompted = true;
+        this.lastActivity = now;
+        const ctl = new AbortController();
+        this.turn = ctl;
+        this.say(SILENCE_PROMPT, ctl.signal);
+        this.log.push({ who: "assistant", text: SILENCE_PROMPT });
+      } else if (this.silencePrompted && quiet >= silence.hangupMs) {
+        this.sayGoodbyeAndHangUp(SILENCE_GOODBYE);
+      }
+    }, 500);
+    (this.silenceTimer as { unref?: () => void }).unref?.();
+  }
+
+  /** Something from our side ends the call: say why, then hang up once heard. */
+  private sayGoodbyeAndHangUp(text: string, opts: { evenIfSpokenTo?: boolean } = {}) {
+    this.turn?.abort();
+    const ctl = new AbortController();
+    this.turn = ctl;
+    this.say(text, ctl.signal);
+    this.log.push({ who: "assistant", text });
+    void this.hangUpAfterGoodbye(ctl, opts);
   }
 
   audioIn(chunk: Buffer): void {
@@ -131,6 +248,7 @@ export class VoiceCall {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    if (this.silenceTimer) clearInterval(this.silenceTimer);
     this.turn?.abort();
     this.stt?.close();
   }
@@ -140,15 +258,40 @@ export class VoiceCall {
     return this.turnRunning || this.now() < this.playbackEndsAt;
   }
 
+  /**
+   * The receptionist's own words coming back down the line: a caller on
+   * speakerphone, or a line without echo cancelling. Heard while it is still
+   * talking (or just after) and matching what it is saying, they are not the
+   * caller and must neither interrupt it nor become a turn.
+   */
+  private isEcho(text: string): boolean {
+    if (this.now() >= this.playbackEndsAt + ECHO_TAIL_MS) return false;
+    const heard = words(text);
+    if (heard.length < BARGE_IN_WORDS) return false;
+    return ` ${words(this.recentSpeech).join(" ")} `.includes(` ${heard.join(" ")} `);
+  }
+
+  private callerSpoke() {
+    this.lastActivity = this.now();
+    this.silencePrompted = false;
+  }
+
   private onInterim(text: string) {
+    if (this.isEcho(text)) return;
     this.interim = text;
+    this.callerSpoke();
     this.deps.out.event({ type: "caller", text: [...this.heard, text].join(" "), final: false });
     if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
   }
 
   private onFinal(text: string) {
+    if (this.isEcho(text)) {
+      this.interim = "";
+      return;
+    }
     this.interim = "";
     this.heard.push(text);
+    this.callerSpoke();
     this.deps.out.event({ type: "caller", text: this.heard.join(" "), final: false });
     if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
   }
@@ -180,6 +323,21 @@ export class VoiceCall {
     const ctl = new AbortController();
     this.turn = ctl;
     this.turnRunning = true;
+    // Wait for the model to finish with the previous turn: see `settling`.
+    const previous = this.settling;
+    let settle!: () => void;
+    this.settling = new Promise<void>((r) => (settle = r));
+    await previous;
+    if (ctl.signal.aborted) {
+      // Overtaken by a newer turn while waiting; its words go with that one.
+      this.carry = `${this.carry} ${text}`.trim();
+      settle();
+      return;
+    }
+    if (this.carry) {
+      text = `${this.carry} ${text}`;
+      this.carry = "";
+    }
     const started = this.now();
     let firstAudio: number | null = null;
     let spokeThisTurn = false;
@@ -224,6 +382,7 @@ export class VoiceCall {
         speak("Sorry, I'm having a little trouble. Someone from the salon will ring you back.");
       }
     } finally {
+      settle();
       if (this.turn === ctl) this.turnRunning = false;
       // Metrics once the speech queue has caught up with this turn.
       void this.speech.then(() => {
@@ -239,11 +398,16 @@ export class VoiceCall {
    * the phone down. Called off if the caller cut in or started a new turn in
    * the meantime ("oh, one more thing"): the call carries on.
    */
-  private async hangUpAfterGoodbye(ctl: AbortController) {
+  private async hangUpAfterGoodbye(ctl: AbortController, opts: { evenIfSpokenTo?: boolean } = {}) {
+    this.hangingUp = true;
     await this.speech;
     const sleep = this.deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
     await sleep(Math.max(0, this.playbackEndsAt - this.now()) + (this.deps.hangupGraceMs ?? 800));
-    if (this.closed || ctl.signal.aborted || this.turn !== ctl || this.heard.length || this.interim) return;
+    const spokenTo = ctl.signal.aborted || this.turn !== ctl || this.heard.length > 0 || this.interim !== "";
+    if (this.closed || (spokenTo && !opts.evenIfSpokenTo)) {
+      this.hangingUp = false;
+      return;
+    }
     this.deps.out.event({ type: "ended", by: "receptionist" });
     this.close();
     this.deps.out.hangup?.();
@@ -255,6 +419,7 @@ export class VoiceCall {
       if (signal.aborted || this.closed) return;
       // Billed per character requested, whether or not it all gets played.
       this.ttsCharacters += text.length;
+      this.recentSpeech = `${this.recentSpeech} ${text}`.slice(-400);
       this.deps.out.event({ type: "assistant", text });
       let first = true;
       try {
@@ -276,6 +441,15 @@ export class VoiceCall {
       }
     });
   }
+}
+
+/** Lower-case words without punctuation, for comparing what was said with what was heard. */
+function words(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}' ]+/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
 }
 
 function wordCount(text: string): number {

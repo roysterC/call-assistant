@@ -377,7 +377,7 @@ export function resolveSpokenDate(
   now: Date = new Date()
 ): string | null {
   if (!input) return null;
-  const text = input.trim().toLowerCase();
+  let text = input.trim().toLowerCase();
   if (!text) return null;
 
   // Already a calendar date.
@@ -385,25 +385,159 @@ export function resolveSpokenDate(
 
   const addDays = (n: number) =>
     zonedDateString(new Date(now.getTime() + n * 24 * 60 * 60 * 1000), timeZone);
+  const today = zonedParts(now, timeZone);
+
+  // "Tuesday morning", "tomorrow first thing": the day is what matters here;
+  // the time goes to the time field.
+  text = text
+    .replace(/[,!?]/g, " ")
+    .replace(/\s+(in the\s+)?(morning|afternoon|evening|night|lunchtime|at lunch|first thing)$/, "")
+    .replace(/^(on|for)\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  text = ordinalWordsToDigits(text);
 
   if (text === "today" || text === "tonight") return addDays(0);
-  if (text === "tomorrow") return addDays(1);
+  if (text === "tomorrow" || text === "tomoz" || text === "tmrw") return addDays(1);
   if (text === "day after tomorrow" || text === "the day after tomorrow") {
     return addDays(2);
   }
+  if (text === "a week today") return addDays(7);
+  if (text === "a week tomorrow") return addDays(8);
 
-  // "thursday", "this thursday", "next thursday", "on thursday"
-  const cleaned = text.replace(/^(on|this|next|coming)\s+/, "").trim();
+  // "in two weeks", "in 3 days"
+  const inN = /^in (a|an|one|two|three|four|five|six|\d{1,2}) (day|days|week|weeks)$/.exec(text);
+  if (inN) {
+    const n = COUNT_WORDS[inN[1]] ?? Number(inN[1]);
+    return addDays(inN[2].startsWith("week") ? n * 7 : n);
+  }
+
+  // "Tuesday week", "a week on Tuesday", "Tuesday after next"
+  const weekOn =
+    /^(?:a )?week on (\w+)$/.exec(text) ?? /^(\w+) week$/.exec(text) ?? /^(\w+) after next$/.exec(text);
+  if (weekOn && WEEKDAY_NAMES[weekOn[1]] !== undefined) {
+    return addDays(daysUntil(WEEKDAY_NAMES[weekOn[1]], today.weekday) + 7);
+  }
+
+  // "thursday", "this thursday", "next thursday", "coming thursday"
+  const cleaned = text.replace(/^(this|next|coming)\s+/, "").trim();
   const target = WEEKDAY_NAMES[cleaned];
-  if (target === undefined) return null;
+  if (target !== undefined) return addDays(daysUntil(target, today.weekday));
 
-  // Next occurrence strictly after today. Someone ringing an after-hours line
-  // and saying "Thursday" on a Thursday evening means the following week; if
-  // they meant today they would have said so.
-  const todayWeekday = zonedParts(now, timeZone).weekday;
-  let delta = (target - todayWeekday + 7) % 7;
-  if (delta === 0) delta = 7;
-  return addDays(delta);
+  return resolveCalendarDate(text, today);
+}
+
+/**
+ * Days from today to the next such weekday, strictly after today. Someone
+ * ringing an after-hours line and saying "Thursday" on a Thursday evening
+ * means the following week; if they meant today they would have said so.
+ */
+function daysUntil(target: number, todayWeekday: number): number {
+  const delta = (target - todayWeekday + 7) % 7;
+  return delta === 0 ? 7 : delta;
+}
+
+const WEEKDAY_WORD = `(${Object.keys(WEEKDAY_NAMES).join("|")})`;
+/** "Saturday the 3rd of October", "3rd", "the 3rd", "3 Oct". */
+const DAY_FIRST = new RegExp(`^(?:${WEEKDAY_WORD} )?(?:the )?(\\d{1,2})(?:st|nd|rd|th)?(?: of)?(?: (\\w+))?$`);
+/** "October 3rd", "Saturday October the 3rd". */
+const MONTH_FIRST = new RegExp(`^(?:${WEEKDAY_WORD} )?(\\w+) (?:the )?(\\d{1,2})(?:st|nd|rd|th)?$`);
+
+const COUNT_WORDS: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+
+const MONTHS: Record<string, number> = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
+  may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8, september: 9,
+  sept: 9, sep: 9, october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12,
+};
+
+const ORDINAL_UNITS: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7,
+  eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12, thirteenth: 13,
+  fourteenth: 14, fifteenth: 15, sixteenth: 16, seventeenth: 17,
+  eighteenth: 18, nineteenth: 19, twentieth: 20, thirtieth: 30,
+};
+
+/** "the twenty-ninth" → "the 29th", so spoken and written dates take one path. */
+function ordinalWordsToDigits(text: string): string {
+  return text
+    .replace(/\b(twenty|thirty)[- ](first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)\b/g, (_, tens, unit) =>
+      `${(tens === "twenty" ? 20 : 30) + ORDINAL_UNITS[unit]}th`
+    )
+    .replace(
+      /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|thirtieth)\b/g,
+      (w) => `${ORDINAL_UNITS[w]}th`
+    );
+}
+
+/**
+ * A date given by its day of the month: "the 3rd", "3rd of October",
+ * "October 3rd", "Saturday the 3rd", "3/10" (day first, as in Britain).
+ *
+ * Without a month, the next such day: this month, or next month once it has
+ * passed. Without a year, this year, unless that is well in the past, as when
+ * "the 14th of January" is said in September. A weekday said alongside must
+ * match, or null: "Friday the 3rd" when the 3rd is a Saturday is a question
+ * to ask the caller, not a guess to make.
+ */
+function resolveCalendarDate(text: string, today: ZonedParts): string | null {
+  let weekday: number | undefined;
+  let day: number;
+  let month: number | undefined;
+  let year: number | undefined;
+
+  const numeric = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/.exec(text);
+  if (numeric) {
+    day = Number(numeric[1]);
+    month = Number(numeric[2]);
+    if (numeric[3]) year = numeric[3].length === 2 ? 2000 + Number(numeric[3]) : Number(numeric[3]);
+  } else {
+    const m =
+      DAY_FIRST.exec(text) ?? MONTH_FIRST.exec(text);
+    if (!m) return null;
+    const monthFirst = !/^\d/.test(m[2]);
+    const [lead, dayText, monthText] = monthFirst ? [m[1], m[3], m[2]] : [m[1], m[2], m[3]];
+    if (lead !== undefined) {
+      weekday = WEEKDAY_NAMES[lead];
+      if (weekday === undefined) return null;
+    }
+    day = Number(dayText);
+    if (monthText !== undefined) {
+      month = MONTHS[monthText];
+      if (month === undefined) return null;
+    }
+  }
+
+  let resolved: string | null;
+  if (month === undefined) {
+    // This month, or next once the day has gone by.
+    const rollover = day < today.day;
+    const m = rollover ? (today.month % 12) + 1 : today.month;
+    const y = rollover && today.month === 12 ? today.year + 1 : today.year;
+    resolved = calendarDate(y, m, day);
+  } else {
+    resolved = calendarDate(year ?? today.year, month, day);
+    const todayText = calendarDate(today.year, today.month, today.day)!;
+    // Long gone this year with no year said: they mean next year.
+    if (resolved && year === undefined && resolved < todayText) {
+      const gone = Date.UTC(today.year, today.month - 1, today.day) - Date.UTC(today.year, month - 1, day);
+      if (gone > 31 * 24 * 60 * 60 * 1000) resolved = calendarDate(today.year + 1, month, day);
+    }
+  }
+  if (!resolved) return null;
+  if (weekday !== undefined) {
+    const [y, m, d] = resolved.split("-").map(Number);
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() !== weekday) return null;
+  }
+  return resolved;
+}
+
+/** "YYYY-MM-DD", or null for a day the month does not have. */
+function calendarDate(year: number, month: number, day: number): string | null {
+  if (month < 1 || month > 12 || day < 1) return null;
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCMonth() !== month - 1) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 /**
@@ -447,4 +581,105 @@ export function describeAppointmentWhen(
     "July", "August", "September", "October", "November", "December",
   ][month - 1];
   return `${dayName} ${day} ${monthName} at ${time}`;
+}
+
+// -------------------------------------------------------------------------
+// Spoken times
+// -------------------------------------------------------------------------
+
+const HOUR_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+
+const MINUTE_WORDS: Record<string, number> = {
+  "oh five": 5, five: 5, ten: 10, fifteen: 15, twenty: 20, "twenty five": 25,
+  thirty: 30, "thirty five": 35, forty: 40, "forty five": 45, fifty: 50,
+  "fifty five": 55,
+};
+
+/** "five", "ten", "twenty-five" before "past"/"to". */
+const PAST_TO_MINUTES: Record<string, number> = {
+  five: 5, ten: 10, twenty: 20, "twenty five": 25, quarter: 15, "a quarter": 15,
+};
+
+/**
+ * What a caller or model said about the time, as 24-hour "HH:MM".
+ *
+ * "2pm", "half two", "quarter to four", "nine thirty", "noon". Without an
+ * am or pm, the hour is read the way a salon means it: eight to eleven in the
+ * morning, one to seven in the afternoon. A time the salon cannot do (3am)
+ * still comes back, so the booking can say why it is refused; only what is not
+ * a time at all gives null.
+ */
+export function parseSpokenTime(input: string | number | null | undefined): string | null {
+  if (input === null || input === undefined) return null;
+  let t = String(input)
+    .toLowerCase()
+    .replace(/-/g, " ")
+    .replace(/o'?clock/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+
+  let period: "am" | "pm" | null = null;
+  const periodMatch = /\s*(a\.?m\.?|p\.?m\.?|in the morning|in the afternoon|in the evening|at night|tonight)$/.exec(t);
+  if (periodMatch) {
+    period = /^\s*(a|in the morning)/.test(periodMatch[1]) ? "am" : "pm";
+    t = t.slice(0, periodMatch.index).trim();
+  }
+
+  if (t === "noon" || t === "midday") return "12:00";
+  if (t === "midnight") return "00:00";
+
+  const hourOf = (w: string): number | undefined => (/^\d{1,2}$/.test(w) ? Number(w) : HOUR_WORDS[w]);
+  // A written 24-hour time with a leading zero ("09:30") is already exact.
+  let exact = false;
+  let hour: number | undefined;
+  let minute = 0;
+  let minus = 0;
+
+  let m: RegExpExecArray | null;
+  if ((m = /^(\d{1,2})(?:[:.](\d{2}))?$/.exec(t))) {
+    hour = Number(m[1]);
+    minute = m[2] ? Number(m[2]) : 0;
+    exact = m[1].length === 2 && (m[1].startsWith("0") || hour > 12);
+  } else if ((m = /^(\d{3,4})$/.exec(t))) {
+    hour = Math.floor(Number(m[1]) / 100);
+    minute = Number(m[1]) % 100;
+    exact = m[1].length === 4;
+  } else if ((m = /^half (?:past )?(\w+)$/.exec(t))) {
+    // British: "half two" is half past two.
+    hour = hourOf(m[1]);
+    minute = 30;
+  } else if ((m = /^(a quarter|quarter|five|ten|twenty|twenty five|\d{1,2}) (past|to) (\w+)$/.exec(t))) {
+    const mins = PAST_TO_MINUTES[m[1]] ?? Number(m[1]);
+    hour = hourOf(m[3]);
+    if (m[2] === "past") minute = mins;
+    else minus = mins;
+  } else if ((m = /^(\w+) (\w+(?: \w+)?)$/.exec(t))) {
+    // "nine thirty", "two fifteen", "4 45"
+    hour = hourOf(m[1]);
+    const mins = /^\d{2}$/.test(m[2]) ? Number(m[2]) : MINUTE_WORDS[m[2]];
+    if (mins === undefined) return null;
+    minute = mins;
+  } else if (HOUR_WORDS[t] !== undefined) {
+    hour = HOUR_WORDS[t];
+  }
+
+  if (hour === undefined || !Number.isFinite(hour) || minute > 59) return null;
+  if (period === "am") {
+    if (hour > 12) return null;
+    if (hour === 12) hour = 0;
+  } else if (period === "pm") {
+    if (hour > 12) return null;
+    if (hour < 12) hour += 12;
+  } else if (!exact && hour >= 1 && hour <= 7) {
+    hour += 12;
+  }
+  if (hour > 23) return null;
+
+  let total = hour * 60 + minute - minus;
+  if (total < 0) total += 24 * 60;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }

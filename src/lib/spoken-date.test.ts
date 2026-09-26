@@ -42,3 +42,60 @@ describe("resolveSpokenDate", () => {
     }
   });
 });
+
+// A Monday late in September, so dates wrap into October.
+const MONDAY = new Date("2026-09-28T10:00:00Z");
+
+describe("resolveSpokenDate: what British callers actually say", () => {
+  const r = (s: string) => resolveSpokenDate(s, TZ, MONDAY);
+
+  it("takes a time of day on the end", () => {
+    expect(r("tomorrow morning")).toBe("2026-09-29");
+    expect(r("Thursday afternoon")).toBe("2026-10-01");
+    expect(r("Saturday first thing")).toBe("2026-10-03");
+  });
+
+  it("understands a week on", () => {
+    expect(r("Tuesday week")).toBe("2026-10-06");
+    expect(r("a week on Tuesday")).toBe("2026-10-06");
+    expect(r("Tuesday after next")).toBe("2026-10-06");
+    expect(r("a week today")).toBe("2026-10-05");
+    expect(r("a week tomorrow")).toBe("2026-10-06");
+    expect(r("in two weeks")).toBe("2026-10-12");
+    expect(r("in 3 days")).toBe("2026-10-01");
+  });
+
+  it("understands a day of the month, rolling into next month when it has passed", () => {
+    expect(r("the 3rd")).toBe("2026-10-03");
+    expect(r("29th")).toBe("2026-09-29");
+    expect(r("the 28th")).toBe("2026-09-28"); // today
+    expect(r("the third")).toBe("2026-10-03");
+    expect(r("the twenty-ninth")).toBe("2026-09-29");
+  });
+
+  it("understands a month, either way round", () => {
+    expect(r("3rd October")).toBe("2026-10-03");
+    expect(r("the 3rd of October")).toBe("2026-10-03");
+    expect(r("October 3rd")).toBe("2026-10-03");
+    expect(r("3 Oct")).toBe("2026-10-03");
+    expect(r("14th of January")).toBe("2027-01-14");
+  });
+
+  it("reads numeric dates the British way round", () => {
+    expect(r("3/10")).toBe("2026-10-03");
+    expect(r("03/10/2026")).toBe("2026-10-03");
+    expect(r("3.10.26")).toBe("2026-10-03");
+  });
+
+  it("checks a weekday given with a date, and refuses a mismatch rather than guess", () => {
+    expect(r("Saturday the 3rd")).toBe("2026-10-03");
+    expect(r("Friday the 3rd")).toBeNull();
+  });
+
+  it("still refuses what is not a day", () => {
+    expect(r("next week")).toBeNull();
+    expect(r("the 32nd")).toBeNull();
+    expect(r("31st of September")).toBeNull();
+    expect(r("whenever")).toBeNull();
+  });
+});

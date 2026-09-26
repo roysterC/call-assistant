@@ -19,6 +19,8 @@ export interface SttHandlers {
   /** The caller has paused long enough to count as having finished. */
   onEndOfTurn(): void;
   onError(err: Error): void;
+  /** The connection went down without being asked to. */
+  onClose?(): void;
 }
 
 export interface SttStream {
@@ -86,6 +88,8 @@ export class DeepgramStt implements SpeechToText {
     return new Promise((resolve, reject) => {
       let keepAlive: NodeJS.Timeout | null = null;
       let lastAudio = Date.now();
+      let opened = false;
+      let closing = false;
 
       ws.on("open", () => {
         // Deepgram closes an idle stream after ~10s with no audio.
@@ -94,6 +98,7 @@ export class DeepgramStt implements SpeechToText {
             ws.send(JSON.stringify({ type: "KeepAlive" }));
           }
         }, 4000);
+        opened = true;
         resolve({
           send(audio) {
             if (ws.readyState !== WebSocket.OPEN) return;
@@ -101,6 +106,7 @@ export class DeepgramStt implements SpeechToText {
             ws.send(audio);
           },
           close() {
+            closing = true;
             if (keepAlive) clearInterval(keepAlive);
             if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "CloseStream" }));
             setTimeout(() => ws.terminate(), 1000).unref?.();
@@ -137,6 +143,9 @@ export class DeepgramStt implements SpeechToText {
       });
       ws.on("close", () => {
         if (keepAlive) clearInterval(keepAlive);
+        // Dropped by Deepgram or the network mid-call: the call must know,
+        // or it goes on without hearing anything.
+        if (opened && !closing) handlers.onClose?.();
       });
     });
   }
@@ -173,9 +182,8 @@ export class ElevenLabsTts implements TextToSpeech {
     // A British voice from ElevenLabs' standard library by default; any voice
     // on the account can be set instead.
     const voice = this.opts.voiceId ?? "Xb7hH8MSUJpSbSDYk0k2";
-    const res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voice}/stream?output_format=${this.format}`,
-      {
+    const request = () =>
+      fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}/stream?output_format=${this.format}`, {
         method: "POST",
         headers: { "xi-api-key": this.apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -184,8 +192,18 @@ export class ElevenLabsTts implements TextToSpeech {
           voice_settings: { speed: speakingSpeed(this.opts.speed) },
         }),
         signal,
-      }
-    );
+      });
+    // Busy (too many requests at once: the free plan allows very few) or a
+    // passing fault on their side: try again shortly rather than lose the
+    // sentence. A refusal that will not change — a bad key, a used-up plan,
+    // a voice not on the plan — is not retried.
+    let res = await request();
+    for (let attempt = 1; attempt <= 2 && (res.status === 429 || res.status >= 500); attempt++) {
+      await res.body?.cancel().catch(() => {});
+      await new Promise((r) => setTimeout(r, 250 * attempt));
+      if (signal.aborted) return;
+      res = await request();
+    }
     if (!res.ok || !res.body) {
       throw new Error(`ElevenLabs ${res.status}: ${await res.text().catch(() => "")}`);
     }
