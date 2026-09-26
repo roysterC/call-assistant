@@ -244,6 +244,14 @@ model Lead {
   status                String                 @default("new") // new, callback_booked, contacted, resolved, lost
   source                String                 @default("phone") // phone, manual, whatsapp, website, instagram, facebook
   notes                 String?
+  // Reached through another client's number: a child booked on a parent's
+  // phone has a record of their own, with their own history, but no number.
+  // Their texts go to the contact's number, and a call from that number can
+  // manage their bookings. Unset once they have a number of their own, or
+  // left in place if the family still wants the parent to hear.
+  contactLeadId         String?
+  contactLead           Lead?                  @relation("ContactThrough", fields: [contactLeadId], references: [id], onDelete: SetNull)
+  dependents            Lead[]                 @relation("ContactThrough")
   calls                 Call[]
   callbacks             Callback[]
   appointments          Appointment[]
@@ -267,6 +275,7 @@ model Lead {
   @@unique([organizationId, email])
   @@index([organizationId])
   @@index([organizationId, lastName, firstName])
+  @@index([contactLeadId])
   @@index([status])
   @@index([createdAt])
   @@map("ca_leads")

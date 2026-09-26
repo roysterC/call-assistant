@@ -14,6 +14,7 @@ import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { parsePagination } from "@/lib/pagination";
 import { joinName, parseClientQuery } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
+import { nameKey, sameNameCounts } from "@/lib/client-link";
 
 const SORTABLE = ["firstName", "lastName", "phone", "email"] as const;
 type SortKey = (typeof SORTABLE)[number];
@@ -29,6 +30,9 @@ const CLIENT_FIELDS = {
   phone: true,
   email: true,
   notes: true,
+  // Set for a client with no number of their own, reached through another
+  // client's (a child booked on a parent's phone).
+  contactLead: { select: { id: true, name: true, phone: true } },
 } as const;
 
 /** A LIKE pattern matching `text` literally, so "%" typed is not a wildcard. */
@@ -50,7 +54,14 @@ function searchSql(q: string | null): Prisma.Sql {
     case "all":
       return Prisma.sql`TRUE`;
     case "phone":
-      return Prisma.sql`phone LIKE ${`%${literal(query.digits)}%`}`;
+      // A number also finds the clients reached through it: searching the
+      // mum's number finds her daughter too.
+      return Prisma.sql`(
+        phone LIKE ${`%${literal(query.digits)}%`}
+        OR "contactLeadId" IN (
+          SELECT c.id FROM ca_leads c WHERE c.phone LIKE ${`%${literal(query.digits)}%`}
+        )
+      )`;
     case "email":
       return Prisma.sql`email ILIKE ${`%${literal(query.text)}%`}`;
     case "name": {
@@ -177,12 +188,14 @@ export async function GET(req: NextRequest) {
 
     const pastBy = new Map(past.map((p) => [p.leadId, p]));
     const nextBy = new Map(upcoming.map((u) => [u.leadId, u._min.startsAt]));
+    const sameName = await sameNameCounts(ctx.organizationId, rows.map((r) => r.name));
 
     const clients = rows.map((r) => ({
       ...r,
       lastVisit: pastBy.get(r.id)?._max.startsAt ?? null,
       visits: pastBy.get(r.id)?._count._all ?? 0,
       nextBooking: nextBy.get(r.id) ?? null,
+      possibleDuplicates: sameName.get(nameKey(r.name) ?? "") ?? 0,
     }));
 
     return NextResponse.json({ clients, total, limit: take, offset: skip });
@@ -204,7 +217,9 @@ function clean(value: unknown): string | null {
  * A number that is already on the books is not a new client: the salon gets
  * the existing record back with a 409, so the screen can offer to book them
  * rather than creating a duplicate the voice agent would then have to choose
- * between.
+ * between. Unless it is someone else reached through that number (a child on
+ * a parent's phone): with `contactThrough`, they are added with no number of
+ * their own, linked to the number's owner.
  */
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req, { stylists: true });
@@ -250,12 +265,35 @@ export async function POST(req: NextRequest) {
       },
       select: CLIENT_FIELDS,
     });
+    if (body?.contactThrough === true && phone && existing?.phone === phone) {
+      const client = await prisma.lead.create({
+        data: {
+          organizationId: ctx.organizationId,
+          firstName,
+          lastName,
+          name: joinName(firstName, lastName),
+          email,
+          notes,
+          source: "manual",
+          contactLeadId: existing.id,
+        },
+        select: CLIENT_FIELDS,
+      });
+      return NextResponse.json(
+        { client: { ...client, lastVisit: null, visits: 0, nextBooking: null, possibleDuplicates: 0 } },
+        { status: 201 }
+      );
+    }
+
     if ((phone || email) && existing) {
       return NextResponse.json(
         {
           error: `${existing.name ?? "A client"} already has that ${
             phone && existing.phone === phone ? "number" : "email"
           }.`,
+          // A number clash may be a family sharing a phone, which the desk
+          // can resolve by adding them reached through it (contactThrough).
+          matched: phone && existing.phone === phone ? "phone" : "email",
           // A stylist can book them, but not read what another stylist holds
           // on them: the name to confirm it is the right person, and nothing
           // else.
@@ -268,6 +306,7 @@ export async function POST(req: NextRequest) {
                 phone: null,
                 email: null,
                 notes: null,
+                contactLead: null,
               }
             : existing,
         },
@@ -290,7 +329,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(
-      { client: { ...client, lastVisit: null, visits: 0, nextBooking: null } },
+      { client: { ...client, lastVisit: null, visits: 0, nextBooking: null, possibleDuplicates: 0 } },
       { status: 201 }
     );
   } catch (error) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveSpokenDate, zonedParts } from "./business-hours";
+import { resolveSpokenDate, zonedIsoString, zonedParts } from "./business-hours";
 
 const TZ = "Europe/London";
 // A Sunday, so every weekday name resolves within the following week.
@@ -97,5 +97,23 @@ describe("resolveSpokenDate: what British callers actually say", () => {
     expect(r("the 32nd")).toBeNull();
     expect(r("31st of September")).toBeNull();
     expect(r("whenever")).toBeNull();
+  });
+});
+
+// --- Times handed to the model, in the salon's own clock ---------------------
+
+
+describe("zonedIsoString", () => {
+  it("gives the time as the caller heard it, with the offset, in summer and winter", () => {
+    // Quarter past one in the afternoon, British Summer Time.
+    expect(zonedIsoString(new Date("2026-10-06T12:15:00.000Z"), "Europe/London")).toBe("2026-10-06T13:15:00+01:00");
+    // After the clocks go back, the digits and UTC agree.
+    expect(zonedIsoString(new Date("2026-11-03T13:15:00.000Z"), "Europe/London")).toBe("2026-11-03T13:15:00+00:00");
+  });
+
+  it("is the same instant, so the booking code reads it back unchanged", () => {
+    const at = new Date("2026-10-06T12:15:00.000Z");
+    expect(new Date(zonedIsoString(at, "Europe/London")).toISOString()).toBe(at.toISOString());
+    expect(new Date(zonedIsoString(at, "America/St_Johns")).toISOString()).toBe(at.toISOString());
   });
 });

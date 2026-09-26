@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { clientForBooking } from "@/lib/client-link";
 import {
   canWriteColumn,
   isStylist,
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
 
     const appointments = await prisma.appointment.findMany({
       where,
-      include: { lead: true },
+      include: { lead: { include: { contactLead: { select: { id: true, name: true, phone: true } } } } },
       orderBy: { startsAt: scope === "past" ? "desc" : "asc" },
       take: 200,
     });
@@ -103,6 +104,7 @@ export async function GET(req: NextRequest) {
                   phone: null,
                   email: null,
                   notes: null,
+                  contactLead: null,
                 },
               }
         ),
@@ -307,17 +309,20 @@ export async function POST(req: NextRequest) {
       }
 
       // A walk-in may give no number at all, and `Lead.phone` is nullable for
-      // exactly that reason. Only the keyed upsert needs a number.
-      lead = phone
+      // exactly that reason. A name on someone else's number (a child on a
+      // parent's) gets a record of its own, reached through that number,
+      // rather than renaming the parent (src/lib/client-link.ts).
+      lead = phone && clientName
+        ? (await clientForBooking(ctx.organizationId, phone, String(clientName), "manual")).lead
+        : phone
         ? await prisma.lead.upsert({
             where: {
               organizationId_phone: { organizationId: ctx.organizationId, phone },
             },
-            update: { ...(clientName && { name: clientName }) },
+            update: {},
             create: {
               organizationId: ctx.organizationId,
               phone,
-              name: clientName || null,
               source: "manual",
             },
           })

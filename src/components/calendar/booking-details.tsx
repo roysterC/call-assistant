@@ -27,7 +27,7 @@ import { combineServices, type SalonService } from "@/lib/salon-config";
 import { formatMoney } from "@/lib/money";
 import { speakablePhone } from "@/lib/phone";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
-import { Field, type ClientRow } from "./client-picker";
+import { ClientLink, DuplicateFlag, Field, type ClientRow } from "./client-picker";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
 
 export interface BookingDraft {
@@ -208,12 +208,14 @@ export function BookingDetails({
             <>
               <div className="font-medium truncate">
                 {client.name ?? "Unnamed client"}
+                <DuplicateFlag client={client} className="ml-2" />
               </div>
               <div className="text-xs text-muted-foreground tabular-nums truncate">
                 {[client.phone && speakablePhone(client.phone), client.email]
                   .filter(Boolean)
-                  .join(" · ") || "No contact details"}
+                  .join(" · ") || (client.contactLead ? "" : "No contact details")}
               </div>
+              <ClientLink client={client} />
             </>
           ) : (
             <Field label="Walk-in name (optional)" id="walkin-name">

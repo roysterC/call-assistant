@@ -14,6 +14,7 @@
 import {
   addCalendarDays,
   type BusinessHours,
+  nextOpenMorning,
   openWindowFor,
   parseDateOnly,
   zonedParts,
@@ -77,13 +78,20 @@ function overlaps(
  * Exported because the tool handler needs to explain the constraint to the
  * caller ("a colour needs a skin test 48 hours before"), and the explanation
  * and the filter must come from the same number.
+ *
+ * Given the salon's hours, the skin test's 48 hours start when the salon is
+ * next open to do it, not now. Rung at half five on a Saturday by a salon
+ * shut on Sundays and Mondays, the receptionist otherwise booked a new
+ * client's colour for nine on Tuesday: 48 hours from the call, and no hour
+ * in between when anyone could have done the test.
  */
 export function earliestBookableStart(
   service: SalonService,
   clientType: "new" | "returning" | "unknown",
   now: Date,
   minLeadMinutes = DEFAULT_MIN_LEAD_MINUTES,
-  patchTestLeadHours = DEFAULT_PATCH_TEST_LEAD_HOURS
+  patchTestLeadHours = DEFAULT_PATCH_TEST_LEAD_HOURS,
+  salon?: { hours: BusinessHours; timeZone: string }
 ): { at: Date; reason: "lead_time" | "patch_test" } {
   const leadFloor = new Date(now.getTime() + minLeadMinutes * MINUTE);
 
@@ -93,7 +101,8 @@ export function earliestBookableStart(
   const needsPatchTest = service.requiresPatchTest && clientType !== "returning";
   if (!needsPatchTest) return { at: leadFloor, reason: "lead_time" };
 
-  const patchFloor = new Date(now.getTime() + patchTestLeadHours * 60 * MINUTE);
+  const testFrom = (salon && nextOpenMorning(salon.hours, salon.timeZone, now)) || now;
+  const patchFloor = new Date(testFrom.getTime() + patchTestLeadHours * 60 * MINUTE);
   return patchFloor > leadFloor
     ? { at: patchFloor, reason: "patch_test" }
     : { at: leadFloor, reason: "lead_time" };
@@ -131,7 +140,8 @@ export function computeBookableSlots(input: SlotComputationInput): TimeSlot[] {
     clientType,
     now,
     minLeadMinutes,
-    patchTestLeadHours
+    patchTestLeadHours,
+    { hours, timeZone }
   ).at;
 
   const durationMs = service.durationMinutes * MINUTE;

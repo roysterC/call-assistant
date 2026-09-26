@@ -348,6 +348,24 @@ describe("earliestBookableStart", () => {
     expect(r.reason).toBe("lead_time");
     expect(r.at.toISOString()).toBe("2026-09-15T11:00:00.000Z");
   });
+
+  it("counts the skin test's 48 hours from when the salon is next open to do it", () => {
+    const salon = { hours: HOURS, timeZone: TZ };
+    // Saturday 26 September, half five: shut until nine on Tuesday, so the
+    // earliest colour is nine on Thursday, not Monday evening.
+    const saturdayEvening = new Date("2026-09-26T17:30:00+01:00");
+    expect(earliestBookableStart(BALAYAGE, "new", saturdayEvening, undefined, undefined, salon).at.toISOString()).toBe(
+      "2026-10-01T08:00:00.000Z"
+    );
+    // Open now (Tuesday 15th, ten in the morning): 48 hours from now, as before.
+    expect(earliestBookableStart(BALAYAGE, "new", now, undefined, undefined, salon).at.toISOString()).toBe(
+      "2026-09-17T09:00:00.000Z"
+    );
+    // A returning client needs no test, whatever the hours.
+    expect(earliestBookableStart(BALAYAGE, "returning", saturdayEvening, undefined, undefined, salon).reason).toBe(
+      "lead_time"
+    );
+  });
 });
 
 describe("summariseSlotsForSpeech", () => {

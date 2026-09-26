@@ -85,3 +85,29 @@ export function parseClientQuery(raw: string | null | undefined): ClientQuery {
     whole: q,
   };
 }
+
+/**
+ * Whether two spoken names are plausibly the same person: the same first
+ * name, and the same surname where both have one. Case, accents and
+ * punctuation are ignored, because both sides came through a transcriber.
+ *
+ * Used to tell a client ringing about their own booking from someone ringing
+ * about theirs, so it errs towards "no": "Sarah" matches "Sarah Friend", but
+ * "Olivia Hart" does not, and nor does "Sara".
+ */
+export function namesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const words = (s: string | null | undefined) =>
+    (s ?? "")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z\s'-]/g, " ")
+      .replace(/['-]/g, "")
+      .split(/\s+/)
+      .filter(Boolean);
+  const x = words(a);
+  const y = words(b);
+  if (!x.length || !y.length || x[0] !== y[0]) return false;
+  if (x.length > 1 && y.length > 1) return x.slice(1).join(" ") === y.slice(1).join(" ");
+  return true;
+}

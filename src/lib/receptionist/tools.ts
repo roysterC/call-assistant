@@ -39,25 +39,15 @@ export function toClaudeTools(tools: VapiTool[]): Anthropic.Tool[] {
 }
 
 /**
- * Tools that find an existing booking by phone and have no caller-ID fallback
- * of their own. For these a missing number means "the one I'm ringing from".
- */
-const LOOKS_UP_BY_PHONE = new Set([
-  "find_appointment",
-  "cancel_appointment",
-  "reschedule_appointment",
-]);
-
-/**
  * Tool input as the handlers expect it, with what the line knows filled in.
  *
- * `callerNumber` always comes from caller ID, whatever the model sent.
- *
- * The phone field itself is left alone on the tools that save or book: their
- * handlers already fall back to caller ID when it is blank, and when they do
- * they say so (`usedCallerId`), which is what prompts the receptionist to read
- * the number back to a caller who never said it aloud. Filling it in here
- * would hide that. Only the look-up tools, which have no fallback, get it.
+ * `callerNumber` always comes from caller ID, whatever the model sent. The
+ * phone field itself is left alone: every handler falls back to caller ID
+ * when it is blank, and says so when it does (`usedCallerId`), which is what
+ * prompts the receptionist to read the number back to a caller who never
+ * said it aloud. Filling it in here would hide that. The look-up tools also
+ * compare it with caller ID to tell a client's own booking from someone
+ * else's.
  */
 export function withCallerContext(
   toolName: string,
@@ -65,12 +55,5 @@ export function withCallerContext(
   callerNumber: string | null
 ): Record<string, unknown> {
   if (!callerNumber) return { ...input };
-  const out: Record<string, unknown> = { ...input, callerNumber };
-  if (LOOKS_UP_BY_PHONE.has(toolName)) {
-    const v = out.customerPhone;
-    if (v === undefined || v === null || (typeof v === "string" && !v.trim())) {
-      out.customerPhone = callerNumber;
-    }
-  }
-  return out;
+  return { ...input, callerNumber };
 }
