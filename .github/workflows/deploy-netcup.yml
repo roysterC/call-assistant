@@ -71,7 +71,9 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ secrets.NETCUP_SSH_KEY }}
           script_stop: true
-          command_timeout: 20m
+          # Room for the build plus up to ten minutes waiting for voice calls
+          # to finish before the voice server is restarted.
+          command_timeout: 30m
           script: |
             set -euo pipefail
 
@@ -172,10 +174,35 @@ jobs:
             # The receptionist's voice server, once it has been installed (see
             # README: "Voice server"). Skipped until then, and never fails the
             # deploy: the CRM is already live by this point.
+            #
+            # A restart hangs up every call in progress, so it waits for them
+            # to finish first: up to ten minutes, checking the server's own
+            # count. Still busy after that, it is left running the old code
+            # and the next deploy restarts it. An unreachable server counts as
+            # no calls, so a crashed one is always restarted.
             VOICE_SERVICE=call-assistant-voice
+            voice_calls() {
+              # Always prints exactly one number and always succeeds: this
+              # runs under set -euo pipefail, where a failed curl would
+              # otherwise end the deploy.
+              { curl -fsS -m 5 http://127.0.0.1:4610/voice/health 2>/dev/null || true; } \
+                | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let n=0;try{const h=JSON.parse(s);n=h.activeCalls??h.labCalls??0}catch{}console.log(Number(n)||0)})'
+            }
             if systemctl cat "$VOICE_SERVICE" >/dev/null 2>&1; then
-              echo "==> Restarting $VOICE_SERVICE"
-              systemctl restart "$VOICE_SERVICE" || echo "WARNING: $VOICE_SERVICE did not restart" >&2
+              waited=0
+              calls=$(voice_calls)
+              while [ "$calls" -gt 0 ] && [ "$waited" -lt 600 ]; do
+                echo "==> $calls call(s) in progress on $VOICE_SERVICE; waiting before restarting it"
+                sleep 15
+                waited=$((waited + 15))
+                calls=$(voice_calls)
+              done
+              if [ "$calls" -gt 0 ]; then
+                echo "WARNING: $VOICE_SERVICE still has $calls call(s) after 10 minutes; left running. The next deploy restarts it." >&2
+              else
+                echo "==> Restarting $VOICE_SERVICE"
+                systemctl restart "$VOICE_SERVICE" || echo "WARNING: $VOICE_SERVICE did not restart" >&2
+              fi
             fi
 
             echo "==> Deploy complete: $(systemctl show -p ActiveState --value "$SERVICE")"
