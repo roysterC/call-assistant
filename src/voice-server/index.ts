@@ -127,6 +127,7 @@ async function main() {
       : new ElevenLabsTts(process.env.ELEVENLABS_API_KEY!, encoding, {
           voiceId: process.env.ELEVENLABS_VOICE_ID || undefined,
           model: process.env.ELEVENLABS_MODEL || undefined,
+          speed: process.env.ELEVENLABS_SPEED ? Number(process.env.ELEVENLABS_SPEED) : undefined,
         });
 
     const session = await startReceptionist(pass.organizationId, {
