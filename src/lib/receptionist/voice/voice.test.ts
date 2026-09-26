@@ -12,6 +12,19 @@ const tick = async (n = 5) => {
 // --- Sentence chunking ------------------------------------------------------
 
 describe("SentenceChunker", () => {
+  it("does not break a sentence at an abbreviation", () => {
+    const say = (text: string) => {
+      const c = new SentenceChunker();
+      return [...text.split(/(?<= )/).flatMap((w) => c.push(w)), ...c.flush()];
+    };
+    expect(say("I've booked you in with Mrs. Jones on Tuesday. See you then!")).toEqual([
+      "I've booked you in with Mrs. Jones on Tuesday.",
+      "See you then!",
+    ]);
+    expect(say("We're at 12 St. Mary's Road, next to the bank.")).toEqual(["We're at 12 St. Mary's Road, next to the bank."]);
+    expect(say("About an hour and a half, e.g. for highlights.")).toEqual(["About an hour and a half, e.g. for highlights."]);
+  });
+
   it("releases each sentence as soon as it is complete", () => {
     const c = new SentenceChunker();
     expect(c.push("Let me just check that")).toEqual([]);
@@ -155,6 +168,7 @@ function harness(
     out: { audio: (b) => audio.push(b), clear, event: (e) => events.push(e), hangup },
     greeting: "Thank you for calling Shogo.",
     now: () => clock,
+    silence: null,
     sleep: (ms) =>
       new Promise<void>((resolve) =>
         waits.push(() => {

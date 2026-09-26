@@ -345,3 +345,33 @@ describe("receptionist prompt", () => {
     expect(greetingFor("Shogo")).toMatch(/Shogo.*calls are recorded/);
   });
 });
+
+// --- Stress: odd things the model does -------------------------------------------
+
+describe("ReceptionistEngine under stress", () => {
+  it("never saves an empty reply, which the API would reject on every later turn", async () => {
+    const { client, sent } = fakeClient([{ text: [] }, { text: ["Sorry, what day was that?"] }]);
+    const { engine } = engineWith(client);
+    const turn = await engine.respond("Tuesday");
+
+    expect(turn.text).toBe("Sorry, what day was that?");
+    expect(sent).toHaveLength(2);
+    for (const m of engine.messages) {
+      expect(typeof m.content === "string" ? m.content.length : m.content.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("answers after a tool even when the model first goes quiet", async () => {
+    const { client } = fakeClient([
+      { tools: [{ name: "check_availability", input: {} }] },
+      { text: [] },
+      { text: ["Tuesday at ten is free."] },
+    ]);
+    const { engine } = engineWith(client);
+    const turn = await engine.respond("Anything Tuesday?");
+    expect(turn.text).toBe("Tuesday at ten is free.");
+    for (const m of engine.messages) {
+      expect(typeof m.content === "string" ? m.content.length : m.content.length).toBeGreaterThan(0);
+    }
+  });
+});

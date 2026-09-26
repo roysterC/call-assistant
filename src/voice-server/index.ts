@@ -193,17 +193,23 @@ async function main() {
       // What this lab call cost us. Lab usage is never charged to the salon,
       // but it is on our bill, so it is counted.
       if (!fakes) {
-        void recordUsage(pass.organizationId, {
-          source: "lab_voice",
-          startedAt: new Date(call.startedAt),
-          durationSeconds: (Date.now() - call.startedAt) / 1000,
-          counts: {
-            model: session.model,
-            ...call.tokenUsage(),
-            sttSeconds: call.audioBytesIn / micBytesPerSecond,
-            ttsCharacters: call.ttsCharacters,
-          },
-        });
+        const durationSeconds = (Date.now() - call.startedAt) / 1000;
+        // After the last turn has settled, so a reply cut off by the hang-up
+        // is counted too; never waiting more than a few seconds for it.
+        const settled = Promise.race([call.settled(), new Promise((r) => setTimeout(r, 5000))]);
+        void settled.then(() =>
+          recordUsage(pass.organizationId, {
+            source: "lab_voice",
+            startedAt: new Date(call.startedAt),
+            durationSeconds,
+            counts: {
+              model: session.model,
+              ...call.tokenUsage(),
+              sttSeconds: call.audioBytesIn / micBytesPerSecond,
+              ttsCharacters: call.ttsCharacters,
+            },
+          })
+        );
       }
     };
 

@@ -12,6 +12,9 @@ const MIN_CHARS = 12;
 /** A run-on reply is cut at a comma rather than waiting indefinitely for a full stop. */
 const MAX_CHARS = 160;
 
+/** Words that end in a full stop without ending the sentence. */
+const ABBREVIATION = /(?:^|[\s(])(?:mr|mrs|ms|dr|st|rd|ave|approx|e\.g|i\.e)\.$/i;
+
 export class SentenceChunker {
   private buffer = "";
 
@@ -44,6 +47,8 @@ export class SentenceChunker {
     let m: RegExpExecArray | null;
     while ((m = re.exec(this.buffer))) {
       const end = m.index + m[0].length;
+      // "Mrs. Jones", "St. Mary's Road", "e.g. a toner": not the end of anything.
+      if (ABBREVIATION.test(this.buffer.slice(0, m.index + 1))) continue;
       if (this.buffer.slice(0, end).trim().length >= MIN_CHARS) return end;
     }
     if (this.buffer.length > MAX_CHARS) {

@@ -187,6 +187,15 @@ export class ReceptionistEngine {
         return result;
       }
 
+      // Nothing said and nothing asked for. Kept, it would poison the call: the
+      // API refuses an empty message, so every later turn would fail. Instead
+      // the model is told the caller heard silence and asked again, within
+      // the same allowance of round trips.
+      if (toolUses.length === 0 && !textOnly(message)) {
+        pending.push({ role: "user", content: "[The caller heard nothing. Reply to them.]" });
+        continue;
+      }
+
       pending.push({ role: "assistant", content: message.content });
 
       if (toolUses.length === 0) {

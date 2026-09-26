@@ -93,10 +93,10 @@ const CHECK_AVAILABILITY: VapiTool = {
         date: {
           type: "string",
           description:
-            "The day to check. A weekday name is fine and preferred — " +
-            "'Thursday', 'tomorrow', 'today' — and is resolved against the " +
-            "salon's own clock. Only send YYYY-MM-DD if the caller named an " +
-            "actual date. Never guess a date. Leave it empty if they did not " +
+            "The day to check, in the caller's own words — 'Thursday', " +
+            "'tomorrow', 'Tuesday week', 'the 3rd', '3rd of October' — which " +
+            "is resolved against the salon's own clock. Only send YYYY-MM-DD " +
+            "if you are copying an actual date. Never guess a date. Leave it empty if they did not " +
             "name a day and just want the soonest — send prefer='earliest' " +
             "instead.",
         },
@@ -167,8 +167,9 @@ const BOOK_APPOINTMENT: VapiTool = {
         date: {
           type: "string",
           description:
-            "The appointment day. A weekday name such as 'Thursday' is " +
-            "accepted and resolved against the salon's clock.",
+            "The appointment day, in the caller's own words ('Thursday', " +
+            "'Tuesday week', 'the 3rd') or YYYY-MM-DD; resolved against the " +
+            "salon's clock.",
         },
         time: {
           type: "string",
@@ -322,8 +323,8 @@ const RESCHEDULE_APPOINTMENT: VapiTool = {
         date: {
           type: "string",
           description:
-            "The new day. A weekday name such as 'Thursday' is accepted and " +
-            "resolved against the salon's clock.",
+            "The new day, in the caller's own words ('Thursday', 'Tuesday " +
+            "week', 'the 3rd') or YYYY-MM-DD; resolved against the salon's clock.",
         },
         time: {
           type: "string",
