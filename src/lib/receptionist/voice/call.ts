@@ -12,12 +12,14 @@
  *   becomes the next turn.
  * - What fills the gap while the diary is read? A few words, if the model has
  *   not already said some.
+ * - When to put the phone down? When the receptionist ends the call, once its
+ *   goodbye has finished playing, unless the caller speaks up first.
  *
  * Transport-free: audio comes in through `audioIn`, and goes out through the
  * `out` callbacks. The browser lab and the phone line differ only there.
  */
 
-import type { ReceptionistEngine, TurnResult } from "../engine";
+import { END_CALL, type ReceptionistEngine, type TurnResult } from "../engine";
 import { SentenceChunker } from "./sentences";
 import type { SpeechToText, SttStream, TextToSpeech } from "./providers";
 
@@ -28,6 +30,7 @@ export type VoiceEvent =
   | { type: "tool"; name: string }
   | { type: "interrupted" }
   | { type: "metrics"; firstAudioMs: number | null; turnMs: number }
+  | { type: "ended"; by: "receptionist" }
   | { type: "error"; message: string };
 
 export interface VoiceOut {
@@ -35,6 +38,8 @@ export interface VoiceOut {
   /** Throw away anything buffered for playback: the caller cut in. */
   clear(): void;
   event(e: VoiceEvent): void;
+  /** Put the phone down: the receptionist has said goodbye and it has been heard. */
+  hangup?(): void;
 }
 
 export interface VoiceCallDeps {
@@ -46,6 +51,13 @@ export interface VoiceCallDeps {
   now?: () => number;
   /** Said while a tool runs, if the reply has not started yet. */
   filler?: string;
+  /**
+   * Silence kept after the goodbye before the line goes down, so its last
+   * word is not clipped by the audio still in flight to the far end.
+   */
+  hangupGraceMs?: number;
+  /** Waits; stood in for by tests, which run on their own clock. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -74,8 +86,14 @@ export class VoiceCall {
   readonly log: Array<{ who: "caller" | "assistant"; text: string }> = [];
   turns: TurnResult[] = [];
 
+  /** For what the call cost: when it started, audio heard, words spoken. */
+  readonly startedAt: number;
+  audioBytesIn = 0;
+  ttsCharacters = 0;
+
   constructor(private readonly deps: VoiceCallDeps) {
     this.now = deps.now ?? Date.now;
+    this.startedAt = this.now();
   }
 
   async start(): Promise<void> {
@@ -92,7 +110,22 @@ export class VoiceCall {
   }
 
   audioIn(chunk: Buffer): void {
-    if (!this.closed) this.stt?.send(chunk);
+    if (this.closed) return;
+    this.audioBytesIn += chunk.length;
+    this.stt?.send(chunk);
+  }
+
+  /** Tokens across every turn, including ones cut short by the caller. */
+  tokenUsage() {
+    return this.turns.reduce(
+      (t, r) => ({
+        inputTokens: t.inputTokens + r.usage.input,
+        outputTokens: t.outputTokens + r.usage.output,
+        cacheReadTokens: t.cacheReadTokens + r.usage.cacheRead,
+        cacheWriteTokens: t.cacheWriteTokens + r.usage.cacheWrite,
+      }),
+      { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }
+    );
   }
 
   close(): void {
@@ -166,11 +199,17 @@ export class VoiceCall {
         {
           onText: (delta) => chunker.push(delta).forEach(speak),
           onToolStart: (name) => {
-            this.deps.out.event({ type: "tool", name });
+            // Hanging up is shown as the call ending, after the goodbye, not
+            // as a tool ahead of it.
+            if (name !== END_CALL) this.deps.out.event({ type: "tool", name });
             // Whatever the model already wrote goes out first, then the filler
-            // only if nothing at all has been said yet this turn.
+            // only if nothing at all has been said yet this turn. Never before
+            // hanging up: "One moment" and then the line going dead is worse
+            // than silence.
             chunker.flush().forEach(speak);
-            if (!spokeThisTurn && this.deps.filler !== "") speak(this.deps.filler ?? "One moment.");
+            if (name !== END_CALL && !spokeThisTurn && this.deps.filler !== "") {
+              speak(this.deps.filler ?? "One moment.");
+            }
           },
         },
         ctl.signal
@@ -178,6 +217,7 @@ export class VoiceCall {
       chunker.flush().forEach(speak);
       this.turns.push(result);
       if (result.text.trim()) this.log.push({ who: "assistant", text: result.text.trim() });
+      if (result.endCall) void this.hangUpAfterGoodbye(ctl);
     } catch (err) {
       if (!ctl.signal.aborted) {
         this.deps.out.event({ type: "error", message: err instanceof Error ? err.message : String(err) });
@@ -194,10 +234,27 @@ export class VoiceCall {
     }
   }
 
+  /**
+   * Once the goodbye has been synthesised and has had time to play out, put
+   * the phone down. Called off if the caller cut in or started a new turn in
+   * the meantime ("oh, one more thing"): the call carries on.
+   */
+  private async hangUpAfterGoodbye(ctl: AbortController) {
+    await this.speech;
+    const sleep = this.deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    await sleep(Math.max(0, this.playbackEndsAt - this.now()) + (this.deps.hangupGraceMs ?? 800));
+    if (this.closed || ctl.signal.aborted || this.turn !== ctl || this.heard.length || this.interim) return;
+    this.deps.out.event({ type: "ended", by: "receptionist" });
+    this.close();
+    this.deps.out.hangup?.();
+  }
+
   /** Queue one piece of speech. Dropped if the turn it belongs to is aborted. */
   private say(text: string, signal: AbortSignal, onFirstAudio?: () => void) {
     this.speech = this.speech.then(async () => {
       if (signal.aborted || this.closed) return;
+      // Billed per character requested, whether or not it all gets played.
+      this.ttsCharacters += text.length;
       this.deps.out.event({ type: "assistant", text });
       let first = true;
       try {

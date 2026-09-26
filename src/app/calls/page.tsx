@@ -18,6 +18,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { sentimentStyle, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
+import { UsageSummary } from "@/components/usage/usage-summary";
+import { formatPence } from "@/lib/usage/cost";
 
 interface Call {
   id: string;
@@ -28,6 +30,10 @@ interface Call {
   sentiment: string | null;
   createdAt: string;
   lead: { name: string | null; company: string | null } | null;
+  /** What the salon is charged for this call; null until a markup is set. */
+  chargePence?: number | null;
+  /** What it cost us. Only present for super-admins. */
+  costPence?: number;
 }
 
 export default function CallsPage() {
@@ -54,6 +60,12 @@ export default function CallsPage() {
     fetchCalls();
   }, [page]);
 
+  // Money columns appear only when the server sent money: charges once the
+  // salon has a markup, our cost only to super-admins.
+  const showCharge = calls.some((c) => c.chargePence !== null && c.chargePence !== undefined);
+  const showCost = calls.some((c) => c.costPence !== undefined);
+  const columns = 6 + (showCharge ? 1 : 0) + (showCost ? 1 : 0);
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -67,6 +79,8 @@ export default function CallsPage() {
         description="All calls handled by your AI assistant"
       />
 
+      <UsageSummary />
+
       <Card className="py-0">
         <CardContent className="p-0">
           <Table>
@@ -75,6 +89,8 @@ export default function CallsPage() {
                 <TableHead>Caller</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead className="text-right">Duration</TableHead>
+                {showCharge && <TableHead className="text-right">Charge</TableHead>}
+                {showCost && <TableHead className="text-right">Cost</TableHead>}
                 <TableHead>Sentiment</TableHead>
                 <TableHead>Summary</TableHead>
                 <TableHead>Date</TableHead>
@@ -83,13 +99,13 @@ export default function CallsPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12">
+                  <TableCell colSpan={columns} className="text-center py-12">
                     <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : calls.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="p-0">
+                  <TableCell colSpan={columns} className="p-0">
                     <EmptyState
                       icon={Phone}
                       title="No calls recorded yet"
@@ -122,6 +138,16 @@ export default function CallsPage() {
                     <TableCell className="text-sm text-right tabular-nums">
                       {formatDuration(call.duration)}
                     </TableCell>
+                    {showCharge && (
+                      <TableCell className="text-sm text-right tabular-nums">
+                        {call.chargePence != null ? formatPence(call.chargePence) : "—"}
+                      </TableCell>
+                    )}
+                    {showCost && (
+                      <TableCell className="text-sm text-right tabular-nums text-indigo-700">
+                        {call.costPence !== undefined ? formatPence(call.costPence) : "—"}
+                      </TableCell>
+                    )}
                     {/*
                       Sentiment is the one column here that carries a judgement,
                       so it gets the shared meaning-colours. It used to take the

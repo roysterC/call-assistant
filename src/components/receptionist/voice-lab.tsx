@@ -4,8 +4,11 @@
  * Talk to the receptionist through the computer's microphone.
  *
  * The browser does the audio plumbing only: it records the microphone, turns
- * it into 16kHz 16-bit samples, sends them to the voice server, and plays the
- * voice that comes back in the order it arrives. Everything else — hearing,
+ * it into 16kHz 16-bit samples (or phone-line audio, in phone quality), sends
+ * them to the voice server, and plays the
+ * voice that comes back in the order it arrives, in whatever format the server
+ * says it is sending: clear 24kHz audio, or phone-line audio when previewing
+ * what a caller will hear. Everything else — hearing,
  * deciding, speaking, being interrupted — happens on the server, the same as
  * it will on the phone.
  */
@@ -27,18 +30,40 @@ type Line =
 
 const RATE = 16000;
 
+type VoiceFormat = { encoding: "pcm16" | "mulaw"; sampleRate: number };
+
+/** G.711 mu-law, the phone network's audio, back to a sample between -1 and 1. */
+function mulawToFloat(byte: number): number {
+  const u = ~byte & 0xff;
+  const magnitude = ((((u & 0x0f) << 3) + 0x84) << ((u & 0x70) >> 4)) - 0x84;
+  return (u & 0x80 ? -magnitude : magnitude) / 0x8000;
+}
+
 /**
- * Runs in the audio thread. Averages the microphone down to 16kHz and posts
- * 20ms frames of 16-bit samples, which is what the recogniser is sent.
+ * Runs in the audio thread. Averages the microphone down to the rate the
+ * recogniser is sent and posts 20ms frames: 16kHz 16-bit samples normally,
+ * or 8kHz mu-law bytes, the phone network's own audio, in phone quality.
  */
 const CAPTURE_WORKLET = `
 class Capture extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
-    this.step = sampleRate / ${RATE};
+    const o = options.processorOptions || {};
+    this.mulaw = !!o.mulaw;
+    const rate = o.rate || ${RATE};
+    this.step = sampleRate / rate;
     this.next = this.step;
     this.pos = 0; this.sum = 0; this.n = 0;
-    this.frame = new Int16Array(${RATE / 50}); this.fill = 0;
+    this.frame = this.mulaw ? new Uint8Array(rate / 50) : new Int16Array(rate / 50); this.fill = 0;
+  }
+  encode(v) {
+    const s = v < 0 ? v * 0x8000 : v * 0x7fff;
+    if (!this.mulaw) return s;
+    const sign = s < 0 ? 0x80 : 0;
+    const m = Math.min(Math.abs(Math.round(s)), 32635) + 0x84;
+    let e = 7;
+    for (let mask = 0x4000; (m & mask) === 0 && e > 0; mask >>= 1) e--;
+    return ~(sign | (e << 4) | ((m >> (e + 3)) & 0x0f)) & 0xff;
   }
   process(inputs) {
     const ch = inputs[0] && inputs[0][0];
@@ -46,8 +71,7 @@ class Capture extends AudioWorkletProcessor {
     for (let i = 0; i < ch.length; i++) {
       this.sum += ch[i]; this.n++; this.pos++;
       if (this.pos >= this.next) {
-        const v = Math.max(-1, Math.min(1, this.sum / this.n));
-        this.frame[this.fill++] = v < 0 ? v * 0x8000 : v * 0x7fff;
+        this.frame[this.fill++] = this.encode(Math.max(-1, Math.min(1, this.sum / this.n)));
         this.sum = 0; this.n = 0; this.next += this.step;
         if (this.fill === this.frame.length) {
           this.port.postMessage(this.frame.buffer.slice(0));
@@ -76,12 +100,14 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
   const [fakes, setFakes] = useState(false);
   const [pretend, setPretend] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [phoneSound, setPhoneSound] = useState(false);
 
   const ws = useRef<WebSocket | null>(null);
   const ctx = useRef<AudioContext | null>(null);
   const mic = useRef<MediaStream | null>(null);
   const playing = useRef<AudioBufferSourceNode[]>([]);
   const nextStart = useRef(0);
+  const voice = useRef<VoiceFormat>({ encoding: "pcm16", sampleRate: RATE });
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -91,12 +117,18 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
   // Hang up if the page is left mid-call.
   useEffect(() => () => teardown(), []);
 
-  function teardown() {
+  /**
+   * `letFinish` keeps the speakers on until what is queued has played: when
+   * the receptionist hangs up, its goodbye may still be coming out.
+   */
+  function teardown(letFinish = false) {
     ws.current?.close();
     ws.current = null;
     mic.current?.getTracks().forEach((t) => t.stop());
     mic.current = null;
-    void ctx.current?.close().catch(() => {});
+    const ac = ctx.current;
+    const left = ac && letFinish ? Math.max(0, nextStart.current - ac.currentTime) : 0;
+    setTimeout(() => void ac?.close().catch(() => {}), left * 1000);
     ctx.current = null;
     playing.current = [];
   }
@@ -116,11 +148,13 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
   function play(data: ArrayBuffer) {
     const ac = ctx.current;
     if (!ac) return;
-    const pcm = new Int16Array(data);
-    if (!pcm.length) return;
-    const buf = ac.createBuffer(1, pcm.length, RATE);
+    const { encoding, sampleRate } = voice.current;
+    const samples = encoding === "mulaw" ? new Uint8Array(data) : new Int16Array(data);
+    if (!samples.length) return;
+    const buf = ac.createBuffer(1, samples.length, sampleRate);
     const ch = buf.getChannelData(0);
-    for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 0x8000;
+    if (encoding === "mulaw") for (let i = 0; i < samples.length; i++) ch[i] = mulawToFloat(samples[i]);
+    else for (let i = 0; i < samples.length; i++) ch[i] = samples[i] / 0x8000;
     const src = ac.createBufferSource();
     src.buffer = buf;
     src.connect(ac.destination);
@@ -157,23 +191,44 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
       const url = URL.createObjectURL(new Blob([CAPTURE_WORKLET], { type: "application/javascript" }));
       await ac.audioWorklet.addModule(url);
       URL.revokeObjectURL(url);
-      const node = new AudioWorkletNode(ac, "capture");
-      ac.createMediaStreamSource(stream).connect(node);
+      const node = new AudioWorkletNode(ac, "capture", {
+        processorOptions: phoneSound ? { rate: 8000, mulaw: true } : { rate: RATE, mulaw: false },
+      });
+      const source = ac.createMediaStreamSource(stream);
+      if (phoneSound) {
+        // A phone line passes roughly 300Hz to 3.4kHz and nothing else; the
+        // recogniser should get no more than a caller's handset would send.
+        const low = new BiquadFilterNode(ac, { type: "highpass", frequency: 300 });
+        const high = new BiquadFilterNode(ac, { type: "lowpass", frequency: 3400 });
+        source.connect(low).connect(high).connect(node);
+      } else {
+        source.connect(node);
+      }
 
-      const sock = new WebSocket(data.url);
+      voice.current = { encoding: "pcm16", sampleRate: RATE };
+      const sock = new WebSocket(phoneSound ? `${data.url}&sound=phone` : data.url);
       sock.binaryType = "arraybuffer";
       ws.current = sock;
       node.port.onmessage = (e) => {
         if (sock.readyState === WebSocket.OPEN) sock.send(e.data as ArrayBuffer);
       };
+      // Set when the receptionist hangs up, so the close reads as its doing.
+      let endedByReceptionist = false;
       sock.onmessage = (e) => {
         if (e.data instanceof ArrayBuffer) return play(e.data);
         const msg = JSON.parse(e.data as string);
         switch (msg.type) {
           case "hello":
             setFakes(Boolean(msg.fakes));
+            if (msg.voice?.sampleRate) voice.current = msg.voice;
             setLines([
               { kind: "note", text: data.callerNumber ? `Call from ${data.callerNumber}` : "Call from a withheld number" },
+              ...(msg.voice?.encoding === "mulaw"
+                ? [{ kind: "note" as const, text: "Phone quality: you hear, and are heard, as on a phone call" }]
+                : []),
+              ...(msg.keyterms
+                ? [{ kind: "note" as const, text: `Listening out for ${msg.keyterms} salon words` }]
+                : []),
               ...(msg.keySource
                 ? [
                     {
@@ -210,6 +265,9 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
           case "metrics":
             if (msg.firstAudioMs != null) setLatencies((l) => [...l, msg.firstAudioMs]);
             break;
+          case "ended":
+            endedByReceptionist = true;
+            break;
           case "error":
             setError(msg.message);
             break;
@@ -231,8 +289,11 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
           );
         }
         setState("idle");
-        setLines((ls) => [...ls, { kind: "note", text: "Call ended" }]);
-        teardown();
+        setLines((ls) => [
+          ...ls,
+          { kind: "note", text: endedByReceptionist ? "The receptionist ended the call" : "Call ended" },
+        ]);
+        teardown(endedByReceptionist);
       };
     } catch (err) {
       setError(
@@ -269,10 +330,21 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
             Hang up
           </Button>
         ) : (
-          <Button className="gap-1.5" onClick={start}>
-            <Mic className="h-4 w-4" />
-            Start talking
-          </Button>
+          <>
+            <Button className="gap-1.5" onClick={start}>
+              <Mic className="h-4 w-4" />
+              Start talking
+            </Button>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={phoneSound}
+                onChange={(e) => setPhoneSound(e.target.checked)}
+              />
+              Phone quality
+            </label>
+          </>
         )}
         <span
           className={cn(

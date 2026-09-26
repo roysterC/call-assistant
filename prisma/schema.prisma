@@ -17,6 +17,11 @@ model Organization {
   slug                    String   @unique
   planTier                String   @default("starter")
   anthropicApiKeyOverride String?
+  // What owners are charged for AI calls, as a percentage on top of what the
+  // calls cost us: 100 means they see double our cost. Null hides charges from
+  // owners altogether, so a salon is never shown a figure nobody has priced.
+  // Only super-admins see the underlying cost.
+  usageMarkupPercent      Int?
   enabled                 Boolean  @default(true)
   // The next booking number this salon will hand out. Taken with an atomic
   // increment in the same transaction as the appointment it numbers, so two
@@ -28,6 +33,7 @@ model Organization {
   users                 User[]
   leads                 Lead[]
   calls                 Call[]
+  usageRecords          UsageRecord[]
   callbacks             Callback[]
   settings              OrganizationSettings?
   whatsappConversations WhatsAppConversation[]
@@ -659,4 +665,36 @@ model TimeBlock {
 
   @@index([organizationId])
   @@map("ca_time_blocks")
+}
+
+// What our own receptionist cost to run, one row per call (or per typed lab
+// turn). Vapi calls are not here: Vapi reports its own cost, kept on Call.
+//
+// The cost is worked out from the usage when the row is written and stored in
+// US dollars (the currency the providers bill in), in millionths, so a later
+// price change never rewrites what an old call cost.
+model UsageRecord {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // "lab_voice" and "lab_chat" today; "phone" once our receptionist answers
+  // real calls. Lab usage is ours, not the salon's, and is never charged.
+  source           String
+  // Groups the turns of one typed lab conversation into one "call".
+  sessionKey       String?
+  startedAt        DateTime
+  durationSeconds  Int          @default(0)
+  model            String?
+  inputTokens      Int          @default(0)
+  outputTokens     Int          @default(0)
+  cacheReadTokens  Int          @default(0)
+  cacheWriteTokens Int          @default(0)
+  sttSeconds       Float        @default(0)
+  ttsCharacters    Int          @default(0)
+  telephonySeconds Int          @default(0)
+  costMicros       Int
+  createdAt        DateTime     @default(now())
+
+  @@index([organizationId, startedAt])
+  @@map("ca_usage_records")
 }

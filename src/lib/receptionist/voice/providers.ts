@@ -37,31 +37,49 @@ export type AudioEncoding =
   /** 8kHz mu-law, mono: the phone network. */
   | { kind: "mulaw8k" };
 
+export interface DeepgramOptions {
+  model?: string;
+  language?: string;
+  endpointingMs?: number;
+  /** The salon's own words to listen for: see keyterms.ts. */
+  keyterms?: string[];
+}
+
+/** The streaming address, with everything the recogniser is told up front. */
+export function deepgramListenUrl(encoding: AudioEncoding, opts: DeepgramOptions = {}): string {
+  const model = opts.model ?? "nova-3";
+  const params = new URLSearchParams({
+    model,
+    language: opts.language ?? "en",
+    encoding: encoding.kind === "pcm16" ? "linear16" : "mulaw",
+    sample_rate: String(encoding.kind === "pcm16" ? encoding.sampleRate : 8000),
+    channels: "1",
+    interim_results: "true",
+    smart_format: "true",
+    // How long a pause ends a turn. Too short and callers get talked over
+    // mid-thought ("it's oh seven seven… double oh"); too long and every
+    // reply starts late. Tuned in the lab.
+    endpointing: String(opts.endpointingMs ?? 400),
+    // Backstop for when the endpoint is missed in noise.
+    utterance_end_ms: "1000",
+    vad_events: "true",
+  });
+  // Keyterm prompting is a Nova-3 feature; older models refuse the stream.
+  if (model.startsWith("nova-3")) {
+    for (const term of opts.keyterms ?? []) params.append("keyterm", term);
+  }
+  return `wss://api.deepgram.com/v1/listen?${params}`;
+}
+
 export class DeepgramStt implements SpeechToText {
   constructor(
     private readonly apiKey: string,
     private readonly encoding: AudioEncoding,
-    private readonly opts: { model?: string; language?: string; endpointingMs?: number } = {}
+    private readonly opts: DeepgramOptions = {}
   ) {}
 
   open(handlers: SttHandlers): Promise<SttStream> {
-    const params = new URLSearchParams({
-      model: this.opts.model ?? "nova-3",
-      language: this.opts.language ?? "en",
-      encoding: this.encoding.kind === "pcm16" ? "linear16" : "mulaw",
-      sample_rate: String(this.encoding.kind === "pcm16" ? this.encoding.sampleRate : 8000),
-      channels: "1",
-      interim_results: "true",
-      smart_format: "true",
-      // How long a pause ends a turn. Too short and callers get talked over
-      // mid-thought ("it's oh seven seven… double oh"); too long and every
-      // reply starts late. Tuned in the lab.
-      endpointing: String(this.opts.endpointingMs ?? 400),
-      // Backstop for when the endpoint is missed in noise.
-      utterance_end_ms: "1000",
-      vad_events: "true",
-    });
-    const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params}`, {
+    const ws = new WebSocket(deepgramListenUrl(this.encoding, this.opts), {
       headers: { Authorization: `Token ${this.apiKey}` },
     });
 
@@ -187,6 +205,22 @@ export const DEFAULT_SPEAKING_SPEED = 0.9;
 export function speakingSpeed(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) return DEFAULT_SPEAKING_SPEED;
   return Math.min(1.2, Math.max(0.7, value));
+}
+
+/**
+ * The sample rate the lab's voice is made at. Kept apart from the microphone's
+ * 16kHz: the recogniser needs no more, but a voice at 16kHz loses everything
+ * above 8kHz — the hiss of an "s", the snap of a "t" — and sounds muffled next
+ * to the same voice on ElevenLabs' site. 24kHz keeps nearly all of it and is
+ * on every ElevenLabs plan; 44.1kHz PCM needs a paid one. Only rates
+ * ElevenLabs offers as PCM are taken; anything else falls back to 24kHz.
+ */
+export const DEFAULT_LAB_VOICE_RATE = 24000;
+const PCM_RATES = [8000, 16000, 22050, 24000, 44100, 48000];
+
+export function labVoiceRate(value: string | undefined): number {
+  const n = Number(value);
+  return PCM_RATES.includes(n) ? n : DEFAULT_LAB_VOICE_RATE;
 }
 
 /**

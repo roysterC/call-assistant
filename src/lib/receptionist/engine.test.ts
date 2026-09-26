@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
-import { FALLBACK_REPLY, ReceptionistEngine, type StreamingClient, type ToolExecutor } from "./engine";
+import { END_CALL, FALLBACK_REPLY, ReceptionistEngine, type StreamingClient, type ToolExecutor } from "./engine";
 import { toClaudeTools, withCallerContext } from "./tools";
 import { buildSystem, greetingFor } from "./prompt";
 import type { SalonConfig } from "@/lib/booking";
@@ -214,6 +214,57 @@ describe("ReceptionistEngine", () => {
     expect(JSON.stringify(nextSent)).toContain("book_appointment");
     expect(nextSent.at(-1)).toEqual({ role: "user", content: "actually, is it with Jo?" });
   });
+
+  it("hangs up after a goodbye, without asking the model anything more", async () => {
+    const { client, sent } = fakeClient([
+      { text: ["Thanks for calling, see you Wednesday at one. Bye!"], tools: [{ name: END_CALL, input: {} }] },
+    ]);
+    const { engine, execute } = engineWith(client);
+    const turn = await engine.respond("No that's everything, thanks");
+
+    expect(turn.endCall).toBe(true);
+    expect(turn.text).toBe("Thanks for calling, see you Wednesday at one. Bye!");
+    expect(sent).toHaveLength(1);
+    // Hanging up is not one of the salon's tools.
+    expect(execute).not.toHaveBeenCalled();
+    expectValidHistory(engine.messages);
+  });
+
+  it("will not hang up without a goodbye, and says why", async () => {
+    const { client, sent } = fakeClient([
+      { tools: [{ name: END_CALL, input: {} }] },
+      { text: ["Lovely, thanks for calling. Bye now!"], tools: [{ name: END_CALL, input: {} }] },
+    ]);
+    const { engine } = engineWith(client);
+    const turn = await engine.respond("That's correct");
+
+    expect(sent).toHaveLength(2);
+    const refused = sent[1].messages.at(-1)!.content as Anthropic.ToolResultBlockParam[];
+    expect(refused[0].is_error).toBe(true);
+    expect(String(refused[0].content)).toContain("not said goodbye");
+    expect(turn.endCall).toBe(true);
+    expect(turn.text).toBe("Lovely, thanks for calling. Bye now!");
+    expectValidHistory(engine.messages);
+  });
+
+  it("will not hang up in the same breath as other diary work", async () => {
+    const { client } = fakeClient([
+      {
+        text: ["Cancelled. Bye!"],
+        tools: [
+          { name: "cancel_appointment", input: {} },
+          { name: END_CALL, input: {} },
+        ],
+      },
+      { text: ["That's cancelled for you. Anything else?"] },
+    ]);
+    const { engine, execute } = engineWith(client);
+    const turn = await engine.respond("Cancel my Tuesday one please");
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(turn.endCall).toBe(false);
+  });
+
 });
 
 // --- Tools and caller ID ----------------------------------------------------

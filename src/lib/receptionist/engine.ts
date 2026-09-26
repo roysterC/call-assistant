@@ -28,6 +28,29 @@ export interface StreamingClient {
   };
 }
 
+/**
+ * Hanging up. Handled by the loop itself rather than the salon's tools: it
+ * does nothing to the diary, it ends the conversation. The voice layer puts
+ * the phone down once the goodbye has finished playing; the typed lab closes
+ * the chat.
+ *
+ * Only honoured when the same reply says goodbye out loud. On Vapi the agent
+ * once hung up a second after the caller said "That's correct", with no
+ * goodbye at all (see CALL_CLOSING_RULES); here that attempt is turned back
+ * with a reason, and the model says goodbye and tries again.
+ */
+export const END_CALL = "end_call";
+
+export const END_CALL_TOOL: Anthropic.Tool = {
+  name: END_CALL,
+  description:
+    "Hang up the phone. Use this only when the call is finished: everything is settled, you have asked if " +
+    "there is anything else, and the caller has nothing more. Say your goodbye in the same reply, before " +
+    "using this; the line is put down once your goodbye has been heard. Never use it while a question is " +
+    "unanswered or right after the caller has spoken without replying to them.",
+  input_schema: { type: "object", properties: {} },
+};
+
 /** Runs one of the salon's tools. Throws only on a bug; business failures are results. */
 export type ToolExecutor = (
   name: string,
@@ -61,6 +84,8 @@ export interface TurnResult {
   /** Tools run this turn, in order, for the call log and the lab. */
   tools: Array<{ name: string; input: Record<string, unknown>; result: unknown; isError: boolean }>;
   stopReason: Anthropic.Message["stop_reason"] | "aborted" | "round_trip_limit";
+  /** The receptionist hung up: the goodbye in `text` is the last thing said. */
+  endCall: boolean;
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number };
 }
 
@@ -90,6 +115,7 @@ export class ReceptionistEngine {
       text: "",
       tools: [],
       stopReason: "end_turn",
+      endCall: false,
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     };
 
@@ -171,16 +197,28 @@ export class ReceptionistEngine {
       // Every tool_use gets a tool_result, all in one message: splitting them
       // or dropping a failed one is a 400 on the next request.
       const results: Anthropic.ToolResultBlockParam[] = [];
+      let hangUp = false;
       for (const use of toolUses) {
         const input = isRecord(use.input) ? use.input : {};
         hooks.onToolStart?.(use.name, input);
         let output: unknown;
         let isError = false;
-        try {
-          output = await this.cfg.execute(use.name, input);
-        } catch (err) {
-          isError = true;
-          output = { error: "That didn't work on our side.", detail: err instanceof Error ? err.message : String(err) };
+        if (use.name === END_CALL) {
+          const refusal = endCallRefusal(message, toolUses.length);
+          if (refusal) {
+            isError = true;
+            output = { error: refusal };
+          } else {
+            hangUp = true;
+            output = { ended: true };
+          }
+        } else {
+          try {
+            output = await this.cfg.execute(use.name, input);
+          } catch (err) {
+            isError = true;
+            output = { error: "That didn't work on our side.", detail: err instanceof Error ? err.message : String(err) };
+          }
         }
         hooks.onToolResult?.(use.name, output, isError);
         result.tools.push({ name: use.name, input, result: output, isError });
@@ -192,6 +230,14 @@ export class ReceptionistEngine {
         });
       }
       pending.push({ role: "user", content: results });
+
+      // The goodbye has been said and the line is going down: nothing more
+      // is asked of the model. The history ends on the hang-up's result,
+      // which is where the conversation ended.
+      if (hangUp) {
+        this.messages.push(...pending);
+        return { ...result, endCall: true };
+      }
 
       // A reply spoken before the tool call ("let me check") and the one after
       // it are separate sentences to a listener.
@@ -205,6 +251,17 @@ export class ReceptionistEngine {
     this.messages.push(...pending);
     return { ...result, stopReason: "round_trip_limit" };
   }
+}
+
+/** Why a hang-up is turned back, or null when it can go ahead. */
+function endCallRefusal(message: Anthropic.Message, toolCount: number): string | null {
+  if (toolCount > 1) {
+    return "Not hung up. Finish the other tools first, tell the caller how it went, then say goodbye and end the call on its own.";
+  }
+  if (!textOnly(message)) {
+    return "Not hung up: you have not said goodbye. Say goodbye to the caller first, in the same reply as ending the call.";
+  }
+  return null;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {

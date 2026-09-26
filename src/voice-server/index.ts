@@ -24,6 +24,7 @@ loadEnv({ path: ".env" });
 
 import http from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
+import type { AudioEncoding } from "@/lib/receptionist/voice/providers";
 
 const PORT = Number(process.env.VOICE_PORT || 4610);
 const HOST = process.env.VOICE_HOST || "127.0.0.1";
@@ -37,7 +38,8 @@ async function main() {
   const { receptionistApiKey, startReceptionist } = await import("@/lib/receptionist/session");
   const { verifyVoicePass } = await import("@/lib/receptionist/voice/token");
   const { VoiceCall } = await import("@/lib/receptionist/voice/call");
-  const { DeepgramStt, ElevenLabsTts } = await import("@/lib/receptionist/voice/providers");
+  const { recordUsage } = await import("@/lib/usage/record");
+  const { DeepgramStt, ElevenLabsTts, labVoiceRate } = await import("@/lib/receptionist/voice/providers");
   const fakes = FAKES ? await import("./fakes") : null;
 
   const secret = process.env.RECEPTIONIST_VOICE_SECRET ?? "";
@@ -77,7 +79,10 @@ async function main() {
         sendJson(ws, { type: "error", message: reason });
         return ws.close(4401, "pass refused");
       }
-      void runLabCall(ws, pass).catch((err) => {
+      // "phone" carries audio both ways as the phone line will, 8kHz mu-law,
+      // so the lab sounds and is transcribed the way a caller's call will be.
+      const sound = url.searchParams.get("sound") === "phone" ? "phone" : "clear";
+      void runLabCall(ws, pass, sound).catch((err) => {
         console.error("[VOICE] lab call failed:", err);
         sendJson(ws, {
           type: "error",
@@ -88,7 +93,11 @@ async function main() {
     });
   });
 
-  async function runLabCall(ws: WebSocket, pass: { organizationId: string; callerNumber: string | null }) {
+  async function runLabCall(
+    ws: WebSocket,
+    pass: { organizationId: string; callerNumber: string | null },
+    sound: "clear" | "phone"
+  ) {
     if (labCalls >= MAX_LAB_CALLS) {
       sendJson(ws, { type: "error", message: "Too many lab calls at once. Try again shortly." });
       return ws.close();
@@ -113,27 +122,39 @@ async function main() {
       return ws.close();
     }
 
-    const encoding = { kind: "pcm16", sampleRate: 16000 } as const;
-    const fakeStt = fakes ? new fakes.FakeStt() : null;
-    const stt =
-      fakeStt ??
-      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, encoding, {
-        model: process.env.DEEPGRAM_MODEL || undefined,
-        language: process.env.DEEPGRAM_LANGUAGE || undefined,
-        endpointingMs: process.env.DEEPGRAM_ENDPOINTING_MS ? Number(process.env.DEEPGRAM_ENDPOINTING_MS) : undefined,
-      });
-    const tts = fakes
-      ? new fakes.FakeTts()
-      : new ElevenLabsTts(process.env.ELEVENLABS_API_KEY!, encoding, {
-          voiceId: process.env.ELEVENLABS_VOICE_ID || undefined,
-          model: process.env.ELEVENLABS_MODEL || undefined,
-          speed: process.env.ELEVENLABS_SPEED ? Number(process.env.ELEVENLABS_SPEED) : undefined,
-        });
+    // Clear sound: the microphone comes in at 16kHz, all the recogniser needs,
+    // and the voice goes out clearer than that. Phone sound: both ways as the
+    // phone line carries them, 8kHz mu-law, so the lab hears and is heard
+    // exactly as a caller would be.
+    const micEncoding: AudioEncoding =
+      sound === "phone" ? { kind: "mulaw8k" } : { kind: "pcm16", sampleRate: 16000 };
+    const micBytesPerSecond = micEncoding.kind === "mulaw8k" ? 8000 : micEncoding.sampleRate * 2;
+    const voiceEncoding: AudioEncoding =
+      sound === "phone"
+        ? { kind: "mulaw8k" }
+        : { kind: "pcm16", sampleRate: labVoiceRate(process.env.ELEVENLABS_LAB_SAMPLE_RATE) };
 
     const session = await startReceptionist(pass.organizationId, {
       callerNumber: pass.callerNumber,
       client: fakes ? fakes.fakeModel() : undefined,
     });
+
+    const fakeStt = fakes ? new fakes.FakeStt() : null;
+    const stt =
+      fakeStt ??
+      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, micEncoding, {
+        model: process.env.DEEPGRAM_MODEL || undefined,
+        language: process.env.DEEPGRAM_LANGUAGE || undefined,
+        endpointingMs: process.env.DEEPGRAM_ENDPOINTING_MS ? Number(process.env.DEEPGRAM_ENDPOINTING_MS) : undefined,
+        keyterms: session.keyterms,
+      });
+    const tts = fakes
+      ? new fakes.FakeTts(voiceEncoding)
+      : new ElevenLabsTts(process.env.ELEVENLABS_API_KEY!, voiceEncoding, {
+          voiceId: process.env.ELEVENLABS_VOICE_ID || undefined,
+          model: process.env.ELEVENLABS_MODEL || undefined,
+          speed: process.env.ELEVENLABS_SPEED ? Number(process.env.ELEVENLABS_SPEED) : undefined,
+        });
 
     const call = new VoiceCall({
       engine: session.engine,
@@ -146,6 +167,8 @@ async function main() {
         },
         clear: () => sendJson(ws, { type: "clear" }),
         event: (e) => sendJson(ws, e),
+        // The receptionist said goodbye and it has been heard.
+        hangup: () => ws.close(1000, "call ended"),
       },
     });
 
@@ -167,6 +190,21 @@ async function main() {
       clearInterval(ping);
       call.close();
       labCalls--;
+      // What this lab call cost us. Lab usage is never charged to the salon,
+      // but it is on our bill, so it is counted.
+      if (!fakes) {
+        void recordUsage(pass.organizationId, {
+          source: "lab_voice",
+          startedAt: new Date(call.startedAt),
+          durationSeconds: (Date.now() - call.startedAt) / 1000,
+          counts: {
+            model: session.model,
+            ...call.tokenUsage(),
+            sttSeconds: call.audioBytesIn / micBytesPerSecond,
+            ttsCharacters: call.ttsCharacters,
+          },
+        });
+      }
     };
 
     ws.on("message", (data, isBinary) => {
@@ -187,7 +225,18 @@ async function main() {
     ws.on("close", end);
     ws.on("error", end);
 
-    sendJson(ws, { type: "hello", model: session.model, keySource: session.keySource, fakes: FAKES, sampleRate: 16000 });
+    sendJson(ws, {
+      type: "hello",
+      model: session.model,
+      keySource: session.keySource,
+      fakes: FAKES,
+      voice:
+        voiceEncoding.kind === "mulaw8k"
+          ? { encoding: "mulaw", sampleRate: 8000 }
+          : { encoding: "pcm16", sampleRate: voiceEncoding.sampleRate },
+      mic: micEncoding.kind === "mulaw8k" ? { encoding: "mulaw", sampleRate: 8000 } : { encoding: "pcm16", sampleRate: 16000 },
+      keyterms: session.keyterms.length,
+    });
     await call.start();
   }
 

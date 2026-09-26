@@ -17,6 +17,8 @@ import { prisma } from "@/lib/prisma";
 import { normalisePhone } from "@/lib/phone";
 import { receptionistApiKey, startReceptionist } from "@/lib/receptionist/session";
 import { endLabSession, getLabSession, putLabSession } from "@/lib/receptionist/lab-store";
+import { recordUsage } from "@/lib/usage/record";
+import { microsToPence } from "@/lib/usage/cost";
 
 async function labContext(req: NextRequest) {
   const ctx = await requireTenant(req);
@@ -104,15 +106,33 @@ export async function POST(req: NextRequest) {
         if (firstTextMs === null) firstTextMs = Date.now() - started;
       },
     });
+    // Every typed turn is on our bill; recorded per turn, grouped by
+    // conversation. Its cost is shown back to super-admins only.
+    const costMicros = await recordUsage(ctx.organizationId, {
+      source: "lab_chat",
+      sessionKey: body.sessionId,
+      startedAt: new Date(started),
+      counts: {
+        model: entry.session.model,
+        inputTokens: turn.usage.input,
+        outputTokens: turn.usage.output,
+        cacheReadTokens: turn.usage.cacheRead,
+        cacheWriteTokens: turn.usage.cacheWrite,
+      },
+    });
+    if (turn.endCall) endLabSession(body.sessionId);
     return NextResponse.json({
       reply: turn.text,
       tools: turn.tools,
       stopReason: turn.stopReason,
+      // The receptionist hung up; this reply was its goodbye.
+      ended: turn.endCall,
       usage: turn.usage,
       // How long until the first word, which is what a caller feels, and
       // until the whole reply.
       firstTextMs,
       totalMs: Date.now() - started,
+      ...(ctx.isSuperAdmin && costMicros !== null ? { costPence: microsToPence(costMicros) } : {}),
     });
   } catch (err) {
     console.error("[RECEPTIONIST LAB] turn failed:", err);
