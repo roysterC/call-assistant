@@ -44,3 +44,22 @@ export function answerTo(text: string): "yes" | "no" | null {
   if (NO.has(w[0])) return "no";
   return null;
 }
+
+const QUESTION_START =
+  /^(and\s+)?(how|what|what's|whats|when|who|who's|whos|where|which|is|are|any|did|do|does|can|could|have|has|was|were|tell|read|show|give)\b/i;
+
+/**
+ * "Yes. And how much did we take last week?": a plain yes to the card, then a
+ * question. Returns the question when the first sentence is a plain yes and
+ * the rest is plainly a question, so the card can be saved by code and the
+ * question answered after. Anything else, "yes, and add a toner", is not
+ * split: that is a change to the card and goes back to the assistant.
+ */
+export function yesThenQuestion(text: string): string | null {
+  const m = /^([^]{1,40}?[.!?])\s+([^]+)$/.exec(text.trim());
+  if (!m || answerTo(m[1]) !== "yes") return null;
+  const rest = m[2].trim();
+  if (!rest.endsWith("?") && !QUESTION_START.test(rest)) return null;
+  if (!QUESTION_START.test(rest) && /\b(add|change|make|move|instead|with)\b/i.test(rest)) return null;
+  return rest.replace(/^and\s+/i, "");
+}

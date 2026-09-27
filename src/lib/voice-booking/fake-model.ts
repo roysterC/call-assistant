@@ -3,9 +3,11 @@
  * whole path (microphone, words, card, save) can be tried with no API key.
  * Switched on with VOICE_BOOKING_FAKE_MODEL=1, never in production.
  *
- * It understands one shape, "Name, service, day at time [with stylist]", and
- * "make that <time>". It calls the real tools, so the card, the rules and the
- * save are the real ones; only the reading of the sentence is faked.
+ * It understands a few shapes: "Name, service, day at time [with stylist]
+ * [and text her]", "make that <time>", "add a note for <name>: <note>",
+ * "how much did we take this week", "what's my day". It calls the real tools,
+ * so the cards, the rules, the answers and the saves are the real ones; only
+ * the reading of the sentence is faked.
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
@@ -17,11 +19,13 @@ interface Asked {
   date: string;
   time: string;
   stylist?: string;
+  text?: boolean;
 }
 
 export function fakeBookingModel(): StreamingClient {
   let asked: Asked | null = null;
   let clientId: string | undefined;
+  let noteText: string | null = null;
   let n = 0;
 
   const reply = (content: Anthropic.ContentBlock[]): Anthropic.Message =>
@@ -45,6 +49,7 @@ export function fakeBookingModel(): StreamingClient {
       date: asked!.date,
       time: asked!.time,
       stylist: asked!.stylist,
+      textClient: asked!.text,
     });
 
   return {
@@ -67,7 +72,19 @@ export function fakeBookingModel(): StreamingClient {
           if (data.clients) {
             const exact = data.clients.find((c: { exactMatch: boolean }) => c.exactMatch);
             clientId = exact?.clientId;
-            message = propose();
+            if (noteText !== null) {
+              message = exact ? tool("propose_note", { clientId, note: noteText }) : say("I can't find that client.");
+              noteText = null;
+            } else {
+              message = propose();
+            }
+          } else if (data.taken) {
+            message = say(`${data.period}: you took ${data.taken} across ${data.appointmentsDone} appointments.`);
+          } else if (data.closed) {
+            message = say(`${data.date}: the salon is closed.`);
+          } else if (data.stylists) {
+            const n = data.stylists.reduce((t: number, st: { appointments: unknown[] }) => t + st.appointments.length, 0);
+            message = say(`${data.date}: ${n} appointments in the diary.`);
           } else if (data.shownOnScreen) {
             message = say(`${data.shownOnScreen}. Save it?`);
           } else {
@@ -75,12 +92,25 @@ export function fakeBookingModel(): StreamingClient {
           }
         } else {
           const change = /^make (?:that|it) (.+)$/i.exec(text.trim());
-          const m = /^(.+?),\s*(.+?),\s*(.+?)\s+at\s+(.+?)(?:\s+with\s+(\w+))?\.?$/i.exec(text.trim());
-          if (change && asked) {
+          const texting = /,?\s+and text (?:her|him|them)\.?$/i.test(text.trim());
+          const m = /^(.+?),\s*(.+?),\s*(.+?)\s+at\s+(.+?)(?:\s+with\s+(\w+))?\.?$/i.exec(
+            text.trim().replace(/,?\s+and text (?:her|him|them)\.?$/i, "")
+          );
+          const note = /^add a note for (.+?):\s*(.+)$/i.exec(text.trim());
+          const money = /how much did we take (this|last) (day|week|month|year)/i.exec(text);
+          const dayAsk = /what'?s (?:my|the) (?:day|afternoon|morning)|who'?s in (today|tomorrow)/i.exec(text);
+          if (money) {
+            message = tool("takings", { period: money[2].toLowerCase(), offset: money[1].toLowerCase() === "last" ? -1 : 0 });
+          } else if (dayAsk) {
+            message = tool("day_schedule", { date: dayAsk[1] ?? "today" });
+          } else if (note) {
+            noteText = note[2];
+            message = tool("find_client", { name: note[1] });
+          } else if (change && asked) {
             asked.time = change[1];
             message = propose();
           } else if (m) {
-            asked = { name: m[1], service: m[2], date: m[3], time: m[4], stylist: m[5] };
+            asked = { name: m[1], service: m[2], date: m[3], time: m[4], stylist: m[5], text: texting };
             clientId = undefined;
             message = tool("find_client", { name: asked.name });
           } else {

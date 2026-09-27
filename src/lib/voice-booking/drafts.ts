@@ -28,6 +28,7 @@ import {
 } from "@/lib/booking";
 import { bookAppointment, findBlockClash, findClash, moveAppointment } from "@/lib/booking/diary";
 import {
+  describeAppointmentWhen,
   parseDateOnly,
   parseSpokenTime,
   resolveSpokenDate,
@@ -35,7 +36,14 @@ import {
   zonedParts,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
-import { clientForBooking } from "@/lib/client-link";
+import { clientForBooking, textRecipient } from "@/lib/client-link";
+import {
+  cancellationBody,
+  confirmationBody,
+  rescheduleBody,
+  sendSms,
+  type AppointmentMessageInput,
+} from "@/lib/sms";
 import { namesMatch } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
 import { matchStylist, resolveBookedService, type SalonService, type Stylist } from "@/lib/salon-config";
@@ -49,13 +57,27 @@ interface DraftBase {
   id: string;
   /** Who it is for, as the card shows it. */
   clientName: string;
+}
+
+/** A text to go to the client once the change is saved. */
+export interface TextPlan {
+  to: string;
+  /** Whom it greets: the client, or the parent a child is reached through. */
+  greet: string | null;
+  /** Set when it goes to someone else's phone about this client. */
+  forName: string | null;
+}
+
+interface DiaryDraft extends DraftBase {
   service: string;
   stylist: string;
   startsAt: string;
   endsAt: string;
+  /** Text the client about it once saved; null for no text. */
+  text: TextPlan | null;
 }
 
-export interface BookDraft extends DraftBase {
+export interface BookDraft extends DiaryDraft {
   kind: "book";
   leadId: string | null;
   /** For a client not yet on the books. */
@@ -66,19 +88,34 @@ export interface BookDraft extends DraftBase {
   notes: string | null;
 }
 
-export interface MoveDraft extends DraftBase {
+export interface MoveDraft extends DiaryDraft {
   kind: "move";
   appointmentId: string;
   from: { startsAt: string; stylist: string };
   durationMinutes: number;
 }
 
-export interface CancelDraft extends DraftBase {
+export interface CancelDraft extends DiaryDraft {
   kind: "cancel";
   appointmentId: string;
 }
 
-export type Draft = BookDraft | MoveDraft | CancelDraft;
+/** A line added to a client's notes. */
+export interface NoteDraft extends DraftBase {
+  kind: "note";
+  leadId: string;
+  note: string;
+}
+
+/** A text to a client, word for word as the card shows it. */
+export interface TextDraft extends DraftBase {
+  kind: "text";
+  leadId: string;
+  to: string;
+  body: string;
+}
+
+export type Draft = BookDraft | MoveDraft | CancelDraft | NoteDraft | TextDraft;
 
 export type Proposal = { ok: true; draft: Draft } | { ok: false; message: string; [k: string]: unknown };
 
@@ -252,6 +289,8 @@ export interface BookingRequest {
   /** Staff saying the client has had their skin test. */
   skinTestDone?: boolean;
   notes?: string;
+  /** Text the client a confirmation once it is saved. */
+  textClient?: boolean;
 }
 
 export async function proposeBooking(asker: Asker, req: BookingRequest): Promise<Proposal> {
@@ -340,12 +379,24 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
     stylist = free.stylist;
   }
 
+  let text: TextPlan | null = null;
+  if (req.textClient) {
+    const plan = leadId
+      ? await textPlanFor(leadId)
+      : newClient?.phone
+        ? { ok: true as const, plan: { to: newClient.phone, greet: clientName, forName: null } }
+        : { ok: false as const, message: `There is no number for ${clientName}, so they cannot be texted.` };
+    if (!plan.ok) return { ok: false, message: `${plan.message} Book it without a text?` };
+    text = plan.plan;
+  }
+
   const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
   return {
     ok: true,
     draft: {
       id: randomUUID(),
       kind: "book",
+      text,
       leadId,
       newClient,
       clientName,
@@ -388,7 +439,7 @@ async function changeable(asker: Asker, appointmentId: string | undefined) {
 
 export async function proposeMove(
   asker: Asker,
-  req: { appointmentId?: string; date?: string; time?: string; stylist?: string }
+  req: { appointmentId?: string; date?: string; time?: string; stylist?: string; textClient?: boolean }
 ): Promise<Proposal> {
   const found = await changeable(asker, req.appointmentId);
   if (!found.ok) return found;
@@ -416,11 +467,14 @@ export async function proposeMove(
     }
   }
 
+  const text = req.textClient ? await textPlanFor(appt.leadId) : null;
+  if (text && !text.ok) return { ok: false, message: `${text.message} Move it without a text?` };
   return {
     ok: true,
     draft: {
       id: randomUUID(),
       kind: "move",
+      text: text?.plan ?? null,
       appointmentId: appt.id,
       clientName: appt.lead.name ?? "Client",
       service: appt.serviceText,
@@ -433,15 +487,21 @@ export async function proposeMove(
   };
 }
 
-export async function proposeCancel(asker: Asker, req: { appointmentId?: string }): Promise<Proposal> {
+export async function proposeCancel(
+  asker: Asker,
+  req: { appointmentId?: string; textClient?: boolean }
+): Promise<Proposal> {
   const found = await changeable(asker, req.appointmentId);
   if (!found.ok) return found;
   const { appt } = found;
+  const text = req.textClient ? await textPlanFor(appt.leadId) : null;
+  if (text && !text.ok) return { ok: false, message: `${text.message} Cancel it without a text?` };
   return {
     ok: true,
     draft: {
       id: randomUUID(),
       kind: "cancel",
+      text: text?.plan ?? null,
       appointmentId: appt.id,
       clientName: appt.lead.name ?? "Client",
       service: appt.serviceText,
@@ -452,10 +512,64 @@ export async function proposeCancel(asker: Asker, req: { appointmentId?: string 
   };
 }
 
+/** Where a text to this client would go, or why it cannot. */
+async function textPlanFor(leadId: string): Promise<{ ok: true; plan: TextPlan } | { ok: false; message: string }> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { name: true, phone: true, contactLead: { select: { name: true, phone: true } } },
+  });
+  const who = lead?.name ?? "This client";
+  const r = lead ? textRecipient(lead) : null;
+  if (!r) return { ok: false, message: `${who} has no mobile number on file, so they cannot be texted.` };
+  const parsed = normalisePhone(r.to);
+  if (!parsed.ok || !parsed.isMobile) return { ok: false, message: `${who}'s number is not a mobile, so a text would not arrive.` };
+  return { ok: true, plan: { to: r.to, greet: r.greet, forName: r.forName } };
+}
+
+export async function proposeNote(asker: Asker, req: { clientId?: string; note?: string }): Promise<Proposal> {
+  const note = req.note?.trim();
+  if (!note) return { ok: false, message: "What should the note say?" };
+  if (note.length > 1000) return { ok: false, message: "That note is too long; say it shorter." };
+  const lead = req.clientId
+    ? await prisma.lead.findFirst({ where: { id: req.clientId, organizationId: asker.organizationId } })
+    : null;
+  if (!lead) return { ok: false, message: "Which client? Look them up first." };
+  return { ok: true, draft: { id: randomUUID(), kind: "note", leadId: lead.id, clientName: lead.name ?? "Client", note } };
+}
+
+/**
+ * A text to a client in the salon's name: running late, a gap has opened.
+ * Owners only: a message from the salon's number is the salon speaking.
+ */
+export async function proposeText(asker: Asker, req: { clientId?: string; message?: string }): Promise<Proposal> {
+  if (asker.stylist) return { ok: false, message: "Only the salon's owner can send texts from here." };
+  const body = req.message?.replace(/\s+/g, " ").trim();
+  if (!body) return { ok: false, message: "What should the text say?" };
+  if (body.length > 480) return { ok: false, message: "That is too long for a text; say it shorter." };
+  const lead = req.clientId
+    ? await prisma.lead.findFirst({ where: { id: req.clientId, organizationId: asker.organizationId } })
+    : null;
+  if (!lead) return { ok: false, message: "Which client? Look them up first." };
+  const plan = await textPlanFor(lead.id);
+  if (!plan.ok) return plan;
+  return {
+    ok: true,
+    draft: { id: randomUUID(), kind: "text", leadId: lead.id, clientName: lead.name ?? "Client", to: plan.plan.to, body },
+  };
+}
+
 // --- Saving --------------------------------------------------------------------------------
 
 export type Committed =
-  | { ok: true; kind: Draft["kind"]; appointmentId: string; startsAt: string; stylist: string }
+  | {
+      ok: true;
+      kind: Draft["kind"];
+      appointmentId?: string;
+      startsAt?: string;
+      stylist?: string;
+      /** For a draft that texts: whether it went, and why not. */
+      texted?: { sent: boolean; reason?: string };
+    }
   | { ok: false; message: string };
 
 /**
@@ -464,6 +578,14 @@ export type Committed =
  * may have taken the time since.
  */
 export async function commitDraft(asker: Asker, draft: Draft): Promise<Committed> {
+  if (draft.kind === "note") return commitNote(asker, draft);
+  if (draft.kind === "text") {
+    if (asker.stylist) return { ok: false, message: "Only the salon's owner can send texts from here." };
+    const sent = await sendSms(asker.organizationId, draft.to, draft.body);
+    return sent.ok
+      ? { ok: true, kind: "text", texted: { sent: true } }
+      : { ok: false, message: `The text did not go: ${sent.reason}` };
+  }
   const provider = await getBookingProvider(asker.organizationId);
   if (!canCreateBooking(provider)) return { ok: false, message: "This diary is not set up to take bookings yet." };
   if (!canWriteColumn(asker as TenantContext, draft.stylist)) {
@@ -510,7 +632,8 @@ export async function commitDraft(asker: Asker, draft: Draft): Promise<Committed
       }
     );
     if (!booked.ok) return { ok: false, message: `Not booked: ${booked.reason}` };
-    return { ok: true, kind: "book", appointmentId: booked.appointment.id, startsAt: draft.startsAt, stylist: draft.stylist };
+    const texted = await textAbout(asker, draft, (i) => confirmationBody({ ...i, bookingNumber: booked.appointment.bookingNumber }));
+    return { ok: true, kind: "book", appointmentId: booked.appointment.id, startsAt: draft.startsAt, stylist: draft.stylist, texted };
   }
 
   const found = await changeable(asker, draft.appointmentId);
@@ -526,7 +649,15 @@ export async function commitDraft(asker: Asker, draft: Draft): Promise<Committed
       allowOverlap: false,
     });
     if (!moved.ok) return { ok: false, message: `Not moved: ${moved.reason}` };
-    return { ok: true, kind: "move", appointmentId: appt.id, startsAt: draft.startsAt, stylist: draft.stylist };
+    const cfg = await getSalonConfig(asker.organizationId);
+    const texted = await textAbout(asker, draft, (i) =>
+      rescheduleBody({
+        ...i,
+        bookingNumber: appt.bookingNumber,
+        previousWhenText: describeAppointmentWhen(new Date(draft.from.startsAt), cfg.timeZone),
+      })
+    );
+    return { ok: true, kind: "move", appointmentId: appt.id, startsAt: draft.startsAt, stylist: draft.stylist, texted };
   }
 
   // Cancel: off the stylist's calendar too, as the phone does, or the slot
@@ -539,7 +670,54 @@ export async function commitDraft(asker: Asker, draft: Draft): Promise<Committed
     }
   }
   await prisma.appointment.update({ where: { id: appt.id }, data: { status: "cancelled" } });
-  return { ok: true, kind: "cancel", appointmentId: appt.id, startsAt: draft.startsAt, stylist: draft.stylist };
+  const texted = await textAbout(asker, draft, (i) => cancellationBody(i));
+  return { ok: true, kind: "cancel", appointmentId: appt.id, startsAt: draft.startsAt, stylist: draft.stylist, texted };
+}
+
+/** Add a dated line to the client's notes, under whoever said it. */
+async function commitNote(asker: Asker, draft: NoteDraft): Promise<Committed> {
+  const lead = await prisma.lead.findFirst({ where: { id: draft.leadId, organizationId: asker.organizationId } });
+  if (!lead) return { ok: false, message: "That client is no longer on the books." };
+  const cfg = await getSalonConfig(asker.organizationId);
+  const day = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: cfg.timeZone });
+  const by = asker.stylist?.name;
+  const line = `${day}${by ? ` (${by})` : ""}: ${draft.note}`;
+  await prisma.lead.update({ where: { id: lead.id }, data: { notes: lead.notes?.trim() ? `${lead.notes.trim()}\n${line}` : line } });
+  return { ok: true, kind: "note" };
+}
+
+/**
+ * The text that goes with a booking, move or cancellation, if the card said
+ * one would. Sent after the diary is changed, never instead of it; a text
+ * that fails does not undo the change, it is reported.
+ */
+async function textAbout(
+  asker: Asker,
+  draft: BookDraft | MoveDraft | CancelDraft,
+  body: (i: AppointmentMessageInput) => string
+): Promise<{ sent: boolean; reason?: string } | undefined> {
+  if (!draft.text) return undefined;
+  const [cfg, settings] = await Promise.all([
+    getSalonConfig(asker.organizationId),
+    prisma.organizationSettings.findUnique({
+      where: { organizationId: asker.organizationId },
+      select: { businessName: true, contactPhone: true },
+    }),
+  ]);
+  const sent = await sendSms(
+    asker.organizationId,
+    draft.text.to,
+    body({
+      clientName: draft.text.greet,
+      forName: draft.text.forName,
+      serviceName: draft.service,
+      stylistName: draft.stylist,
+      whenText: describeAppointmentWhen(new Date(draft.startsAt), cfg.timeZone),
+      businessName: settings?.businessName ?? "The salon",
+      contactPhone: settings?.contactPhone ?? null,
+    })
+  );
+  return sent.ok ? { sent: true } : { sent: false, reason: sent.reason };
 }
 
 // --- Words ---------------------------------------------------------------------------------

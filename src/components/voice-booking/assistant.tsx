@@ -1,21 +1,22 @@
 "use client";
 
 /**
- * Booking by voice, in the diary.
+ * The personal assistant, on every page.
  *
- * Tap the microphone and say it: "Sarah Jones, cut and finish, Thursday at
- * two". The words appear as they are heard; the assistant finds the client
- * and puts a card on screen; saying "yes" or tapping Save puts it in the
- * diary. Nothing is saved before that. "Make that half two" redraws the
- * card; "no" drops it. Moves and cancels work the same way.
+ * Tap it and talk: "what's my afternoon looking like?", "Sarah Jones, cut and
+ * finish, Thursday at two, and text her", "how much did we take last week?".
+ * The words appear as they are heard. Questions are answered; anything that
+ * would change something (a booking, a move, a note, a text) becomes a card,
+ * and nothing happens until "yes" or a tap on the card's button.
  *
- * The panel floats over the diary rather than covering it, so the day stays
- * in view while you talk. A box to type into does the same job for a noisy
- * salon or a browser without a microphone.
+ * Replies are read aloud in the device's own British voice, so it works with
+ * hands full, and the microphone pauses while it speaks so it does not hear
+ * itself. The panel floats over the page rather than covering it; a box to
+ * type into does the same job in a noisy salon.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarCheck, Loader2, Mic, MicOff, Send, X } from "lucide-react";
+import { CalendarCheck, Loader2, MessageSquareText, Mic, MicOff, NotebookPen, Send, Sparkles, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-fetch";
@@ -24,19 +25,28 @@ import { CAPTURE_WORKLET, MIC_RATE } from "@/components/receptionist/capture-wor
 
 export interface VoiceDraft {
   id: string;
-  kind: "book" | "move" | "cancel";
+  kind: "book" | "move" | "cancel" | "note" | "text";
   clientName: string;
-  service: string;
-  stylist: string;
-  date: string;
-  day: string;
-  time: string;
-  newClient: boolean;
-  phone: string | null;
-  skinTest: boolean;
-  notes: string | null;
-  from: { day: string; time: string; stylist: string } | null;
+  // Bookings, moves and cancellations.
+  service?: string;
+  stylist?: string;
+  date?: string;
+  day?: string;
+  time?: string;
+  newClient?: boolean;
+  phone?: string | null;
+  skinTest?: boolean;
+  notes?: string | null;
+  from?: { day: string; time: string; stylist: string } | null;
+  textTo?: { number: string; name: string | null } | null;
+  // A note, or a text of its own.
+  note?: string;
+  to?: string;
+  body?: string;
 }
+
+/** Tells any open diary that it has changed, so it reloads (and can show the day). */
+export const DIARY_CHANGED = "kikai:diary-changed";
 
 type Line = { who: "you" | "assistant"; text: string };
 
@@ -49,14 +59,18 @@ interface Reply {
   error?: string;
 }
 
-const KIND_LABEL = { book: "New booking", move: "Move booking", cancel: "Cancel booking" } as const;
+const KIND_LABEL = {
+  book: "New booking",
+  move: "Move booking",
+  cancel: "Cancel booking",
+  note: "Add a note",
+  text: "Send a text",
+} as const;
+const SAVE_LABEL = { book: "Save", move: "Save", cancel: "Cancel booking", note: "Add note", text: "Send text" } as const;
 
-export function VoiceBooking({
-  onSaved,
-}: {
-  /** A booking was saved, moved or cancelled: the diary should reload (and show that day). */
-  onSaved: (r: { date: string }) => void;
-}) {
+const SPEAK_KEY = "kikai.assistant.speak";
+
+export function Assistant() {
   const [open, setOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -66,6 +80,52 @@ export function VoiceBooking({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
+  const [speakReplies, setSpeakReplies] = useState(true);
+  const speaking = useRef(false);
+
+  // Remembered per browser; a browser that refuses storage just speaks.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SPEAK_KEY) === "off") setSpeakReplies(false);
+    } catch {
+      // Storage refused: keep the default.
+    }
+  }, []);
+  function toggleSpeak() {
+    const next = !speakReplies;
+    setSpeakReplies(next);
+    if (!next) stopSpeaking();
+    try {
+      localStorage.setItem(SPEAK_KEY, next ? "on" : "off");
+    } catch {
+      // Not remembered, still toggled.
+    }
+  }
+
+  /** Read a reply aloud, with the microphone paused so it does not hear itself. */
+  function speak(text: string) {
+    if (!speakReplies || typeof window === "undefined" || !("speechSynthesis" in window) || !text) return;
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const voices = synth.getVoices();
+    const british = voices.find((v) => v.lang === "en-GB" && /female|serena|kate|libby|sonia/i.test(v.name)) ?? voices.find((v) => v.lang === "en-GB");
+    if (british) u.voice = british;
+    u.lang = "en-GB";
+    u.rate = 1;
+    speaking.current = true;
+    const done = () => {
+      // A moment's grace for the last of it to leave the speaker.
+      setTimeout(() => (speaking.current = false), 300);
+    };
+    u.onend = done;
+    u.onerror = done;
+    synth.speak(u);
+  }
+  function stopSpeaking() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    speaking.current = false;
+  }
 
   const session = useRef<string | undefined>(undefined);
   const draftRef = useRef<VoiceDraft | null>(null);
@@ -100,13 +160,14 @@ export function VoiceBooking({
         setError(data.error ?? "That didn't work.");
         return;
       }
-      if (data.reply) setLines((l) => [...l, { who: "assistant", text: data.reply! }]);
+      if (data.reply) {
+        setLines((l) => [...l, { who: "assistant", text: data.reply! }]);
+        speak(data.reply);
+      }
       const saving = draftRef.current;
       setDraft(data.draft ?? null);
-      if (data.saved && data.result) {
-        onSaved({ date: saving?.date ?? data.result.startsAt.slice(0, 10) });
-        // Done: stop listening shortly after, as the person would.
-        setTimeout(() => stopListening(), 1500);
+      if (data.saved && data.result && saving && ["book", "move", "cancel"].includes(saving.kind)) {
+        window.dispatchEvent(new CustomEvent(DIARY_CHANGED, { detail: { date: saving.date } }));
       }
     } catch {
       setError("Could not reach the server.");
@@ -139,6 +200,8 @@ export function VoiceBooking({
       sock.binaryType = "arraybuffer";
       ws.current = sock;
       node.port.onmessage = (e) => {
+        // Not while the assistant is talking: it would hear itself.
+        if (speaking.current) return;
         if (sock.readyState === WebSocket.OPEN) sock.send(e.data as ArrayBuffer);
       };
       sock.onmessage = (e) => {
@@ -198,6 +261,7 @@ export function VoiceBooking({
 
   function close() {
     stopListening();
+    stopSpeaking();
     if (session.current) {
       void apiFetch(`/api/voice-booking?sessionId=${encodeURIComponent(session.current)}`, { method: "DELETE" });
     }
@@ -215,19 +279,27 @@ export function VoiceBooking({
 
   return (
     <>
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => (open ? close() : openAndListen())}>
-        <Mic className="h-3.5 w-3.5" />
-        Book by voice
-      </Button>
+      {!open && (
+        <button
+          type="button"
+          onClick={openAndListen}
+          aria-label="Ask your assistant"
+          title="Ask your assistant"
+          className="fixed z-30 right-4 bottom-4 sm:right-6 sm:bottom-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-raised flex items-center justify-center hover:brightness-110 active:scale-95 transition"
+        >
+          <Mic className="h-6 w-6" />
+        </button>
+      )}
 
       {open && (
         <div
           role="dialog"
-          aria-label="Book by voice"
+          aria-label="Your assistant"
           className="fixed z-40 inset-x-2 bottom-2 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[400px] max-h-[75vh] flex flex-col rounded-xl border border-border bg-card shadow-raised"
         >
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-            <span className="font-heading text-sm font-semibold">Book by voice</span>
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="font-heading text-sm font-semibold">Your assistant</span>
             <span
               className={cn(
                 "ml-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
@@ -238,17 +310,34 @@ export function VoiceBooking({
               <span className={cn("h-1.5 w-1.5 rounded-full", listening ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
               {connecting ? "Starting…" : listening ? "Listening" : "Not listening"}
             </span>
-            <Button variant="ghost" size="icon-sm" className="ml-auto" aria-label="Close" onClick={close}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="ml-auto"
+              aria-label={speakReplies ? "Stop reading replies aloud" : "Read replies aloud"}
+              aria-pressed={speakReplies}
+              onClick={toggleSpeak}
+            >
+              {speakReplies ? <Volume2 /> : <VolumeX />}
+            </Button>
+            <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={close}>
               <X />
             </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 min-h-[120px]">
             {lines.length === 0 && !heard && (
-              <p className="text-sm text-muted-foreground">
-                Say it as you would to a colleague: <em>&ldquo;Sarah Jones, cut and finish, Thursday at two.&rdquo;</em>{" "}
-                Or <em>&ldquo;move Tom to Friday&rdquo;</em>. Nothing is saved until you say yes.
-              </p>
+              <div className="space-y-1.5 text-sm text-muted-foreground">
+                <p>Ask it anything, or tell it what to do:</p>
+                <p>
+                  <em>&ldquo;What&rsquo;s my afternoon looking like?&rdquo;</em>
+                  <br />
+                  <em>&ldquo;Sarah Jones, cut and finish, Thursday at two, and text her.&rdquo;</em>
+                  <br />
+                  <em>&ldquo;When was Tom last in?&rdquo;</em> <em>&ldquo;How much did we take this week?&rdquo;</em>
+                </p>
+                <p>Nothing is booked, changed or sent until you say yes.</p>
+              </div>
             )}
             {lines.map((l, i) =>
               l.who === "you" ? (
@@ -264,14 +353,20 @@ export function VoiceBooking({
             {heard && <p className="ml-8 rounded-lg border border-dashed border-primary/30 px-3 py-2 text-sm italic text-muted-foreground">{heard}</p>}
             {busy && (
               <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking the diary…
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Thinking…
               </p>
             )}
 
             {draft && (
               <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-3" data-testid="voice-draft">
                 <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
-                  <CalendarCheck className="h-3.5 w-3.5" />
+                  {draft.kind === "note" ? (
+                    <NotebookPen className="h-3.5 w-3.5" />
+                  ) : draft.kind === "text" ? (
+                    <MessageSquareText className="h-3.5 w-3.5" />
+                  ) : (
+                    <CalendarCheck className="h-3.5 w-3.5" />
+                  )}
                   {KIND_LABEL[draft.kind]}
                 </p>
                 <p className="font-medium">
@@ -280,21 +375,36 @@ export function VoiceBooking({
                     <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">New client</span>
                   )}
                 </p>
-                <p className="text-sm">{draft.service}</p>
+                {draft.kind === "note" && <p className="mt-1 text-sm italic">&ldquo;{draft.note}&rdquo;</p>}
+                {draft.kind === "text" && (
+                  <>
+                    <p className="text-xs text-muted-foreground">To {draft.to}</p>
+                    <p className="mt-1.5 rounded-lg bg-card border border-border px-3 py-2 text-sm">{draft.body}</p>
+                  </>
+                )}
+                {draft.service && <p className="text-sm">{draft.service}</p>}
                 {draft.from && (
                   <p className="text-sm text-muted-foreground line-through">
                     {draft.from.day}, {draft.from.time} · {draft.from.stylist}
                   </p>
                 )}
-                <p className={cn("text-sm", draft.kind === "cancel" && "line-through text-muted-foreground")}>
-                  {draft.day}, {draft.time} · {draft.stylist}
-                </p>
+                {draft.day && (
+                  <p className={cn("text-sm", draft.kind === "cancel" && "line-through text-muted-foreground")}>
+                    {draft.day}, {draft.time} · {draft.stylist}
+                  </p>
+                )}
                 {draft.phone && <p className="text-xs text-muted-foreground">{draft.phone}</p>}
                 {draft.skinTest && <p className="mt-1 text-xs font-medium text-amber-800">Skin test needed 48 hours before</p>}
                 {draft.notes && <p className="mt-1 text-xs text-muted-foreground">{draft.notes}</p>}
+                {draft.textTo && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    <MessageSquareText className="h-3 w-3" />
+                    Texts {draft.textTo.name ?? "them"} on {draft.textTo.number}
+                  </p>
+                )}
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" disabled={busy} onClick={() => void send("", "save")}>
-                    {draft.kind === "cancel" ? "Cancel booking" : "Save"}
+                    {SAVE_LABEL[draft.kind]}
                   </Button>
                   <Button size="sm" variant="outline" disabled={busy} onClick={() => void send("", "discard")}>
                     Not this
@@ -322,7 +432,11 @@ export function VoiceBooking({
               size="icon-sm"
               variant={listening ? "default" : "outline"}
               aria-label={listening ? "Stop listening" : "Start listening"}
-              onClick={() => (listening || connecting ? stopListening() : void startListening())}
+              onClick={() => {
+                stopSpeaking();
+                if (listening || connecting) stopListening();
+                else void startListening();
+              }}
             >
               {listening ? <MicOff /> : <Mic />}
             </Button>
@@ -330,7 +444,7 @@ export function VoiceBooking({
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               placeholder="Or type it…"
-              aria-label="Type a booking"
+              aria-label="Type to your assistant"
               className="h-8"
             />
             <Button type="submit" size="icon-sm" variant="ghost" aria-label="Send" disabled={!typed.trim() || busy}>

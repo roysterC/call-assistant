@@ -19,8 +19,8 @@ import { requireTenant, isErrorResponse, type TenantContext } from "@/lib/tenant
 import { prisma } from "@/lib/prisma";
 import { getSalonConfig } from "@/lib/booking";
 import { receptionistApiKey } from "@/lib/receptionist/session";
-import { answerTo } from "@/lib/voice-booking/confirm";
-import { commitDraft, type Draft } from "@/lib/voice-booking/drafts";
+import { answerTo, yesThenQuestion } from "@/lib/voice-booking/confirm";
+import { commitDraft, type Committed, type Draft } from "@/lib/voice-booking/drafts";
 import {
   describeDraft,
   endSession,
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   // --- The buttons ------------------------------------------------------------------
   if (body.action === "save" || body.action === "discard") {
     if (!session?.pending) return NextResponse.json({ error: "There is nothing waiting to be saved." }, { status: 409 });
-    return body.action === "save" ? save(session) : NextResponse.json(discard(session));
+    return NextResponse.json(body.action === "save" ? await save(session) : discard(session));
   }
 
   // --- Something said -----------------------------------------------------------------
@@ -53,10 +53,19 @@ export async function POST(req: NextRequest) {
   if (text.length > 1000) return NextResponse.json({ error: "That is longer than a booking needs." }, { status: 400 });
 
   // A card is waiting and the answer is a plain yes or no: settled here.
+  let savedFirst: Saved | null = null;
+  let ask = text;
   if (session?.pending) {
     const answer = answerTo(text);
-    if (answer === "yes") return save(session);
+    if (answer === "yes") return NextResponse.json(await save(session));
     if (answer === "no") return NextResponse.json(discard(session));
+    // "Yes. And how much did we take last week?": save, then answer.
+    const question = yesThenQuestion(text);
+    if (question) {
+      savedFirst = await save(session);
+      if (!savedFirst.saved) return NextResponse.json(savedFirst);
+      ask = question;
+    }
   }
 
   if (!session) {
@@ -79,7 +88,7 @@ export async function POST(req: NextRequest) {
   const started = Date.now();
   try {
     const before = session.pending?.id;
-    const turn = await session.engine.respond(text);
+    const turn = await session.engine.respond(ask);
     void recordUsage(ctx.organizationId, {
       source: "desk_voice",
       sessionKey: session.id,
@@ -94,10 +103,11 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({
       sessionId: session.id,
-      reply: turn.text,
+      reply: savedFirst ? `${savedFirst.reply} ${turn.text}` : turn.text,
       draft: await view(session),
       // A new card this turn, so the screen can draw attention to it.
       newDraft: Boolean(session.pending && session.pending.id !== before),
+      ...(savedFirst ? { saved: true, result: savedFirst.result } : {}),
     });
   } catch (err) {
     console.error("[VOICE BOOKING] turn failed:", err);
@@ -107,7 +117,10 @@ export async function POST(req: NextRequest) {
         : err instanceof Anthropic.RateLimitError
           ? "Busy just now. Try again in a moment."
           : "Something went wrong. Try again, or book it by hand.";
-    return NextResponse.json({ error: detail, sessionId: session.id }, { status: 502 });
+    return NextResponse.json(
+      savedFirst ? { ...savedFirst, reply: `${savedFirst.reply} ${detail}` } : { error: detail, sessionId: session.id },
+      { status: savedFirst ? 200 : 502 }
+    );
   } finally {
     session.busy = false;
   }
@@ -123,23 +136,20 @@ export async function DELETE(req: NextRequest) {
 
 // --- Helpers ------------------------------------------------------------------------------
 
+type Saved = Awaited<ReturnType<typeof save>>;
+
 async function save(session: VoiceBookingSession) {
   const draft = session.pending!;
   const result = await commitDraft(session.asker, draft);
   if (!result.ok) {
     // The card stays: the person can change it and try again.
-    return NextResponse.json({ sessionId: session.id, saved: false, reply: result.message, draft: await view(session) });
+    return { sessionId: session.id, saved: false as const, reply: result.message, draft: await view(session) };
   }
   session.pending = null;
+  const reply = done(draft, result);
   // The assistant hears how it ended, so "and book her again next month" follows on.
-  remember(session, `[Saved: ${describeDraft(draft, await timeZone(session))}.]`, done(draft));
-  return NextResponse.json({
-    sessionId: session.id,
-    saved: true,
-    reply: done(draft),
-    result,
-    draft: null,
-  });
+  remember(session, `[Saved: ${describeDraft(draft, await timeZone(session))}.]`, reply);
+  return { sessionId: session.id, saved: true as const, reply, result, draft: null };
 }
 
 function discard(session: VoiceBookingSession) {
@@ -148,8 +158,11 @@ function discard(session: VoiceBookingSession) {
   return { sessionId: session.id, saved: false, reply: "Okay, not saved.", draft: null };
 }
 
-function done(d: Draft): string {
-  return d.kind === "book" ? "Booked." : d.kind === "move" ? "Moved." : "Cancelled.";
+function done(d: Draft, r: Extract<Committed, { ok: true }>): string {
+  const what =
+    d.kind === "book" ? "Booked" : d.kind === "move" ? "Moved" : d.kind === "cancel" ? "Cancelled" : d.kind === "note" ? "Note added" : "Text sent";
+  if (!r.texted || d.kind === "text") return `${what}.`;
+  return r.texted.sent ? `${what} and texted.` : `${what}, but the text did not go: ${r.texted.reason}.`;
 }
 
 /** Keep the history in turns: a user line, then the assistant's answer. */
@@ -167,6 +180,8 @@ async function timeZone(session: VoiceBookingSession): Promise<string> {
 async function view(session: VoiceBookingSession) {
   const d = session.pending;
   if (!d) return null;
+  if (d.kind === "note") return { id: d.id, kind: d.kind, clientName: d.clientName, note: d.note };
+  if (d.kind === "text") return { id: d.id, kind: d.kind, clientName: d.clientName, to: d.to, body: d.body };
   const tz = await timeZone(session);
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });
   const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
@@ -184,6 +199,7 @@ async function view(session: VoiceBookingSession) {
     skinTest: d.kind === "book" && d.patchTestRequired,
     notes: d.kind === "book" ? d.notes : null,
     from: d.kind === "move" ? { day: day(d.from.startsAt), time: time(d.from.startsAt), stylist: d.from.stylist } : null,
+    textTo: d.text ? { number: d.text.to, name: d.text.greet } : null,
   };
 }
 

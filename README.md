@@ -164,23 +164,38 @@ Locally, `VOICE_FAKES=1 npx tsx src/voice-server/index.ts` runs it with a
 stand-in model, recogniser and voice, so the audio path can be tried with no
 provider accounts.
 
-### Booking by voice
+### The personal assistant
 
-The diary's **Book by voice** button (phase 4 of the Shogo proposal): staff say
-a booking, move or cancellation, a card shows exactly what would go in the
-diary, and nothing is saved until they say "yes" or tap Save. Owners and
-stylists alike; a stylist only books into their own column.
+Phase 3 of the Shogo proposal: a round assistant button on every signed-in
+page. Staff talk to it (or type) at the desk or on their phone:
+
+- **Questions** it answers straight away: the day ("what's my afternoon
+  like", "who's first in tomorrow", who is free when), a client ("when was
+  Sarah last in, and what colour did we use?"), the phone's messages, and
+  takings by day, week, month or year, by person and service, with no-shows
+  (the same figures as the Sales report, `src/lib/takings.ts`).
+- **Things to do** become a card, and nothing happens until "yes" or a tap:
+  book, move or cancel (with "and text her" for the client's text), add a
+  note to a client's page, or send a client a text (owners only). "Yes. And
+  how much did we take last week?" saves the card, then answers.
+
+How it is built:
 
 - The microphone goes to the voice server (`/voice/dictate`), which turns it
-  into words with Deepgram and sends them back. No voice is spoken back.
-- The words go to `/api/voice-booking`, where Haiku looks clients up and
-  draws the card (`src/lib/voice-booking/`). It has no tool that writes: a
-  plain "yes" or the Save button is handled by code, which saves the card
-  with the phone's rules (hours, working days, who does what, the skin test,
-  no double-booking).
+  into words with Deepgram and sends them back. Replies are read aloud by
+  the device's own British voice, with the microphone paused meanwhile; the
+  speaker button turns that off.
+- The words go to `/api/voice-booking`, where Haiku uses read-only tools and
+  draws cards (`src/lib/voice-booking/`). It has no tool that writes: a plain
+  "yes" or the card's button is handled by code, which saves it with the
+  phone's rules (hours, working days, who does what, the skin test, no
+  double-booking; a walk-in can be booked for now).
+- A stylist login sees and changes only what it could on screen: its own
+  column if that is all it sees, takings only if shared, no texts.
 - It uses the same settings as the receptionist's Talk tab
   (`RECEPTIONIST_VOICE_URL`, `RECEPTIONIST_VOICE_SECRET`, `DEEPGRAM_API_KEY`
-  and an Anthropic key); without them the typing box still works.
+  and an Anthropic key); texts need Twilio, as the confirmations do. Without
+  the voice settings the typing box still works.
 - Locally, `VOICE_FAKES=1` on the voice server and `VOICE_BOOKING_FAKE_MODEL=1`
   on the CRM try the whole path with no provider accounts.
 

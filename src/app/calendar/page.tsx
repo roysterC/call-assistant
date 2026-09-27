@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { VoiceBooking } from "@/components/voice-booking/voice-booking";
+import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
 import { apiFetch } from "@/lib/api-fetch";
 import { MonthPanel } from "@/components/calendar/month-panel";
 import {
@@ -380,6 +380,18 @@ export default function CalendarPage() {
     setView({ year: y, month: m });
   };
 
+  // The assistant changed the diary: show that day, and reload.
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const date = (e as CustomEvent<{ date?: string }>).detail?.date;
+      if (date && date !== selected) jump(date);
+      loadDay();
+      loadMonth();
+    };
+    window.addEventListener(DIARY_CHANGED, onChanged);
+    return () => window.removeEventListener(DIARY_CHANGED, onChanged);
+  });
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6">
       <div className="shrink-0">
@@ -428,15 +440,6 @@ export default function CalendarPage() {
           <Ban className="h-3.5 w-3.5" />
           Block time
         </Button>
-        {stylists.length > 0 && (
-          <VoiceBooking
-            onSaved={({ date }) => {
-              if (date !== selected) jump(date);
-              loadDay();
-              loadMonth();
-            }}
-          />
-        )}
         <div className="ml-1 sm:ml-2 min-w-0">
           <span className="font-heading text-base font-semibold">{prettyDate(selected)}</span>
           {settingsLoaded && !open && (

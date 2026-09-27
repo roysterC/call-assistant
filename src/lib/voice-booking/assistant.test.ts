@@ -35,8 +35,11 @@ vi.mock("./drafts", () => ({
   upcomingBookings: vi.fn(async () => []),
   proposeMove: vi.fn(),
   proposeCancel: vi.fn(),
+  proposeNote: vi.fn(),
+  proposeText: vi.fn(),
 }));
 vi.mock("@/lib/vapi-functions", () => ({ executeVapiFunction: vi.fn() }));
+vi.mock("./knowledge", () => ({ daySchedule: vi.fn(), clientHistory: vi.fn(), phoneMessages: vi.fn(), takings: vi.fn() }));
 vi.mock("@/lib/receptionist/session", () => ({
   receptionistApiKey: async () => null,
   receptionistModel: () => "claude-haiku-4-5",
@@ -71,7 +74,10 @@ describe("the assistant behind the diary's microphone", () => {
   it("has no tool that writes to the diary", async () => {
     const s = await startVoiceBooking(owner, "u", { speaker: "x", client: asks("find_client", { name: "x" }) });
     const names = (s.engine as unknown as { cfg: { tools: Anthropic.Tool[] } }).cfg.tools.map((t) => t.name);
-    expect(names.every((n) => /^(find_|check_|propose_)/.test(n))).toBe(true);
+    // Lookups that change nothing, and proposals that only draw a card.
+    const readOnly = ["find_client", "find_bookings", "check_availability", "day_schedule", "client_history", "phone_messages", "takings"];
+    expect(names.filter((n) => !readOnly.includes(n)).every((n) => n.startsWith("propose_"))).toBe(true);
+    expect(names).toEqual(expect.arrayContaining(readOnly));
   });
 
   it("refuses a tool it was not given, and saves nothing", async () => {

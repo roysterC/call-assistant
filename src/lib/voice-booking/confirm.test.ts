@@ -32,3 +32,20 @@ describe("a plain yes or no to the card on screen", () => {
     }
   });
 });
+
+import { yesThenQuestion } from "./confirm";
+
+describe("a yes followed by a question", () => {
+  it("splits a plain yes from a question after it", () => {
+    expect(yesThenQuestion("Yes. And how much did we take last week?")).toBe("how much did we take last week?");
+    expect(yesThenQuestion("Yeah, save it. Who's first in tomorrow?")).toBe("Who's first in tomorrow?");
+    expect(yesThenQuestion("Yes please. Any messages?")).toBe("Any messages?");
+  });
+
+  it("does not split a change to the card", () => {
+    expect(yesThenQuestion("Yes. And add a toner.")).toBeNull();
+    expect(yesThenQuestion("Yes, with Marcus instead")).toBeNull();
+    expect(yesThenQuestion("No. How about Friday?")).toBeNull();
+    expect(yesThenQuestion("Yes")).toBeNull();
+  });
+});
