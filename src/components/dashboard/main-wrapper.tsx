@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { BrandMark, Sidebar } from "@/components/dashboard/sidebar";
@@ -11,6 +11,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
   // rather than by an effect watching the path — everything inside the drawer
   // that navigates already runs one of those.
   const [navOpen, setNavOpen] = useState(false);
+  const [collapsed, setCollapsed] = useCollapsedNav();
 
   // Embed, login, and public legal pages: no sidebar, no padding, no chrome.
   // The legal pages must render standalone so Meta's app-review crawler
@@ -60,8 +61,13 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
           />
         )}
 
-        <Suspense fallback={<SidebarFallback />}>
-          <Sidebar open={navOpen} onNavigate={() => setNavOpen(false)} />
+        <Suspense fallback={<SidebarFallback collapsed={collapsed} />}>
+          <Sidebar
+            open={navOpen}
+            onNavigate={() => setNavOpen(false)}
+            collapsed={collapsed}
+            onToggleCollapsed={() => setCollapsed(!collapsed)}
+          />
         </Suspense>
 
         <main className="flex-1 overflow-auto min-w-0">
@@ -76,11 +82,42 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SidebarFallback() {
+function SidebarFallback({ collapsed }: { collapsed: boolean }) {
   return (
     <aside
-      className="hidden md:block w-64 bg-sidebar border-r border-sidebar-border shrink-0"
+      className={`hidden md:block ${collapsed ? "w-16" : "w-64"} bg-sidebar border-r border-sidebar-border shrink-0`}
       aria-hidden
     />
   );
+}
+
+const COLLAPSED_KEY = "sidebar-collapsed";
+
+/**
+ * Whether the menu is folded to its icon rail, remembered in this browser.
+ *
+ * Read after mount rather than during render: the server has no storage, and
+ * reading it in render would give the server and the browser different
+ * markup. Storage can be missing or refuse (private windows), so both sides
+ * are guarded and the menu simply starts open.
+ */
+function useCollapsedNav(): [boolean, (next: boolean) => void] {
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one read of browser storage after mount
+      if (window.localStorage.getItem(COLLAPSED_KEY) === "1") setCollapsed(true);
+    } catch {
+      // No storage: start open.
+    }
+  }, []);
+  const set = (next: boolean) => {
+    setCollapsed(next);
+    try {
+      window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
+    } catch {
+      // Not remembered, but still folded for this visit.
+    }
+  };
+  return [collapsed, set];
 }

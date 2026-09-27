@@ -25,8 +25,9 @@ export const SLOT_MINUTES = 15;
  */
 export const HOUR_HEIGHT_PX = 96;
 
-/** On a phone, where a row is also a thumb's target: 1.5 times the old 96. */
-export const PHONE_HOUR_HEIGHT_PX = 144;
+/** On a phone, where a row is also a thumb's target. Kept at 96 when the
+ *  desktop grid grew: taller would mean scrolling a long way through a day. */
+export const PHONE_HOUR_HEIGHT_PX = 96;
 
 /**
  * Width kept clear on the right of every column, in pixels.
