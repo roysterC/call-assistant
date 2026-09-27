@@ -23,6 +23,9 @@ import { StylistsEditor } from "@/components/settings/stylists-editor";
 import { TeamLogins } from "@/components/settings/team-logins";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
+import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
+
+const labelFor = (href: string) => NAV_PAGES.find((p) => p.href === href)?.label ?? "Dashboard";
 
 interface Settings {
   businessName: string;
@@ -40,6 +43,8 @@ interface Settings {
   facebookPageId: string | null;
   /** "native" (our own diary) or "google". */
   diaryProvider?: string;
+  /** The page the CRM opens on; null for automatic. */
+  startPage: string | null;
 }
 
 interface PhoneNumber {
@@ -57,6 +62,11 @@ export default function SettingsPage() {
   const [voiceNumbers, setVoiceNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // What the last save did. It used to say nothing either way, which is how a
+  // contact number that never saved went unnoticed.
+  const [saveResult, setSaveResult] = useState<{ ok: boolean; message: string } | null>(null);
+  // What "automatic" currently means for this organisation, to show beside it.
+  const [automaticStart, setAutomaticStart] = useState<string>(DASHBOARD);
 
   useEffect(() => {
     async function fetchAll() {
@@ -77,8 +87,10 @@ export default function SettingsPage() {
           instagramBusinessId: data.settings?.instagramBusinessId ?? null,
           facebookEnabled: !!data.settings?.facebookEnabled,
           facebookPageId: data.settings?.facebookPageId ?? null,
+          startPage: data.settings?.startPage ?? null,
         };
         setSettings(s);
+        if (!s.startPage && data.startPage) setAutomaticStart(data.startPage);
 
         // Parallel phone-number fetches (only for enabled features)
         const fetches: Promise<void>[] = [];
@@ -111,11 +123,12 @@ export default function SettingsPage() {
   async function handleSave() {
     if (!settings) return;
     setSaving(true);
+    setSaveResult(null);
     try {
       // Only send the fields the settings page actually edits. The API
       // strips super-admin-only fields anyway, but being explicit here
       // avoids round-tripping stale flag state.
-      await apiFetch("/api/settings", {
+      const res = await apiFetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -125,10 +138,24 @@ export default function SettingsPage() {
           businessHours: settings.businessHours,
           services: settings.services,
           teamMembers: settings.teamMembers,
+          startPage: settings.startPage ?? "",
         }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSaveResult({ ok: false, message: data.error || "Could not save your changes." });
+        return;
+      }
+      // Show what was stored, e.g. the contact number as texts will print it.
+      setSettings({
+        ...settings,
+        contactPhone: data.settings?.contactPhone ?? null,
+        startPage: data.settings?.startPage ?? null,
+      });
+      setSaveResult({ ok: true, message: "Saved." });
     } catch (error) {
       console.error("Failed to save settings:", error);
+      setSaveResult({ ok: false, message: "Could not reach the server." });
     } finally {
       setSaving(false);
     }
@@ -199,10 +226,20 @@ export default function SettingsPage() {
         title="Settings"
         description="Your organisation profile and enabled features"
         actions={
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving…" : "Save changes"}
-          </Button>
+          <div className="flex items-center gap-3">
+            {saveResult && (
+              <span
+                role="status"
+                className={saveResult.ok ? "text-sm text-emerald-700" : "text-sm text-red-600"}
+              >
+                {saveResult.message}
+              </span>
+            )}
+            <Button onClick={handleSave} disabled={saving}>
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
         }
       />
 
@@ -239,6 +276,31 @@ export default function SettingsPage() {
               Printed in confirmation and reminder texts. Customers cannot
               reply to those messages, so this is the only way they can reach
               you about a booking.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="start-page" className="text-sm font-medium">
+              Start page
+            </label>
+            <select
+              id="start-page"
+              value={settings.startPage ?? ""}
+              onChange={(e) => setSettings({ ...settings, startPage: e.target.value || null })}
+              className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              <option value="">Automatic ({labelFor(automaticStart)})</option>
+              {NAV_PAGES.filter((p) => isStartPageChoice(p.href) && isNavVisible(p, settings)).map((p) => (
+                <option key={p.href} value={p.href}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              The screen the CRM opens on after signing in, and the top of the
+              menu. Automatic opens a salon taking bookings on the Diary, and
+              anyone else on the Dashboard. Stylist logins always open on the
+              Diary.
             </p>
           </div>
         </CardContent>

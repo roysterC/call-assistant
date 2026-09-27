@@ -134,6 +134,10 @@ model OrganizationSettings {
   // Calendar is the diary, as before; kept so a salon that runs its day in
   // Google can stay there, and as the way back if native ever misbehaves.
   diaryProvider           String       @default("native")
+  // The page the CRM opens on, and the top of its sidebar: one of
+  // START_PAGE_CHOICES in src/lib/navigation.ts. Null means automatic: the
+  // diary for a salon whose diary takes bookings, the dashboard otherwise.
+  startPage               String?
   // Salon diary. The booking provider is chosen from what is configured here:
   // Google calendar ids on teamMembers -> google; Cal.com creds -> calcom;
   // otherwise the manual provider, which cannot claim availability at all.

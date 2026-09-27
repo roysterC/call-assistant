@@ -134,3 +134,23 @@ export function speakablePhone(e164: string): string {
   if (r.isMobile) return `${n.slice(0, 5)} ${n.slice(5)}`;
   return `${n.slice(0, 5)} ${n.slice(5)}`;
 }
+
+/**
+ * The salon's own number, as it goes into texts ("Call us on 01234 567890").
+ *
+ * Blank means none: the texts then leave the line out. Anything else must be
+ * a number that parses, and is kept as the salon wrote it (spacing tidied):
+ * it is printed, not dialled by us, and a salon knows how its own number is
+ * written. Regrouping it would print Manchester's "0161 496 0000" as
+ * "01614 960000".
+ */
+export function contactNumberForTexts(
+  raw: unknown
+): { ok: true; value: string | null } | { ok: false; reason: string } {
+  if (raw === null || raw === undefined) return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false, reason: "That is not a phone number." };
+  if (!raw.trim()) return { ok: true, value: null };
+  const parsed = normalisePhone(raw);
+  if (!parsed.ok) return { ok: false, reason: parsed.reason };
+  return { ok: true, value: raw.trim().replace(/\s+/g, " ") };
+}
