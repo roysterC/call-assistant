@@ -27,11 +27,16 @@ function GoToStartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const asOrg = searchParams.get("asOrg");
+  // Opened by /assistant (Siri, Google Assistant): keep the assistant listening.
+  const assistant = searchParams.get("assistant") === "listen";
 
   useEffect(() => {
     let live = true;
     // A super-admin viewing another organisation stays viewing it.
-    const suffix = asOrg ? `?asOrg=${encodeURIComponent(asOrg)}` : "";
+    const params = new URLSearchParams();
+    if (asOrg) params.set("asOrg", asOrg);
+    if (assistant) params.set("assistant", "listen");
+    const suffix = params.size ? `?${params}` : "";
     apiFetch("/api/settings")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -43,7 +48,7 @@ function GoToStartPage() {
     return () => {
       live = false;
     };
-  }, [asOrg, router]);
+  }, [asOrg, assistant, router]);
 
   return null;
 }

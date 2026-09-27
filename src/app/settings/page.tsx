@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AssistantShortcut } from "@/components/settings/assistant-shortcut";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -443,6 +444,19 @@ export default function SettingsPage() {
           </Card>
         </>
       )}
+
+      <Card className="gap-0">
+        <CardHeader className="border-b pb-3">
+          <CardTitle className="text-base">Your assistant, hands-free</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Open the assistant already listening, with Siri or from your phone&apos;s home screen, without touching the
+            screen.
+          </p>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <AssistantShortcut />
+        </CardContent>
+      </Card>
 
     </div>
   );

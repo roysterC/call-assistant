@@ -17,6 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CalendarCheck, Loader2, MessageSquareText, Mic, MicOff, NotebookPen, Send, Sparkles, Volume2, VolumeX, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-fetch";
@@ -81,7 +82,30 @@ export function Assistant() {
   const [error, setError] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
   const [speakReplies, setSpeakReplies] = useState(true);
+  /** The browser wants a touch before it will use the microphone. */
+  const [needsTap, setNeedsTap] = useState(false);
   const speaking = useRef(false);
+
+  // Opened by /assistant (Siri, Google Assistant, the app icon): start
+  // listening straight away, and take the flag off the address so a reload
+  // does not start it again. This stays mounted while /assistant hands on to
+  // the start page, so it looks again each time the page changes.
+  const pathname = usePathname();
+  const arrived = useRef(false);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("assistant") !== "listen") return;
+    url.searchParams.delete("assistant");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    setOpen(true);
+    // The start page may pass the flag on once more; one microphone is enough.
+    if (arrived.current) return;
+    arrived.current = true;
+    setTimeout(() => (arrived.current = false), 5000);
+    void startListening({ unprompted: true });
+    // Only the arrival on a new page matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   // Remembered per browser; a browser that refuses storage just speaks.
   useEffect(() => {
@@ -176,8 +200,9 @@ export function Assistant() {
     }
   }
 
-  async function startListening() {
+  async function startListening(opts: { unprompted?: boolean } = {}) {
     setError(null);
+    setNeedsTap(false);
     setConnecting(true);
     try {
       const res = await apiFetch("/api/voice-booking/token", { method: "POST" });
@@ -190,6 +215,19 @@ export function Assistant() {
       mic.current = stream;
       const ac = new AudioContext();
       ctx.current = ac;
+      // Opened without a touch (by Siri, say), a browser may hold audio back
+      // until the person taps. Ask once; if it still will not start, show
+      // one big "tap to talk" rather than failing quietly.
+      if (ac.state === "suspended") {
+        await Promise.race([ac.resume().catch(() => {}), new Promise((r) => setTimeout(r, 600))]);
+        if (ac.state === "suspended") {
+          if (!opts.unprompted) throw new Error("The browser would not start the microphone. Tap the microphone to try again.");
+          teardownAudio();
+          setConnecting(false);
+          setNeedsTap(true);
+          return;
+        }
+      }
       const url = URL.createObjectURL(new Blob([CAPTURE_WORKLET], { type: "application/javascript" }));
       await ac.audioWorklet.addModule(url);
       URL.revokeObjectURL(url);
@@ -326,7 +364,18 @@ export function Assistant() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 min-h-[120px]">
-            {lines.length === 0 && !heard && (
+            {needsTap && (
+              <button
+                type="button"
+                onClick={() => void startListening()}
+                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 py-8 text-primary"
+              >
+                <Mic className="h-10 w-10" />
+                <span className="font-heading text-base font-semibold">Tap to talk</span>
+                <span className="text-xs text-muted-foreground">Your browser needs a tap before it will listen.</span>
+              </button>
+            )}
+            {lines.length === 0 && !heard && !needsTap && (
               <div className="space-y-1.5 text-sm text-muted-foreground">
                 <p>Ask it anything, or tell it what to do:</p>
                 <p>
