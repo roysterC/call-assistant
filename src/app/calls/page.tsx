@@ -76,7 +76,6 @@ export default function CallsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Call history"
-        description="All calls handled by your AI assistant"
       />
 
       <UsageSummary />

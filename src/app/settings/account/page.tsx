@@ -64,12 +64,7 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Account</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your personal account
-        </p>
-      </div>
+      <h1 className="text-2xl font-bold">Account</h1>
 
       {me?.mustChangePassword && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm">

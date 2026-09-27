@@ -22,6 +22,8 @@ import {
   CalendarDays,
   Receipt,
   FlaskConical,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -67,12 +69,22 @@ interface OrgSummary {
 export function Sidebar({
   open = false,
   onNavigate,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   /** Drawer state below md. Ignored from md up, where the rail is static. */
   open?: boolean;
   /** Close the drawer after a tap that navigates. */
   onNavigate?: () => void;
+  /**
+   * From md up: folded to a rail of icons, so a wide screen like the diary
+   * gets the room. Below md the drawer is always shown in full.
+   */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
+  /** Hidden on the folded rail; always shown in the phone drawer. */
+  const wide = collapsed ? "md:hidden" : "";
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const asOrg = searchParams.get("asOrg");
@@ -153,15 +165,16 @@ export function Sidebar({
         // be neither: a permanent 256px column that took two thirds of a phone
         // screen and left the conversation list a sliver — which is also why
         // the conversations page's own mobile layout never got to run.
-        "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transition-transform duration-200 md:static md:w-64 md:max-w-none md:translate-x-0 md:transition-none",
+        "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transition-transform duration-200 md:static md:max-w-none md:translate-x-0 md:transition-[width]",
+        collapsed ? "md:w-16" : "md:w-64",
         open ? "translate-x-0" : "-translate-x-full",
         "overflow-y-auto md:min-h-screen"
       )}
     >
-      <div className="px-5 pt-6 pb-5">
-        <div className="flex items-center gap-3">
+      <div className={cn("px-5 pt-6 pb-5", collapsed && "md:px-3.5")}>
+        <div className={cn("flex items-center gap-3", collapsed && "md:flex-col")}>
           <BrandMark />
-          <div className="min-w-0">
+          <div className={cn("min-w-0 flex-1", wide)}>
             <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate">
               {activeOrg?.name ||
                 session?.user?.organizationName ||
@@ -171,11 +184,22 @@ export function Sidebar({
               {isSuperAdmin && asOrg ? "viewing as super-admin" : "AI CRM"}
             </p>
           </div>
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+              title={collapsed ? "Expand menu" : "Collapse menu"}
+              className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-foreground hover:bg-accent transition-colors"
+            >
+              {collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
+            </button>
+          )}
         </div>
 
         {/* Super-admin org switcher */}
         {isSuperAdmin && orgs.length > 0 && (
-          <div className="mt-3">
+          <div className={cn("mt-3", wide)}>
             <DropdownMenu>
               <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-foreground/80 bg-card hover:bg-accent border border-input">
                 <span className="flex items-center gap-1.5">
@@ -205,8 +229,8 @@ export function Sidebar({
         )}
       </div>
 
-      <nav className="flex-1 px-3 pb-3 space-y-0.5">
-        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+      <nav className={cn("flex-1 px-3 pb-3 space-y-0.5", collapsed && "md:px-2")}>
+        <p className={cn("px-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80", wide)}>
           Menu
         </p>
         {orderForStartPage(navItems, startPage)
@@ -225,8 +249,12 @@ export function Sidebar({
                 key={item.href}
                 href={item.href + navSuffix}
                 onClick={onNavigate}
+                // The folded rail shows icons only; the name is on hover.
+                title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
                 className={cn(
                   "group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  collapsed && "md:justify-center md:px-0",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-slate-600 hover:text-foreground hover:bg-accent"
@@ -240,7 +268,7 @@ export function Sidebar({
                       : "text-slate-400 group-hover:text-slate-600"
                   )}
                 />
-                {item.label}
+                <span className={wide}>{item.label}</span>
               </Link>
             );
           })}
@@ -249,28 +277,37 @@ export function Sidebar({
           <Link
             href={`/admin/organizations${navSuffix}`}
             onClick={onNavigate}
+            title={collapsed ? "Admin" : undefined}
+            aria-label={collapsed ? "Admin" : undefined}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors mt-4",
+              collapsed && "md:justify-center md:px-0",
               pathname?.startsWith("/admin")
                 ? "bg-amber-50 text-amber-800"
                 : "text-slate-600 hover:text-amber-800 hover:bg-amber-50"
             )}
           >
             <Shield className="w-[18px] h-[18px]" />
-            Admin
+            <span className={wide}>Admin</span>
           </Link>
         )}
       </nav>
 
       {/* User menu */}
-      <div className="p-3 border-t border-sidebar-border">
+      <div className={cn("p-3 border-t border-sidebar-border", collapsed && "md:px-2")}>
         {user ? (
           <DropdownMenu>
-            <DropdownMenuTrigger className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent">
+            <DropdownMenuTrigger
+              title={collapsed ? user.name || user.email || undefined : undefined}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent",
+                collapsed && "md:justify-center md:px-0"
+              )}
+            >
               <div className="w-8 h-8 shrink-0 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold">
                 {(user.name || user.email || "?")[0].toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className={cn("flex-1 min-w-0 text-left", wide)}>
                 <p className="text-sm font-medium truncate">{user.name || user.email}</p>
                 <p className="text-[11px] text-muted-foreground truncate">
                   {user.email}
@@ -296,7 +333,7 @@ export function Sidebar({
         ) : (
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="w-2 h-2 bg-slate-300 rounded-full" />
-            <span className="text-xs text-muted-foreground">Not signed in</span>
+            <span className={cn("text-xs text-muted-foreground", wide)}>Not signed in</span>
           </div>
         )}
       </div>

@@ -8,17 +8,18 @@ import { cn } from "@/lib/utils";
  * buttons on in a row of its own. Individually invisible, collectively the
  * thing that makes an app feel assembled rather than designed.
  *
+ * Title only: the subtitle each page used to carry ("Scheduled follow-up
+ * calls with customers") told people what they were already looking at.
+ *
  * `actions` keeps page-level buttons on the header's baseline instead of each
  * page inventing its own row for them.
  */
 export function PageHeader({
   title,
-  description,
   actions,
   className,
 }: {
   title: string;
-  description?: string;
   actions?: React.ReactNode;
   className?: string;
 }) {
@@ -33,9 +34,6 @@ export function PageHeader({
         <h1 className="font-heading text-[1.65rem] leading-tight font-semibold tracking-[-0.01em] text-foreground">
           {title}
         </h1>
-        {description && (
-          <p className="text-sm text-muted-foreground mt-1.5">{description}</p>
-        )}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>

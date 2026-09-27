@@ -151,7 +151,6 @@ export default function ReceptionistLabPage() {
     <div className="space-y-6">
       <PageHeader
         title="Receptionist lab"
-        description="Try our own receptionist by typing or by talking, the way a caller would."
       />
 
       <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">

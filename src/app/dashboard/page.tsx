@@ -188,15 +188,6 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description={
-          showVoice && showChat
-            ? "Overview of your calls and website chats"
-            : showVoice
-              ? "Overview of your AI call assistant activity"
-              : showChat
-                ? "Overview of your website chat activity"
-                : "Overview of your account"
-        }
       />
 
       {/*

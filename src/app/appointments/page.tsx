@@ -124,7 +124,6 @@ export default function AppointmentsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Appointments"
-        description="Bookings the receptionist has put in the diary"
       />
 
       {/* The diary itself lives in Google. Saying so stops anyone treating a

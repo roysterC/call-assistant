@@ -224,7 +224,6 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Settings"
-        description="Your organisation profile and enabled features"
         actions={
           <div className="flex items-center gap-3">
             {saveResult && (
