@@ -24,8 +24,6 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "any",
     background_color: "#ffffff",
     theme_color: "#ffffff",
-    // The query is a version: phones keep the icon they first fetched, so a
-    // redrawn icon needs a new address before they will look again.
     // Long-press the app icon (Android): straight into the assistant, listening.
     shortcuts: [
       {
@@ -35,6 +33,8 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icons/icon-192.png?v=3", sizes: "192x192", type: "image/png" }],
       },
     ],
+    // The query is a version: phones keep the icon they first fetched, so a
+    // redrawn icon needs a new address before they will look again.
     icons: [
       { src: "/icons/icon-192.png?v=3", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png?v=3", sizes: "512x512", type: "image/png", purpose: "any" },
