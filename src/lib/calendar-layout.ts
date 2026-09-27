@@ -18,8 +18,15 @@ export const WINDOW_END_HOUR = 21;
 /** Row height of the grid, and the step a click on empty space snaps to. */
 export const SLOT_MINUTES = 15;
 
-/** Pixels per hour. Fifteen-minute rows need the room to be distinguishable. */
-export const HOUR_HEIGHT_PX = 64;
+/**
+ * Pixels per hour. Fifteen-minute rows need the room to be distinguishable,
+ * and a short booking its name and service. Was 64; half as tall again (96)
+ * at the salon's request, so each quarter-hour row is 24px.
+ */
+export const HOUR_HEIGHT_PX = 96;
+
+/** On a phone, where a row is also a thumb's target: 1.5 times the old 96. */
+export const PHONE_HOUR_HEIGHT_PX = 144;
 
 /**
  * Width kept clear on the right of every column, in pixels.
