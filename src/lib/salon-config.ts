@@ -12,6 +12,8 @@
  * from the language model.
  */
 
+import { formatMoneyShort } from "@/lib/money";
+
 export interface SalonService {
   name: string;
   durationMinutes: number;
@@ -510,7 +512,10 @@ export function serviceIsStaffedOn(
   );
 }
 
-/** Service catalogue for the voice prompt, generated from the same config. */
+/**
+ * Service catalogue for the bots, generated from the same config. The price is
+ * the starting figure set in Settings; services without one are listed bare.
+ */
 export function describeServicesForPrompt(services: SalonService[]): string {
   if (services.length === 0) return "No services are configured.";
   return services
@@ -524,7 +529,8 @@ export function describeServicesForPrompt(services: SalonService[]): string {
             : `${hours}h`
           : `${mins} minutes`;
       const patch = s.requiresPatchTest ? " (patch test for new clients)" : "";
-      return `- ${s.name} — about ${dur}${patch}`;
+      const price = s.priceMinor !== null ? `, from ${formatMoneyShort(s.priceMinor)}` : "";
+      return `- ${s.name} — about ${dur}${price}${patch}`;
     })
     .join("\n");
 }

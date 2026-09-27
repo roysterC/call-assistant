@@ -149,8 +149,9 @@ export function ServicesEditor({
         Duration decides how much of the stylist&apos;s day is blocked. Tidy-up
         time is kept free afterwards but may run past closing. Colour services
         should be marked as needing a patch test — that forces a 48-hour gap
-        for anyone new. The price is a starting figure for the desk; what gets
-        counted in the sales report is what was actually taken.
+        for anyone new. The price is a starting figure: the desk starts from it,
+        and the receptionist and chat bots quote it as &ldquo;from&rdquo;. What
+        gets counted in the sales report is what was actually taken.
       </p>
     </div>
   );

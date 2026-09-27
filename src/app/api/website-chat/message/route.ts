@@ -4,6 +4,7 @@ import {
   buildChatContext,
   getChatResponse,
   resolveModelForSite,
+  withSalonFacts,
 } from "@/lib/claude";
 import {
   checkCORS,
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
     // together.
     const { messages: chatMessages, systemPrompt } = buildChatContext(
       history,
-      site.systemPrompt
+      await withSalonFacts(site.organizationId, site.systemPrompt)
     );
 
     // Get AI response. If a lead is already attached to this conversation

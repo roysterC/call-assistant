@@ -28,12 +28,16 @@ export async function GET(
 
     const settings = await prisma.organizationSettings.findUnique({
       where: { organizationId },
-      select: { vapiAssistantId: true, voiceSystemPrompt: true },
+      select: { vapiAssistantId: true, voiceSystemPrompt: true, salonFaq: true },
     });
 
     const cfg = await getSalonConfig(organizationId);
     const provider = selectProvider(cfg);
-    const composed = composeVoicePrompt(cfg, settings?.voiceSystemPrompt ?? null);
+    const composed = composeVoicePrompt(
+      cfg,
+      settings?.voiceSystemPrompt ?? null,
+      settings?.salonFaq ?? null
+    );
 
     // Only worth checking when Google is actually the chosen provider —
     // otherwise it would report failures for calendars nobody is using.

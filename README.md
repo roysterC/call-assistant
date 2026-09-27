@@ -205,6 +205,25 @@ How it is built:
   steps. A phone that wants a touch before it uses the microphone gets one
   big "Tap to talk" instead.
 
+### What the bots know about the salon
+
+The phone receptionist and the chat bots (website, WhatsApp, Instagram,
+Facebook) are given the salon's facts from Settings on every conversation:
+opening hours, services with their starting prices ("from £45"), the team,
+and the owner's own **Salon FAQs** box (address, parking, policies and the
+like, the `salonFaq` column). The rules, in `src/lib/salon-knowledge.ts`:
+
+- General hair questions ("what's balayage?") come from the model's own
+  knowledge.
+- Anything about this salon comes only from Settings. Anything not written
+  there gets "I'm not sure" and a callback, never a guess.
+- Prices are quoted as "from"; a service with no price gets no figure.
+- Allergy, pregnancy and scalp questions go to the stylist.
+
+A chat bot's hand-written prompt keeps working; the facts are added after it.
+A business with no services and no FAQ (the agency's own site) gets its
+prompt unchanged.
+
 ### Stress-testing the receptionist
 
 `scripts/receptionist-stress.ts` puts our own receptionist through twenty

@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { execFile } from "child_process";
 import { prisma } from "@/lib/prisma";
+import { getSalonConfig } from "@/lib/booking";
+import { parseSalonFaq, salonFactsForChat } from "@/lib/salon-knowledge";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -248,19 +250,52 @@ export async function buildSystemPrompt(
       ? settings?.instagramSystemPrompt
       : settings?.facebookSystemPrompt;
 
-  if (customPrompt) return customPrompt;
+  if (customPrompt) return withSalonFacts(organizationId, customPrompt);
 
   const businessName = settings?.businessName || "Our Business";
   const label = CHANNEL_LABEL[channel];
 
-  return `You are a helpful ${label} assistant for ${businessName}.
+  return withSalonFacts(
+    organizationId,
+    `You are a helpful ${label} assistant for ${businessName}.
 
 Guidelines:
 - Be friendly, professional, and concise (${label} messages should be brief).
 - Answer what you can. If you can't, say so honestly — don't make up information
   about pricing, availability, or services.
 - If someone needs to speak to a person, let them know the team will follow up.
-- Keep responses under 500 words.`;
+- Keep responses under 500 words.`
+  );
+}
+
+/**
+ * A chat bot's prompt with the salon's facts after it: hours, services and
+ * their starting prices, the team, and the salon's FAQ, from Settings. So a
+ * chat bot answers "how much is a cut?" from the same figures as the phone,
+ * and a hand-written prompt cannot go stale on them. A business with no
+ * services and no FAQ gets its prompt back unchanged.
+ */
+export async function withSalonFacts(organizationId: string, prompt: string): Promise<string> {
+  try {
+    const [settings, cfg] = await Promise.all([
+      prisma.organizationSettings.findUnique({
+        where: { organizationId },
+        select: { businessName: true, contactPhone: true, salonFaq: true },
+      }),
+      getSalonConfig(organizationId),
+    ]);
+    const facts = salonFactsForChat({
+      cfg,
+      faq: parseSalonFaq(settings?.salonFaq),
+      businessName: settings?.businessName ?? "",
+      contactPhone: settings?.contactPhone ?? null,
+    });
+    return facts ? `${prompt}\n\n---\n\n${facts}` : prompt;
+  } catch (err) {
+    // The chat still answers without them; it just knows less.
+    console.error("[CLAUDE] Could not load the salon's facts:", err);
+    return prompt;
+  }
 }
 
 // --- Claude Code CLI method (Max plan, local testing only) ---

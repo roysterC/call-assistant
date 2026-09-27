@@ -18,6 +18,7 @@ import {
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Textarea } from "@/components/ui/textarea";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
 import { ServicesEditor } from "@/components/settings/services-editor";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
@@ -25,6 +26,7 @@ import { TeamLogins } from "@/components/settings/team-logins";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
+import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 
 const labelFor = (href: string) => NAV_PAGES.find((p) => p.href === href)?.label ?? "Dashboard";
 
@@ -46,6 +48,8 @@ interface Settings {
   diaryProvider?: string;
   /** The page the CRM opens on; null for automatic. */
   startPage: string | null;
+  /** The salon's own answers to common questions, for the bots. */
+  salonFaq: string;
 }
 
 interface PhoneNumber {
@@ -89,6 +93,7 @@ export default function SettingsPage() {
           facebookEnabled: !!data.settings?.facebookEnabled,
           facebookPageId: data.settings?.facebookPageId ?? null,
           startPage: data.settings?.startPage ?? null,
+          salonFaq: data.settings?.salonFaq ?? "",
         };
         setSettings(s);
         if (!s.startPage && data.startPage) setAutomaticStart(data.startPage);
@@ -140,6 +145,7 @@ export default function SettingsPage() {
           services: settings.services,
           teamMembers: settings.teamMembers,
           startPage: settings.startPage ?? "",
+          salonFaq: settings.salonFaq,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -152,6 +158,7 @@ export default function SettingsPage() {
         ...settings,
         contactPhone: data.settings?.contactPhone ?? null,
         startPage: data.settings?.startPage ?? null,
+        salonFaq: data.settings?.salonFaq ?? "",
       });
       setSaveResult({ ok: true, message: "Saved." });
     } catch (error) {
@@ -443,6 +450,49 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {/* What the bots may tell customers about the salon beyond the hours,
+          services, prices and team above. They answer salon questions only
+          from Settings, so anything not written anywhere gets "I'm not sure"
+          rather than a guess. */}
+      {(settings.voiceEnabled ||
+        settings.chatbotEnabled ||
+        settings.whatsappEnabled ||
+        settings.instagramEnabled ||
+        settings.facebookEnabled) && (
+        <Card className="gap-0">
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="text-base">Salon FAQs</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              What the receptionist and the chat bots tell customers who ask.
+              They already know your hours, services, prices and team from
+              above, and can explain things like what balayage is. For anything
+              else about the salon they only use what you write here, and say
+              they are not sure otherwise.
+            </p>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-1.5">
+            <Textarea
+              aria-label="Salon FAQs"
+              value={settings.salonFaq}
+              maxLength={SALON_FAQ_MAX}
+              rows={8}
+              placeholder={
+                "Where are you? 47 Bridge Street, next to the florist.\n" +
+                "Parking? Six spaces behind the salon; the Castle Street multi-storey is two minutes away.\n" +
+                "Cancellations: please give 24 hours' notice.\n" +
+                "Gift vouchers: yes, any amount, from the desk."
+              }
+              onChange={(e) => setSettings({ ...settings, salonFaq: e.target.value })}
+              className="min-h-40"
+            />
+            <p className="text-xs text-muted-foreground">
+              A question and its answer per line is plenty. Prices come from
+              Services, quoted as &ldquo;from&rdquo;. {settings.salonFaq.length}/{SALON_FAQ_MAX}
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       <Card className="gap-0">
