@@ -13,6 +13,8 @@ import {
   parseStylists,
   type Stylist,
 } from "@/lib/salon-config";
+import { getSalonConfig, selectProvider } from "@/lib/booking";
+import { DIARY, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
 
 const DEFAULT_SETTINGS = {
   businessName: "Our Business",
@@ -48,6 +50,7 @@ const WRITABLE_FIELDS = [
   "facebookSystemPrompt",
   "facebookPageId",
   "facebookPageAccessToken",
+  "startPage",
 ] as const;
 
 /**
@@ -71,6 +74,8 @@ function sanitiseSettingsPayload(
   // teamMembers carries stylist calendar ids and working days now, so it goes
   // through the same treatment rather than being stored as arbitrary JSON.
   if ("teamMembers" in out) out.teamMembers = parseStylists(out.teamMembers);
+  // Only a page the CRM has; anything else (or empty) is "automatic".
+  if ("startPage" in out) out.startPage = isStartPageChoice(out.startPage) ? out.startPage : null;
 
   return out;
 }
@@ -143,10 +148,21 @@ export async function GET(req: NextRequest) {
             };
           }),
         },
+        // A stylist login is for the diary, whatever the salon opens on.
+        startPage: DIARY,
       });
     }
 
-    return NextResponse.json({ settings });
+    // Where this organisation opens, resolved here so the sidebar and the
+    // root route agree without each re-deriving the diary's state.
+    const cfg = await getSalonConfig(ctx.organizationId);
+    const startPage = resolveStartPage({
+      chosen: settings.startPage,
+      flags: settings,
+      diaryTakesBookings: selectProvider(cfg).capabilities.createBooking,
+    });
+
+    return NextResponse.json({ settings, startPage });
   } catch (error) {
     console.error("[SETTINGS API] GET error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

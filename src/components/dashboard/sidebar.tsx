@@ -32,61 +32,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { apiFetch } from "@/lib/api-fetch";
 import { stylistMayVisit, useMe } from "@/components/providers/me-provider";
+import {
+  DASHBOARD,
+  NAV_PAGES,
+  isNavVisible,
+  orderForStartPage,
+  type FeatureFlags,
+} from "@/lib/navigation";
 
-type FeatureKey = "voice" | "chatbot" | "whatsapp" | "instagram" | "facebook" | null;
+/** Each page's icon; the pages themselves are in src/lib/navigation.ts. */
+const ICONS: Record<string, typeof LayoutDashboard> = {
+  [DASHBOARD]: LayoutDashboard,
+  "/calls": Phone,
+  "/conversations": MessageCircle,
+  "/websites": Globe,
+  "/insights": TrendingUp,
+  "/leads": Users,
+  "/calendar": CalendarDays,
+  "/appointments": CalendarCheck,
+  "/sales": Receipt,
+  "/callbacks": CalendarClock,
+  "/receptionist": FlaskConical,
+  "/settings": Settings,
+};
 
-const navItems: Array<{
-  href: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  requires?: FeatureKey | FeatureKey[];
-  /** Owners and super-admins only: it acts on the real diary. */
-  ownerOnly?: boolean;
-}> = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/calls", label: "Call History", icon: Phone, requires: "voice" },
-  {
-    href: "/conversations",
-    label: "Conversations",
-    icon: MessageCircle,
-    requires: ["chatbot", "whatsapp", "instagram", "facebook"],
-  },
-  { href: "/websites", label: "Websites", icon: Globe, requires: "chatbot" },
-  {
-    href: "/insights",
-    label: "Insights",
-    icon: TrendingUp,
-    requires: "chatbot",
-  },
-  { href: "/leads", label: "Leads", icon: Users },
-  {
-    href: "/calendar",
-    label: "Diary",
-    icon: CalendarDays,
-    requires: "voice",
-  },
-  {
-    href: "/appointments",
-    label: "Appointments",
-    icon: CalendarCheck,
-    requires: "voice",
-  },
-  { href: "/sales", label: "Sales", icon: Receipt, requires: "voice" },
-  {
-    href: "/callbacks",
-    label: "Callbacks",
-    icon: CalendarClock,
-    requires: "voice",
-  },
-  {
-    href: "/receptionist",
-    label: "Receptionist lab",
-    icon: FlaskConical,
-    requires: "voice",
-    ownerOnly: true,
-  },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const navItems = NAV_PAGES.map((p) => ({ ...p, icon: ICONS[p.href] ?? LayoutDashboard }));
 
 interface OrgSummary {
   id: string;
@@ -113,13 +83,9 @@ export function Sidebar({
   const user = session?.user;
   const me = useMe();
 
-  const [features, setFeatures] = useState<{
-    chatbotEnabled: boolean;
-    whatsappEnabled: boolean;
-    voiceEnabled: boolean;
-    instagramEnabled: boolean;
-    facebookEnabled: boolean;
-  } | null>(null);
+  const [features, setFeatures] = useState<FeatureFlags | null>(null);
+  // The organisation's start page goes to the top (Settings → Start page).
+  const [startPage, setStartPage] = useState<string | null>(null);
 
   // Super-admins: load all orgs for the switcher
   useEffect(() => {
@@ -146,6 +112,7 @@ export function Sidebar({
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d?.settings) return;
+        setStartPage(d.startPage ?? null);
         setFeatures({
           chatbotEnabled: !!d.settings.chatbotEnabled,
           whatsappEnabled: !!d.settings.whatsappEnabled,
@@ -242,7 +209,7 @@ export function Sidebar({
         <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
           Menu
         </p>
-        {navItems
+        {orderForStartPage(navItems, startPage)
           .filter((item) =>
             // A stylist login's pages are the diary, their bookings and, if
             // allowed, their own takings — whatever the salon has switched on.
@@ -354,34 +321,4 @@ export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
       <Bot className={icon} />
     </div>
   );
-}
-
-type NavItem = {
-  href: string;
-  requires?: FeatureKey | FeatureKey[];
-};
-type Flags = {
-  chatbotEnabled: boolean;
-  whatsappEnabled: boolean;
-  voiceEnabled: boolean;
-  instagramEnabled: boolean;
-  facebookEnabled: boolean;
-};
-
-function isNavVisible(item: NavItem, features: Flags | null): boolean {
-  // No feature requirement → always visible
-  if (!item.requires) return true;
-  // Flags not loaded yet → show nothing feature-gated (avoids flash)
-  if (!features) return false;
-
-  const reqs = Array.isArray(item.requires) ? item.requires : [item.requires];
-  // Visible if ANY of the required features is enabled.
-  return reqs.some((r) => {
-    if (r === "chatbot") return features.chatbotEnabled;
-    if (r === "whatsapp") return features.whatsappEnabled;
-    if (r === "voice") return features.voiceEnabled;
-    if (r === "instagram") return features.instagramEnabled;
-    if (r === "facebook") return features.facebookEnabled;
-    return true;
-  });
 }
