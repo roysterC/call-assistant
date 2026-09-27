@@ -27,6 +27,7 @@ import {
   type SalonConfig,
 } from "@/lib/booking";
 import { getAssistant, listTools, updateAssistant } from "@/lib/vapi";
+import { salonQuestionsSection } from "@/lib/salon-knowledge";
 
 export interface VapiTool {
   type: "function";
@@ -648,11 +649,13 @@ export interface ComposedPrompt {
  * the same configuration the booking code enforces, so the hours the agent
  * speaks and the hours the code allows cannot drift apart. The human-written
  * body is stored on `OrganizationSettings.voiceSystemPrompt`, matching the
- * convention already used for every other channel.
+ * convention already used for every other channel. The salon's FAQ
+ * (`salonFaq`, edited in Settings) goes in with the rules for questions.
  */
 export function composeVoicePrompt(
   cfg: SalonConfig,
-  body: string | null
+  body: string | null,
+  faq: string | null = null
 ): ComposedPrompt {
   const provider = selectProvider(cfg);
   const caps = provider.capabilities;
@@ -664,6 +667,7 @@ export function composeVoicePrompt(
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
     `# Services\n\n${describeServicesForPrompt(cfg.services)}`,
     `# The team\n\n${describeTeamForPrompt(cfg.stylists, cfg.services)}`,
+    salonQuestionsSection(faq, "phone"),
   ];
 
   if (body && body.trim()) sections.push(body.trim());
@@ -737,11 +741,15 @@ export async function syncAssistant(
 
   const settings = await prisma.organizationSettings.findUnique({
     where: { organizationId },
-    select: { vapiAssistantId: true, voiceSystemPrompt: true },
+    select: { vapiAssistantId: true, voiceSystemPrompt: true, salonFaq: true },
   });
 
   const cfg = await getSalonConfig(organizationId);
-  const composed = composeVoicePrompt(cfg, settings?.voiceSystemPrompt ?? null);
+  const composed = composeVoicePrompt(
+    cfg,
+    settings?.voiceSystemPrompt ?? null,
+    settings?.salonFaq ?? null
+  );
   const expectedTools = composed.toolNames;
 
   const assistantId = settings?.vapiAssistantId ?? null;

@@ -157,6 +157,11 @@ model OrganizationSettings {
   // availability stance and opening hours are generated and prepended at sync
   // time so they cannot drift from what the code enforces.
   voiceSystemPrompt       String?
+  // The salon's own answers to common questions (address, parking, policies,
+  // vouchers), written by the owner in Settings. Given to the phone
+  // receptionist and the chat bots, which answer questions about the salon
+  // only from this and the settings above. See src/lib/salon-knowledge.ts.
+  salonFaq                String?
   vapiAssistantId         String?
   // Instagram Direct Messages (Meta Graph API). When enabled, inbound
   // messages land in /conversations and Claude auto-replies via the

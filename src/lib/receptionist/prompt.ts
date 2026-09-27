@@ -51,9 +51,10 @@ export function buildSystem(
   businessName: string,
   body: string | null,
   now: Date,
-  callerNumber: string | null
+  callerNumber: string | null,
+  faq: string | null = null
 ): Anthropic.TextBlockParam[] {
-  const composed = composeVoicePrompt(cfg, body);
+  const composed = composeVoicePrompt(cfg, body, faq);
   const stable = [
     SPOKEN_STYLE.replace("{{business}}", businessName || "the salon"),
     composed.prompt,

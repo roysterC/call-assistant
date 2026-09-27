@@ -16,6 +16,7 @@ import {
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { DIARY, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
+import { parseSalonFaq } from "@/lib/salon-knowledge";
 
 const DEFAULT_SETTINGS = {
   businessName: "Our Business",
@@ -40,6 +41,8 @@ const WRITABLE_FIELDS = [
   "timezone",
   "services",
   "voiceSystemPrompt",
+  // The salon's FAQ, read by the receptionist and the chat bots.
+  "salonFaq",
   "vapiAssistantId",
   "whatsappSystemPrompt",
   "whatsappEnabled",
@@ -80,6 +83,7 @@ function sanitiseSettingsPayload(
   // through the same treatment rather than being stored as arbitrary JSON.
   if ("teamMembers" in out) out.teamMembers = parseStylists(out.teamMembers);
   // Only a page the CRM has; anything else (or empty) is "automatic".
+  if ("salonFaq" in out) out.salonFaq = parseSalonFaq(out.salonFaq);
   if ("startPage" in out) out.startPage = isStartPageChoice(out.startPage) ? out.startPage : null;
 
   return out;

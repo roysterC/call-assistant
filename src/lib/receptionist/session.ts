@@ -65,7 +65,7 @@ export async function startReceptionist(
 ): Promise<ReceptionistSession> {
   const settings = await prisma.organizationSettings.findUnique({
     where: { organizationId },
-    select: { businessName: true, voiceSystemPrompt: true },
+    select: { businessName: true, voiceSystemPrompt: true, salonFaq: true },
   });
   const key = opts.client ? null : await receptionistApiKey(organizationId);
   if (!opts.client && !key) {
@@ -85,7 +85,8 @@ export async function startReceptionist(
       businessName,
       settings?.voiceSystemPrompt ?? null,
       opts.now ?? new Date(),
-      opts.callerNumber
+      opts.callerNumber,
+      settings?.salonFaq ?? null
     ),
     // Hanging up is the engine's own, not the salon's; it goes last so the
     // salon's tools keep their place in the cached prefix.
