@@ -13,6 +13,9 @@ import {
   parseStylists,
   type Stylist,
 } from "@/lib/salon-config";
+import { getSalonConfig, selectProvider } from "@/lib/booking";
+import { DIARY, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
+import { contactNumberForTexts } from "@/lib/phone";
 
 const DEFAULT_SETTINGS = {
   businessName: "Our Business",
@@ -28,6 +31,10 @@ const DEFAULT_SETTINGS = {
 // Anything not named here is dropped.
 const WRITABLE_FIELDS = [
   "businessName",
+  // Printed in every confirmation and reminder text. Missing from this list
+  // for months, so the Settings field looked saved and was silently dropped,
+  // and every text went out without a number to call.
+  "contactPhone",
   "teamMembers",
   "businessHours",
   "timezone",
@@ -48,6 +55,7 @@ const WRITABLE_FIELDS = [
   "facebookSystemPrompt",
   "facebookPageId",
   "facebookPageAccessToken",
+  "startPage",
 ] as const;
 
 /**
@@ -71,6 +79,8 @@ function sanitiseSettingsPayload(
   // teamMembers carries stylist calendar ids and working days now, so it goes
   // through the same treatment rather than being stored as arbitrary JSON.
   if ("teamMembers" in out) out.teamMembers = parseStylists(out.teamMembers);
+  // Only a page the CRM has; anything else (or empty) is "automatic".
+  if ("startPage" in out) out.startPage = isStartPageChoice(out.startPage) ? out.startPage : null;
 
   return out;
 }
@@ -143,10 +153,21 @@ export async function GET(req: NextRequest) {
             };
           }),
         },
+        // A stylist login is for the diary, whatever the salon opens on.
+        startPage: DIARY,
       });
     }
 
-    return NextResponse.json({ settings });
+    // Where this organisation opens, resolved here so the sidebar and the
+    // root route agree without each re-deriving the diary's state.
+    const cfg = await getSalonConfig(ctx.organizationId);
+    const startPage = resolveStartPage({
+      chosen: settings.startPage,
+      flags: settings,
+      diaryTakesBookings: selectProvider(cfg).capabilities.createBooking,
+    });
+
+    return NextResponse.json({ settings, startPage });
   } catch (error) {
     console.error("[SETTINGS API] GET error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -167,6 +188,19 @@ export async function PUT(req: NextRequest) {
     // Allowlist first — anything not explicitly writable is dropped, which
     // also covers the row id and org link.
     const data = sanitiseSettingsPayload(raw as Record<string, unknown>);
+
+    // Refused rather than stored as typed: a number nobody can ring is worse
+    // in a text than no number, and the screen can say what is wrong.
+    if ("contactPhone" in data) {
+      const contact = contactNumberForTexts(data.contactPhone);
+      if (!contact.ok) {
+        return NextResponse.json(
+          { error: `That contact number does not look right: ${contact.reason}` },
+          { status: 400 }
+        );
+      }
+      data.contactPhone = contact.value;
+    }
 
     // Strip super-admin-only fields unless the caller is a super-admin.
     if (ctx.role !== "superAdmin") {

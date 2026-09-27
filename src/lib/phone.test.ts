@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalisePhone, speakablePhone } from "./phone";
+import { contactNumberForTexts, normalisePhone, speakablePhone } from "./phone";
 
 const ok = (input: string) => {
   const r = normalisePhone(input);
@@ -81,5 +81,25 @@ describe("speakablePhone", () => {
 
   it("returns the input unchanged when it cannot parse", () => {
     expect(speakablePhone("nonsense")).toBe("nonsense");
+  });
+});
+
+describe("contactNumberForTexts", () => {
+  it("keeps the salon's number as they write it, spacing tidied", () => {
+    expect(contactNumberForTexts("0161 496 0000")).toEqual({ ok: true, value: "0161 496 0000" });
+    expect(contactNumberForTexts("  020  7946 0000 ")).toEqual({ ok: true, value: "020 7946 0000" });
+    expect(contactNumberForTexts("+44 7700 900123")).toEqual({ ok: true, value: "+44 7700 900123" });
+  });
+
+  it("treats blank as no number, so the texts leave the line out", () => {
+    expect(contactNumberForTexts("")).toEqual({ ok: true, value: null });
+    expect(contactNumberForTexts("   ")).toEqual({ ok: true, value: null });
+    expect(contactNumberForTexts(null)).toEqual({ ok: true, value: null });
+  });
+
+  it("refuses something nobody could ring", () => {
+    expect(contactNumberForTexts("0161 49").ok).toBe(false);
+    expect(contactNumberForTexts("call the salon").ok).toBe(false);
+    expect(contactNumberForTexts(1234).ok).toBe(false);
   });
 });

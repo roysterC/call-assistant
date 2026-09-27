@@ -140,7 +140,6 @@ export default function CallbacksPage() {
     <div className="space-y-6">
       <PageHeader
         title="Callbacks"
-        description="Scheduled follow-up calls with customers"
       />
 
       <div className="flex gap-1">

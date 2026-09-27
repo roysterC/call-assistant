@@ -22,6 +22,8 @@ import {
   CalendarDays,
   Receipt,
   FlaskConical,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,61 +34,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { apiFetch } from "@/lib/api-fetch";
 import { stylistMayVisit, useMe } from "@/components/providers/me-provider";
+import {
+  DASHBOARD,
+  NAV_PAGES,
+  isNavVisible,
+  orderForStartPage,
+  type FeatureFlags,
+} from "@/lib/navigation";
 
-type FeatureKey = "voice" | "chatbot" | "whatsapp" | "instagram" | "facebook" | null;
+/** Each page's icon; the pages themselves are in src/lib/navigation.ts. */
+const ICONS: Record<string, typeof LayoutDashboard> = {
+  [DASHBOARD]: LayoutDashboard,
+  "/calls": Phone,
+  "/conversations": MessageCircle,
+  "/websites": Globe,
+  "/insights": TrendingUp,
+  "/leads": Users,
+  "/calendar": CalendarDays,
+  "/appointments": CalendarCheck,
+  "/sales": Receipt,
+  "/callbacks": CalendarClock,
+  "/receptionist": FlaskConical,
+  "/settings": Settings,
+};
 
-const navItems: Array<{
-  href: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  requires?: FeatureKey | FeatureKey[];
-  /** Owners and super-admins only: it acts on the real diary. */
-  ownerOnly?: boolean;
-}> = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/calls", label: "Call History", icon: Phone, requires: "voice" },
-  {
-    href: "/conversations",
-    label: "Conversations",
-    icon: MessageCircle,
-    requires: ["chatbot", "whatsapp", "instagram", "facebook"],
-  },
-  { href: "/websites", label: "Websites", icon: Globe, requires: "chatbot" },
-  {
-    href: "/insights",
-    label: "Insights",
-    icon: TrendingUp,
-    requires: "chatbot",
-  },
-  { href: "/leads", label: "Leads", icon: Users },
-  {
-    href: "/calendar",
-    label: "Diary",
-    icon: CalendarDays,
-    requires: "voice",
-  },
-  {
-    href: "/appointments",
-    label: "Appointments",
-    icon: CalendarCheck,
-    requires: "voice",
-  },
-  { href: "/sales", label: "Sales", icon: Receipt, requires: "voice" },
-  {
-    href: "/callbacks",
-    label: "Callbacks",
-    icon: CalendarClock,
-    requires: "voice",
-  },
-  {
-    href: "/receptionist",
-    label: "Receptionist lab",
-    icon: FlaskConical,
-    requires: "voice",
-    ownerOnly: true,
-  },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const navItems = NAV_PAGES.map((p) => ({ ...p, icon: ICONS[p.href] ?? LayoutDashboard }));
 
 interface OrgSummary {
   id: string;
@@ -97,12 +69,22 @@ interface OrgSummary {
 export function Sidebar({
   open = false,
   onNavigate,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   /** Drawer state below md. Ignored from md up, where the rail is static. */
   open?: boolean;
   /** Close the drawer after a tap that navigates. */
   onNavigate?: () => void;
+  /**
+   * From md up: folded to a rail of icons, so a wide screen like the diary
+   * gets the room. Below md the drawer is always shown in full.
+   */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
+  /** Hidden on the folded rail; always shown in the phone drawer. */
+  const wide = collapsed ? "md:hidden" : "";
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const asOrg = searchParams.get("asOrg");
@@ -113,13 +95,9 @@ export function Sidebar({
   const user = session?.user;
   const me = useMe();
 
-  const [features, setFeatures] = useState<{
-    chatbotEnabled: boolean;
-    whatsappEnabled: boolean;
-    voiceEnabled: boolean;
-    instagramEnabled: boolean;
-    facebookEnabled: boolean;
-  } | null>(null);
+  const [features, setFeatures] = useState<FeatureFlags | null>(null);
+  // The organisation's start page goes to the top (Settings → Start page).
+  const [startPage, setStartPage] = useState<string | null>(null);
 
   // Super-admins: load all orgs for the switcher
   useEffect(() => {
@@ -146,6 +124,7 @@ export function Sidebar({
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d?.settings) return;
+        setStartPage(d.startPage ?? null);
         setFeatures({
           chatbotEnabled: !!d.settings.chatbotEnabled,
           whatsappEnabled: !!d.settings.whatsappEnabled,
@@ -186,15 +165,16 @@ export function Sidebar({
         // be neither: a permanent 256px column that took two thirds of a phone
         // screen and left the conversation list a sliver — which is also why
         // the conversations page's own mobile layout never got to run.
-        "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transition-transform duration-200 md:static md:w-64 md:max-w-none md:translate-x-0 md:transition-none",
+        "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transition-transform duration-200 md:static md:max-w-none md:translate-x-0 md:transition-[width]",
+        collapsed ? "md:w-16" : "md:w-64",
         open ? "translate-x-0" : "-translate-x-full",
         "overflow-y-auto md:min-h-screen"
       )}
     >
-      <div className="px-5 pt-6 pb-5">
-        <div className="flex items-center gap-3">
+      <div className={cn("px-5 pt-6 pb-5", collapsed && "md:px-3.5")}>
+        <div className={cn("flex items-center gap-3", collapsed && "md:flex-col")}>
           <BrandMark />
-          <div className="min-w-0">
+          <div className={cn("min-w-0 flex-1", wide)}>
             <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate">
               {activeOrg?.name ||
                 session?.user?.organizationName ||
@@ -204,11 +184,22 @@ export function Sidebar({
               {isSuperAdmin && asOrg ? "viewing as super-admin" : "AI CRM"}
             </p>
           </div>
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+              title={collapsed ? "Expand menu" : "Collapse menu"}
+              className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-foreground hover:bg-accent transition-colors"
+            >
+              {collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
+            </button>
+          )}
         </div>
 
         {/* Super-admin org switcher */}
         {isSuperAdmin && orgs.length > 0 && (
-          <div className="mt-3">
+          <div className={cn("mt-3", wide)}>
             <DropdownMenu>
               <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-foreground/80 bg-card hover:bg-accent border border-input">
                 <span className="flex items-center gap-1.5">
@@ -238,11 +229,11 @@ export function Sidebar({
         )}
       </div>
 
-      <nav className="flex-1 px-3 pb-3 space-y-0.5">
-        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+      <nav className={cn("flex-1 px-3 pb-3 space-y-0.5", collapsed && "md:px-2")}>
+        <p className={cn("px-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80", wide)}>
           Menu
         </p>
-        {navItems
+        {orderForStartPage(navItems, startPage)
           .filter((item) =>
             // A stylist login's pages are the diary, their bookings and, if
             // allowed, their own takings — whatever the salon has switched on.
@@ -258,8 +249,12 @@ export function Sidebar({
                 key={item.href}
                 href={item.href + navSuffix}
                 onClick={onNavigate}
+                // The folded rail shows icons only; the name is on hover.
+                title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
                 className={cn(
                   "group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  collapsed && "md:justify-center md:px-0",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-slate-600 hover:text-foreground hover:bg-accent"
@@ -273,7 +268,7 @@ export function Sidebar({
                       : "text-slate-400 group-hover:text-slate-600"
                   )}
                 />
-                {item.label}
+                <span className={wide}>{item.label}</span>
               </Link>
             );
           })}
@@ -282,28 +277,37 @@ export function Sidebar({
           <Link
             href={`/admin/organizations${navSuffix}`}
             onClick={onNavigate}
+            title={collapsed ? "Admin" : undefined}
+            aria-label={collapsed ? "Admin" : undefined}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors mt-4",
+              collapsed && "md:justify-center md:px-0",
               pathname?.startsWith("/admin")
                 ? "bg-amber-50 text-amber-800"
                 : "text-slate-600 hover:text-amber-800 hover:bg-amber-50"
             )}
           >
             <Shield className="w-[18px] h-[18px]" />
-            Admin
+            <span className={wide}>Admin</span>
           </Link>
         )}
       </nav>
 
       {/* User menu */}
-      <div className="p-3 border-t border-sidebar-border">
+      <div className={cn("p-3 border-t border-sidebar-border", collapsed && "md:px-2")}>
         {user ? (
           <DropdownMenu>
-            <DropdownMenuTrigger className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent">
+            <DropdownMenuTrigger
+              title={collapsed ? user.name || user.email || undefined : undefined}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent",
+                collapsed && "md:justify-center md:px-0"
+              )}
+            >
               <div className="w-8 h-8 shrink-0 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold">
                 {(user.name || user.email || "?")[0].toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className={cn("flex-1 min-w-0 text-left", wide)}>
                 <p className="text-sm font-medium truncate">{user.name || user.email}</p>
                 <p className="text-[11px] text-muted-foreground truncate">
                   {user.email}
@@ -329,7 +333,7 @@ export function Sidebar({
         ) : (
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="w-2 h-2 bg-slate-300 rounded-full" />
-            <span className="text-xs text-muted-foreground">Not signed in</span>
+            <span className={cn("text-xs text-muted-foreground", wide)}>Not signed in</span>
           </div>
         )}
       </div>
@@ -354,34 +358,4 @@ export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
       <Bot className={icon} />
     </div>
   );
-}
-
-type NavItem = {
-  href: string;
-  requires?: FeatureKey | FeatureKey[];
-};
-type Flags = {
-  chatbotEnabled: boolean;
-  whatsappEnabled: boolean;
-  voiceEnabled: boolean;
-  instagramEnabled: boolean;
-  facebookEnabled: boolean;
-};
-
-function isNavVisible(item: NavItem, features: Flags | null): boolean {
-  // No feature requirement → always visible
-  if (!item.requires) return true;
-  // Flags not loaded yet → show nothing feature-gated (avoids flash)
-  if (!features) return false;
-
-  const reqs = Array.isArray(item.requires) ? item.requires : [item.requires];
-  // Visible if ANY of the required features is enabled.
-  return reqs.some((r) => {
-    if (r === "chatbot") return features.chatbotEnabled;
-    if (r === "whatsapp") return features.whatsappEnabled;
-    if (r === "voice") return features.voiceEnabled;
-    if (r === "instagram") return features.instagramEnabled;
-    if (r === "facebook") return features.facebookEnabled;
-    return true;
-  });
 }

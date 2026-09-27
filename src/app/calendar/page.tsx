@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { apiFetch } from "@/lib/api-fetch";
 import { MonthPanel } from "@/components/calendar/month-panel";
 import {
+  PHONE_HOUR_HEIGHT_PX,
   minutesOfDay,
   salonDate,
   salonDayRange,
@@ -383,7 +384,6 @@ export default function CalendarPage() {
       <div className="shrink-0">
         <PageHeader
           title="Diary"
-          description="Every stylist, one day at a time. Click an empty slot to book."
         />
       </div>
 
@@ -506,7 +506,7 @@ export default function CalendarPage() {
             date={selected}
             timeZone={timeZone}
             stylists={visibleColumns}
-            hourHeightPx={isPhone ? 96 : undefined}
+            hourHeightPx={isPhone ? PHONE_HOUR_HEIGHT_PX : undefined}
             appointments={appointments}
             open={open}
             nowMinutes={nowMinutes}

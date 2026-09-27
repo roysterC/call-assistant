@@ -157,7 +157,6 @@ export default function LeadsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Leads"
-        description="Customer contacts captured across all channels"
       />
 
       <Card className="py-0">

@@ -81,7 +81,6 @@ function WebsitesPageInner() {
     <div className="space-y-6">
       <PageHeader
         title="Websites"
-        description="Embeddable chatbots for your websites"
         actions={
           <Button onClick={() => router.push(`/websites/new${navSuffix}`)}>
             <Plus className="w-4 h-4 mr-1.5" />
