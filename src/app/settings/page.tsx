@@ -62,6 +62,9 @@ export default function SettingsPage() {
   const [voiceNumbers, setVoiceNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // What the last save did. It used to say nothing either way, which is how a
+  // contact number that never saved went unnoticed.
+  const [saveResult, setSaveResult] = useState<{ ok: boolean; message: string } | null>(null);
   // What "automatic" currently means for this organisation, to show beside it.
   const [automaticStart, setAutomaticStart] = useState<string>(DASHBOARD);
 
@@ -120,11 +123,12 @@ export default function SettingsPage() {
   async function handleSave() {
     if (!settings) return;
     setSaving(true);
+    setSaveResult(null);
     try {
       // Only send the fields the settings page actually edits. The API
       // strips super-admin-only fields anyway, but being explicit here
       // avoids round-tripping stale flag state.
-      await apiFetch("/api/settings", {
+      const res = await apiFetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -137,8 +141,21 @@ export default function SettingsPage() {
           startPage: settings.startPage ?? "",
         }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSaveResult({ ok: false, message: data.error || "Could not save your changes." });
+        return;
+      }
+      // Show what was stored, e.g. the contact number as texts will print it.
+      setSettings({
+        ...settings,
+        contactPhone: data.settings?.contactPhone ?? null,
+        startPage: data.settings?.startPage ?? null,
+      });
+      setSaveResult({ ok: true, message: "Saved." });
     } catch (error) {
       console.error("Failed to save settings:", error);
+      setSaveResult({ ok: false, message: "Could not reach the server." });
     } finally {
       setSaving(false);
     }
@@ -209,10 +226,20 @@ export default function SettingsPage() {
         title="Settings"
         description="Your organisation profile and enabled features"
         actions={
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving…" : "Save changes"}
-          </Button>
+          <div className="flex items-center gap-3">
+            {saveResult && (
+              <span
+                role="status"
+                className={saveResult.ok ? "text-sm text-emerald-700" : "text-sm text-red-600"}
+              >
+                {saveResult.message}
+              </span>
+            )}
+            <Button onClick={handleSave} disabled={saving}>
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
         }
       />
 

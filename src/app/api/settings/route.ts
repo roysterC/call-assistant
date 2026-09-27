@@ -15,6 +15,7 @@ import {
 } from "@/lib/salon-config";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { DIARY, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
+import { contactNumberForTexts } from "@/lib/phone";
 
 const DEFAULT_SETTINGS = {
   businessName: "Our Business",
@@ -30,6 +31,10 @@ const DEFAULT_SETTINGS = {
 // Anything not named here is dropped.
 const WRITABLE_FIELDS = [
   "businessName",
+  // Printed in every confirmation and reminder text. Missing from this list
+  // for months, so the Settings field looked saved and was silently dropped,
+  // and every text went out without a number to call.
+  "contactPhone",
   "teamMembers",
   "businessHours",
   "timezone",
@@ -183,6 +188,19 @@ export async function PUT(req: NextRequest) {
     // Allowlist first — anything not explicitly writable is dropped, which
     // also covers the row id and org link.
     const data = sanitiseSettingsPayload(raw as Record<string, unknown>);
+
+    // Refused rather than stored as typed: a number nobody can ring is worse
+    // in a text than no number, and the screen can say what is wrong.
+    if ("contactPhone" in data) {
+      const contact = contactNumberForTexts(data.contactPhone);
+      if (!contact.ok) {
+        return NextResponse.json(
+          { error: `That contact number does not look right: ${contact.reason}` },
+          { status: 400 }
+        );
+      }
+      data.contactPhone = contact.value;
+    }
 
     // Strip super-admin-only fields unless the caller is a super-admin.
     if (ctx.role !== "superAdmin") {
