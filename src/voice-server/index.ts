@@ -30,6 +30,8 @@ const PORT = Number(process.env.VOICE_PORT || 4610);
 const HOST = process.env.VOICE_HOST || "127.0.0.1";
 const MAX_LAB_CALLS = 5;
 const MAX_CALL_MS = 15 * 60 * 1000;
+const MAX_DICTATIONS = 20;
+const MAX_DICTATION_MS = 5 * 60 * 1000;
 const FAKES = process.env.VOICE_FAKES === "1" && process.env.NODE_ENV !== "production";
 
 async function main() {
@@ -40,6 +42,8 @@ async function main() {
   const { VoiceCall } = await import("@/lib/receptionist/voice/call");
   const { recordUsage } = await import("@/lib/usage/record");
   const { DeepgramStt, ElevenLabsTts, labVoiceRate } = await import("@/lib/receptionist/voice/providers");
+  const { salonKeyterms } = await import("@/lib/receptionist/voice/keyterms");
+  const { getSalonConfig } = await import("@/lib/booking");
   const fakes = FAKES ? await import("./fakes") : null;
 
   const secret = process.env.RECEPTIONIST_VOICE_SECRET ?? "";
@@ -47,6 +51,7 @@ async function main() {
   if (FAKES) console.warn("[VOICE] VOICE_FAKES=1: using stand-in model, recogniser and voice.");
 
   let labCalls = 0;
+  let dictations = 0;
   /** Caller audio received since start: a quick check that microphones are getting through. */
   let audioBytesIn = 0;
 
@@ -55,7 +60,7 @@ async function main() {
       res.writeHead(200, { "Content-Type": "application/json" });
       // activeCalls is what the deploy waits on before restarting this
       // server; the phone line adds its calls to it in step 3.
-      res.end(JSON.stringify({ ok: true, activeCalls: labCalls, labCalls, audioBytesIn, fakes: FAKES }));
+      res.end(JSON.stringify({ ok: true, activeCalls: labCalls + dictations, labCalls, dictations, audioBytesIn, fakes: FAKES }));
       return;
     }
     res.writeHead(404).end();
@@ -65,7 +70,8 @@ async function main() {
 
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://voice.local");
-    if (url.pathname !== "/voice/lab") return socket.destroy();
+    if (url.pathname !== "/voice/lab" && url.pathname !== "/voice/dictate") return socket.destroy();
+    const dictate = url.pathname === "/voice/dictate";
     const pass = verifyVoicePass(url.searchParams.get("token") ?? "", secret);
     wss.handleUpgrade(req, socket, head, (ws) => {
       // A refused pass is still answered over the socket, with the reason:
@@ -78,6 +84,20 @@ async function main() {
         console.warn(`[VOICE] refused a pass: ${secret ? "did not verify" : "no secret set"}`);
         sendJson(ws, { type: "error", message: reason });
         return ws.close(4401, "pass refused");
+      }
+      // A pass opens what it was issued for: a stylist's dictation pass must
+      // not open a lab call, which is the owner's.
+      if (dictate !== (pass.purpose === "dictate")) {
+        sendJson(ws, { type: "error", message: "That pass is for something else. Try again." });
+        return ws.close(4403, "wrong pass");
+      }
+      if (dictate) {
+        void runDictation(ws, pass).catch((err) => {
+          console.error("[VOICE] dictation failed:", err);
+          sendJson(ws, { type: "error", message: `Listening could not start: ${err instanceof Error ? err.message : String(err)}` });
+          ws.close(4500, "dictation failed");
+        });
+        return;
       }
       // "phone" carries audio both ways as the phone line will, 8kHz mu-law,
       // so the lab sounds and is transcribed the way a caller's call will be.
@@ -92,6 +112,136 @@ async function main() {
       });
     });
   });
+
+  /**
+   * Booking by voice: speech in, words out, nothing spoken back. The words go
+   * to the browser as they are heard, and each finished sentence as an
+   * utterance, which the browser sends to the CRM's /api/voice-booking.
+   */
+  async function runDictation(ws: WebSocket, pass: { organizationId: string }) {
+    if (dictations >= MAX_DICTATIONS) {
+      sendJson(ws, { type: "error", message: "Too many people dictating at once. Try again shortly." });
+      return ws.close();
+    }
+    if (!FAKES && !process.env.DEEPGRAM_API_KEY) {
+      sendJson(ws, { type: "error", message: "The voice server is missing DEEPGRAM_API_KEY." });
+      return ws.close();
+    }
+    // People start talking the moment they tap. Anything that arrives while
+    // the recogniser is still connecting is held and passed on once it is,
+    // rather than dropped with the first words of the booking in it.
+    const early: Array<{ data: Buffer; isBinary: boolean }> = [];
+    let heldBytes = 0;
+    const hold = (data: Buffer, isBinary: boolean) => {
+      heldBytes += data.length;
+      if (heldBytes < 512 * 1024) early.push({ data, isBinary });
+    };
+    ws.on("message", hold);
+    const [cfg, settings] = await Promise.all([
+      getSalonConfig(pass.organizationId),
+      prisma.organizationSettings.findUnique({ where: { organizationId: pass.organizationId }, select: { businessName: true } }),
+    ]);
+    const encoding = { kind: "pcm16", sampleRate: 16000 } as const;
+    const fakeStt = fakes ? new fakes.FakeStt() : null;
+    const stt =
+      fakeStt ??
+      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, encoding, {
+        model: process.env.DEEPGRAM_MODEL || undefined,
+        language: process.env.DEEPGRAM_LANGUAGE || undefined,
+        // Longer than on a call: someone dictating pauses to think between
+        // the name and the time, and that is not the end of what they want.
+        endpointingMs: Number(process.env.DICTATION_ENDPOINTING_MS) || 700,
+        keyterms: salonKeyterms({ businessName: settings?.businessName, stylists: cfg.stylists, services: cfg.services }),
+      });
+    if (ws.readyState !== ws.OPEN) return;
+
+    let finals: string[] = [];
+    let interim = "";
+    let bytes = 0;
+    const startedAt = Date.now();
+    const handlers = {
+      onInterim: (text: string) => {
+        interim = text;
+        sendJson(ws, { type: "heard", text: [...finals, text].join(" ") });
+      },
+      onFinal: (text: string) => {
+        finals.push(text);
+        interim = "";
+        sendJson(ws, { type: "heard", text: finals.join(" ") });
+      },
+      onEndOfTurn: () => flush(),
+      onError: (err: Error) => sendJson(ws, { type: "error", message: `Speech recognition: ${err.message}` }),
+      // Dropped mid-dictation: one more try, then say so.
+      onClose: () => {
+        void stt
+          .open(handlers)
+          .then((again) => (stream = again))
+          .catch(() => {
+            sendJson(ws, { type: "error", message: "Lost the speech recogniser. Tap the microphone to try again." });
+            ws.close();
+          });
+      },
+    };
+    let stream = await stt.open(handlers);
+    // Closed while connecting: its close event has gone, so nothing would
+    // ever close the recogniser or uncount the dictation.
+    if (ws.readyState !== ws.OPEN) {
+      stream.close();
+      return;
+    }
+    const flush = () => {
+      const text = [...finals, interim].join(" ").replace(/\s+/g, " ").trim();
+      finals = [];
+      interim = "";
+      if (text) sendJson(ws, { type: "utterance", text });
+    };
+
+    dictations++;
+    const limit = setTimeout(() => ws.close(), MAX_DICTATION_MS);
+    let ended = false;
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(limit);
+      stream.close();
+      dictations--;
+      if (!fakes && bytes > 0) {
+        void recordUsage(pass.organizationId, {
+          source: "desk_voice",
+          sessionKey: `dictate:${startedAt}:${Math.random().toString(36).slice(2, 8)}`,
+          startedAt: new Date(startedAt),
+          durationSeconds: (Date.now() - startedAt) / 1000,
+          counts: { sttSeconds: bytes / (encoding.sampleRate * 2) },
+        });
+      }
+    };
+    const onMessage = (data: Buffer, isBinary: boolean) => {
+      if (isBinary) {
+        bytes += data.length;
+        audioBytesIn += data.length;
+        return stream.send(data);
+      }
+      let msg: { type?: string; text?: string };
+      try {
+        msg = JSON.parse(data.toString());
+      } catch {
+        return;
+      }
+      // Tapped to stop: whatever was heard so far counts.
+      if (msg.type === "stop") {
+        flush();
+        setTimeout(() => ws.close(), 300);
+      }
+      if (msg.type === "say" && fakeStt && typeof msg.text === "string") fakeStt.say(msg.text.slice(0, 500));
+    };
+    ws.off("message", hold);
+    ws.on("message", onMessage);
+    for (const m of early.splice(0)) onMessage(m.data, m.isBinary);
+    ws.on("close", end);
+    ws.on("error", end);
+    // Ready: the browser shows "Listening" from here.
+    sendJson(ws, { type: "hello", fakes: FAKES });
+  }
 
   async function runLabCall(
     ws: WebSocket,

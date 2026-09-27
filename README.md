@@ -164,6 +164,26 @@ Locally, `VOICE_FAKES=1 npx tsx src/voice-server/index.ts` runs it with a
 stand-in model, recogniser and voice, so the audio path can be tried with no
 provider accounts.
 
+### Booking by voice
+
+The diary's **Book by voice** button (phase 4 of the Shogo proposal): staff say
+a booking, move or cancellation, a card shows exactly what would go in the
+diary, and nothing is saved until they say "yes" or tap Save. Owners and
+stylists alike; a stylist only books into their own column.
+
+- The microphone goes to the voice server (`/voice/dictate`), which turns it
+  into words with Deepgram and sends them back. No voice is spoken back.
+- The words go to `/api/voice-booking`, where Haiku looks clients up and
+  draws the card (`src/lib/voice-booking/`). It has no tool that writes: a
+  plain "yes" or the Save button is handled by code, which saves the card
+  with the phone's rules (hours, working days, who does what, the skin test,
+  no double-booking).
+- It uses the same settings as the receptionist's Talk tab
+  (`RECEPTIONIST_VOICE_URL`, `RECEPTIONIST_VOICE_SECRET`, `DEEPGRAM_API_KEY`
+  and an Anthropic key); without them the typing box still works.
+- Locally, `VOICE_FAKES=1` on the voice server and `VOICE_BOOKING_FAKE_MODEL=1`
+  on the CRM try the whole path with no provider accounts.
+
 ### Stress-testing the receptionist
 
 `scripts/receptionist-stress.ts` puts our own receptionist through twenty

@@ -25,6 +25,8 @@ export interface OrgUsage extends UsageTotals {
   /** What the salon is charged, US dollar micros; null when unpriced. */
   chargeMicros: number | null;
   lab: { conversations: number; seconds: number; costMicros: number };
+  /** Booking by voice at the desk: on our bill, included in the salon's plan. */
+  voiceBooking: { sessions: number; costMicros: number };
 }
 
 const CENTS_TO_MICROS = 10_000;
@@ -35,7 +37,7 @@ export async function summariseUsage(
   to: Date
 ): Promise<Map<string, OrgUsage>> {
   const within = { gte: from, lt: to };
-  const [orgs, vapi, ours, labVoice, labChat] = await Promise.all([
+  const [orgs, vapi, ours, labVoice, labChat, deskVoice] = await Promise.all([
     prisma.organization.findMany({
       where: { id: { in: organizationIds } },
       select: { id: true, usageMarkupPercent: true },
@@ -64,6 +66,13 @@ export async function summariseUsage(
       where: { organizationId: { in: organizationIds }, startedAt: within, source: "lab_chat" },
       _sum: { costMicros: true },
     }),
+    // Voice booking: the words (one row per dictation) and the assistant
+    // (one row per turn) share a session key.
+    prisma.usageRecord.groupBy({
+      by: ["organizationId", "sessionKey"],
+      where: { organizationId: { in: organizationIds }, startedAt: within, source: "desk_voice" },
+      _sum: { costMicros: true },
+    }),
   ]);
 
   const out = new Map<string, OrgUsage>();
@@ -72,6 +81,7 @@ export async function summariseUsage(
     const o = ours.find((r) => r.organizationId === org.id);
     const lv = labVoice.find((r) => r.organizationId === org.id);
     const lc = labChat.filter((r) => r.organizationId === org.id);
+    const dv = deskVoice.filter((r) => r.organizationId === org.id);
 
     const vapiCostMicros = (v?._sum.costCents ?? 0) * CENTS_TO_MICROS;
     const receptionistCostMicros = o?._sum.costMicros ?? 0;
@@ -90,6 +100,12 @@ export async function summariseUsage(
         conversations: (lv?._count._all ?? 0) + lc.length,
         seconds: lv?._sum.durationSeconds ?? 0,
         costMicros: (lv?._sum.costMicros ?? 0) + lc.reduce((t, r) => t + (r._sum.costMicros ?? 0), 0),
+      },
+      voiceBooking: {
+        // Conversations with the assistant; dictation rows carry the cost of
+        // the listening and are not conversations of their own.
+        sessions: dv.filter((r) => !r.sessionKey?.startsWith("dictate:")).length,
+        costMicros: dv.reduce((t, r) => t + (r._sum.costMicros ?? 0), 0),
       },
     });
   }

@@ -15,6 +15,12 @@ export interface VoicePass {
   userId: string;
   /** Caller ID to pretend the call came from; null is withheld. */
   callerNumber: string | null;
+  /**
+   * What the pass opens. A lab call (the owner's) unless it says dictation
+   * (anyone at the salon, stylists included): a stylist's pass must not open
+   * the lab.
+   */
+  purpose?: "lab" | "dictate";
   /** Expiry, in ms since the epoch. */
   exp: number;
 }

@@ -525,7 +525,7 @@ function blankToUndefined(value: unknown): string | undefined {
  *
  * Returns null when the pairing is fine.
  */
-function stylistServiceProblem(
+export function stylistServiceProblem(
   stylistName: string | undefined,
   service: SalonService,
   stylists: Stylist[]

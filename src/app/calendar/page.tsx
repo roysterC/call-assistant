@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { VoiceBooking } from "@/components/voice-booking/voice-booking";
 import { apiFetch } from "@/lib/api-fetch";
 import { MonthPanel } from "@/components/calendar/month-panel";
 import {
@@ -427,6 +428,15 @@ export default function CalendarPage() {
           <Ban className="h-3.5 w-3.5" />
           Block time
         </Button>
+        {stylists.length > 0 && (
+          <VoiceBooking
+            onSaved={({ date }) => {
+              if (date !== selected) jump(date);
+              loadDay();
+              loadMonth();
+            }}
+          />
+        )}
         <div className="ml-1 sm:ml-2 min-w-0">
           <span className="font-heading text-base font-semibold">{prettyDate(selected)}</span>
           {settingsLoaded && !open && (
