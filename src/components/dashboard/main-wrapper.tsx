@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { BrandMark, Sidebar } from "@/components/dashboard/sidebar";
+import { Assistant } from "@/components/voice-booking/assistant";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -69,6 +70,9 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
             onToggleCollapsed={() => setCollapsed(!collapsed)}
           />
         </Suspense>
+
+        {/* The personal assistant: on every signed-in page. */}
+        <Assistant />
 
         <main className="flex-1 overflow-auto min-w-0">
           {isFullWidth ? (

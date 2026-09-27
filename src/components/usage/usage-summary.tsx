@@ -31,6 +31,7 @@ interface Usage {
   marginPence?: number | null;
   sources?: { vapiPence: number; receptionistPence: number };
   lab?: { conversations: number; minutes: number; costPence: number };
+  voiceBooking?: { sessions: number; costPence: number };
   assumptions?: { usdToGbp: number };
 }
 
@@ -117,6 +118,10 @@ export function UsageSummary() {
             <Figure
               label={`Lab testing (${usage.lab?.conversations ?? 0}, not charged)`}
               value={money(usage.lab?.costPence)}
+            />
+            <Figure
+              label={`Voice booking (${usage.voiceBooking?.sessions ?? 0}, in the plan)`}
+              value={money(usage.voiceBooking?.costPence)}
             />
           </div>
           {usage.markupPercent === null && (

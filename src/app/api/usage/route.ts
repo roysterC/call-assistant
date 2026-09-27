@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
       minutes: u.lab.seconds / 60,
       costPence: pence(u.lab.costMicros),
     },
+    voiceBooking: { sessions: u.voiceBooking.sessions, costPence: pence(u.voiceBooking.costMicros) },
     assumptions: { usdToGbp: rate, rates: rates() },
   });
 }
