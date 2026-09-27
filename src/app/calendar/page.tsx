@@ -383,7 +383,6 @@ export default function CalendarPage() {
       <div className="shrink-0">
         <PageHeader
           title="Diary"
-          description="Every stylist, one day at a time. Click an empty slot to book."
         />
       </div>
 

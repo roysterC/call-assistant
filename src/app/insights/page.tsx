@@ -102,7 +102,6 @@ export default function InsightsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Website chat insights"
-        description={`Last ${data.range.days} days · times shown in ${data.range.timezone}`}
         actions={
           <>
             {data.sites.length > 1 && (

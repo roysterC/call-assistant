@@ -144,7 +144,6 @@ export default function SalesPage() {
     <div className="space-y-5">
       <PageHeader
         title="Sales"
-        description="What the salon took, and what is still in the diary."
       />
 
       <div className="flex flex-wrap items-center gap-2">

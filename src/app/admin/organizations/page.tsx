@@ -93,7 +93,6 @@ export default function OrganizationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Organisations"
-        description="Super-admin view of all client organisations"
         actions={
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="w-4 h-4 mr-1.5" />
