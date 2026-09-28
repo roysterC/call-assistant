@@ -55,13 +55,14 @@ describe("take_message", () => {
       notes: "Wants to talk to someone about a colour correction.",
     });
     expect(saved().scheduledAt.toISOString()).toBe("2026-09-29T13:00:00.000Z");
-    expect(r.message).toMatch(/ring them back today/);
+    expect(r.message).toMatch(/someone will ring them back as soon as they can/);
+    expect(r.message).toMatch(/Never say when/);
     // Their number came from caller ID: the receptionist is told to check it.
     expect(r.message).toMatch(/ringing from; check it/);
     expect(r.message).toMatch(/Do not say anyone will be put through/);
   });
 
-  it("is due when the salon next opens if it is closed, and says when", async () => {
+  it("is due when the salon next opens if it is closed, and promises no time", async () => {
     vi.useFakeTimers({ now: new Date("2026-09-27T20:00:00Z"), toFake: ["Date"] }); // Sunday 9pm
     const r = await handleTakeMessage("org", {
       customerName: "Sarah Jones",
@@ -73,7 +74,8 @@ describe("take_message", () => {
     // Tuesday 10am London.
     expect(saved().scheduledAt.toISOString()).toBe("2026-09-29T09:00:00.000Z");
     expect(r.message).toMatch(/Message taken for Jo/);
-    expect(r.message).toMatch(/when the salon opens, Tuesday at 10/);
+    // Due Tuesday on the page, but the caller is promised no time.
+    expect(r.message).not.toMatch(/Tuesday|10am|at 10|first thing/);
   });
 
   it("adds more detail from the same caller to the message already taken", async () => {

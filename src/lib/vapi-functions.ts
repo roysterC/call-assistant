@@ -1001,8 +1001,8 @@ async function checkAvailability(
       unstaffed,
       message: searchedRange
         ? `Nothing free for ${service.name.toLowerCase()} in the next two ` +
-          "weeks. Say so, take their details, and tell them the salon will " +
-          "ring back with something."
+          "weeks. Say so, and take a message with take_message so someone " +
+          "can ring them back with something."
         : closed
           ? `The salon is closed on ${spokenDay(date, cfg.timeZone)} — say ` +
             `that, not that it is booked up.${offer || " Ask which other day suits."}`
@@ -1524,7 +1524,8 @@ export function mergeMessage(before: string, next: string): string {
  * someone?" becomes. It lands on the Callbacks page (and the counter beside
  * it in the menu), with the message as the callback's note. Unlike
  * `book_callback` it needs no date: it is due now if the salon is open, and
- * when it next opens if not, and the receptionist is told which to say.
+ * when it next opens if not. The caller is never told a time, only that
+ * someone will ring back as soon as they can.
  */
 export async function handleTakeMessage(
   organizationId: string,
@@ -1567,9 +1568,9 @@ export async function handleTakeMessage(
   const cfg = await getSalonConfig(organizationId);
   const stylist = matchStylist(blankToUndefined(params.forStylist), cfg.stylists);
   const now = new Date();
-  // Now if the salon is open, else the moment it next opens.
+  // Now if the salon is open, else the moment it next opens: for the order of
+  // the Callbacks page, never said to the caller.
   const due = nextOpenMorning(cfg.hours, cfg.timeZone, now) ?? now;
-  const openNow = due.getTime() <= now.getTime();
 
   // More detail from the same caller a moment later ("it's about my fringe")
   // is added to the message already taken, rather than filed as a second one.
@@ -1602,17 +1603,18 @@ export async function handleTakeMessage(
     });
   }
 
-  const when = openNow
-    ? "today, as soon as someone is free"
-    : `when the salon opens, ${spokenDay(zonedDateString(due, cfg.timeZone), cfg.timeZone, now)} at ${spokenTime(due.toISOString(), cfg.timeZone)}`;
+  // The caller hears no time: "today" or "when we open" is a promise the salon
+  // may not keep. The due time only orders the Callbacks page.
   return {
     success: true,
     message:
-      `${recent ? "Added to their message" : "Message taken"} for ${stylist?.name ?? "the salon"}. Tell the caller the salon will ring them back ${when}, ` +
-      `on ${speakablePhone(phone.e164)}` +
+      `${recent ? "Added to their message" : "Message taken"} for ${stylist?.name ?? "the salon"}. ` +
+      `Tell the caller someone will ring them back as soon as they can, on ${speakablePhone(phone.e164)}` +
       (phone.source === "callerId" ? " (the number they are ringing from; check it is the best one)." : ".") +
-      " Do not say anyone will be put through. If they tell you anything more about it, call " +
-      "take_message again with the whole message, updated, before saying it is noted; otherwise nobody sees it.",
+      " Never say when: not today, not tomorrow, not when the salon opens, no time at all. Do not say " +
+      "anyone will be put through. If they tell you anything more about it, call take_message again " +
+      "with the whole message, updated, before saying it is noted; otherwise nobody sees it. When they " +
+      "have nothing to add, thank them for calling.",
   };
 }
 

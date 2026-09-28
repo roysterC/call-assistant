@@ -237,7 +237,8 @@ wants something it cannot do or answer, it takes a message (`take_message`
 in `src/lib/vapi-functions.ts`): their name, number (caller ID unless they
 give another) and what it is about, for a stylist if they named one. It
 lands on the Callbacks page, due now while the salon is open and when it
-next opens otherwise, and the caller is told which. More detail a moment
+next opens otherwise. The caller is never promised a time, only that
+someone will ring back as soon as they can. More detail a moment
 later is added to the same message. A red counter beside Callbacks in the
 menu (a dot on the phone's menu button) shows how many are waiting, and
 refreshes every minute.
