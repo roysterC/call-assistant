@@ -340,6 +340,8 @@ async function main() {
       clearInterval(ping);
       call.close();
       labCalls--;
+      // Not written to Call History: lab calls are our tests, not the salon's
+      // callers. The phone line logs its calls with logCall(call.outcomes()).
       // What this lab call cost us. Lab usage is never charged to the salon,
       // but it is on our bill, so it is counted.
       if (!fakes) {

@@ -222,6 +222,8 @@ describe("VoiceCall hanging up", () => {
     await tick(5);
     expect(h.hangup).toHaveBeenCalledTimes(1);
     expect(h.events).toContainEqual({ type: "ended", by: "receptionist" });
+    // Nothing booked, and the receptionist said goodbye: an enquiry.
+    expect(h.call.outcomes()).toEqual(["enquiry"]);
   });
 
   it("stays on the line if the caller speaks up during the goodbye", async () => {

@@ -243,6 +243,16 @@ later is added to the same message. A red counter beside Callbacks in the
 menu (a dot on the phone's menu button) shows how many are waiting, and
 refreshes every minute.
 
+### Call History for our receptionist
+
+Each call is one line: who rang, when, how long, and its outcome (booked,
+rescheduled, cancelled, left a message, enquiry, or hung up), read from
+what the receptionist actually did (`src/lib/receptionist/outcomes.ts`).
+No recording, transcript or summary is kept. "Enquiry" is a call the
+receptionist closed with nothing done; "hung up" is one the caller ended
+first. Lab calls are never logged; the phone line calls `logCall` when a
+call ends (`src/lib/receptionist/call-log.ts`).
+
 ### Stress-testing the receptionist
 
 `scripts/receptionist-stress.ts` puts our own receptionist through twenty
