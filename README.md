@@ -236,9 +236,9 @@ The receptionist never transfers a call. When a caller asks for a person, or
 wants something it cannot do or answer, it takes a message (`take_message`
 in `src/lib/vapi-functions.ts`): their name, number (caller ID unless they
 give another) and what it is about, for a stylist if they named one. It
-lands on the Callbacks page, due now while the salon is open and when it
-next opens otherwise. The caller is never promised a time, only that
-someone will ring back as soon as they can. More detail a moment
+lands on the Callbacks page, listed by when the caller rang (waiting ones
+oldest first). There is no due time, and the caller is never promised one,
+only that someone will ring back as soon as they can. More detail a moment
 later is added to the same message. A red counter beside Callbacks in the
 menu (a dot on the phone's menu button) shows how many are waiting, and
 refreshes every minute.

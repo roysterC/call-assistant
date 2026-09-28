@@ -41,7 +41,6 @@ import {
 import {
   addCalendarDays,
   describeAppointmentWhen,
-  nextOpenMorning,
   openWindowFor,
   parseDateOnly,
   parseSpokenTime,
@@ -1384,14 +1383,13 @@ export async function handleBookAppointment(
 
     // Anything else is the diary failing, and the caller has been told the
     // salon will ring. A callback is what makes that true.
-    const fallbackAt =
-      nextOpenMorning(cfg.hours, cfg.timeZone, new Date()) ?? new Date();
     await prisma.callback.create({
       data: {
         organizationId,
         leadId: lead.id,
         assignedTo: stylist.name,
-        scheduledAt: fallbackAt,
+        // Listed by when the caller rang, like every message.
+        scheduledAt: new Date(),
         notes: [
           `COULD NOT BOOK: ${written.reason}`,
           `Wanted: ${service.name} with ${stylist.name} at ${startsAt.toISOString()}`,
@@ -1523,9 +1521,9 @@ export function mergeMessage(before: string, next: string): string {
  * There is nobody to put a call through to, so this is what "can I speak to
  * someone?" becomes. It lands on the Callbacks page (and the counter beside
  * it in the menu), with the message as the callback's note. Unlike
- * `book_callback` it needs no date: it is due now if the salon is open, and
- * when it next opens if not. The caller is never told a time, only that
- * someone will ring back as soon as they can.
+ * `book_callback` it needs no date: it is listed by when the caller rang,
+ * and the caller is never told a time, only that someone will ring back as
+ * soon as they can.
  */
 export async function handleTakeMessage(
   organizationId: string,
@@ -1568,9 +1566,6 @@ export async function handleTakeMessage(
   const cfg = await getSalonConfig(organizationId);
   const stylist = matchStylist(blankToUndefined(params.forStylist), cfg.stylists);
   const now = new Date();
-  // Now if the salon is open, else the moment it next opens: for the order of
-  // the Callbacks page, never said to the caller.
-  const due = nextOpenMorning(cfg.hours, cfg.timeZone, now) ?? now;
 
   // More detail from the same caller a moment later ("it's about my fringe")
   // is added to the message already taken, rather than filed as a second one.
@@ -1597,14 +1592,16 @@ export async function handleTakeMessage(
         organizationId,
         leadId: lead.id,
         assignedTo: stylist?.name ?? "Team",
-        scheduledAt: due,
+        // No due time: the Callbacks page lists messages by when the caller
+        // rang. The column is required, so it holds that same moment.
+        scheduledAt: now,
         notes: message,
       },
     });
   }
 
   // The caller hears no time: "today" or "when we open" is a promise the salon
-  // may not keep. The due time only orders the Callbacks page.
+  // may not keep.
   return {
     success: true,
     message:

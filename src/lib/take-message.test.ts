@@ -40,7 +40,7 @@ afterEach(() => vi.useRealTimers());
 const saved = () => db.callback.create.mock.calls[0][0].data;
 
 describe("take_message", () => {
-  it("puts the message on the callback list, due now while the salon is open", async () => {
+  it("puts the message on the callback list, stamped with when they rang", async () => {
     vi.useFakeTimers({ now: new Date("2026-09-29T13:00:00Z"), toFake: ["Date"] }); // Tuesday 2pm
     const r = await handleTakeMessage("org", {
       customerName: "Sarah Jones",
@@ -62,7 +62,7 @@ describe("take_message", () => {
     expect(r.message).toMatch(/Do not say anyone will be put through/);
   });
 
-  it("is due when the salon next opens if it is closed, and promises no time", async () => {
+  it("has no due time when the salon is closed either, and promises no time", async () => {
     vi.useFakeTimers({ now: new Date("2026-09-27T20:00:00Z"), toFake: ["Date"] }); // Sunday 9pm
     const r = await handleTakeMessage("org", {
       customerName: "Sarah Jones",
@@ -71,10 +71,10 @@ describe("take_message", () => {
       forStylist: "jo",
     });
     expect(saved().assignedTo).toBe("Jo");
-    // Tuesday 10am London.
-    expect(saved().scheduledAt.toISOString()).toBe("2026-09-29T09:00:00.000Z");
+    // When they rang, not when the salon next opens.
+    expect(saved().scheduledAt.toISOString()).toBe("2026-09-27T20:00:00.000Z");
     expect(r.message).toMatch(/Message taken for Jo/);
-    // Due Tuesday on the page, but the caller is promised no time.
+    // The caller is promised no time.
     expect(r.message).not.toMatch(/Tuesday|10am|at 10|first thing/);
   });
 

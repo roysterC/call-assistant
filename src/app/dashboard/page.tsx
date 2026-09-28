@@ -66,7 +66,7 @@ interface Stats {
 interface Callback {
   id: string;
   assignedTo: string;
-  scheduledAt: string;
+  createdAt: string;
   status: string;
   notes: string | null;
   lead: { name: string | null; phone: string | null; company: string | null };

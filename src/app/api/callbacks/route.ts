@@ -22,7 +22,9 @@ export async function GET(req: NextRequest) {
     const callbacks = await prisma.callback.findMany({
       where: { status, organizationId: ctx.organizationId },
       include: { lead: true },
-      orderBy: { scheduledAt: "asc" },
+      // By when the caller rang: waiting ones oldest first, so whoever has
+      // waited longest is at the top; done ones newest first.
+      orderBy: { createdAt: status === "pending" ? "asc" : "desc" },
     });
 
     return NextResponse.json({ callbacks });
