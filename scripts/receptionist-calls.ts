@@ -65,7 +65,7 @@ const SCENARIOS: Scenario[] = [
     name: "books a returning client on the number they ring from",
     caller: "+447700900601",
     lines: [
-      `Hi, could I book a cut and finish on ${nextWeekday(2)} please?`,
+      `Hi, could I book a ladies cut and blow dry on ${nextWeekday(2)} please?`,
       "I've been before, yes.",
       "The earliest one please.",
       "It's Sarah Jones.",
@@ -127,7 +127,7 @@ const SCENARIOS: Scenario[] = [
           startsAt,
           endsAt: new Date(startsAt.getTime() + 45 * 60 * 1000),
           durationMinutes: 45,
-          serviceText: "Cut and finish",
+          serviceText: "Ladies cut and blow dry",
           stylistName: "Jo",
           status: "booked",
           source: "desk",

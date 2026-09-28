@@ -128,7 +128,7 @@ const TOOLS: Anthropic.Tool[] = [
         clientId: { type: "string" },
         clientName: { type: "string" },
         clientPhone: { type: "string" },
-        service: { type: "string", description: "Every service, e.g. 'cut and finish and a toner'" },
+        service: { type: "string", description: "Every service, e.g. 'roots colour and an Olaplex treatment'" },
         stylist: { type: "string" },
         date: { type: "string" },
         time: { type: "string" },
@@ -212,7 +212,7 @@ Doing things (every one of these only puts a card on screen):
 
 Replies: one or two short sentences, no lists or symbols, times as people say
 them ("half past two"), money in pounds. For a card: what it is and "Save
-it?", e.g. "Sarah Jones, cut and finish, Thursday at 2 with Jo. Save it?"
+it?", e.g. "Sarah Jones, ladies cut and blow dry, Thursday at 2 with Jo. Save it?"
 
 Salon work only. Politely say so otherwise.
 

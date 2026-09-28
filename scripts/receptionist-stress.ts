@@ -124,7 +124,7 @@ async function seedBooking(ctx: Ctx, number: string, name: string, day: string, 
     startsAt,
     endsAt: new Date(startsAt.getTime() + 45 * 60_000),
     durationMinutes: 45,
-    serviceText: "Cut and finish",
+    serviceText: "Ladies cut and blow dry",
     stylistName: stylist,
     status: "booked",
     source: "desk",
@@ -144,11 +144,11 @@ const SCENARIOS: Scenario[] = [
     persona: {
       who: "Sarah Jones, a regular client, relaxed and chatty.",
       goal:
-        "Book a cut and finish with Jo on Tuesday week (say it exactly like that: 'Tuesday week') at half two. " +
+        "Book a ladies cut and blow dry with Jo on Tuesday week (say it exactly like that: 'Tuesday week') at half two. " +
         "If that exact time is gone, take the nearest time that day.",
       facts: ["Your name is Sarah Jones.", "You have been to the salon many times.", "The number you're ringing from is fine."],
     },
-    expect: "One cut and finish booked on Tuesday week, read back clearly, name taken.",
+    expect: "One ladies cut and blow dry booked on Tuesday week, read back clearly, name taken.",
     checks: [
       async (ctx) => {
         const b = await bookingsFor(ctx, phone(1));
@@ -182,7 +182,7 @@ const SCENARIOS: Scenario[] = [
     caller: phone(3),
     persona: {
       who: "Lucy Grant, busy, vague, doesn't like being asked lots of questions.",
-      goal: "Get a cut and finish sometime next week, any afternoon, with anyone. Accept the first afternoon offered.",
+      goal: "Get a ladies cut and blow dry sometime next week, any afternoon, with anyone. Accept the first afternoon offered.",
       facts: ["Your name is Lucy Grant.", "You've been once before."],
     },
     expect: "Offers specific afternoon times without an interrogation, books one afternoon slot.",
@@ -293,7 +293,7 @@ const SCENARIOS: Scenario[] = [
     caller: phone(10),
     persona: {
       who: "Kate Lowe. You think the stylist is called 'Joe' (it's actually Jo).",
-      goal: "Book a cut and finish with Joe on Thursday. Accept Jo if the receptionist suggests it.",
+      goal: "Book a ladies cut and blow dry with Joe on Thursday. Accept Jo if the receptionist suggests it.",
       facts: ["Your name is Kate Lowe.", "You've been before."],
     },
     expect: "Works out 'Joe' is Jo, or asks; never books a stylist who doesn't exist.",
@@ -326,10 +326,10 @@ const SCENARIOS: Scenario[] = [
     caller: phone(12),
     persona: {
       who: "Helen Ward, researching salons, not ready to book.",
-      goal: "Ask how much a balayage costs, how long it takes, and whether you need a skin test. Then say you'll think about it and go.",
+      goal: "Ask how much full head highlights cost, how long they take, whether you need a skin test, and whether a blow dry is included. Then ask about balayage. Then say you'll think about it and go.",
       facts: ["Your name is Helen Ward, if asked.", "You have never been to this salon."],
     },
-    expect: "Answers from the salon's own information (or says prices vary), books nothing, ends politely.",
+    expect: "Highlights from £99 with a skin test 48 hours ahead and no blow dry included; balayage is not on the list, so no invented price. Books nothing, ends politely.",
     checks: [async (ctx) => ((await bookingsFor(ctx, phone(12))).length ? "booked someone who only asked questions" : null)],
   },
   {
@@ -458,7 +458,7 @@ const SCENARIOS: Scenario[] = [
     caller: phone(19),
     persona: {
       who: "Grace Hill, knows exactly what she wants.",
-      goal: "Book a root tint and a blow dry together, on Friday, any time.",
+      goal: "Book a roots colour and a blow dry together, on Friday, any time. Your hair is long.",
       facts: ["Your name is Grace Hill.", "You've been many times and had colour here before."],
     },
     expect: "One appointment long enough for both services.",
@@ -466,7 +466,7 @@ const SCENARIOS: Scenario[] = [
       async (ctx) => {
         const b = await bookingsFor(ctx, phone(19));
         if (b.length !== 1) return `expected one appointment, found ${b.length}`;
-        return /tint/i.test(b[0].serviceText) && /blow/i.test(b[0].serviceText) ? null : `booked "${b[0].serviceText}"`;
+        return /roots/i.test(b[0].serviceText) && /blow/i.test(b[0].serviceText) ? null : `booked "${b[0].serviceText}"`;
       },
     ],
   },
@@ -526,7 +526,7 @@ const SCENARIOS: Scenario[] = [
         startsAt,
         endsAt: new Date(startsAt.getTime() + 45 * 60_000),
         durationMinutes: 45,
-        serviceText: "Cut and finish",
+        serviceText: "Ladies cut and blow dry",
         stylistName: "Jo",
         status: "booked",
         source: "voice",

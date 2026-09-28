@@ -107,7 +107,7 @@ export function fakeModel(): StreamingClient {
             const content = hangUp
               ? [{ type: "text", text }, { type: "tool_use", id: `f${i}`, name: "end_call", input: {} }]
               : toolTurn
-              ? [{ type: "tool_use", id: `f${i}`, name: "check_availability", input: { date: "Tuesday", service: "cut and finish" } }]
+              ? [{ type: "tool_use", id: `f${i}`, name: "check_availability", input: { date: "Tuesday", service: "ladies cut and blow dry" } }]
               : [{ type: "text", text }];
             return {
               id: `fake_${i}`,

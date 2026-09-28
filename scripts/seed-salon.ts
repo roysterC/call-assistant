@@ -27,6 +27,7 @@ loadEnv({ path: ".env" });
 
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { SHOGO_CONTACT_PHONE, SHOGO_FAQ, SHOGO_HOURS, SHOGO_SERVICES } from "./shogo-menu";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -34,33 +35,9 @@ const prisma = new PrismaClient({ adapter });
 const SLUG = "shogo";
 const PHONE = process.env.SHOGO_PHONE || "+441234567890";
 
-// Closed Monday and Sunday; late night Thursday; early Saturday.
-const BUSINESS_HOURS = [
-  { day: 0, closed: true, open: "", close: "" },
-  { day: 1, closed: true, open: "", close: "" },
-  { day: 2, closed: false, open: "09:00", close: "18:00" },
-  { day: 3, closed: false, open: "09:00", close: "18:00" },
-  { day: 4, closed: false, open: "09:00", close: "20:00" },
-  { day: 5, closed: false, open: "09:00", close: "18:00" },
-  { day: 6, closed: false, open: "08:30", close: "17:00" },
-];
-
-// Durations are load-bearing: they decide how much of a stylist's day gets
-// blocked. `requiresPatchTest` forces a 48h lead time for new clients.
-const SERVICES = [
-  { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false, bufferMinutes: 0 },
-  { name: "Restyle", durationMinutes: 60, requiresPatchTest: false, bufferMinutes: 0 },
-  { name: "Fringe trim", durationMinutes: 15, requiresPatchTest: false, bufferMinutes: 0 },
-  { name: "Gents cut", durationMinutes: 30, requiresPatchTest: false, bufferMinutes: 0 },
-  { name: "Blow dry", durationMinutes: 45, requiresPatchTest: false, bufferMinutes: 0 },
-  { name: "Root tint", durationMinutes: 90, requiresPatchTest: true, bufferMinutes: 15 },
-  { name: "Full head colour", durationMinutes: 120, requiresPatchTest: true, bufferMinutes: 15 },
-  { name: "Half head highlights", durationMinutes: 120, requiresPatchTest: true, bufferMinutes: 15 },
-  { name: "Full head highlights", durationMinutes: 150, requiresPatchTest: true, bufferMinutes: 15 },
-  { name: "Balayage", durationMinutes: 180, requiresPatchTest: true, bufferMinutes: 15 },
-  { name: "Toner", durationMinutes: 45, requiresPatchTest: true, bufferMinutes: 0 },
-  { name: "Olaplex treatment", durationMinutes: 30, requiresPatchTest: false, bufferMinutes: 0 },
-];
+// Shogo's official hours and price list (scripts/shogo-menu.ts).
+const BUSINESS_HOURS = SHOGO_HOURS;
+const SERVICES = SHOGO_SERVICES;
 
 const STYLISTS = [
   {
@@ -75,28 +52,28 @@ const STYLISTS = [
     role: "Senior stylist — cutting, curly hair",
     calendarEnv: "SHOGO_CAL_SIOBHAN",
     workingDays: [2, 3, 5, 6],
-    services: ["Cut and finish", "Restyle", "Fringe trim", "Blow dry"],
+    services: ["Ladies cut and blow dry", "Wash and blow dry, short hair", "Wash and blow dry, medium hair", "Wash and blow dry, long hair"],
   },
   {
     name: "Marcus",
     role: "Stylist — barbering",
     calendarEnv: "SHOGO_CAL_MARCUS",
     workingDays: [3, 4, 5, 6],
-    services: ["Gents cut", "Cut and finish", "Fringe trim"],
+    services: ["Men's cut and dry", "Ladies cut and blow dry", "Children's cut, age 7 to 12", "Children's cut, age 13 to 16"],
   },
   {
     name: "Priya",
     role: "Stylist — blow dries, occasion hair",
     calendarEnv: "SHOGO_CAL_PRIYA",
     workingDays: [4, 5, 6],
-    services: ["Blow dry", "Cut and finish", "Olaplex treatment"],
+    services: ["Wash and blow dry, medium hair", "Wash and blow dry, long hair", "Hair up, party style", "Bridal hair"],
   },
   {
     name: "Chloe",
     role: "Junior stylist",
     calendarEnv: "SHOGO_CAL_CHLOE",
     workingDays: [2, 3, 4, 5],
-    services: ["Blow dry", "Fringe trim", "Olaplex treatment"],
+    services: ["Wash and blow dry, short hair", "Wash and blow dry, medium hair", "Olaplex treatment", "Children's cut, age 0 to 6"],
   },
 ];
 
@@ -130,6 +107,8 @@ async function main() {
       businessHours: BUSINESS_HOURS,
       services: SERVICES,
       timezone: "Europe/London",
+      contactPhone: SHOGO_CONTACT_PHONE,
+      salonFaq: SHOGO_FAQ,
       voiceEnabled: true,
     },
     create: {
@@ -139,6 +118,8 @@ async function main() {
       businessHours: BUSINESS_HOURS,
       services: SERVICES,
       timezone: "Europe/London",
+      contactPhone: SHOGO_CONTACT_PHONE,
+      salonFaq: SHOGO_FAQ,
       voiceEnabled: true,
     },
   });
