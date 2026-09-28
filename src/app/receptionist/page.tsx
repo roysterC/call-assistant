@@ -44,6 +44,7 @@ const TOOL_LABEL: Record<string, string> = {
   cancel_appointment: "Cancelled a booking",
   reschedule_appointment: "Moved a booking",
   book_callback: "Booked a callback",
+  take_message: "Took a message",
   transfer_call: "Transferred the call",
 };
 

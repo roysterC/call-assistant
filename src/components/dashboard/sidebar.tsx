@@ -32,6 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { callbacksChanged, usePendingCallbacks } from "@/lib/use-pending-callbacks";
 import { apiFetch } from "@/lib/api-fetch";
 import { stylistMayVisit, useMe } from "@/components/providers/me-provider";
 import {
@@ -96,6 +97,13 @@ export function Sidebar({
   const me = useMe();
 
   const [features, setFeatures] = useState<FeatureFlags | null>(null);
+  // The red counter beside Callbacks. Not for a stylist login, which has no
+  // callbacks page.
+  const pending = usePendingCallbacks(Boolean(features?.voiceEnabled) && !me?.stylist);
+  useEffect(() => {
+    // Another organisation (super-admin switcher): its own count.
+    callbacksChanged();
+  }, [asOrg]);
   // The organisation's start page goes to the top (Settings → Start page).
   const [startPage, setStartPage] = useState<string | null>(null);
 
@@ -245,6 +253,7 @@ export function Sidebar({
           )
           .map((item) => {
             const isActive = pathname === item.href;
+            const badge = item.href === "/callbacks" && pending > 0 ? pending : 0;
             return (
               <Link
                 key={item.href}
@@ -252,9 +261,11 @@ export function Sidebar({
                 onClick={onNavigate}
                 // The folded rail shows icons only; the name is on hover.
                 title={collapsed ? item.label : undefined}
-                aria-label={collapsed ? item.label : undefined}
+                aria-label={
+                  badge ? `${item.label}, ${badge} waiting` : collapsed ? item.label : undefined
+                }
                 className={cn(
-                  "group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                   collapsed && "md:justify-center md:px-0",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -270,6 +281,18 @@ export function Sidebar({
                   )}
                 />
                 <span className={wide}>{item.label}</span>
+                {badge > 0 && (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "ml-auto min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-semibold leading-5 text-center tabular-nums",
+                      // On the folded rail, a smaller counter on the icon's corner.
+                      collapsed && "md:absolute md:top-0.5 md:right-2 md:ml-0 md:min-w-4 md:h-4 md:px-1 md:text-[10px] md:leading-4"
+                    )}
+                  >
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                )}
               </Link>
             );
           })}

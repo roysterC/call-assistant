@@ -29,6 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { CalendarClock, Check, X } from "lucide-react";
 import { format } from "date-fns";
+import { callbacksChanged } from "@/lib/use-pending-callbacks";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -95,6 +96,7 @@ export default function CallbacksPage() {
         body: JSON.stringify({ id, status }),
       });
       fetchCallbacks();
+      callbacksChanged();
     } catch (error) {
       console.error("Failed to update callback:", error);
     }
@@ -129,6 +131,7 @@ export default function CallbacksPage() {
       });
       setCompleteTarget(null);
       fetchCallbacks();
+      callbacksChanged();
     } catch (error) {
       console.error("Failed to complete callback:", error);
     } finally {

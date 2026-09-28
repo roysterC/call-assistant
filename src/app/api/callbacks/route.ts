@@ -11,6 +11,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status") || "pending";
 
+    // The menu's red counter: just the number waiting, polled every minute.
+    if (searchParams.get("count") === "1") {
+      const pending = await prisma.callback.count({
+        where: { status: "pending", organizationId: ctx.organizationId },
+      });
+      return NextResponse.json({ pending });
+    }
+
     const callbacks = await prisma.callback.findMany({
       where: { status, organizationId: ctx.organizationId },
       include: { lead: true },

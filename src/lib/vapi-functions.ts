@@ -179,6 +179,7 @@ export type VapiFunctionName =
   | "find_appointment"
   | "cancel_appointment"
   | "reschedule_appointment"
+  | "take_message"
   | "transfer_call";
 
 export const VAPI_FUNCTION_NAMES: VapiFunctionName[] = [
@@ -189,6 +190,7 @@ export const VAPI_FUNCTION_NAMES: VapiFunctionName[] = [
   "find_appointment",
   "cancel_appointment",
   "reschedule_appointment",
+  "take_message",
   "transfer_call",
 ];
 
@@ -1500,6 +1502,120 @@ export async function handleBookAppointment(
   };
 }
 
+/**
+ * One message from two tellings. The receptionist usually resends the whole
+ * message with the new detail worked in, so a new version that repeats most
+ * of the old one replaces it; a new detail on its own is added underneath.
+ */
+export function mergeMessage(before: string, next: string): string {
+  if (!before.trim()) return next;
+  const words = (s: string) => new Set(s.toLowerCase().match(/[a-z0-9']+/g) ?? []);
+  const old = words(before);
+  const now = words(next);
+  const kept = [...old].filter((w) => now.has(w)).length;
+  return old.size > 0 && kept / old.size >= 0.6 ? next : `${before}\n${next}`;
+}
+
+/**
+ * A message for the salon to ring the caller back: they asked for a person,
+ * or for something the receptionist cannot do or answer.
+ *
+ * There is nobody to put a call through to, so this is what "can I speak to
+ * someone?" becomes. It lands on the Callbacks page (and the counter beside
+ * it in the menu), with the message as the callback's note. Unlike
+ * `book_callback` it needs no date: it is due now if the salon is open, and
+ * when it next opens if not, and the receptionist is told which to say.
+ */
+export async function handleTakeMessage(
+  organizationId: string,
+  params: {
+    customerName?: string;
+    customerPhone?: string;
+    /** Caller ID, supplied by the tool body. */
+    callerNumber?: string;
+    message?: string;
+    forStylist?: string;
+  }
+) {
+  const parsedName = normaliseCallerName(params.customerName);
+  if (!parsedName.ok) {
+    return { success: false, missingName: true, message: nameRequiredMessage(parsedName.reason) };
+  }
+  const message = blankToUndefined(params.message);
+  if (!message) {
+    return {
+      success: false,
+      message: "What is the message? Ask what they would like the salon to ring about, then send it.",
+    };
+  }
+  const phone = resolveCallerPhone(params.customerPhone, params.callerNumber);
+  if (!phone.ok) {
+    return {
+      success: false,
+      message: `${phone.reason} Ask for the best number to ring them back on, and read it back.`,
+    };
+  }
+
+  const lead =
+    (await prisma.lead.findUnique({
+      where: { organizationId_phone: { organizationId, phone: phone.e164 } },
+    })) ??
+    (await prisma.lead.create({
+      data: { organizationId, phone: phone.e164, name: parsedName.name, source: "phone" },
+    }));
+
+  const cfg = await getSalonConfig(organizationId);
+  const stylist = matchStylist(blankToUndefined(params.forStylist), cfg.stylists);
+  const now = new Date();
+  // Now if the salon is open, else the moment it next opens.
+  const due = nextOpenMorning(cfg.hours, cfg.timeZone, now) ?? now;
+  const openNow = due.getTime() <= now.getTime();
+
+  // More detail from the same caller a moment later ("it's about my fringe")
+  // is added to the message already taken, rather than filed as a second one.
+  const recent = await prisma.callback.findFirst({
+    where: {
+      organizationId,
+      leadId: lead.id,
+      status: "pending",
+      createdAt: { gte: new Date(now.getTime() - 30 * 60_000) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recent) {
+    await prisma.callback.update({
+      where: { id: recent.id },
+      data: {
+        notes: mergeMessage(recent.notes ?? "", message),
+        ...(stylist ? { assignedTo: stylist.name } : {}),
+      },
+    });
+  } else {
+    await prisma.callback.create({
+      data: {
+        organizationId,
+        leadId: lead.id,
+        assignedTo: stylist?.name ?? "Team",
+        scheduledAt: due,
+        notes: message,
+      },
+    });
+  }
+
+  const when = openNow
+    ? "today, as soon as someone is free"
+    : `when the salon opens, ${spokenDay(zonedDateString(due, cfg.timeZone), cfg.timeZone, now)} at ${spokenTime(due.toISOString(), cfg.timeZone)}`;
+  return {
+    success: true,
+    message:
+      `${recent ? "Added to their message" : "Message taken"} for ${stylist?.name ?? "the salon"}. Tell the caller the salon will ring them back ${when}, ` +
+      `on ${speakablePhone(phone.e164)}` +
+      (phone.source === "callerId" ? " (the number they are ringing from; check it is the best one)." : ".") +
+      " Do not say anyone will be put through. If they tell you anything more about it, call " +
+      "take_message again with the whole message, updated, before saying it is noted; otherwise nobody sees it.",
+  };
+}
+
 export async function handleTransferCall(
   organizationId: string,
   params: { teamMember?: string; reason?: string }
@@ -2311,6 +2427,8 @@ export async function executeVapiFunction(
       return handleCancelAppointment(organizationId, parameters as Parameters<typeof handleCancelAppointment>[1]);
     case "reschedule_appointment":
       return handleRescheduleAppointment(organizationId, parameters as Parameters<typeof handleRescheduleAppointment>[1]);
+    case "take_message":
+      return handleTakeMessage(organizationId, parameters as Parameters<typeof handleTakeMessage>[1]);
     case "transfer_call":
       return handleTransferCall(organizationId, parameters as Parameters<typeof handleTransferCall>[1]);
     default:
