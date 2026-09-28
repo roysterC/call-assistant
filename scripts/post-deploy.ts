@@ -18,6 +18,7 @@ loadEnv({ path: ".env" });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { splitName } from "../src/lib/client-name";
+import { applyShogoMenu } from "./shogo-menu-apply";
 
 const BATCH = 500;
 
@@ -87,6 +88,15 @@ async function main() {
     console.log(`  ✓ Client names split: ${names}`);
     const numbers = await numberAppointments(prisma);
     console.log(`  ✓ Appointments numbered: ${numbers}`);
+    // Shogo's official price list, once. Skipped for good once it is in, so
+    // the salon's own edits in Settings are never overwritten. A failure here
+    // is reported, not fatal: the CRM is already live on the new build.
+    try {
+      const menu = await applyShogoMenu(prisma, { apply: true, onlyOnce: true });
+      console.log(`  ✓ Shogo price list: ${menu === "applied" ? "applied" : "already in, left alone"}`);
+    } catch (err) {
+      console.error("  ! Shogo price list not applied:", err instanceof Error ? err.message : err);
+    }
   } finally {
     await prisma.$disconnect();
   }
