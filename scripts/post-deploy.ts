@@ -18,7 +18,7 @@ loadEnv({ path: ".env" });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { splitName } from "../src/lib/client-name";
-import { applyShogoMenu } from "./shogo-menu-apply";
+import { applyShogoMenu, SHOGO_MENU_MIGRATION } from "./shogo-menu-apply";
 
 const BATCH = 500;
 
@@ -88,14 +88,24 @@ async function main() {
     console.log(`  ✓ Client names split: ${names}`);
     const numbers = await numberAppointments(prisma);
     console.log(`  ✓ Appointments numbered: ${numbers}`);
-    // Shogo's official price list, once. Skipped for good once it is in, so
-    // the salon's own edits in Settings are never overwritten. A failure here
-    // is reported, not fatal: the CRM is already live on the new build.
+    // Shogo's official price list, exactly once: after it is in (here or by
+    // hand) it is recorded, and the salon's own edits in Settings are never
+    // overwritten. A failure is reported, not fatal: the CRM is already live
+    // on the new build.
     try {
-      const menu = await applyShogoMenu(prisma, { apply: true, onlyOnce: true });
-      console.log(`  ✓ Shogo price list: ${menu === "applied" ? "applied" : "already in, left alone"}`);
+      const done = await prisma.dataMigration.findUnique({ where: { id: SHOGO_MENU_MIGRATION } });
+      if (done) {
+        console.log(`  ✓ Shogo price list: applied ${done.ranAt.toISOString().slice(0, 10)}, left alone`);
+      } else {
+        const menu = await applyShogoMenu(prisma, { apply: true });
+        console.log(
+          menu.result === "not-found"
+            ? `  ! Shogo price list NOT applied: ${menu.reason}`
+            : "  ✓ Shogo price list: applied"
+        );
+      }
     } catch (err) {
-      console.error("  ! Shogo price list not applied:", err instanceof Error ? err.message : err);
+      console.error("  ! Shogo price list NOT applied:", err instanceof Error ? err.message : err);
     }
   } finally {
     await prisma.$disconnect();

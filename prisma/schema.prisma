@@ -716,3 +716,12 @@ model UsageRecord {
   @@index([organizationId, startedAt])
   @@map("ca_usage_records")
 }
+
+/// One-off data changes the deploy has made (scripts/post-deploy.ts), so each
+/// runs exactly once however many deploys follow.
+model DataMigration {
+  id    String   @id
+  ranAt DateTime @default(now())
+
+  @@map("ca_data_migrations")
+}

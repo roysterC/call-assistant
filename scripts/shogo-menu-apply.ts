@@ -9,9 +9,12 @@
  * salon has not written its own. Appointments already in the diary keep the
  * service name they were booked with.
  *
- * Used two ways: by scripts/apply-shogo-menu.ts by hand, and once by
- * scripts/post-deploy.ts (onlyOnce), which skips it for good as soon as the
- * official list is in.
+ * Used two ways: by scripts/apply-shogo-menu.ts by hand, and by
+ * scripts/post-deploy.ts on the deploy. Either way, applying it records
+ * SHOGO_MENU_MIGRATION in ca_data_migrations, and the deploy never applies it
+ * again after that, so the salon's own edits in Settings are never
+ * overwritten. (It used to guess "already applied" from the service names,
+ * and the old list's "Olaplex treatment", on the new list too, fooled it.)
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -22,21 +25,41 @@ import { remapStylistServices, SHOGO_CONTACT_PHONE, SHOGO_FAQ, SHOGO_HOURS, SHOG
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/** The record that says the price list went in. */
+export const SHOGO_MENU_MIGRATION = "2026-09-shogo-price-list";
+
+/**
+ * Shogo's organisation. The slug is typed by hand in Admin, so it is found by
+ * slug or by name, and only when exactly one organisation answers to it.
+ */
+async function findShogo(prisma: PrismaClient): Promise<{ id: string; name: string } | string> {
+  const bySlug = await prisma.organization.findUnique({ where: { slug: "shogo" }, select: { id: true, name: true } });
+  if (bySlug) return bySlug;
+  const byName = await prisma.organization.findMany({
+    where: {
+      OR: [
+        { name: { equals: "Shogo", mode: "insensitive" } },
+        { settings: { businessName: { equals: "Shogo", mode: "insensitive" } } },
+      ],
+    },
+    select: { id: true, name: true, slug: true },
+  });
+  if (byName.length === 1) return byName[0];
+  return byName.length === 0
+    ? 'no organisation has the slug "shogo" or the name "Shogo"'
+    : `${byName.length} organisations are called Shogo (${byName.map((o) => o.slug).join(", ")}); run it by hand`;
+}
+
 export async function applyShogoMenu(
   prisma: PrismaClient,
-  opts: { apply: boolean; onlyOnce?: boolean }
-): Promise<"applied" | "previewed" | "skipped"> {
+  opts: { apply: boolean }
+): Promise<{ result: "applied" | "previewed" } | { result: "not-found"; reason: string }> {
   const { apply } = opts;
-  const org = await prisma.organization.findUnique({ where: { slug: "shogo" }, select: { id: true, name: true } });
-  if (!org) {
-    if (opts.onlyOnce) return "skipped";
-    throw new Error('No organisation with the slug "shogo" here.');
-  }
+  const found = await findShogo(prisma);
+  if (typeof found === "string") return { result: "not-found", reason: found };
+  const org = found;
   const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: org.id } });
-  if (!settings) {
-    if (opts.onlyOnce) return "skipped";
-    throw new Error("Shogo has no settings row yet; open Settings once first.");
-  }
+  if (!settings) return { result: "not-found", reason: `${org.name} has no settings yet; open Settings once first` };
 
   // Through the same parsers the settings screen saves with, so what lands is
   // exactly what the booking code will read back.
@@ -46,12 +69,6 @@ export async function applyShogoMenu(
   if (hours.length !== 7) throw new Error("The opening hours failed validation.");
 
   const before = parseServices(settings.services);
-  // Once only, from the deploy: if any service on the official list is there
-  // already, the list went in before (or the salon typed it in), and from then
-  // on the salon's own edits in Settings are the truth. Never overwrite them.
-  if (opts.onlyOnce && before.some((b) => services.some((s) => s.name.toLowerCase() === b.name.toLowerCase()))) {
-    return "skipped";
-  }
   console.log(`${apply ? "Applying" : "Preview (nothing is written; add --apply)"}: ${org.name}\n`);
   console.log(`Services: ${before.length} now -> ${services.length}`);
   for (const s of services) {
@@ -105,19 +122,27 @@ export async function applyShogoMenu(
 
   if (warnings.length) console.log(`\nCheck:\n${warnings.map((w) => `  ! ${w}`).join("\n")}`);
 
-  if (!apply) return "previewed";
-  await prisma.organizationSettings.update({
-    where: { organizationId: org.id },
-    data: {
-      // Plain JSON, as the settings route stores them.
-      services: JSON.parse(JSON.stringify(services)),
-      businessHours: JSON.parse(JSON.stringify(hours)),
-      teamMembers: JSON.parse(JSON.stringify(team)),
-      contactPhone: SHOGO_CONTACT_PHONE,
-      ...(writeFaq ? { salonFaq: SHOGO_FAQ } : {}),
-    },
-  });
+  if (!apply) return { result: "previewed" };
+  // Together, so it is never recorded as done without having been done.
+  await prisma.$transaction([
+    prisma.organizationSettings.update({
+      where: { organizationId: org.id },
+      data: {
+        // Plain JSON, as the settings route stores them.
+        services: JSON.parse(JSON.stringify(services)),
+        businessHours: JSON.parse(JSON.stringify(hours)),
+        teamMembers: JSON.parse(JSON.stringify(team)),
+        contactPhone: SHOGO_CONTACT_PHONE,
+        ...(writeFaq ? { salonFaq: SHOGO_FAQ } : {}),
+      },
+    }),
+    prisma.dataMigration.upsert({
+      where: { id: SHOGO_MENU_MIGRATION },
+      update: {},
+      create: { id: SHOGO_MENU_MIGRATION },
+    }),
+  ]);
   console.log("\nDone.");
-  return "applied";
+  return { result: "applied" };
 }
 
