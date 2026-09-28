@@ -219,6 +219,12 @@ like, the `salonFaq` column). The rules, in `src/lib/salon-knowledge.ts`:
   there gets "I'm not sure" and a callback, never a guess.
 - Prices are quoted as "from"; a service with no price gets no figure.
 - Allergy, pregnancy and scalp questions go to the stylist.
+- The service list is the whole list. Something not on it ("balayage" at a
+  salon listing highlights) gets "not on our price list", never a yes.
+- A request that could be several services ("a blow dry", "highlights") is
+  asked about, not guessed. The booking tools back this up: they refuse a
+  vague service and name the options, with prices (`servicesLike` in
+  `src/lib/salon-config.ts`).
 
 A chat bot's hand-written prompt keeps working; the facts are added after it.
 A business with no services and no FAQ (the agency's own site) gets its

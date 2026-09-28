@@ -46,7 +46,7 @@ import {
 } from "@/lib/sms";
 import { namesMatch } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
-import { matchStylist, resolveBookedService, type SalonService, type Stylist } from "@/lib/salon-config";
+import { matchStylist, resolveBookedService, servicesLike, type SalonService, type Stylist } from "@/lib/salon-config";
 import { canWriteColumn, type TenantContext } from "@/lib/tenant";
 import { phoneSlotProblem, stylistServiceProblem } from "@/lib/vapi-functions";
 
@@ -293,6 +293,24 @@ export interface BookingRequest {
   textClient?: boolean;
 }
 
+/**
+ * A service that did not resolve, said to staff: which ones it could be
+ * ("blow dry": short, medium or long hair), or that it is not on the list.
+ */
+function unresolvedService(
+  spoken: string | undefined,
+  matched: SalonService[],
+  unmatched: string[],
+  services: SalonService[]
+): string {
+  const vague = unmatched.join(" ").trim() || (spoken ?? "").trim();
+  const options = servicesLike(vague, services);
+  const have = matched.length ? `I have ${matched.map((s) => s.name).join(" and ")}. ` : "";
+  if (options.length > 1) return `${have}"${vague}" could be ${options.map((s) => s.name).join(", ")}. Ask which.`;
+  if (options.length === 1) return `${have}"${vague}" is probably ${options[0].name}. Check that.`;
+  return `${have}"${vague}" is not on the service list.`;
+}
+
 export async function proposeBooking(asker: Asker, req: BookingRequest): Promise<Proposal> {
   const cfg = await getSalonConfig(asker.organizationId);
   const provider = await getBookingProvider(asker.organizationId);
@@ -334,9 +352,7 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
   if (!svc.ok) {
     return {
       ok: false,
-      message: svc.matched.length
-        ? `I have ${svc.matched.map((s) => s.name).join(" and ")}, but not "${svc.unmatched.join('", "')}".`
-        : `"${req.service ?? ""}" is not on the service list.`,
+      message: unresolvedService(req.service, svc.matched, svc.unmatched, cfg.services),
       services: cfg.services.map((s) => s.name),
     };
   }

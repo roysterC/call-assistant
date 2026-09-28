@@ -27,7 +27,7 @@ import {
   type SalonConfig,
 } from "@/lib/booking";
 import { getAssistant, listTools, updateAssistant } from "@/lib/vapi";
-import { salonQuestionsSection } from "@/lib/salon-knowledge";
+import { NOT_LISTED, salonQuestionsSection } from "@/lib/salon-knowledge";
 
 export interface VapiTool {
   type: "function";
@@ -665,7 +665,7 @@ export function composeVoicePrompt(
     CALLER_IDENTITY_RULES,
     CALL_CLOSING_RULES,
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
-    `# Services\n\n${describeServicesForPrompt(cfg.services)}`,
+    `# Services\n\n${NOT_LISTED}\n\n${describeServicesForPrompt(cfg.services)}`,
     `# The team\n\n${describeTeamForPrompt(cfg.stylists, cfg.services)}`,
     salonQuestionsSection(faq, "phone"),
   ];

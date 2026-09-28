@@ -168,6 +168,9 @@ export function parseStylists(raw: unknown): Stylist[] {
 function normalise(s: string): string {
   return s
     .toLowerCase()
+    // "Men's" is "mens", as a caller says it and a transcript spells it,
+    // rather than "men s", which "mens cut" could never match.
+    .replace(/['’]/g, "")
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -181,6 +184,50 @@ function tokens(s: string): string[] {
   return normalise(s)
     .split(" ")
     .filter((t) => t && !STOPWORDS.has(t));
+}
+
+/** How callers say it, onto the words service names use. */
+const SAYS_AS: Record<string, string> = {
+  haircut: "cut",
+  haircuts: "cut",
+  trim: "cut",
+  kids: "childrens",
+  kid: "childrens",
+  child: "childrens",
+  children: "childrens",
+  gents: "mens",
+  man: "mens",
+  men: "mens",
+  womens: "ladies",
+  color: "colour",
+  blowdry: "blow",
+};
+
+/** Words that say nothing about which service: "hair", "done", "a". */
+const VAGUE_FILLER = new Set(["hair", "done", "new", "sorted", "service", "treatment", "please"]);
+
+function sameWord(a: string, b: string): boolean {
+  return a === b || a === `${b}s` || b === `${a}s`;
+}
+
+/**
+ * The services a vague request could mean: every service whose name has all
+ * the words asked for. "blow dry" is the three wash-and-blow-dries, "cut" is
+ * every cut, "highlights" is top, half and full head.
+ *
+ * For telling the receptionist what to ask, never for booking: a booking
+ * still needs one service named outright, so a request that could be any of
+ * three is asked about rather than guessed.
+ */
+export function servicesLike(spoken: string | undefined, services: SalonService[]): SalonService[] {
+  const want = tokens(spoken ?? "")
+    .map((t) => SAYS_AS[t] ?? t)
+    .filter((t) => !SERVICE_FILLER.has(t) && !VAGUE_FILLER.has(t));
+  if (want.length === 0) return [];
+  return services.filter((s) => {
+    const have = tokens(s.name);
+    return want.every((w) => have.some((h) => sameWord(h, w)));
+  });
 }
 
 /**

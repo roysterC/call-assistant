@@ -17,6 +17,15 @@ import type { SalonConfig } from "@/lib/booking";
 import { describeHoursForPrompt } from "@/lib/business-hours";
 import { describeServicesForPrompt, type Stylist } from "@/lib/salon-config";
 
+/**
+ * Said with the service list itself, and again in the rules. A model that
+ * knows balayage is a kind of highlighting will otherwise tell a caller that
+ * a salon listing highlights does balayage, and one asked about a fringe trim
+ * decided it came free with a cut.
+ */
+export const NOT_LISTED =
+  "The services listed are everything the salon offers. Anything not on the list, the salon does not offer by that name: do not say that it does, even if it sounds like a listed service (a salon that lists highlights has not said it does balayage). And a listed service is only what its name says: do not say it includes or covers anything else, such as a fringe trim or a toner, unless the salon's own answers say so.";
+
 /** Long enough for a proper FAQ; short enough not to swamp the instructions. */
 export const SALON_FAQ_MAX = 6000;
 
@@ -42,7 +51,9 @@ export function salonQuestionsSection(faq: string | null, channel: "phone" | "ch
   return [
     "# Questions about the salon",
     "",
-    "- General hair questions, such as what balayage is, what a toner or Olaplex does, or how often to have a trim, you may answer briefly from general knowledge, as any good receptionist would.",
+    "- General hair questions, such as what a toner or Olaplex does or how often to have a trim, you may answer briefly from general knowledge, as any good receptionist would. That is never a yes to whether this salon offers something.",
+    `- ${NOT_LISTED} Say it is not on the price list, and ${channel === "phone" ? "offer to take a message so the stylist can ring them back about it" : "that the team can tell them more"}. You may suggest a listed service that is close, as a suggestion only; never say a listed service includes or covers what they asked for unless it is written here.`,
+    `- When a request could be several listed services (a haircut: ladies, men's or a child's; a blow dry for short, medium or long hair; highlights on the top, half or full head), ask which one ${channel === "phone" ? "before checking the diary" : "before giving a price"}. Never choose for them.`,
     `- Anything about this salon in particular (prices, where it is, parking, payment, policies, what a service here includes, a stylist's experience) answer only from what is written in these instructions. If it is not written here, ${fallback}. Never guess a fact about the salon.`,
     '- Prices listed with the services are starting prices. Say "from", and that the stylist confirms the final price, since it depends on length and thickness. If a service has no price listed, do not give a figure.',
     "- Do not give advice on allergies, skin reactions, pregnancy, hair loss or scalp conditions. Say the stylist will talk it through with them, and for colour, mention the skin test.",
@@ -82,7 +93,7 @@ export function salonFactsForChat(opts: {
 
   const parts = [`# About ${businessName || "the salon"}`];
   if (cfg.hours.length > 0) parts.push(`## Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`);
-  if (cfg.services.length > 0) parts.push(`## Services\n\n${describeServicesForPrompt(cfg.services)}`);
+  if (cfg.services.length > 0) parts.push(`## Services\n\n${NOT_LISTED}\n\n${describeServicesForPrompt(cfg.services)}`);
   const team = describeTeamForChat(cfg.stylists);
   if (team) parts.push(`## The team\n\n${team}`);
   parts.push(

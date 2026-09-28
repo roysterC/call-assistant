@@ -21,6 +21,7 @@ import type { TimeSlot } from "@/lib/booking/types";
 import {
   matchStylist,
   resolveBookedService,
+  servicesLike,
   serviceIsStaffedOn,
   stylistDoesService,
   stylistsForService,
@@ -28,6 +29,7 @@ import {
   type Stylist,
 } from "@/lib/salon-config";
 import { normalisePhone, speakablePhone } from "@/lib/phone";
+import { formatMoneyShort } from "@/lib/money";
 import { nameRequiredMessage, normaliseCallerName } from "@/lib/caller-name";
 import {
   cancellationBody,
@@ -237,25 +239,53 @@ function resolveCallerPhone(
 /**
  * What to tell the agent when the spoken services did not fully resolve.
  *
- * Shared by availability, booking and rescheduling. The half-understood case
- * gets its own wording on purpose: naming what was recognised lets the model
- * correct one service rather than start the whole request again.
+ * Shared by availability, booking and rescheduling. Three cases, because each
+ * needs a different next line from the receptionist:
+ *
+ * - Could be several services ("a blow dry" is short, medium or long hair):
+ *   name them, so the question it asks comes from the price list rather than
+ *   its own guess at what differs.
+ * - Not on the list at all ("balayage" at a salon that does not list it): say
+ *   so plainly. Left to itself the model decided balayage was a kind of
+ *   highlights and told the caller the salon does it.
+ * - Half understood: name what was recognised, so the model corrects one
+ *   service rather than starting the whole request again.
  */
 function serviceNotResolvedMessage(
   spoken: string | undefined,
   matched: SalonService[],
-  unmatched: string[]
+  unmatched: string[],
+  services: SalonService[]
 ): string {
-  if (matched.length === 0) {
+  const vague = unmatched.join(" ").trim() || (spoken ?? "").trim();
+  const options = servicesLike(vague, services);
+  const have = matched.length
+    ? `I have ${matched.map((s) => s.name).join(" and ")}. `
+    : "";
+  const name = (s: SalonService) =>
+    s.priceMinor !== null ? `${s.name} (from ${formatMoneyShort(s.priceMinor)})` : s.name;
+
+  if (options.length > 1) {
     return (
-      `That service was not recognised ("${spoken ?? ""}"). Ask the caller ` +
-      "to describe what they would like done."
+      `${have}"${vague}" could be any of: ${options.map(name).join("; ")}. ` +
+      "Ask the caller which one, in plain words (for a blow dry or colour, how " +
+      "long their hair is), then use that exact service name. Do not pick one for them."
+    );
+  }
+  if (options.length === 1) {
+    return (
+      `${have}"${vague}" is probably ${options[0].name}. Check that with the ` +
+      "caller, then use that exact service name."
     );
   }
   return (
-    `I have ${matched.map((s) => s.name).join(" and ")}, but not ` +
-    `"${unmatched.join('", "')}". Ask the caller what that is, then send ` +
-    "every service they want in one call so the diary allows time for all of it."
+    `${have}"${vague}" is not on this salon's service list, so the salon does ` +
+    "not offer it by that name. Do not say that it does. Tell the caller it " +
+    "is not on the price list, mention the closest listed service if one " +
+    "plainly fits, and offer to take a message so the stylist can ring them back." +
+    (matched.length
+      ? " Then send every service they do want in one call, so the diary allows time for all of it."
+      : "")
   );
 }
 
@@ -707,16 +737,16 @@ async function checkAvailability(
     return {
       available: null,
       canCheck: true,
-      message:
-        resolvedService.matched.length === 0
-          ? "Which service is that for? I need to know before I can check " +
-            "the diary, because different services take different amounts " +
-            "of time."
-          : serviceNotResolvedMessage(
-              params.service,
-              resolvedService.matched,
-              resolvedService.unmatched
-            ),
+      message: params.service?.trim()
+        ? serviceNotResolvedMessage(
+            params.service,
+            resolvedService.matched,
+            resolvedService.unmatched,
+            cfg.services
+          )
+        : "Which service is that for? I need to know before I can check " +
+          "the diary, because different services take different amounts " +
+          "of time.",
     };
   }
   const service = resolvedService.service;
@@ -1126,7 +1156,8 @@ export async function handleBookAppointment(
       message: serviceNotResolvedMessage(
         params.service,
         bookedService.matched,
-        bookedService.unmatched
+        bookedService.unmatched,
+        cfg.services
       ),
     };
   }
