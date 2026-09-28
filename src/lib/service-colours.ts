@@ -156,11 +156,15 @@ export function toneFor(
     if (lead) return lead;
   }
 
-  // A service that has since been renamed or deleted in settings still has
-  // appointments in the diary. Grey is honest: it says "not one of the
-  // current services" rather than colouring it as something it is not.
-  const hex = FAMILY_STEPS.other[0];
-  return { family: "other", fill: `${hex}2e`, border: `${hex}b3` };
+  // A service since renamed or deleted in settings still has appointments in
+  // the diary. These used to be grey, so a new price list turned the whole
+  // diary grey at once: every booking made before it carried an old name.
+  // Coloured by what the name says instead ("Root tint" is colour, "Cut and
+  // finish" is cutting), the way a current service is; grey only when the
+  // name says nothing.
+  const family = classifyService(parts[0] ?? text);
+  const hex = FAMILY_STEPS[family][0];
+  return { family, fill: `${hex}2e`, border: `${hex}b3` };
 }
 
 /** Families actually in use, in a stable order, for the legend. */

@@ -115,6 +115,18 @@ describe("toneFor", () => {
     // An appointment booked under a service since renamed or deleted.
     expect(toneFor("Hot oil ritual", tones).family).toBe("other");
   });
+
+  it("colours a booking under an old service name by what the name says", () => {
+    // Booked before a new price list replaced these names.
+    const tones = buildServiceTones([{ name: "Ladies cut and blow dry" }, { name: "Roots colour", requiresPatchTest: true }]);
+    expect(toneFor("Cut and finish", tones).family).toBe("cutting");
+    expect(toneFor("Root tint", tones).family).toBe("colour");
+    expect(toneFor("Balayage", tones).family).toBe("colour");
+    expect(toneFor("Blow dry", tones).family).toBe("finishing");
+    expect(toneFor("Olaplex treatment", tones).family).toBe("treatment");
+    // Several old services: by the first, the longest, as for current ones.
+    expect(toneFor("Full head colour + Cut and finish", tones).family).toBe("colour");
+  });
 });
 
 describe("familiesInUse", () => {
