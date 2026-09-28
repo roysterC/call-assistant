@@ -14,8 +14,10 @@ import { signVoicePass } from "@/lib/receptionist/voice/token";
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
-  if (!ctx.isSuperAdmin && ctx.role !== "admin" && ctx.role !== "superAdmin") {
-    return NextResponse.json({ error: "Only the salon's owner can use the lab." }, { status: 403 });
+  // Ours, not the salon's: it books into the real diary and spends on the
+  // AI and voice accounts.
+  if (!ctx.isSuperAdmin) {
+    return NextResponse.json({ error: "The receptionist lab is for Kikai admins only." }, { status: 403 });
   }
 
   const base = process.env.RECEPTIONIST_VOICE_URL?.replace(/\/+$/, "");

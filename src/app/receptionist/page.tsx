@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { FlaskConical, PhoneOff, Play, Send, TriangleAlert, Wrench } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,26 @@ const TOOL_LABEL: Record<string, string> = {
   transfer_call: "Transferred the call",
 };
 
+/** Kikai's super-admins only; the lab's API refuses anyone else too. */
 export default function ReceptionistLabPage() {
+  const { data: session, status } = useSession();
+  if (status === "loading") return null;
+  if (session?.user?.role !== "superAdmin") {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Receptionist lab" />
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            The receptionist lab is for Kikai admins only.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  return <Lab />;
+}
+
+function Lab() {
   const [callerNumber, setCallerNumber] = useState("07700 900123");
   // Typing tests what it says; talking tests how it sounds and how quickly.
   const [mode, setMode] = useState<"type" | "talk">("type");

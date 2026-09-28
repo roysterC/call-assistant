@@ -240,7 +240,8 @@ export function Sidebar({
             me?.stylist
               ? stylistMayVisit(me, item.href)
               : isNavVisible(item, features) &&
-                (!item.ownerOnly || user?.role === "admin" || user?.role === "superAdmin")
+                (!item.ownerOnly || user?.role === "admin" || user?.role === "superAdmin") &&
+                (!item.superAdminOnly || isSuperAdmin)
           )
           .map((item) => {
             const isActive = pathname === item.href;
