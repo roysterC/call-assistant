@@ -67,7 +67,7 @@ export const FAMILY_HUE: Record<ServiceFamily, string> = {
 const KEYWORDS: Array<{ family: ServiceFamily; words: string[] }> = [
   { family: "cutting", words: ["cut", "trim", "restyle", "fringe", "barber", "clipper", "shave"] },
   { family: "finishing", words: ["blow", "dry", "style", "curl", "updo", "occasion", "bridal", "set"] },
-  { family: "treatment", words: ["treatment", "olaplex", "mask", "condition", "keratin", "perm", "scalp"] },
+  { family: "treatment", words: ["treatment", "olaplex", "mask", "condition", "keratin", "perm", "scalp", "straighten", "yuko"] },
   { family: "colour", words: ["colour", "color", "tint", "highlight", "balayage", "toner", "bleach", "ombre"] },
 ];
 
