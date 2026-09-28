@@ -178,7 +178,7 @@ export async function phoneMessages(asker: Asker, input: { days?: number }) {
       ...(asker.stylist ? { assignedTo: { equals: asker.stylist.name, mode: "insensitive" as const } } : {}),
     },
     include: { lead: { select: { name: true, phone: true } } },
-    orderBy: { scheduledAt: "asc" },
+    orderBy: { createdAt: "asc" },
     take: 20,
   });
   const calls = asker.stylist
@@ -203,7 +203,7 @@ export async function phoneMessages(asker: Asker, input: { days?: number }) {
     callbacksWaiting: callbacks.map((c) => ({
       who: c.lead?.name ?? "Unknown caller",
       phone: c.lead?.phone ?? null,
-      ringBack: when(c.scheduledAt),
+      called: when(c.createdAt),
       for: c.assignedTo,
       message: c.notes,
     })),

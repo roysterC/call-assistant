@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { BrandMark, Sidebar } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
+import { usePendingCallbacks } from "@/lib/use-pending-callbacks";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,6 +14,16 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
   // that navigates already runs one of those.
   const [navOpen, setNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useCollapsedNav();
+  // A red dot on the phone's menu button when callbacks are waiting, since
+  // the counter itself is inside the closed drawer.
+  const chromeless = [
+    "/embed",
+    "/login",
+    "/privacy-policy",
+    "/terms-of-service",
+    "/data-deletion",
+  ].some((p) => pathname?.startsWith(p));
+  const pending = usePendingCallbacks(!chromeless);
 
   // Embed, login, and public legal pages: no sidebar, no padding, no chrome.
   // The legal pages must render standalone so Meta's app-review crawler
@@ -45,9 +56,15 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
           onClick={() => setNavOpen(true)}
           aria-label="Open navigation"
           aria-expanded={navOpen}
-          className="h-9 w-9 -ml-1.5 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="relative h-9 w-9 -ml-1.5 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
           <Menu className="w-5 h-5" />
+          {pending > 0 && (
+            <>
+              <span aria-hidden className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-card" />
+              <span className="sr-only">{pending} callbacks waiting</span>
+            </>
+          )}
         </button>
         <BrandMark size="sm" />
         <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate">Kikai</span>

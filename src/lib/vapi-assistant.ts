@@ -253,6 +253,49 @@ const BOOK_CALLBACK: VapiTool = {
   },
 };
 
+const TAKE_MESSAGE: VapiTool = {
+  type: "function",
+  function: {
+    name: "take_message",
+    description:
+      "Leave a message for the salon to ring the caller back. Use it whenever " +
+      "the caller asks to speak to a person, or wants something you cannot do " +
+      "or answer. Nobody can be put through, so this is how they reach a " +
+      "person. Call it as soon as you have their name and what it is about.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerName: {
+          type: "string",
+          description:
+            "The caller's name. Required: ask for it, and never send a placeholder.",
+        },
+        customerPhone: {
+          type: "string",
+          description:
+            "The best number to ring them back on, as they said it. Leave it " +
+            "out to use the number they are ringing from.",
+        },
+        message: {
+          type: "string",
+          description:
+            "What they want, in a sentence or two and in their words: enough " +
+            "for the salon to ring back ready to help.",
+        },
+        forStylist: {
+          type: "string",
+          description: "The stylist it is for, if they named one.",
+        },
+        callerNumber: {
+          type: "string",
+          description: "The number they are ringing from, if the tool supplies it.",
+        },
+      },
+      required: ["customerName", "message"],
+    },
+  },
+};
+
 const FIND_APPOINTMENT: VapiTool = {
   type: "function",
   function: {
@@ -433,6 +476,9 @@ export function buildVoiceTools(caps: BookingCapabilities): VapiTool[] {
   // Failed bookings are converted to callbacks server-side, so the agent does
   // not need this tool when it can book.
   if (!caps.createBooking) tools.push(BOOK_CALLBACK);
+  // Whatever the diary can do: "can I speak to someone?" and "I can't help
+  // with that" end in a message the salon rings back about.
+  tools.push(TAKE_MESSAGE);
   return tools;
 }
 

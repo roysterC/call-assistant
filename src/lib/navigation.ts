@@ -26,6 +26,8 @@ export interface NavPage {
   requires?: FeatureKey | FeatureKey[];
   /** Owners and super-admins only: it acts on the real diary. */
   ownerOnly?: boolean;
+  /** Kikai's own super-admins only: a tool for us, not for the salon. */
+  superAdminOnly?: boolean;
 }
 
 export const DASHBOARD = "/dashboard";
@@ -47,7 +49,9 @@ export const NAV_PAGES: NavPage[] = [
   { href: "/appointments", label: "Appointments", requires: "voice" },
   { href: "/sales", label: "Sales", requires: "voice" },
   { href: "/callbacks", label: "Callbacks", requires: "voice" },
-  { href: "/receptionist", label: "Receptionist lab", requires: "voice", ownerOnly: true },
+  // Where we test the receptionist before a salon hears it. It books into the
+  // real diary and spends on the AI and voice accounts, so it is ours.
+  { href: "/receptionist", label: "Receptionist lab", requires: "voice", superAdminOnly: true },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -56,7 +60,7 @@ export const NAV_PAGES: NavPage[] = [
  * where the day's work is.
  */
 export const START_PAGE_CHOICES = NAV_PAGES.filter(
-  (p) => p.href !== "/settings" && !p.ownerOnly
+  (p) => p.href !== "/settings" && !p.ownerOnly && !p.superAdminOnly
 ).map((p) => p.href);
 
 export function isStartPageChoice(href: unknown): href is string {

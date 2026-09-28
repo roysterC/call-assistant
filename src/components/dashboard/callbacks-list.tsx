@@ -8,7 +8,7 @@ import { format } from "date-fns";
 interface Callback {
   id: string;
   assignedTo: string;
-  scheduledAt: string;
+  createdAt: string;
   status: string;
   notes: string | null;
   lead: { name: string | null; phone: string | null; company: string | null };
@@ -46,7 +46,7 @@ export function CallbacksList({ callbacks }: { callbacks: Callback[] }) {
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <CalendarClock className="w-3 h-3" />
-                    {format(new Date(cb.scheduledAt), "MMM d, h:mm a")}
+                    {format(new Date(cb.createdAt), "d MMM, HH:mm")}
                   </span>
                   <span className="flex items-center gap-1">
                     <User className="w-3 h-3" />

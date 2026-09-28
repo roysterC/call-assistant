@@ -24,6 +24,7 @@
  */
 
 import { END_CALL, type ReceptionistEngine, type TurnResult } from "../engine";
+import { callOutcomes, type CallOutcome } from "../outcomes";
 import { SentenceChunker } from "./sentences";
 import type { SpeechToText, SttStream, TextToSpeech } from "./providers";
 
@@ -122,6 +123,8 @@ export class VoiceCall {
   private silencePrompted = false;
   private silenceTimer: ReturnType<typeof setInterval> | null = null;
   private hangingUp = false;
+  /** The receptionist put the phone down (after a goodbye), not the caller. */
+  private endedByReceptionist = false;
 
   readonly log: Array<{ who: "caller" | "assistant"; text: string }> = [];
   turns: TurnResult[] = [];
@@ -144,6 +147,15 @@ export class VoiceCall {
     this.say(this.deps.greeting, this.turn.signal);
     this.log.push({ who: "assistant", text: this.deps.greeting });
     this.watchSilence();
+  }
+
+  /**
+   * What the call came to, for Call History: what was booked, moved,
+   * cancelled or left as a message, or else an enquiry or a hang-up. Read
+   * once the call has ended and settled().
+   */
+  outcomes(): CallOutcome[] {
+    return callOutcomes(this.turns, this.endedByReceptionist);
   }
 
   /** Resolves once the model has finished with every turn so far. */
@@ -409,6 +421,7 @@ export class VoiceCall {
       return;
     }
     this.deps.out.event({ type: "ended", by: "receptionist" });
+    this.endedByReceptionist = true;
     this.close();
     this.deps.out.hangup?.();
   }

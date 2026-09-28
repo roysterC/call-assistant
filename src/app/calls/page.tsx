@@ -16,18 +16,17 @@ import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { sentimentStyle, STATUS_BADGE } from "@/lib/status-styles";
+import { OUTCOME_STYLE, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 import { UsageSummary } from "@/components/usage/usage-summary";
 import { formatPence } from "@/lib/usage/cost";
 
 interface Call {
   id: string;
-  vapiCallId: string;
   phoneNumber: string;
   duration: number;
-  summary: string | null;
-  sentiment: string | null;
+  /** What the call came to; empty for calls from before this was kept. */
+  outcomes: string[];
   createdAt: string;
   lead: { name: string | null; company: string | null } | null;
   /** What the salon is charged for this call; null until a markup is set. */
@@ -41,7 +40,6 @@ export default function CallsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [expandedSummary, setExpandedSummary] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCalls() {
@@ -64,7 +62,7 @@ export default function CallsPage() {
   // salon has a markup, our cost only to super-admins.
   const showCharge = calls.some((c) => c.chargePence !== null && c.chargePence !== undefined);
   const showCost = calls.some((c) => c.costPence !== undefined);
-  const columns = 6 + (showCharge ? 1 : 0) + (showCost ? 1 : 0);
+  const columns = 5 + (showCharge ? 1 : 0) + (showCost ? 1 : 0);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -90,8 +88,7 @@ export default function CallsPage() {
                 <TableHead className="text-right">Duration</TableHead>
                 {showCharge && <TableHead className="text-right">Charge</TableHead>}
                 {showCost && <TableHead className="text-right">Cost</TableHead>}
-                <TableHead>Sentiment</TableHead>
-                <TableHead>Summary</TableHead>
+                <TableHead>Outcome</TableHead>
                 <TableHead>Date</TableHead>
               </TableRow>
             </TableHeader>
@@ -108,7 +105,7 @@ export default function CallsPage() {
                     <EmptyState
                       icon={Phone}
                       title="No calls recorded yet"
-                      hint="Every call your assistant answers is logged here with a summary and how the caller sounded."
+                      hint="Every call your receptionist answers is listed here with what it came to: booked, moved, cancelled, a message, or a hang-up."
                     />
                   </TableCell>
                 </TableRow>
@@ -147,48 +144,19 @@ export default function CallsPage() {
                         {call.costPence !== undefined ? formatPence(call.costPence) : "—"}
                       </TableCell>
                     )}
-                    {/*
-                      Sentiment is the one column here that carries a judgement,
-                      so it gets the shared meaning-colours. It used to take the
-                      Badge "default" variant for positive — the near-white
-                      primary — while the dashboard drew the same fact in green.
-                    */}
+                    {/* What the call came to. Nothing of what was said is kept. */}
                     <TableCell>
-                      {call.sentiment ? (
-                        (() => {
-                          const s = sentimentStyle(call.sentiment);
-                          return (
-                            <span
-                              className={cn(STATUS_BADGE, s.className)}
-                            >
-                              {s.label}
-                            </span>
-                          );
-                        })()
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    {/* Same button treatment as the leads table's Issue cell. */}
-                    <TableCell className="max-w-sm">
-                      {call.summary ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedSummary(
-                              expandedSummary === call.id ? null : call.id
-                            )
-                          }
-                          aria-expanded={expandedSummary === call.id}
-                          className={cn(
-                            "text-sm text-left text-muted-foreground hover:text-foreground transition-colors w-full",
-                            expandedSummary === call.id
-                              ? "whitespace-normal"
-                              : "truncate"
-                          )}
-                        >
-                          {call.summary}
-                        </button>
+                      {call.outcomes?.length ? (
+                        <span className="flex flex-wrap gap-1">
+                          {call.outcomes.map((o) => {
+                            const style = OUTCOME_STYLE[o] ?? { label: o, className: "" };
+                            return (
+                              <span key={o} className={cn(STATUS_BADGE, style.className)}>
+                                {style.label}
+                              </span>
+                            );
+                          })}
+                        </span>
                       ) : (
                         <span className="text-sm text-muted-foreground">—</span>
                       )}

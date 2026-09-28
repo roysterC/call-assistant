@@ -207,8 +207,13 @@ model Call {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vapiCallId     String       @unique
+  // Set for calls Vapi answered; null for our own receptionist's calls.
+  vapiCallId     String?      @unique
   phoneNumber    String
+  // What the call came to, for our own receptionist: any of booked,
+  // rescheduled, cancelled, message, enquiry, hung_up. No transcript or
+  // summary is kept for these calls; this is the whole record.
+  outcomes       String[]     @default([])
   status         String       @default("completed") // completed, transferred, voicemail, failed
   duration       Int          @default(0)
   transcript     Json?

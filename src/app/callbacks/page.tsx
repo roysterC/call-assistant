@@ -29,6 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { CalendarClock, Check, X } from "lucide-react";
 import { format } from "date-fns";
+import { callbacksChanged } from "@/lib/use-pending-callbacks";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -50,7 +51,7 @@ const OUTCOME_LABEL: Record<string, string> = Object.fromEntries(
 interface Callback {
   id: string;
   assignedTo: string;
-  scheduledAt: string;
+  createdAt: string;
   status: string;
   outcome: string | null;
   completedAt: string | null;
@@ -95,6 +96,7 @@ export default function CallbacksPage() {
         body: JSON.stringify({ id, status }),
       });
       fetchCallbacks();
+      callbacksChanged();
     } catch (error) {
       console.error("Failed to update callback:", error);
     }
@@ -129,6 +131,7 @@ export default function CallbacksPage() {
       });
       setCompleteTarget(null);
       fetchCallbacks();
+      callbacksChanged();
     } catch (error) {
       console.error("Failed to complete callback:", error);
     } finally {
@@ -168,7 +171,7 @@ export default function CallbacksPage() {
                 <TableHead>Customer</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Assigned to</TableHead>
-                <TableHead>Scheduled</TableHead>
+                <TableHead>Called</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead>Status</TableHead>
                 {filter === "completed" && <TableHead>Outcome</TableHead>}
@@ -190,7 +193,7 @@ export default function CallbacksPage() {
                       title={`No ${filter} callbacks`}
                       hint={
                         filter === "pending"
-                          ? "When a caller asks for a call back, it lands here with the time they wanted."
+                          ? "When a caller asks for someone, the receptionist takes a message and it lands here."
                           : `Callbacks you mark as ${filter} will be listed here.`
                       }
                     />
@@ -219,19 +222,9 @@ export default function CallbacksPage() {
                       {cb.lead.phone}
                     </TableCell>
                     <TableCell className="text-sm">{cb.assignedTo}</TableCell>
-                    {/*
-                      A pending callback whose time has passed is the only thing
-                      on this page anyone is in a hurry about, and the column
-                      gave no sign of it — every row looked equally calm.
-                    */}
+                    {/* When the caller rang; there is no due time. */}
                     <TableCell className="text-sm whitespace-nowrap">
-                      {format(new Date(cb.scheduledAt), "d MMM, HH:mm")}
-                      {cb.status === "pending" &&
-                        new Date(cb.scheduledAt) < new Date() && (
-                          <span className="block text-[11px] text-amber-700">
-                            Overdue
-                          </span>
-                        )}
+                      {format(new Date(cb.createdAt), "d MMM, HH:mm")}
                     </TableCell>
                     {/* Same expand treatment as the leads and calls tables. */}
                     <TableCell className="max-w-xs">

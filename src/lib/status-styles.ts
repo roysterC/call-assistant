@@ -116,6 +116,16 @@ export function callbackStatus(status: string): StatusStyle {
 export const STATUS_BADGE =
   "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap";
 
+/** A call's outcome in Call History (src/lib/receptionist/outcomes.ts). */
+export const OUTCOME_STYLE: Record<string, StatusStyle> = {
+  booked: { label: "Booked", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  rescheduled: { label: "Rescheduled", className: "border-sky-200 bg-sky-50 text-sky-800" },
+  cancelled: { label: "Cancelled", className: "border-amber-200 bg-amber-50 text-amber-800" },
+  message: { label: "Left a message", className: "border-violet-200 bg-violet-50 text-violet-800" },
+  enquiry: { label: "Enquiry", className: "border-slate-200 bg-slate-50 text-slate-700" },
+  hung_up: { label: "Hung up", className: "border-slate-200 bg-white text-slate-500" },
+};
+
 export const APPOINTMENT_STATUS: Record<string, StatusStyle> = {
   booked: {
     label: "Booked",

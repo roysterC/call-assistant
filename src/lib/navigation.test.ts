@@ -61,6 +61,8 @@ describe("start page choices", () => {
     expect(isStartPageChoice(DASHBOARD)).toBe(true);
     expect(isStartPageChoice("/settings")).toBe(false);
     expect(isStartPageChoice("/receptionist")).toBe(false);
+    // Super-admin only, so never a salon's start page.
+    expect(NAV_PAGES.find((p) => p.href === "/receptionist")?.superAdminOnly).toBe(true);
     expect(isStartPageChoice("https://example.com")).toBe(false);
   });
 });
