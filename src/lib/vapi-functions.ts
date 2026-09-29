@@ -52,7 +52,7 @@ import {
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
 import { namesMatch, splitName } from "@/lib/client-name";
-import { clientForBooking, peopleOnNumber, textRecipient } from "@/lib/client-link";
+import { clientForBooking, hasBeenBefore, peopleOnNumber, textRecipient } from "@/lib/client-link";
 
 /**
  * The Vapi tool handlers.
@@ -698,6 +698,10 @@ async function checkAvailability(
     clientType?: string;
     /** Some phrasings produce a boolean instead of clientType. */
     newClient?: boolean;
+    /** Who it is for, with their number: enough to tell a regular from their record. */
+    customerName?: string;
+    customerPhone?: string;
+    callerNumber?: string;
     /** "morning" | "afternoon" | "evening" */
     timeOfDay?: string;
     /** "HH:MM" local — caller wants nothing before this. */
@@ -752,7 +756,7 @@ async function checkAvailability(
   }
   const service = resolvedService.service;
 
-  const clientType = normaliseClientType(
+  let clientType = normaliseClientType(
     params.clientType ??
       (params.newClient === true
         ? "new"
@@ -760,6 +764,20 @@ async function checkAvailability(
           ? "returning"
           : undefined)
   );
+  // Only colour cares (a new client's skin test holds back the first two
+  // days), and then a regular found on their own record is offered those
+  // days like anyone else, without being asked.
+  const forName = normaliseCallerName(params.customerName);
+  const forPhone = resolveCallerPhone(params.customerPhone, params.callerNumber);
+  if (
+    service.requiresPatchTest &&
+    clientType !== "returning" &&
+    forName.ok &&
+    forPhone.ok &&
+    (await hasBeenBefore(organizationId, forPhone.e164, forName.name))
+  ) {
+    clientType = "returning";
+  }
   const stylistName =
     blankToUndefined(params.stylist) ?? blankToUndefined(params.teamMember);
 
@@ -1281,7 +1299,7 @@ export async function handleBookAppointment(
 
   const today = zonedDateString(new Date(), cfg.timeZone);
 
-  const clientType = normaliseClientType(
+  let clientType = normaliseClientType(
     params.clientType ??
       (params.newClient === true
         ? "new"
@@ -1289,6 +1307,11 @@ export async function handleBookAppointment(
           ? "returning"
           : undefined)
   );
+  // Their own record, found by name and number, has a visit on it: they have
+  // been before, whatever was said or misheard, and nobody needs to ask.
+  if (clientType !== "returning" && (await hasBeenBefore(organizationId, phone, clientName))) {
+    clientType = "returning";
+  }
 
   // The rule the prompt states, enforced: colour needs to know. Treating
   // "unknown" as new is safe for the diary, but a regular who had colour
@@ -1298,8 +1321,9 @@ export async function handleBookAppointment(
       success: false,
       needsClientType: true,
       message:
-        `${service.name} is a colour service. Ask whether they have had colour here before, ` +
-        "then book again with clientType 'returning' if they have, or 'new' if not.",
+        `${service.name} is a colour service and there is no visit on record for ${clientName} on this ` +
+        "number. Ask whether they have had colour here before, then book again with clientType " +
+        "'returning' if they have, or 'new' if not.",
     };
   }
 

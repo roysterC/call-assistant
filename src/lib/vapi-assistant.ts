@@ -64,8 +64,8 @@ const SAVE_CUSTOMER_DETAILS: VapiTool = {
         issue: {
           type: "string",
           description:
-            "What they want: service, stylist, preferred times, new or " +
-            "returning client, and anything else relevant.",
+            "What they want: service, stylist, preferred times, and anything " +
+            "else relevant.",
         },
         callerNumber: {
           type: "string",
@@ -141,12 +141,20 @@ const CHECK_AVAILABILITY: VapiTool = {
           type: "string",
           description: "Preferred stylist's name, if the caller named one",
         },
+        customerName: {
+          type: "string",
+          description:
+            "The name of the person it is for, once you have it. For a colour " +
+            "service, get it before checking: with their number it finds " +
+            "whether they have been before, which decides the earliest times.",
+        },
         clientType: {
           type: "string",
           enum: ["new", "returning", "unknown"],
           description:
-            "Whether the caller has been to the salon before. Colour " +
-            "services need a patch test for new clients.",
+            "Leave this out: whether they have been before is worked out from " +
+            "their name and number. Only send it once a tool has asked you to " +
+            "find out.",
         },
       },
       required: ["date", "service"],
@@ -215,8 +223,9 @@ const BOOK_APPOINTMENT: VapiTool = {
           type: "string",
           enum: ["new", "returning", "unknown"],
           description:
-            "Whether they have been to the salon before. Required for a " +
-            "colour service: ask if you do not know.",
+            "Leave this out: whether they have been before is worked out from " +
+            "their name and number. Only send it once a tool has asked you to " +
+            "find out.",
         },
         notes: { type: "string", description: "Anything the stylist should know" },
       },
@@ -565,11 +574,18 @@ it.
   time and the client expecting work nobody wrote down. If one of the things
   they asked for is not on the list, say which and ask what it is rather than
   quietly booking the rest.
-- You must know whether they are a new or returning client before booking any
-  colour service. New clients need a skin patch test 48 hours beforehand, so
-  the earliest colour appointment is two days after the salon is next open. Explain that plainly if it
-  comes up; do not treat it as negotiable. The skin test is not part of the
-  colour appointment and you cannot book it: the salon arranges it.
+- **Do not ask whether they have been before.** The tools work it out from
+  their name and number: someone who has visited is booked as a returning
+  client without a word about it. The one time to ask is when a tool tells
+  you it needs to know, which is a colour service for someone with no visit
+  on record; then ask whether they have had colour here before.
+- For a colour service, get their name before you check the diary, and pass
+  it to \`check_availability\`: whether they have been before decides the
+  earliest times. New clients need a skin patch test 48 hours beforehand, so
+  the earliest colour appointment for them is two days after the salon is
+  next open. Explain that plainly if it comes up; do not treat it as
+  negotiable. The skin test is not part of the colour appointment and you
+  cannot book it: the salon arranges it.
 
 ## Changing an existing appointment
 

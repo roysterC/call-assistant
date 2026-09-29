@@ -68,6 +68,41 @@ export async function clientForBooking(
   return { lead, contact: holder };
 }
 
+/**
+ * Whether the person a booking is for has been to the salon before, going by
+ * the record that booking goes on (see clientForBooking): the number's own
+ * client when the name matches, or someone reached through the number under
+ * that name. Read only.
+ *
+ * The name has to match, not just the number: a mum's visits never make her
+ * daughter, booked on the mum's phone, a returning client. That would skip
+ * the daughter's skin test.
+ */
+export async function hasBeenBefore(organizationId: string, phone: string, name: string): Promise<boolean> {
+  const holder = await prisma.lead.findUnique({
+    where: { organizationId_phone: { organizationId, phone } },
+  });
+  if (!holder) return false;
+  if (namesMatch(holder.name, name)) return hasVisited(holder.id);
+  const dependents = await prisma.lead.findMany({
+    where: { organizationId, contactLeadId: holder.id },
+    orderBy: { createdAt: "asc" },
+  });
+  const known = dependents.find((d) => namesMatch(d.name, name));
+  return known ? hasVisited(known.id) : false;
+}
+
+/** A visit that happened: done, or booked for a time now past. */
+export async function hasVisited(leadId: string): Promise<boolean> {
+  const n = await prisma.appointment.count({
+    where: {
+      leadId,
+      OR: [{ status: "completed" }, { status: "booked", startsAt: { lt: new Date() } }],
+    },
+  });
+  return n > 0;
+}
+
 /** Whether `next` says more of the same name than `current` does. */
 function longerName(current: string | null, next: string): boolean {
   return (current ?? "").trim().split(/\s+/).filter(Boolean).length < next.trim().split(/\s+/).length;
