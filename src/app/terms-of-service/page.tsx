@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "Terms governing use of the Kikai AI-powered customer messaging platform.",
 };
 
-const LAST_UPDATED = "24 April 2026";
+const LAST_UPDATED = "29 September 2026";
 
 export default function TermsOfServicePage() {
   return (
@@ -154,7 +154,8 @@ export default function TermsOfServicePage() {
           </h2>
           <p>
             The Service interoperates with WhatsApp, Instagram, Facebook
-            Messenger, Vapi, Cal.com, and Anthropic. Those platforms have
+            Messenger, Twilio, Deepgram, ElevenLabs, Google Calendar, Cal.com,
+            and Anthropic. Those platforms have
             their own terms which you must also comply with. Kikai is
             not responsible for the availability, behaviour, or policy
             changes of those third parties.

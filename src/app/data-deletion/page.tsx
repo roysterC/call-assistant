@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "How to request deletion of your personal data from the Kikai AI messaging platform.",
 };
 
-const LAST_UPDATED = "24 April 2026";
+const LAST_UPDATED = "29 September 2026";
 
 export default function DataDeletionPage() {
   return (
@@ -96,8 +96,13 @@ export default function DataDeletionPage() {
             <li>Lead records containing your name, email, phone, company</li>
             <li>Conversation records across all channels</li>
             <li>Message contents (both inbound and AI-generated replies)</li>
-            <li>Voice call transcripts and metadata</li>
-            <li>Scheduled callbacks tied to your lead</li>
+            <li>
+              Voice call records (the number you rang from, the time and
+              length of the call, and what it came to). Calls are not recorded
+              and no transcripts are kept.
+            </li>
+            <li>Messages you left for the business to ring you back</li>
+            <li>Appointments and notes the business holds about you</li>
           </ul>
         </section>
 
@@ -136,7 +141,8 @@ export default function DataDeletionPage() {
           <p>
             Deleting your data from Kikai does not delete any
             information held by the underlying platforms themselves
-            (WhatsApp, Instagram, Facebook, Anthropic, Vapi, Cal.com). To
+            (WhatsApp, Instagram, Facebook, Anthropic, Twilio, Deepgram,
+            ElevenLabs, Google, Cal.com). To
             remove data from those services, you must contact them directly
             or use their in-product settings:
           </p>
@@ -160,9 +166,21 @@ export default function DataDeletionPage() {
               </a>
             </li>
             <li>
-              Vapi:{" "}
-              <a className="text-blue-600 hover:underline" href="https://vapi.ai">
-                vapi.ai
+              Twilio:{" "}
+              <a className="text-blue-600 hover:underline" href="https://www.twilio.com">
+                twilio.com
+              </a>
+            </li>
+            <li>
+              Deepgram:{" "}
+              <a className="text-blue-600 hover:underline" href="https://deepgram.com">
+                deepgram.com
+              </a>
+            </li>
+            <li>
+              ElevenLabs:{" "}
+              <a className="text-blue-600 hover:underline" href="https://elevenlabs.io">
+                elevenlabs.io
               </a>
             </li>
           </ul>

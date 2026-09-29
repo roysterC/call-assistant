@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -179,6 +180,21 @@ function LoginForm() {
           <p className="text-xs text-muted-foreground mt-8 text-center">
             Don&apos;t have an account? Your administrator will invite you.
           </p>
+          {/* The public legal pages. Meta's app review and callers reach them
+              by address; this is the one place in the app that links them. */}
+          <nav aria-label="Legal" className="mt-6 flex justify-center gap-3 text-xs text-muted-foreground">
+            <Link href="/privacy-policy" className="hover:text-foreground hover:underline">
+              Privacy
+            </Link>
+            <span aria-hidden>&middot;</span>
+            <Link href="/terms-of-service" className="hover:text-foreground hover:underline">
+              Terms
+            </Link>
+            <span aria-hidden>&middot;</span>
+            <Link href="/data-deletion" className="hover:text-foreground hover:underline">
+              Data deletion
+            </Link>
+          </nav>
         </div>
       </main>
     </div>
