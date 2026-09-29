@@ -59,6 +59,19 @@ async function main() {
   let dictations = 0;
   /** Caller audio received since start: a quick check that microphones are getting through. */
   let audioBytesIn = 0;
+  /**
+   * The receptionist's voice sent down phone lines since start, and the last
+   * thing that went wrong on a call. With audioBytesIn these tell apart the
+   * ways a call can fall silent without anyone reading the server's log: no
+   * caller audio (the stream), caller audio but nothing sent back (the voice
+   * or the recogniser: see the problem), or audio sent back that the caller
+   * never heard (the frames).
+   */
+  let phoneAudioBytesOut = 0;
+  let lastPhoneProblem: { at: string; message: string } | null = null;
+  const notePhoneProblem = (message: string) => {
+    lastPhoneProblem = { at: new Date().toISOString(), message: problemForHealth(message) };
+  };
 
   const server = http.createServer((req, res) => {
     if (req.url === "/voice/health") {
@@ -73,6 +86,8 @@ async function main() {
           labCalls,
           dictations,
           audioBytesIn,
+          phoneAudioBytesOut,
+          lastPhoneProblem,
           fakes: FAKES,
         })
       );
@@ -91,6 +106,7 @@ async function main() {
       wss.handleUpgrade(req, socket, head, (ws) => {
         void runPhoneCall(ws).catch((err) => {
           console.error("[VOICE] phone call failed:", err);
+          notePhoneProblem(`call failed: ${err instanceof Error ? err.message : String(err)}`);
           ws.close(1011, "call failed");
         });
       });
@@ -456,6 +472,7 @@ async function main() {
     const pass = verifyVoicePass(start.customParameters.token ?? "", secret);
     if (!pass || pass.purpose !== "phone") {
       console.warn(`[VOICE] refused a phone stream: ${secret ? "the pass did not verify" : "no RECEPTIONIST_VOICE_SECRET"}`);
+      notePhoneProblem(secret ? "refused: the pass did not verify" : "refused: no RECEPTIONIST_VOICE_SECRET");
       return ws.close(1008, "pass refused");
     }
     if (phoneCalls >= MAX_PHONE_CALLS) {
@@ -470,6 +487,7 @@ async function main() {
         ];
     if (missing.length) {
       console.error(`[VOICE] cannot answer a phone call: missing ${missing.join(", ")}`);
+      notePhoneProblem(`missing ${missing.join(", ")}`);
       return ws.close(1011, "not configured");
     }
 
@@ -499,16 +517,24 @@ async function main() {
     const send = (frame: string) => {
       if (ws.readyState === ws.OPEN) ws.send(frame);
     };
+    let audioOut = 0;
     const call = new VoiceCall({
       engine: session.engine,
       stt,
       tts,
       greeting: session.greeting,
       out: {
-        audio: (chunk) => mediaFrames(start.streamSid, chunk).forEach(send),
+        audio: (chunk) => {
+          if (!audioOut) console.log(`[VOICE] phone call ${start.callSid}: first speech sent`);
+          audioOut += chunk.length;
+          phoneAudioBytesOut += chunk.length;
+          mediaFrames(start.streamSid, chunk).forEach(send);
+        },
         clear: () => send(clearFrame(start.streamSid)),
         event: (e) => {
-          if (e.type === "error") console.warn(`[VOICE] phone call ${start.callSid}: ${e.message}`);
+          if (e.type !== "error") return;
+          console.warn(`[VOICE] phone call ${start.callSid}: ${e.message}`);
+          notePhoneProblem(e.message);
         },
         // Closing the stream ends the call: nothing follows <Connect>.
         hangup: () => ws.close(1000, "call ended"),
@@ -588,6 +614,14 @@ async function main() {
   }
 
   server.listen(PORT, HOST, () => console.log(`[VOICE] listening on ${HOST}:${PORT}`));
+}
+
+/**
+ * An error as /voice/health shows it, which anyone can read: short, and with
+ * any run of digits long enough to be a phone number taken out.
+ */
+function problemForHealth(message: string): string {
+  return message.replace(/\+?\d[\d ]{6,}\d/g, "…").slice(0, 200);
 }
 
 function sendJson(ws: WebSocket, payload: unknown) {
