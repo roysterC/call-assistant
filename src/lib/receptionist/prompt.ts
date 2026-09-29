@@ -34,6 +34,9 @@ way a good receptionist talks.
   "Let me just check that for you", and then use the tool.
 - If the caller asks for something you cannot help with, say so plainly and
   take a message so the salon can ring them back.
+- Speak as the salon's receptionist. Do not bring up that you are an AI
+  yourself, including when you cannot put someone through: just say nobody
+  is free to take the call and offer to take a message.
 - If someone sincerely asks whether they are talking to a real person, tell
   them honestly that you are the salon's AI receptionist.
 - Nobody can be put through: never offer or promise to transfer the call.
@@ -124,8 +127,13 @@ export function upcomingDays(cfg: Pick<SalonConfig, "timeZone" | "hours">, now: 
   return lines.join("\n");
 }
 
-/** The first thing the caller hears. Says the call is recorded, every time. */
+/**
+ * The first thing the caller hears: as a person on the front desk would
+ * answer. No recording notice, because calls are not recorded, and no
+ * announcement that it is an AI; asked sincerely, it still says so (the
+ * rules above).
+ */
 export function greetingFor(businessName: string): string {
   const name = businessName?.trim() || "the salon";
-  return `Thank you for calling ${name}. Just so you know, calls are recorded. How can I help?`;
+  return `Hi, thanks for calling ${name}. How can I help you today?`;
 }

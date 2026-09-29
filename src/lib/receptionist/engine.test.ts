@@ -345,8 +345,11 @@ describe("receptionist prompt", () => {
     expect(days[20]).toBe("- Thursday 15 October");
   });
 
-  it("says the call is recorded in the greeting", () => {
-    expect(greetingFor("Shogo")).toMatch(/Shogo.*calls are recorded/);
+  it("answers like the front desk: the salon's name, no recording notice", () => {
+    expect(greetingFor("Shogo")).toBe("Hi, thanks for calling Shogo. How can I help you today?");
+    // Calls are not recorded, so the greeting must not say they are.
+    expect(greetingFor("Shogo")).not.toMatch(/record/i);
+    expect(greetingFor("")).toBe("Hi, thanks for calling the salon. How can I help you today?");
   });
 });
 
