@@ -1485,17 +1485,16 @@ export async function handleBookAppointment(
           "test at the salon at least 48 hours before, which is separate and which the salon " +
           "will be in touch to arrange."
         : "") +
-      // They never said the number out loud, so they have not had the chance
-      // to catch it being wrong — and the confirmation text has just gone to
-      // it.
-      // Told only "check it", a receptionist given a correction saved the new
-      // number on the client's record and said "all updated", leaving the
-      // booking (and its text) on the old one; another booked everything
-      // again and left the first two in the diary.
+      // Booked on caller ID: the number is the phone in their hand, and the
+      // text has already gone to it. Asking afterwards whether the number is
+      // right put a question to the caller about something they could not
+      // change and had just been told was done; it only sounded unsure.
       (resolvedPhone.source === "callerId"
-        ? ` It was booked against the number they are ringing from, ` +
-          `${speakablePhone(phone)} — read that back and check it is right. ` +
-          "If it is wrong, the booking is on that number: cancel it and book it again on the right one."
+        ? sms.ok
+          ? " It is on the number they are ringing from, so say the text is on its way to this phone. " +
+            "Do not read the number out or ask whether it is right."
+          : " It is on the number they are ringing from, which could not take a text (a landline, " +
+            "most likely). The booking still stands; do not read the number out."
         : ""),
   };
 }

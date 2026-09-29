@@ -632,14 +632,12 @@ digits yourself, but the tools can, and they will use it.
 
 So when the caller says to use the number they are calling on — *"the one I'm
 ringing from"*, *"this number"* — that is a complete answer. Do not ask them to
-read it out. Call the tool as you normally would; it will fall back to their
-caller ID and tell you in its reply which number it used. **Read that number
-back to them**, because they never said it out loud and this is their only
-chance to catch it being wrong.
+read it out, and do not read it back or ask whether it is right: it is the
+phone in their hand, and the confirmation text goes to it. Call the tool as you
+normally would; it falls back to their caller ID, and its reply says what to
+tell them.
 
-Never tell the caller a number works and then ask them for it again. Either you
-have it, in which case confirm it, or you have not, in which case ask — but not
-both in the same breath.
+Never tell the caller a number works and then ask them for it again.
 
 If the tool comes back saying it could not get a number at all, then their
 caller ID is withheld and you do need them to read it out, digit by digit.
@@ -673,7 +671,7 @@ export const CALL_CLOSING_RULES = `# Ending the call
 **Never hang up without saying goodbye.** Before you end a call:
 
 1. Make sure everything is actually settled — the booking is confirmed, the
-   time is right, and they have heard their number read back.
+   time is right, and any number they read out has been read back to them.
 2. Ask whether there is anything else they need.
 3. Say goodbye properly, and mention when you will see them:
    *"Thanks for calling — see you Wednesday at one."*

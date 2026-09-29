@@ -34,7 +34,18 @@ export type VoiceEvent =
   | { type: "assistant"; text: string }
   | { type: "tool"; name: string }
   | { type: "interrupted" }
-  | { type: "metrics"; firstAudioMs: number | null; turnMs: number }
+  | {
+      type: "metrics";
+      /** From the end of the caller's turn being called to the reply's first audio. */
+      firstAudioMs: number | null;
+      /**
+       * From the recogniser last handing over the caller's words to the
+       * reply's first audio: the pause the caller sits through, less the
+       * recogniser's own lag and the line's.
+       */
+      sinceHeardMs: number | null;
+      turnMs: number;
+    }
   | { type: "ended"; by: "receptionist" }
   | { type: "error"; message: string };
 
@@ -100,6 +111,8 @@ export class VoiceCall {
   /** What the caller has said since the last reply started. */
   private heard: string[] = [];
   private interim = "";
+  /** When the recogniser last handed over any of the caller's words. */
+  private lastHeardAt = 0;
 
   private turn: AbortController | null = null;
   private turnRunning = false;
@@ -291,6 +304,7 @@ export class VoiceCall {
   private onInterim(text: string) {
     if (this.isEcho(text)) return;
     this.interim = text;
+    this.lastHeardAt = this.now();
     this.callerSpoke();
     this.deps.out.event({ type: "caller", text: [...this.heard, text].join(" "), final: false });
     if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
@@ -303,6 +317,7 @@ export class VoiceCall {
     }
     this.interim = "";
     this.heard.push(text);
+    this.lastHeardAt = this.now();
     this.callerSpoke();
     this.deps.out.event({ type: "caller", text: this.heard.join(" "), final: false });
     if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
@@ -328,10 +343,10 @@ export class VoiceCall {
     if (this.busy) this.interrupt();
     this.deps.out.event({ type: "caller", text, final: true });
     this.log.push({ who: "caller", text });
-    void this.runTurn(text);
+    void this.runTurn(text, this.lastHeardAt);
   }
 
-  private async runTurn(text: string) {
+  private async runTurn(text: string, heardAt: number) {
     const ctl = new AbortController();
     this.turn = ctl;
     this.turnRunning = true;
@@ -399,7 +414,12 @@ export class VoiceCall {
       // Metrics once the speech queue has caught up with this turn.
       void this.speech.then(() => {
         if (ctl.signal.aborted) return;
-        this.deps.out.event({ type: "metrics", firstAudioMs: firstAudio, turnMs: this.now() - started });
+        this.deps.out.event({
+          type: "metrics",
+          firstAudioMs: firstAudio,
+          sinceHeardMs: firstAudio === null ? null : started + firstAudio - heardAt,
+          turnMs: this.now() - started,
+        });
         if (this.turn === ctl) this.deps.out.event({ type: "state", state: "listening" });
       });
     }

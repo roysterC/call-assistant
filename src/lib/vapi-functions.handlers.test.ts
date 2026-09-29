@@ -365,6 +365,38 @@ describe("book_appointment", () => {
     expect(r.stylist).toBe("Jo");
   });
 
+  it("on caller ID, says the text is on its way to this phone, without asking whether the number is right", async () => {
+    texts.send.mockResolvedValueOnce({ ok: true, configured: true } as never);
+    const r = (await handleBookAppointment("org", {
+      date: "Tuesday",
+      time: "2026-09-29T13:15:00+01:00",
+      service: "blow dry",
+      customerPhone: "", // "the one I'm ringing from"
+      customerName: "Olivia Hart",
+      callerNumber: "+447700900714",
+    })) as { success: boolean; usedCallerId: boolean; textSent: boolean; message: string };
+    expect(r).toMatchObject({ success: true, usedCallerId: true, textSent: true });
+    expect(r.message).toMatch(/on its way to this phone/);
+    expect(r.message).toMatch(/Do not read the number out or ask whether it is right/);
+    // The digits are not handed over, so there is nothing to read out.
+    expect(r.message).not.toMatch(/900|714/);
+  });
+
+  it("on a caller ID that could not take a text, promises none and still does not read the number out", async () => {
+    const r = (await handleBookAppointment("org", {
+      date: "Tuesday",
+      time: "2026-09-29T13:15:00+01:00",
+      service: "blow dry",
+      customerPhone: "", // "the one I'm ringing from"
+      customerName: "Olivia Hart",
+      callerNumber: "+442074317546",
+    })) as { success: boolean; textSent: boolean; message: string };
+    expect(r).toMatchObject({ success: true, textSent: false });
+    expect(r.message).toMatch(/Do NOT promise a text/);
+    expect(r.message).toMatch(/could not take a text/);
+    expect(r.message).not.toMatch(/431|7546/);
+  });
+
   it("books a daughter on her mum's phone as her own client, reached through her mum's number", async () => {
     db.lead.findUnique.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
     const r = (await handleBookAppointment("org", {
