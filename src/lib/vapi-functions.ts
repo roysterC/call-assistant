@@ -1493,8 +1493,9 @@ export async function handleBookAppointment(
         ? sms.ok
           ? " It is on the number they are ringing from, so say the text is on its way to this phone. " +
             "Do not read the number out or ask whether it is right."
-          : " It is on the number they are ringing from, which could not take a text (a landline, " +
-            "most likely). The booking still stands; do not read the number out."
+          : // Why it failed is not the caller's business, and a guess ("a
+            // landline?") is wrong whenever it was our side that failed.
+            " It is on the number they are ringing from. The booking still stands; do not read the number out."
         : ""),
   };
 }

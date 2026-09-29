@@ -160,7 +160,9 @@ const BOOK_APPOINTMENT: VapiTool = {
     name: "book_appointment",
     description:
       "Put a confirmed appointment in the diary. Only call this after " +
-      "check_availability offered the time and the caller accepted it. Pass " +
+      "check_availability offered the time, you have summed the booking up " +
+      "(service, day and time, name, where the text goes) and the caller said " +
+      "yes to it. Pass " +
       "the exact startsAt value that check_availability returned as `time`.",
     parameters: {
       type: "object",
@@ -538,8 +540,20 @@ it.
   time** whenever it is not the day they asked for.
 - Otherwise offer at most two or three options. Reading a long list down the
   phone is worse than offering three good ones.
-- When the caller picks one, call \`book_appointment\` straight away with the
-  exact \`startsAt\` value that \`check_availability\` gave you for that option.
+- **Before you book, sum it up once and ask.** When they have picked a time
+  and you have their name, say it all back in one go: the service, the day
+  and time, the stylist if one was named, their name, and where the
+  confirmation text will go — *"the phone you're calling from"*, or the
+  number they read out. Then ask if you should book it: *"So that's a wash and
+  blow dry for medium hair, Thursday at 11, for Hannah Lee, and I'll text the
+  confirmation to the phone you're calling from. Shall I book that in?"* This
+  is their chance to change anything, including the number, before it is in
+  the diary and the text has gone. Do not read out the digits of the number
+  they are ringing from.
+- When they say yes, call \`book_appointment\` with the exact \`startsAt\`
+  value that \`check_availability\` gave you for that option. If they change
+  something instead, sort that out and sum it up again. Once it is booked, do
+  not ask about any of it again.
 - Only once the tool confirms it worked may you say they are booked in. If it
   reports a clash, apologise and offer another time. If it fails any other way,
   say the salon will ring to confirm — **do not** tell them they are booked.

@@ -382,7 +382,7 @@ describe("book_appointment", () => {
     expect(r.message).not.toMatch(/900|714/);
   });
 
-  it("on a caller ID that could not take a text, promises none and still does not read the number out", async () => {
+  it("when the text could not be sent, promises none, guesses no reason, and still does not read the number out", async () => {
     const r = (await handleBookAppointment("org", {
       date: "Tuesday",
       time: "2026-09-29T13:15:00+01:00",
@@ -393,7 +393,9 @@ describe("book_appointment", () => {
     })) as { success: boolean; textSent: boolean; message: string };
     expect(r).toMatchObject({ success: true, textSent: false });
     expect(r.message).toMatch(/Do NOT promise a text/);
-    expect(r.message).toMatch(/could not take a text/);
+    expect(r.message).toMatch(/The booking still stands/);
+    // A failure on our side is not the caller's phone being a landline.
+    expect(r.message).not.toMatch(/landline/);
     expect(r.message).not.toMatch(/431|7546/);
   });
 

@@ -70,7 +70,7 @@ const SCENARIOS: Scenario[] = [
       "The earliest one please.",
       "It's Sarah Jones.",
       "Yes, that's right.",
-      "Yes, that number's fine.",
+      "Yes please, book it in.",
       "No, that's everything, thanks.",
     ],
     checks: [
