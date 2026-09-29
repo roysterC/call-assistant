@@ -45,7 +45,7 @@ vi.mock("@/lib/receptionist/session", () => ({
   receptionistModel: () => "claude-haiku-4-5",
 }));
 
-import { startVoiceBooking } from "./assistant";
+import { findSession, keepSession, startVoiceBooking, type VoiceBookingSession } from "./assistant";
 
 /** A model that asks for one tool, then says a line. */
 function asks(name: string, input: object): StreamingClient {
@@ -88,6 +88,19 @@ describe("the assistant behind the diary's microphone", () => {
       expect(s.pending).toBeNull();
     }
     expect(drafts.commitDraft).not.toHaveBeenCalled();
+  });
+
+  it("gives a conversation back only to the person and salon that started it", () => {
+    const s = { id: "vb-1", asker: { organizationId: "org-a" }, userId: "u1", lastUsed: Date.now() } as unknown as VoiceBookingSession;
+    keepSession(s);
+    expect(findSession("vb-1", "org-a", "u1")).toBe(s);
+    // Someone else at the same salon, or the same id from another salon.
+    expect(findSession("vb-1", "org-a", "u2")).toBeNull();
+    expect(findSession("vb-1", "org-b", "u1")).toBeNull();
+    expect(findSession(undefined, "org-a", "u1")).toBeNull();
+    // Left idle past the limit: gone.
+    s.lastUsed = Date.now() - 16 * 60_000;
+    expect(findSession("vb-1", "org-a", "u1")).toBeNull();
   });
 
   it("puts a proposal on screen, and only on screen", async () => {

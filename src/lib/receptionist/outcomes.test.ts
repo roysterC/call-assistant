@@ -27,6 +27,10 @@ describe("what a call came to", () => {
       turn(["book_appointment", { success: true }]),
     ];
     expect(callOutcomes(turns, true)).toEqual(["booked"]);
+    // On its own, a failed booking must not show as one. (With a successful
+    // booking alongside, as above, that mistake would go unseen.)
+    expect(callOutcomes([turn(["book_appointment", { success: false, conflict: true }])], true)).toEqual(["enquiry"]);
+    expect(callOutcomes([turn(["take_message", { success: false, missingName: true }])], false)).toEqual(["hung_up"]);
   });
 
   it("lists everything the call did, in a fixed order", () => {

@@ -36,6 +36,10 @@ describe("resolveSpokenDate", () => {
     expect(resolveSpokenDate("Sunday", TZ, SUNDAY)).toBe("2026-09-20");
   });
 
+  it("resolves a date in December, the last month", () => {
+    expect(resolveSpokenDate("the 3rd of December", TZ, SUNDAY)).toBe("2026-12-03");
+  });
+
   it("returns null for anything it cannot resolve", () => {
     for (const junk of ["sometime", "whenever", "", undefined, "the 32nd"]) {
       expect(resolveSpokenDate(junk as string, TZ, SUNDAY)).toBeNull();

@@ -335,6 +335,16 @@ describe("receptionist prompt", () => {
     expect(later[1].text).toContain("withheld");
   });
 
+  it("lists the next three weeks with today and tomorrow marked", () => {
+    const [, context] = buildSystem(cfg, "Shogo", null, new Date("2026-09-25T17:05:00Z"), null);
+    const days = context.text.split("\n").filter((l) => l.startsWith("- "));
+    expect(days).toHaveLength(21);
+    expect(days[0]).toBe("- Friday 25 September (today)");
+    expect(days[1]).toBe("- Saturday 26 September (tomorrow)");
+    expect(days[2]).toBe("- Sunday 27 September");
+    expect(days[20]).toBe("- Thursday 15 October");
+  });
+
   it("says the call is recorded in the greeting", () => {
     expect(greetingFor("Shogo")).toMatch(/Shogo.*calls are recorded/);
   });

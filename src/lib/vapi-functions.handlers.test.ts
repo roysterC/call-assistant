@@ -65,6 +65,7 @@ import {
   handleBookAppointment,
   handleCheckAvailability,
   handleFindAppointment,
+  executeVapiFunction,
   handleSaveCustomerDetails,
   lookupPhone,
   parseBookingNumber,
@@ -325,6 +326,17 @@ describe("check_availability late on a Saturday", () => {
   it("adds nothing when the day named is not today's", async () => {
     const r = (await handleCheckAvailability("org", { date: "Tuesday", service: "blow dry" })) as { message: string };
     expect(r.message).not.toMatch(/Today is/);
+  });
+});
+
+describe("what the model sends", () => {
+  it("answers a number where text was expected, rather than crashing", async () => {
+    // The stress test found `service: 123` crashing on .trim(). Numbers are
+    // turned into text before any handler sees them.
+    const r = (await executeVapiFunction("check_availability", "org", { date: "Tuesday", service: 123 })) as {
+      message: string;
+    };
+    expect(r.message).toMatch(/"123"/);
   });
 });
 
