@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "How Kikai collects, uses, and protects data when you interact with our AI-powered customer messaging platform.",
 };
 
-const LAST_UPDATED = "24 April 2026";
+const LAST_UPDATED = "29 September 2026";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -75,8 +75,12 @@ export default function PrivacyPolicyPage() {
               company.
             </li>
             <li>
-              <strong>Voice call data</strong> — call transcripts, duration,
-              phone number, and recording URL where available.
+              <strong>Voice call data</strong> — the number you rang from, the
+              time and length of the call, and what it came to (for example,
+              an appointment booked or moved, or a message left for the
+              business to ring you back, with that message). Calls are not
+              recorded and no transcript is kept: what you say is turned into
+              text and answered as the call happens, and is not stored by us.
             </li>
             <li>
               <strong>Technical metadata</strong> — timestamps, delivery
@@ -134,14 +138,26 @@ export default function PrivacyPolicyPage() {
               Instagram, and Facebook Messenger messages to/from our platform.
             </li>
             <li>
-              <strong>Vapi Labs, Inc.</strong> (USA) — powers the AI voice
-              agent (phone calls), including speech-to-text, LLM routing, and
-              text-to-speech.
+              <strong>Twilio Inc.</strong> (USA) — carries phone calls to the
+              AI voice agent, and sends appointment confirmation and reminder
+              text messages.
             </li>
             <li>
-              <strong>Hetzner Online GmbH</strong> (Germany) — hosts our
-              application and PostgreSQL database. Data is stored at rest in
-              the EU.
+              <strong>Deepgram, Inc.</strong> (USA) — turns what a caller says
+              into text during a phone call, so the AI voice agent can answer.
+            </li>
+            <li>
+              <strong>ElevenLabs Inc.</strong> (USA) — turns the AI voice
+              agent&rsquo;s replies into speech during a phone call.
+            </li>
+            <li>
+              <strong>netcup GmbH</strong> (Germany) — hosts our application
+              and PostgreSQL database. Data is stored at rest in the EU.
+            </li>
+            <li>
+              <strong>Google LLC</strong> (USA) — optional calendar
+              integration, used only when a business keeps its diary in
+              Google Calendar.
             </li>
             <li>
               <strong>Cal.com, Inc.</strong> (USA) — optional calendar booking

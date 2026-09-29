@@ -3,6 +3,7 @@ import {
   DASHBOARD,
   DIARY,
   NAV_PAGES,
+  isNavVisible,
   isStartPageChoice,
   orderForStartPage,
   resolveStartPage,
@@ -17,6 +18,15 @@ const salon: FeatureFlags = {
   facebookEnabled: false,
 };
 const chatOnly: FeatureFlags = { ...salon, voiceEnabled: false, chatbotEnabled: true };
+
+describe("isNavVisible", () => {
+  it("shows no feature page until the organisation's features have loaded", () => {
+    const diary = NAV_PAGES.find((p) => p.href === DIARY)!;
+    expect(isNavVisible(diary, null)).toBe(false);
+    expect(isNavVisible(diary, salon)).toBe(true);
+    expect(isNavVisible(diary, chatOnly)).toBe(false);
+  });
+});
 
 describe("resolveStartPage", () => {
   it("opens a salon whose diary takes bookings on the diary", () => {

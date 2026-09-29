@@ -164,6 +164,38 @@ Locally, `VOICE_FAKES=1 npx tsx src/voice-server/index.ts` runs it with a
 stand-in model, recogniser and voice, so the audio path can be tried with no
 provider accounts.
 
+### The phone line (our own receptionist, not Vapi)
+
+A call to the salon's Twilio number is answered by our own receptionist:
+
+1. Twilio posts "a call comes in" to `/api/twilio/voice`. The CRM checks
+   Twilio's signature (`TWILIO_AUTH_TOKEN`), finds the salon from the number
+   dialled (a voice number on the salon in Admin, channel "vapi"), and answers
+   with TwiML that streams the call to the voice server with a one-minute
+   pass (`src/lib/twilio-voice.ts`).
+2. The voice server takes it on `/voice/phone`: 8kHz mu-law both ways, the
+   same receptionist as the lab. Closing the stream ends the call.
+3. When the call ends it is written to Call History as its outcome, and its
+   usage (including the phone line, `USAGE_RATE_TELEPHONY_PER_MIN`) is
+   recorded against the salon. A deploy waits for live calls to finish.
+
+To switch a salon from Vapi to this:
+
+1. Admin → the salon → phone numbers: add the Twilio number (E.164, channel
+   "vapi"), if it is not there already.
+2. Twilio console → the number → Voice configuration → "A call comes in":
+   Webhook, `https://89-58-45-110.nip.io/api/twilio/voice`, HTTP POST. This is
+   the switch: Vapi stops receiving the calls.
+3. `.env` on the box needs `TWILIO_AUTH_TOKEN` (already there for texts),
+   `RECEPTIONIST_VOICE_URL`, `RECEPTIONIST_VOICE_SECRET`, `DEEPGRAM_API_KEY`,
+   `ELEVENLABS_API_KEY` and an Anthropic key, as for the lab. If the web
+   server in front ever rewrites the host, set `TWILIO_VOICE_WEBHOOK_URL` to
+   the exact URL Twilio calls, or every call is refused as unsigned.
+4. Ring the number. The voice server's log shows `[VOICE] phone call CA...`,
+   and the call appears in Call History when it ends.
+
+To go back, point the number's webhook at Vapi again.
+
 ### The personal assistant
 
 Phase 3 of the Shogo proposal: a round assistant button on every signed-in

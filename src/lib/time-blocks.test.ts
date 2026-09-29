@@ -205,6 +205,12 @@ describe("parseTimeBlockForm", () => {
     });
   });
 
+  it("keeps Sunday in a weekly block", () => {
+    // Sunday is 0, the easiest day for a range check to drop.
+    const r = parseTimeBlockForm({ ...base, repeat: "weekly", weekdays: [0, 2] }, TZ);
+    expect(r.ok && r.data.weekdays).toEqual([0, 2]);
+  });
+
   it("reads a blank stylist as everyone", () => {
     const r = parseTimeBlockForm({ ...base, stylistName: "" }, TZ);
     expect(r.ok && r.data.stylistName).toBeNull();
@@ -212,6 +218,8 @@ describe("parseTimeBlockForm", () => {
 
   it.each([
     [{ label: " " }, /label/],
+    [{ startDate: "" }, /start date/],
+    [{ repeat: "weekly", weekdays: [2], untilDate: "2026-10-19" }, /before the start/],
     [{ startTime: "1pm" }, /times/],
     [{ endTime: "12:00" }, /ends before/],
     [{ endDate: "2026-10-19" }, /before the start/],

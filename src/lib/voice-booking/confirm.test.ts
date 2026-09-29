@@ -27,6 +27,8 @@ describe("a plain yes or no to the card on screen", () => {
       "that's wrong",
       "that's not right",
       "",
+      // Too long to be a plain answer, even with nothing but filler in it.
+      "yes that is fine thanks great lovely",
     ]) {
       expect(answerTo(t), t).toBeNull();
     }
@@ -42,10 +44,25 @@ describe("a yes followed by a question", () => {
     expect(yesThenQuestion("Yes please. Any messages?")).toBe("Any messages?");
   });
 
+  it("splits a new request asked as a question, even with a change word in it", () => {
+    // A question word leads, so it is a question for the assistant, not a
+    // change to the card just saved.
+    expect(yesThenQuestion("Yes. Can you move Tom to Friday as well?")).toBe("Can you move Tom to Friday as well?");
+  });
+
+  it("splits a question the transcript gave no question mark", () => {
+    // Speech to text often leaves the "?" off; the question word is enough.
+    expect(yesThenQuestion("Yes. How much did we take last week")).toBe("How much did we take last week");
+  });
+
   it("does not split a change to the card", () => {
     expect(yesThenQuestion("Yes. And add a toner.")).toBeNull();
     expect(yesThenQuestion("Yes, with Marcus instead")).toBeNull();
     expect(yesThenQuestion("No. How about Friday?")).toBeNull();
     expect(yesThenQuestion("Yes")).toBeNull();
+    // Said as a question but a change all the same. These reach the
+    // change-word rule; the ones above are turned away before it.
+    expect(yesThenQuestion("Yes. With Marcus instead?")).toBeNull();
+    expect(yesThenQuestion("Yes. Add a toner?")).toBeNull();
   });
 });
