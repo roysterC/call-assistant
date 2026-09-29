@@ -18,9 +18,12 @@ export interface VoicePass {
   /**
    * What the pass opens. A lab call (the owner's) unless it says dictation
    * (anyone at the salon, stylists included): a stylist's pass must not open
-   * the lab.
+   * the lab. A phone pass is signed by the CRM's Twilio webhook for one call,
+   * and opens only the phone path.
    */
-  purpose?: "lab" | "dictate";
+  purpose?: "lab" | "dictate" | "phone";
+  /** Twilio's id for the call, on a phone pass. */
+  callSid?: string;
   /** Expiry, in ms since the epoch. */
   exp: number;
 }

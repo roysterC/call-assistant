@@ -21,6 +21,8 @@ export function middleware(req: NextRequest) {
     "/api/website-chat",
     "/api/whatsapp",
     "/api/vapi",
+    // Twilio's "a call comes in" webhook; it proves itself with a signature.
+    "/api/twilio",
     "/api/meta",
     "/api/auth",
     "/embed",

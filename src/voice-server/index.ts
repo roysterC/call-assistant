@@ -5,10 +5,11 @@
  * for minutes; the CRM restarts on every deploy. Kept apart, shipping a change
  * to the diary does not hang up on anyone mid-booking.
  *
- * Step 2 serves the browser lab (`/voice/lab`): the CRM signs a short-lived
- * pass, the browser opens a websocket here with it, sends microphone audio up
- * and plays the receptionist's voice as it comes down. The phone line (step 3)
- * joins as a second path on the same server.
+ * The browser lab (`/voice/lab`): the CRM signs a short-lived pass, the
+ * browser opens a websocket here with it, sends microphone audio up and plays
+ * the receptionist's voice as it comes down. The phone line (`/voice/phone`):
+ * Twilio streams a real call here, with a pass the CRM's /api/twilio/voice
+ * webhook signed for it, and the same receptionist answers.
  *
  *   npx tsx src/voice-server/index.ts
  *
@@ -29,6 +30,7 @@ import type { AudioEncoding } from "@/lib/receptionist/voice/providers";
 const PORT = Number(process.env.VOICE_PORT || 4610);
 const HOST = process.env.VOICE_HOST || "127.0.0.1";
 const MAX_LAB_CALLS = 5;
+const MAX_PHONE_CALLS = 20;
 const MAX_CALL_MS = 15 * 60 * 1000;
 const MAX_DICTATIONS = 20;
 const MAX_DICTATION_MS = 5 * 60 * 1000;
@@ -44,6 +46,8 @@ async function main() {
   const { DeepgramStt, ElevenLabsTts, labVoiceRate } = await import("@/lib/receptionist/voice/providers");
   const { salonKeyterms } = await import("@/lib/receptionist/voice/keyterms");
   const { getSalonConfig } = await import("@/lib/booking");
+  const { logCall } = await import("@/lib/receptionist/call-log");
+  const { clearFrame, mediaFrames, parseTwilioFrame } = await import("@/lib/twilio-voice");
   const fakes = FAKES ? await import("./fakes") : null;
 
   const secret = process.env.RECEPTIONIST_VOICE_SECRET ?? "";
@@ -51,6 +55,7 @@ async function main() {
   if (FAKES) console.warn("[VOICE] VOICE_FAKES=1: using stand-in model, recogniser and voice.");
 
   let labCalls = 0;
+  let phoneCalls = 0;
   let dictations = 0;
   /** Caller audio received since start: a quick check that microphones are getting through. */
   let audioBytesIn = 0;
@@ -59,8 +64,18 @@ async function main() {
     if (req.url === "/voice/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
       // activeCalls is what the deploy waits on before restarting this
-      // server; the phone line adds its calls to it in step 3.
-      res.end(JSON.stringify({ ok: true, activeCalls: labCalls + dictations, labCalls, dictations, audioBytesIn, fakes: FAKES }));
+      // server, so a deploy never hangs up on a caller.
+      res.end(
+        JSON.stringify({
+          ok: true,
+          activeCalls: phoneCalls + labCalls + dictations,
+          phoneCalls,
+          labCalls,
+          dictations,
+          audioBytesIn,
+          fakes: FAKES,
+        })
+      );
       return;
     }
     res.writeHead(404).end();
@@ -70,6 +85,17 @@ async function main() {
 
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://voice.local");
+    // A real call from Twilio. Its pass comes in the stream's first message,
+    // not the URL: Twilio cannot add query parameters to a stream.
+    if (url.pathname === "/voice/phone") {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        void runPhoneCall(ws).catch((err) => {
+          console.error("[VOICE] phone call failed:", err);
+          ws.close(1011, "call failed");
+        });
+      });
+      return;
+    }
     if (url.pathname !== "/voice/lab" && url.pathname !== "/voice/dictate") return socket.destroy();
     const dictate = url.pathname === "/voice/dictate";
     const pass = verifyVoicePass(url.searchParams.get("token") ?? "", secret);
@@ -87,7 +113,7 @@ async function main() {
       }
       // A pass opens what it was issued for: a stylist's dictation pass must
       // not open a lab call, which is the owner's.
-      if (dictate !== (pass.purpose === "dictate")) {
+      if (dictate !== (pass.purpose === "dictate") || pass.purpose === "phone") {
         sendJson(ws, { type: "error", message: "That pass is for something else. Try again." });
         return ws.close(4403, "wrong pass");
       }
@@ -395,6 +421,169 @@ async function main() {
       mic: micEncoding.kind === "mulaw8k" ? { encoding: "mulaw", sampleRate: 8000 } : { encoding: "pcm16", sampleRate: 16000 },
       keyterms: session.keyterms.length,
     });
+    await call.start();
+  }
+
+  /**
+   * A real call, streamed by Twilio. Twilio sends "connected", then "start"
+   * (with the pass the CRM signed, and the stream's id), then the caller's
+   * audio as 8kHz mu-law "media" frames, and "stop" when they hang up. The
+   * receptionist's voice goes back the same way, and a "clear" stops what is
+   * still queued when the caller talks over it. Closing the stream ends the
+   * call.
+   */
+  async function runPhoneCall(ws: WebSocket) {
+    type Start = { streamSid: string; callSid: string; customParameters: Record<string, string> };
+    const start = await new Promise<Start | null>((resolve) => {
+      const done = (v: Start | null) => {
+        clearTimeout(timer);
+        ws.off("message", onMessage);
+        ws.off("close", onClose);
+        resolve(v);
+      };
+      const onMessage = (data: Buffer, isBinary: boolean) => {
+        if (isBinary) return;
+        const frame = parseTwilioFrame(data.toString());
+        if (frame?.event === "start") done(frame);
+      };
+      const onClose = () => done(null);
+      const timer = setTimeout(() => done(null), 10_000);
+      ws.on("message", onMessage);
+      ws.on("close", onClose);
+    });
+    if (!start) return ws.close();
+
+    const pass = verifyVoicePass(start.customParameters.token ?? "", secret);
+    if (!pass || pass.purpose !== "phone") {
+      console.warn(`[VOICE] refused a phone stream: ${secret ? "the pass did not verify" : "no RECEPTIONIST_VOICE_SECRET"}`);
+      return ws.close(1008, "pass refused");
+    }
+    if (phoneCalls >= MAX_PHONE_CALLS) {
+      console.warn("[VOICE] refused a phone call: too many at once");
+      return ws.close(1013, "busy");
+    }
+    const missing = FAKES
+      ? []
+      : [
+          ...((await receptionistApiKey(pass.organizationId)) ? [] : ["an Anthropic API key"]),
+          ...["DEEPGRAM_API_KEY", "ELEVENLABS_API_KEY"].filter((k) => !process.env[k]),
+        ];
+    if (missing.length) {
+      console.error(`[VOICE] cannot answer a phone call: missing ${missing.join(", ")}`);
+      return ws.close(1011, "not configured");
+    }
+
+    // The phone network's own sound, both ways.
+    const encoding: AudioEncoding = { kind: "mulaw8k" };
+    const session = await startReceptionist(pass.organizationId, {
+      callerNumber: pass.callerNumber,
+      client: fakes ? fakes.fakeModel() : undefined,
+    });
+    const fakeStt = fakes ? new fakes.FakeStt() : null;
+    const stt =
+      fakeStt ??
+      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, encoding, {
+        model: process.env.DEEPGRAM_MODEL || undefined,
+        language: process.env.DEEPGRAM_LANGUAGE || undefined,
+        endpointingMs: process.env.DEEPGRAM_ENDPOINTING_MS ? Number(process.env.DEEPGRAM_ENDPOINTING_MS) : undefined,
+        keyterms: session.keyterms,
+      });
+    const tts = fakes
+      ? new fakes.FakeTts(encoding)
+      : new ElevenLabsTts(process.env.ELEVENLABS_API_KEY!, encoding, {
+          voiceId: process.env.ELEVENLABS_VOICE_ID || undefined,
+          model: process.env.ELEVENLABS_MODEL || undefined,
+          speed: process.env.ELEVENLABS_SPEED ? Number(process.env.ELEVENLABS_SPEED) : undefined,
+        });
+
+    const send = (frame: string) => {
+      if (ws.readyState === ws.OPEN) ws.send(frame);
+    };
+    const call = new VoiceCall({
+      engine: session.engine,
+      stt,
+      tts,
+      greeting: session.greeting,
+      out: {
+        audio: (chunk) => mediaFrames(start.streamSid, chunk).forEach(send),
+        clear: () => send(clearFrame(start.streamSid)),
+        event: (e) => {
+          if (e.type === "error") console.warn(`[VOICE] phone call ${start.callSid}: ${e.message}`);
+        },
+        // Closing the stream ends the call: nothing follows <Connect>.
+        hangup: () => ws.close(1000, "call ended"),
+      },
+    });
+
+    // Hung up while the call was being set up.
+    if (ws.readyState !== ws.OPEN) return;
+
+    phoneCalls++;
+    const limit = setTimeout(() => ws.close(), MAX_CALL_MS);
+    let ended = false;
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(limit);
+      call.close();
+      phoneCalls--;
+      const endedAt = new Date();
+      const durationSeconds = (endedAt.getTime() - call.startedAt) / 1000;
+      // After the last turn has settled, so a booking made as they hung up is
+      // in the outcome; never waiting more than a few seconds for it.
+      const settled = Promise.race([call.settled(), new Promise((r) => setTimeout(r, 5000))]);
+      void settled.then(async () => {
+        try {
+          await logCall(pass.organizationId, {
+            callerNumber: pass.callerNumber,
+            startedAt: new Date(call.startedAt),
+            endedAt,
+            outcomes: call.outcomes(),
+          });
+        } catch (err) {
+          console.error("[VOICE] could not log the call:", err);
+        }
+        if (!fakes) {
+          await recordUsage(pass.organizationId, {
+            source: "phone",
+            sessionKey: start.callSid || undefined,
+            startedAt: new Date(call.startedAt),
+            durationSeconds,
+            counts: {
+              model: session.model,
+              ...call.tokenUsage(),
+              sttSeconds: call.audioBytesIn / 8000,
+              ttsCharacters: call.ttsCharacters,
+              telephonySeconds: durationSeconds,
+            },
+          });
+        }
+      });
+    };
+
+    ws.on("message", (data, isBinary) => {
+      if (isBinary) return;
+      const text = data.toString();
+      const frame = parseTwilioFrame(text);
+      if (frame?.event === "media") {
+        audioBytesIn += frame.audio.length;
+        return call.audioIn(frame.audio);
+      }
+      if (frame?.event === "stop") return ws.close();
+      // Stand-in recogniser only: a test says what it would have heard.
+      if (fakeStt) {
+        try {
+          const msg = JSON.parse(text) as { event?: string; text?: string };
+          if (msg.event === "say" && typeof msg.text === "string") fakeStt.say(msg.text.slice(0, 500));
+        } catch {
+          // not for us
+        }
+      }
+    });
+    ws.on("close", end);
+    ws.on("error", end);
+
+    console.log(`[VOICE] phone call ${start.callSid} for ${pass.organizationId}`);
     await call.start();
   }
 
