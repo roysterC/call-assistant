@@ -7,6 +7,7 @@ declare module "next-auth" {
       organizationId: string | null;
       organizationName: string | null;
       role: "member" | "admin" | "superAdmin" | "stylist";
+      sessionVersion: number;
     } & DefaultSession["user"];
   }
 }
@@ -17,5 +18,6 @@ declare module "next-auth/jwt" {
     organizationId?: string | null;
     organizationName?: string | null;
     role?: "member" | "admin" | "superAdmin" | "stylist";
+    sessionVersion?: number;
   }
 }

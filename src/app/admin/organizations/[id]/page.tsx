@@ -424,7 +424,7 @@ export default function OrganizationDetailPage() {
             <>
               <Button
                 variant="outline"
-                onClick={() => router.push(`/?asOrg=${org.id}`)}
+                onClick={() => router.push(`/start?asOrg=${org.id}`)}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 View as org

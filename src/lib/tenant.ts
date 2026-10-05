@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { devBypassEnabled } from "@/lib/dev-bypass";
+import { isCurrentSession } from "@/lib/session-version";
 
 export type TenantRole = "member" | "admin" | "superAdmin" | "stylist";
 
@@ -36,12 +38,13 @@ export interface TenantOptions {
 /**
  * Local dev escape hatch — when DEV_BYPASS_AUTH=1 is set (via .env.local),
  * skip real session lookups and return a mock super-admin context pointing
- * at the seeded Kikai org (slug "doai"). Only activates if that org exists in the DB.
+ * at the seeded Kikai org (slug "doai"). Only activates if that org exists in
+ * the DB, and never in a production build (see dev-bypass.ts).
  */
 async function devBypassTenant(
   req: Request
 ): Promise<TenantContext | null> {
-  if (process.env.DEV_BYPASS_AUTH !== "1") return null;
+  if (!devBypassEnabled()) return null;
   const org = await prisma.organization.findUnique({
     where: { slug: "doai" },
     select: { id: true },
@@ -92,9 +95,10 @@ export async function requireTenant(
       diaryScope: true,
       canSeeTakings: true,
       mustChangePassword: true,
+      sessionVersion: true,
     },
   });
-  if (!user) {
+  if (!user || !isCurrentSession(session.user.sessionVersion, user.sessionVersion)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -184,11 +188,14 @@ export function isErrorResponse(x: unknown): x is NextResponse {
 /**
  * Stronger check: must be super-admin, no asOrg override applied.
  * Used for /admin/* endpoints.
+ *
+ * The role is read from the database, not the login cookie: the cookie lasts
+ * 30 days, and a super-admin removed or demoted must lose /admin at once.
  */
 export async function requireSuperAdmin(): Promise<
   { userId: string; role: "superAdmin" } | NextResponse
 > {
-  if (process.env.DEV_BYPASS_AUTH === "1") {
+  if (devBypassEnabled()) {
     return { userId: "dev-user", role: "superAdmin" };
   }
 
@@ -196,7 +203,14 @@ export async function requireSuperAdmin(): Promise<
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (session.user.role !== "superAdmin") {
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, sessionVersion: true },
+  });
+  if (!user || !isCurrentSession(session.user.sessionVersion, user.sessionVersion)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (user.role !== "superAdmin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return { userId: session.user.id, role: "superAdmin" };

@@ -4,6 +4,11 @@ import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
 import { hashPassword, validatePassword } from "@/lib/password";
 import { parsePagination } from "@/lib/pagination";
 
+const ASSIGNABLE_ROLES = ["member", "admin"];
+
+/** Never the password hash. */
+const USER_FIELDS = { id: true, email: true, name: true, role: true, createdAt: true } as const;
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,7 +23,7 @@ export async function GET(
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where: { organizationId },
-        select: { id: true, email: true, name: true, role: true, createdAt: true },
+        select: USER_FIELDS,
         orderBy: { createdAt: "desc" },
         take,
         skip,
@@ -53,13 +58,36 @@ export async function POST(
 
     const normalizedEmail = String(email).toLowerCase().trim();
 
-    // If user exists, reassign to this org. Only set password if they don't already have one.
+    // Owners and staff only. A super-admin is made by hand, never from a form,
+    // and a stylist login belongs to a column of the diary (Settings → Team logins).
+    if (role !== undefined && !ASSIGNABLE_ROLES.includes(role)) {
+      return NextResponse.json(
+        { error: `role must be one of: ${ASSIGNABLE_ROLES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    // An existing login is only updated when it already belongs to this
+    // organisation. This used to move whoever had the address into this
+    // organisation with the new role — another salon's owner, or a
+    // super-admin demoted to member by typing their own email.
     const existing = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
     if (existing) {
+      if (existing.organizationId !== organizationId || existing.role === "superAdmin") {
+        return NextResponse.json(
+          { error: "That email already has a login elsewhere. Use a different address." },
+          { status: 409 }
+        );
+      }
+      if (existing.role === "stylist") {
+        return NextResponse.json(
+          { error: "That email is a stylist login. Manage it from Settings → Team logins." },
+          { status: 409 }
+        );
+      }
       const updateData: Record<string, unknown> = {
-        organizationId,
         name: existing.name || name || null,
         role: role || existing.role,
       };
@@ -71,6 +99,7 @@ export async function POST(
       const updated = await prisma.user.update({
         where: { email: normalizedEmail },
         data: updateData,
+        select: USER_FIELDS,
       });
       return NextResponse.json(updated);
     }
@@ -95,6 +124,7 @@ export async function POST(
         role: role || "member",
         passwordHash,
       },
+      select: USER_FIELDS,
     });
 
     return NextResponse.json(user);

@@ -5,6 +5,10 @@
  *
  * Only modifies internal same-origin "/api/..." paths in the browser. SSR,
  * external URLs, and non-/api paths pass through unchanged.
+ *
+ * A 401 means the session is gone — expired, signed out elsewhere, the
+ * password changed, the login removed — so the page goes to /login and comes
+ * back here afterwards, instead of sitting there with every panel failing.
  */
 export function apiFetch(
   input: string,
@@ -13,13 +17,29 @@ export function apiFetch(
   if (typeof window === "undefined" || !input.startsWith("/api/")) {
     return fetch(input, init);
   }
+  return fetch(withAsOrg(input), init).then((res) => {
+    if (res.status === 401) toLogin();
+    return res;
+  });
+}
 
+function withAsOrg(input: string): string {
   const asOrg = new URLSearchParams(window.location.search).get("asOrg");
-  if (!asOrg) return fetch(input, init);
+  if (!asOrg) return input;
 
   // Don't double-append if the caller already set it
-  if (/[?&]asOrg=/.test(input)) return fetch(input, init);
+  if (/[?&]asOrg=/.test(input)) return input;
 
   const sep = input.includes("?") ? "&" : "?";
-  return fetch(`${input}${sep}asOrg=${encodeURIComponent(asOrg)}`, init);
+  return `${input}${sep}asOrg=${encodeURIComponent(asOrg)}`;
+}
+
+let leaving = false;
+
+function toLogin() {
+  const { pathname, search } = window.location;
+  if (leaving || pathname.startsWith("/login")) return;
+  leaving = true;
+  const back = encodeURIComponent(pathname + search);
+  window.location.href = `/login?callbackUrl=${back}&error=SessionRequired`;
 }
