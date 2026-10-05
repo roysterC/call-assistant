@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,16 @@ export default function AccountSettingsPage() {
       if (!res.ok) {
         const err = await res.json();
         setMessage({ type: "error", text: err.error || "Failed to change password" });
+        return;
+      }
+      // Changing the password signed out every session, this one included;
+      // sign back in with the new password so the user carries on.
+      const email = session?.user?.email;
+      const again = email
+        ? await signIn("credentials", { email, password: newPassword, redirect: false })
+        : null;
+      if (!again || again.error) {
+        window.location.href = "/login";
         return;
       }
       setMessage({ type: "success", text: "Password changed successfully" });

@@ -16,7 +16,7 @@ npm run db:up                       # if not already running
 npm run dev                         # http://localhost:4500
 ```
 
-With `DEV_BYPASS_AUTH=1` in `.env.local` (set by the example), you are auto-signed-in as the seeded super-admin and can navigate everything without a real session.
+With `DEV_BYPASS_AUTH=1` in `.env.local` (set by the example), you are auto-signed-in as the seeded super-admin and can navigate everything without a real session. `next dev` only: a production build (`next build` / `next start`) ignores both bypass variables, so they can never open up the live CRM.
 
 Reset the local DB and re-seed:
 ```bash

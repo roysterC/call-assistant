@@ -6,6 +6,7 @@ import {
   verifyPassword,
   validatePassword,
 } from "@/lib/password";
+import { isCurrentSession } from "@/lib/session-version";
 
 export async function PUT(req: NextRequest) {
   const session = await auth();
@@ -30,10 +31,13 @@ export async function PUT(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { passwordHash: true },
+      select: { passwordHash: true, sessionVersion: true },
     });
+    if (!user || !isCurrentSession(session.user.sessionVersion, user.sessionVersion)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    if (!user?.passwordHash) {
+    if (!user.passwordHash) {
       return NextResponse.json(
         { error: "Account not configured for password login" },
         { status: 400 }
@@ -52,7 +56,13 @@ export async function PUT(req: NextRequest) {
     await prisma.user.update({
       where: { id: session.user.id },
       // Choosing their own password is what a temporary one was waiting for.
-      data: { passwordHash: newHash, mustChangePassword: false },
+      // A new version signs out every device signed in with the old password,
+      // this one included: the page signs straight back in with the new one.
+      data: {
+        passwordHash: newHash,
+        mustChangePassword: false,
+        sessionVersion: { increment: 1 },
+      },
     });
 
     return NextResponse.json({ success: true });

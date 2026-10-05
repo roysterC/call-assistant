@@ -2,9 +2,11 @@
 
 import { SessionProvider as NextAuthSessionProvider } from "next-auth/react";
 import type { Session } from "next-auth";
+import { clientDevBypassEnabled } from "@/lib/dev-bypass";
 
-// Mock session used only when NEXT_PUBLIC_DEV_BYPASS_AUTH=1 (local dev).
-// Server-side, requireTenant() returns a matching mock context.
+// Mock session used only when NEXT_PUBLIC_DEV_BYPASS_AUTH=1 (local dev), and
+// never in a production build. Server-side, requireTenant() returns a
+// matching mock context.
 const mockSession: Session = {
   user: {
     id: "dev-user",
@@ -13,12 +15,13 @@ const mockSession: Session = {
     organizationId: null,
     organizationName: "Kikai",
     role: "superAdmin",
+    sessionVersion: 0,
   },
   expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
 };
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const bypass = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "1";
+  const bypass = clientDevBypassEnabled();
 
   if (bypass) {
     // Pin the mock session. Disable refetch so NextAuth doesn't hit

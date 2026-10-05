@@ -67,6 +67,9 @@ model User {
   /// Set when the owner creates the login or resets its password; the
   /// stylist cannot use anything else until they have chosen their own.
   mustChangePassword Boolean @default(false)
+  /// Copied into the login cookie at sign-in. Raising it (a password changed
+  /// or reset) ends every session signed in before, on their next request.
+  sessionVersion     Int     @default(0)
   organization   Organization? @relation(fields: [organizationId], references: [id])
   accounts       Account[]
   sessions       Session[]

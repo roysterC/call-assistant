@@ -35,6 +35,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       canSeeTakings?: boolean;
       passwordHash?: string;
       mustChangePassword?: boolean;
+      sessionVersion?: { increment: number };
     } = {};
     if (body.diaryScope === "own" || body.diaryScope === "salon") data.diaryScope = body.diaryScope;
     if (typeof body.canSeeTakings === "boolean") data.canSeeTakings = body.canSeeTakings;
@@ -44,6 +45,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       password = temporaryPassword();
       data.passwordHash = await hashPassword(password);
       data.mustChangePassword = true;
+      // Whoever was signed in with the old password is signed out.
+      data.sessionVersion = { increment: 1 };
     }
 
     const login = await prisma.user.update({ where: { id }, data, select: LOGIN_FIELDS });

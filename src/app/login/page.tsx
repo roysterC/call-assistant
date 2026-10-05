@@ -49,7 +49,11 @@ function LoginForm() {
     });
 
     if (res?.error) {
-      setError("Invalid email or password.");
+      setError(
+        res.code === "too_many_attempts"
+          ? "Too many attempts. Wait 15 minutes, then try again."
+          : "Invalid email or password."
+      );
       setLoading(false);
       return;
     }
