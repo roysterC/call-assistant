@@ -31,6 +31,8 @@ export interface NavPage {
 }
 
 export const DASHBOARD = "/dashboard";
+/** Sends a signed-in user on to their organisation's start page. */
+export const START = "/start";
 export const DIARY = "/calendar";
 
 /** In the order the sidebar lists them, before the start page is moved up. */

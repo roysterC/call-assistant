@@ -42,7 +42,8 @@ export function middleware(req: NextRequest) {
     "/terms-of-service",
     "/data-deletion",
   ];
-  if (publicPrefixes.some((p) => pathname.startsWith(p))) {
+  // The root is only a redirect to /login, so it needs no session either.
+  if (pathname === "/" || publicPrefixes.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 

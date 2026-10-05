@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 export default function AssistantLink() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/?assistant=listen");
+    router.replace("/start?assistant=listen");
   }, [router]);
   return null;
 }

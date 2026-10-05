@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, LogIn, PhoneCall, Receipt } from "lucide-react";
@@ -25,6 +25,11 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = safeCallbackUrl(searchParams.get("callbackUrl"));
   const urlError = searchParams.get("error");
+  // The site's root is this page even when signed in, so someone already
+  // signed in can carry on without typing their password again.
+  const { data: session, status } = useSession();
+  const signedInAs =
+    status === "authenticated" ? session.user?.name || session.user?.email : null;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -115,6 +120,22 @@ function LoginForm() {
               </p>
             </div>
           </div>
+          {signedInAs && (
+            <div className="mb-6 rounded-lg border bg-card p-3 text-sm">
+              <p className="text-muted-foreground">
+                You&apos;re signed in as{" "}
+                <span className="font-medium text-foreground">{signedInAs}</span>.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-2 w-full"
+                onClick={() => router.push(callbackUrl)}
+              >
+                Continue as {signedInAs}
+              </Button>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/*
               htmlFor/id and autoComplete. The labels were unassociated, so
