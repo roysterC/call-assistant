@@ -144,7 +144,7 @@ export function DataTable<T>({
         className
       )}
     >
-      <div className={cn("w-full overflow-x-auto", scrollClassName && cn("overflow-y-auto", scrollClassName))}>
+      <div className={cn("relative w-full overflow-x-auto", scrollClassName && cn("overflow-y-auto", scrollClassName))}>
         <table className="w-full border-collapse text-sm">
           <thead className={cn(scrollClassName && "sticky top-0 z-10 bg-card")}>
             {table.getHeaderGroups().map((group) => (
