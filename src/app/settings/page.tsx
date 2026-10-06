@@ -22,7 +22,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
 import { ServicesEditor } from "@/components/settings/services-editor";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
-import { TeamLogins } from "@/components/settings/team-logins";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
@@ -306,8 +305,7 @@ export default function SettingsPage() {
             <p className="text-xs text-muted-foreground mt-1">
               The screen the CRM opens on after signing in, and the top of the
               menu. Automatic opens a salon taking bookings on the Diary, and
-              anyone else on the Dashboard. Stylist logins always open on the
-              Diary.
+              anyone else on the Dashboard.
             </p>
           </div>
         </CardContent>
@@ -427,25 +425,6 @@ export default function SettingsPage() {
                 onChange={(teamMembers) =>
                   setSettings({ ...settings, teamMembers })
                 }
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="gap-0">
-            <CardHeader className="border-b pb-3">
-              <CardTitle className="text-base">Team logins</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                A login lets a stylist use their own column of the diary from
-                their phone. They see only their own clients, and never the
-                salon&apos;s calls, settings or anyone else&apos;s takings.
-                Changes here take effect straight away.
-              </p>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <TeamLogins
-                stylists={settings.teamMembers
-                  .map((m) => m.name)
-                  .filter((n): n is string => Boolean(n && n.trim()))}
               />
             </CardContent>
           </Card>

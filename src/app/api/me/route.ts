@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true, beforePasswordChange: true });
+  const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
 
   const user =
@@ -17,14 +17,12 @@ export async function GET(req: NextRequest) {
       ? null
       : await prisma.user.findUnique({
           where: { id: ctx.userId },
-          select: { name: true, email: true, mustChangePassword: true },
+          select: { name: true, email: true },
         });
 
   return NextResponse.json({
     role: ctx.role,
     name: user?.name ?? null,
     email: user?.email ?? null,
-    stylist: ctx.stylist,
-    mustChangePassword: ctx.stylist !== null && Boolean(user?.mustChangePassword),
   });
 }

@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { callbacksChanged, usePendingCallbacks } from "@/lib/use-pending-callbacks";
 import { apiFetch } from "@/lib/api-fetch";
-import { stylistMayVisit, useMe } from "@/components/providers/me-provider";
 import {
   DASHBOARD,
   NAV_PAGES,
@@ -94,12 +93,10 @@ export function Sidebar({
 
   const isSuperAdmin = session?.user?.role === "superAdmin";
   const user = session?.user;
-  const me = useMe();
 
   const [features, setFeatures] = useState<FeatureFlags | null>(null);
-  // The red counter beside Callbacks. Not for a stylist login, which has no
-  // callbacks page.
-  const pending = usePendingCallbacks(Boolean(features?.voiceEnabled) && !me?.stylist);
+  // The red counter beside Callbacks.
+  const pending = usePendingCallbacks(Boolean(features?.voiceEnabled));
   useEffect(() => {
     // Another organisation (super-admin switcher): its own count.
     callbacksChanged();
@@ -242,14 +239,11 @@ export function Sidebar({
           Menu
         </p>
         {orderForStartPage(navItems, startPage)
-          .filter((item) =>
-            // A stylist login's pages are the diary, their bookings and, if
-            // allowed, their own takings — whatever the salon has switched on.
-            me?.stylist
-              ? stylistMayVisit(me, item.href)
-              : isNavVisible(item, features) &&
-                (!item.ownerOnly || user?.role === "admin" || user?.role === "superAdmin") &&
-                (!item.superAdminOnly || isSuperAdmin)
+          .filter(
+            (item) =>
+              isNavVisible(item, features) &&
+              (!item.ownerOnly || user?.role === "admin" || user?.role === "superAdmin") &&
+              (!item.superAdminOnly || isSuperAdmin)
           )
           .map((item) => {
             const isActive = pathname === item.href;

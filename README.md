@@ -222,8 +222,6 @@ How it is built:
   "yes" or the card's button is handled by code, which saves it with the
   phone's rules (hours, working days, who does what, the skin test, no
   double-booking; a walk-in can be booked for now).
-- A stylist login sees and changes only what it could on screen: its own
-  column if that is all it sees, takings only if shared, no texts.
 - It uses the same settings as the receptionist's Talk tab
   (`RECEPTIONIST_VOICE_URL`, `RECEPTIONIST_VOICE_SECRET`, `DEEPGRAM_API_KEY`
   and an Anthropic key); texts need Twilio, as the confirmations do. Without

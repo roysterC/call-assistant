@@ -59,7 +59,7 @@ function subscribe(listener: () => void) {
 
 const noSubscribe = () => () => {};
 
-/** Callbacks waiting; 0 when `enabled` is false (no voice, a stylist login). */
+/** Callbacks waiting; 0 when `enabled` is false (no voice). */
 export function usePendingCallbacks(enabled: boolean): number {
   return useSyncExternalStore(
     enabled ? subscribe : noSubscribe,

@@ -84,23 +84,8 @@ function searchSql(q: string | null): Prisma.Sql {
   }
 }
 
-/**
- * A stylist's client list is the clients they have had a booking with. In a
- * salon of chair renters, one stylist's clients are not another's to read.
- * The owner (null) sees everyone.
- */
-function ownClientsSql(organizationId: string, stylistName: string | null): Prisma.Sql {
-  if (stylistName === null) return Prisma.sql`TRUE`;
-  return Prisma.sql`EXISTS (
-    SELECT 1 FROM ca_appointments ap
-    WHERE ap."leadId" = ca_leads.id
-      AND ap."organizationId" = ${organizationId}
-      AND lower(ap."stylistName") = lower(${stylistName})
-  )`;
-}
-
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -119,7 +104,6 @@ export async function GET(req: NextRequest) {
       "organizationId" = ${ctx.organizationId}
       AND (name IS NOT NULL OR phone IS NOT NULL OR email IS NOT NULL)
       AND ${searchSql(searchParams.get("q"))}
-      AND ${ownClientsSql(ctx.organizationId, ctx.stylist?.name ?? null)}
     `;
 
     // Column names come from the whitelist above, never from the request.
@@ -154,10 +138,6 @@ export async function GET(req: NextRequest) {
     const rows = ids.flatMap((id) => byId.get(id) ?? []);
 
     const now = new Date();
-    // A stylist sees the visits they did, not a colleague's.
-    const ownVisits = ctx.stylist
-      ? { stylistName: { equals: ctx.stylist.name, mode: "insensitive" as const } }
-      : {};
     const [past, upcoming] = ids.length
       ? await Promise.all([
           prisma.appointment.groupBy({
@@ -167,7 +147,6 @@ export async function GET(req: NextRequest) {
               leadId: { in: ids },
               status: { in: VISITED },
               startsAt: { lt: now },
-              ...ownVisits,
             },
             _max: { startsAt: true },
             _count: { _all: true },
@@ -179,7 +158,6 @@ export async function GET(req: NextRequest) {
               leadId: { in: ids },
               status: "booked",
               startsAt: { gte: now },
-              ...ownVisits,
             },
             _min: { startsAt: true },
           }),
@@ -222,7 +200,7 @@ function clean(value: unknown): string | null {
  * their own, linked to the number's owner.
  */
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -294,21 +272,7 @@ export async function POST(req: NextRequest) {
           // A number clash may be a family sharing a phone, which the desk
           // can resolve by adding them reached through it (contactThrough).
           matched: phone && existing.phone === phone ? "phone" : "email",
-          // A stylist can book them, but not read what another stylist holds
-          // on them: the name to confirm it is the right person, and nothing
-          // else.
-          existing: ctx.stylist
-            ? {
-                id: existing.id,
-                name: existing.name,
-                firstName: existing.firstName,
-                lastName: existing.lastName,
-                phone: null,
-                email: null,
-                notes: null,
-                contactLead: null,
-              }
-            : existing,
+          existing,
         },
         { status: 409 }
       );

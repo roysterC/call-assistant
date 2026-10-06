@@ -7,11 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lock, User as UserIcon, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
-import { useMe } from "@/components/providers/me-provider";
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession();
-  const me = useMe();
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -64,9 +62,6 @@ export default function AccountSettingsPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      // A stylist replacing a temporary password goes straight on to the
-      // diary; a full reload so the new state is read fresh everywhere.
-      if (me?.mustChangePassword) window.location.href = "/calendar";
     } finally {
       setSaving(false);
     }
@@ -76,15 +71,6 @@ export default function AccountSettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Account</h1>
 
-      {me?.mustChangePassword && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm">
-          <p className="font-medium">Choose your own password to get started</p>
-          <p className="text-muted-foreground mt-1">
-            You signed in with a temporary password. Enter it as your current
-            password below, then pick a new one only you know.
-          </p>
-        </div>
-      )}
 
       <Card>
         <CardHeader>

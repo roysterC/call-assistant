@@ -170,7 +170,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-function instructions(business: string, speaker: string, stylistOnly: string | null): string {
+function instructions(business: string, speaker: string): string {
   return `# You are the personal assistant in ${business}'s salon system
 
 Salon staff talk to you at the desk or on their phone, often with their hands
@@ -216,11 +216,7 @@ it?", e.g. "Sarah Jones, ladies cut and blow dry, Thursday at 2 with Jo. Save it
 
 Salon work only. Politely say so otherwise.
 
-Speaking now: ${speaker}.${
-    stylistOnly
-      ? ` They are a stylist: they can only change their own column (${stylistOnly}), and only see what their login allows.`
-      : ""
-  }`;
+Speaking now: ${speaker}.`;
 }
 
 export interface VoiceBookingSession {
@@ -275,7 +271,7 @@ export async function startVoiceBooking(
       {
         type: "text",
         text: [
-          instructions(settings?.businessName || "the salon", opts.speaker, asker.role === "stylist" ? asker.stylist?.name ?? null : null),
+          instructions(settings?.businessName || "the salon", opts.speaker),
           `# The salon\n\nTeam: ${cfg.stylists.map((s) => s.name).join(", ")}.\nServices: ${cfg.services
             .map((s) => `${s.name} (${s.durationMinutes} min${s.requiresPatchTest ? ", skin test for new clients" : ""})`)
             .join("; ")}.`,

@@ -43,8 +43,6 @@ interface AppointmentSheetProps {
   onChanged: () => void;
   /** Open the booking for changing: time, stylist, services, client. */
   onEdit: () => void;
-  /** A colleague's booking, seen by a stylist login: look, don't touch. */
-  readOnly?: boolean;
 }
 
 function clockRange(startsAt: string, endsAt: string, timeZone: string): string {
@@ -71,7 +69,6 @@ export function AppointmentSheet({
   onClose,
   onChanged,
   onEdit,
-  readOnly = false,
 }: AppointmentSheetProps) {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -187,7 +184,6 @@ export function AppointmentSheet({
               )}
             </dl>
 
-            {!readOnly && (
             <div className="grid gap-1.5">
               <label
                 htmlFor="appointment-amount"
@@ -216,7 +212,6 @@ export function AppointmentSheet({
                 report counts.
               </p>
             </div>
-            )}
 
             {a.patchTestRequired && (
               <p className="flex gap-2 text-xs text-amber-700">
@@ -234,7 +229,7 @@ export function AppointmentSheet({
             <Button variant="ghost" onClick={onClose} disabled={Boolean(saving)}>
               Close
             </Button>
-            {a && a.status !== "cancelled" && !readOnly && (
+            {a && a.status !== "cancelled" && (
               <Button
                 variant="outline"
                 size="sm"
@@ -247,7 +242,7 @@ export function AppointmentSheet({
             )}
           </div>
           <div className="flex gap-2 max-md:w-full">
-            {!readOnly && ACTIONS.filter((x) => x.status !== a?.status).map((x) => (
+            {ACTIONS.filter((x) => x.status !== a?.status).map((x) => (
               <Button
                 key={x.status}
                 // One primary action: "done" is what the desk does to almost

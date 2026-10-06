@@ -14,7 +14,7 @@ import {
   type Stylist,
 } from "@/lib/salon-config";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
-import { DIARY, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
+import { isStartPageChoice, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
 
@@ -111,7 +111,7 @@ const SUPER_ADMIN_ONLY_FIELDS = [
 ];
 
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -130,35 +130,6 @@ export async function GET(req: NextRequest) {
           businessName: org?.name || DEFAULT_SETTINGS.businessName,
           teamMembers: DEFAULT_SETTINGS.teamMembers,
         },
-      });
-    }
-
-    // A stylist's diary needs the hours, the services and who works when —
-    // not the salon's keys and tokens, prompts, or colleagues' contact
-    // details. Allowlisted, so a field added to settings later stays hidden.
-    if (ctx.stylist) {
-      const team = Array.isArray(settings.teamMembers) ? settings.teamMembers : [];
-      return NextResponse.json({
-        settings: {
-          businessName: settings.businessName,
-          timezone: settings.timezone,
-          businessHours: settings.businessHours,
-          services: settings.services,
-          diaryProvider: settings.diaryProvider,
-          teamMembers: team.map((m) => {
-            const t = (m ?? {}) as Record<string, unknown>;
-            return {
-              name: t.name,
-              role: t.role,
-              workingDays: t.workingDays,
-              services: t.services,
-              // Only whether one is set: the diary needs to know who is bookable.
-              googleCalendarId: t.googleCalendarId ? "set" : undefined,
-            };
-          }),
-        },
-        // A stylist login is for the diary, whatever the salon opens on.
-        startPage: DIARY,
       });
     }
 

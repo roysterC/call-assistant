@@ -8,14 +8,8 @@ import { CURRENCY } from "@/lib/money";
 
 /** Takings for a window: see src/lib/takings.ts. */
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
-  // A stylist sees their own takings if the owner allows it, and never the
-  // rest of the salon's: in a chair-rental salon each stylist's takings are
-  // their own business.
-  if (ctx.stylist && !ctx.stylist.canSeeTakings) {
-    return NextResponse.json({ error: "Takings are not shared with this login." }, { status: 403 });
-  }
 
   try {
     const { searchParams } = new URL(req.url);
@@ -42,8 +36,7 @@ export async function GET(req: NextRequest) {
     const { rows, totals, truncated } = await computeTakings(
       ctx.organizationId,
       period,
-      cfg,
-      ctx.stylist?.name
+      cfg
     );
 
     return NextResponse.json({

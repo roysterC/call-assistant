@@ -67,8 +67,6 @@ const DAYS: Array<[number, string]> = [
 interface BlockTimeDialogProps {
   state: BlockDialogState | null;
   stylists: string[];
-  /** Offer "Everyone". Only the owner can close the salon. */
-  allowEveryone?: boolean;
   timeZone: string;
   onClose: () => void;
   onSaved: () => void;
@@ -87,7 +85,6 @@ function prettyDay(date: string): string {
 export function BlockTimeDialog({
   state,
   stylists,
-  allowEveryone = true,
   timeZone,
   onClose,
   onSaved,
@@ -215,9 +212,7 @@ export function BlockTimeDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {allowEveryone && (
-                    <SelectItem value={EVERYONE}>Everyone (salon closed)</SelectItem>
-                  )}
+                  <SelectItem value={EVERYONE}>Everyone (salon closed)</SelectItem>
                   {stylists.map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}

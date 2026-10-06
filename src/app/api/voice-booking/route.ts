@@ -8,9 +8,6 @@
  * A card on screen is saved only here, by plain code: the Save button, or a
  * short, plain "yes" (see confirm.ts). Everything else goes to the assistant,
  * which can look things up and draw a new card but cannot save one.
- *
- * Owners and stylists alike: a stylist books into their own column only,
- * the same as typing a booking in.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -35,7 +32,7 @@ import { fakeBookingModel } from "@/lib/voice-booking/fake-model";
 type Body = { text?: unknown; sessionId?: unknown; action?: unknown };
 
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
   const body = ((await req.json().catch(() => null)) ?? {}) as Body;
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
@@ -127,7 +124,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
   const id = req.nextUrl.searchParams.get("sessionId") ?? undefined;
   if (findSession(id, ctx.organizationId, ctx.userId)) endSession(id!);
@@ -204,7 +201,6 @@ async function view(session: VoiceBookingSession) {
 }
 
 async function speakerName(ctx: TenantContext): Promise<string> {
-  if (ctx.stylist) return `${ctx.stylist.name} (a stylist)`;
   const u = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true } });
   return `${u?.name ?? "the owner"} (full access)`;
 }

@@ -4,9 +4,6 @@
  * Where signing in lands: sends a signed-in user to their organisation's start
  * page (Settings → Start page; the diary for a salon, the dashboard for
  * everyone else). The site's root is the login page, not this.
- *
- * A stylist login is sent to the diary by MeProvider, whatever the salon's
- * start page, since the diary is what a stylist login is for.
  */
 
 import { Suspense, useEffect } from "react";
