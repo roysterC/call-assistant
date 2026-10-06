@@ -20,7 +20,7 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   appointments: { GET: "members", PATCH: "members", POST: "members" },
   callbacks: { GET: "members", PATCH: "members" },
   calls: { GET: "members" },
-  "clients/[id]": { PATCH: "members" },
+  "clients/[id]": { GET: "members", PATCH: "members" },
   clients: { GET: "members", POST: "members" },
   "conversations/[id]/handoff": { POST: "members" },
   "conversations/[id]/persona-reset": { PATCH: "owner" },

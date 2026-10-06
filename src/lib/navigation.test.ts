@@ -29,6 +29,30 @@ describe("isNavVisible", () => {
   });
 });
 
+describe("a salon's people", () => {
+  const leads = NAV_PAGES.find((p) => p.href === "/leads")!;
+  const clients = NAV_PAGES.find((p) => p.href === "/clients")!;
+
+  it("are its Clients, not Leads, once it has the diary", () => {
+    expect(isNavVisible(clients, salon)).toBe(true);
+    expect(isNavVisible(leads, salon)).toBe(false);
+  });
+
+  it("stay Leads for an organisation without it", () => {
+    expect(isNavVisible(leads, chatOnly)).toBe(true);
+    expect(isNavVisible(clients, chatOnly)).toBe(false);
+  });
+
+  it("show neither until the features have loaded", () => {
+    expect(isNavVisible(leads, null)).toBe(false);
+    expect(isNavVisible(clients, null)).toBe(false);
+  });
+
+  it("no longer include Appointments, which the diary shows", () => {
+    expect(NAV_PAGES.some((p) => p.href === "/appointments")).toBe(false);
+  });
+});
+
 describe("resolveStartPage", () => {
   it("opens a salon whose diary takes bookings on the diary", () => {
     expect(resolveStartPage({ chosen: null, flags: salon, diaryTakesBookings: true })).toBe(DIARY);
