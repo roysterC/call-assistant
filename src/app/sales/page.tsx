@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Receipt } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import {
@@ -24,6 +24,7 @@ import {
 import { apiFetch } from "@/lib/api-fetch";
 import { cn } from "@/lib/utils";
 import { formatMoney, formatMoneyShort } from "@/lib/money";
+import { plural } from "@/lib/plural";
 import { APPOINTMENT_STATUS } from "@/lib/status-styles";
 import {
   describePeriod,
@@ -262,8 +263,8 @@ export default function SalesPage() {
 
       {totals && totals.byStylist.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Breakdown title="By stylist" items={totals.byStylist} />
-          <Breakdown title="By service" items={totals.byService.slice(0, 8)} />
+          <Breakdown title="By stylist" noun="stylist" items={totals.byStylist} />
+          <Breakdown title="By service" noun="service" items={totals.byService.slice(0, 8)} />
         </div>
       )}
 
@@ -348,20 +349,40 @@ export default function SalesPage() {
   );
 }
 
+/**
+ * Closed until asked for: the totals and the bookings are what the page is
+ * for, and two lists of bars above the table pushed it off the screen. The
+ * summary names the biggest, which is usually what anyone opens it to see.
+ */
 function Breakdown({
   title,
+  noun,
   items,
 }: {
   title: string;
+  /** "stylist": the summary reads "4 stylists". */
+  noun: string;
   items: Array<{ name: string; minor: number; count: number }>;
 }) {
   const max = Math.max(...items.map((i) => i.minor), 1);
+  const top = items.reduce<(typeof items)[number] | null>((a, i) => (!a || i.minor > a.minor ? i : a), null);
   return (
-    <div className="rounded-md border border-border p-4">
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">
-        {title}
-      </p>
-      <ul className="space-y-2">
+    <details className="group self-start rounded-md border border-border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 hover:bg-accent/40 [&::-webkit-details-marker]:hidden">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{title}</span>
+        <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <span className="truncate">
+            {plural(items.length, noun)}
+            {top && top.minor > 0 && (
+              <>
+                {" "}· top: {top.name} {formatMoney(top.minor)}
+              </>
+            )}
+          </span>
+          <ChevronDown aria-hidden className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <ul className="space-y-2 border-t border-border p-4">
         {items.map((i) => (
           <li key={i.name} className="grid gap-1">
             <div className="flex justify-between gap-3 text-sm">
@@ -383,6 +404,6 @@ function Breakdown({
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }
