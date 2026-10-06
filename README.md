@@ -113,6 +113,12 @@ nothing from you. Anything destructive stops the deploy and prints the SQL, and
 is meant to be applied deliberately — usually as a two-commit dance: ship code
 that stops reading the column, then drop it.
 
+For Prisma, "stops reading" means marking the field `@ignore`, not deleting it:
+the client stops selecting the column (it otherwise selects every column, so
+dropping it under a live build breaks every query on that table), while the
+schema still matches the database and the deploy goes through. Then drop the
+column by hand on the box, and delete the field in a later commit.
+
 A new column that existing rows need filling in goes in
 `scripts/post-deploy.ts`, which the deploy runs after the restart. Everything
 in it must be idempotent: it runs on every deploy, and after the first it
