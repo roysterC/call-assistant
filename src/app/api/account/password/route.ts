@@ -55,14 +55,9 @@ export async function PUT(req: NextRequest) {
     const newHash = await hashPassword(newPassword);
     await prisma.user.update({
       where: { id: session.user.id },
-      // Choosing their own password is what a temporary one was waiting for.
       // A new version signs out every device signed in with the old password,
       // this one included: the page signs straight back in with the new one.
-      data: {
-        passwordHash: newHash,
-        mustChangePassword: false,
-        sessionVersion: { increment: 1 },
-      },
+      data: { passwordHash: newHash, sessionVersion: { increment: 1 } },
     });
 
     return NextResponse.json({ success: true });

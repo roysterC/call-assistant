@@ -48,33 +48,29 @@ model Organization {
 }
 
 model User {
-  id             String        @id @default(cuid())
-  email          String        @unique
-  name           String?
-  emailVerified  DateTime?
-  image          String?
-  passwordHash   String?
-  role           String        @default("member") // member, admin, superAdmin, stylist
-  organizationId String?
-  // Stylist logins only (role "stylist"). A stylist login belongs to one
-  // column of the diary — linked by name, as bookings are — and sees what the
-  // owner allows. Every other role is unaffected by these.
+  id                 String        @id @default(cuid())
+  email              String        @unique
+  name               String?
+  emailVerified      DateTime?
+  image              String?
+  passwordHash       String?
+  role               String        @default("member") // member, admin, superAdmin
+  organizationId     String?
+  // Withdrawn: stylist logins (role "stylist") were removed and nothing reads
+  // these any more. Kept until they are dropped by hand, since the deploy
+  // refuses to drop columns on its own (see README, schema-change policy).
   stylistName        String?
-  /// "own": only their column. "salon": every column, others read-only.
-  diaryScope         String  @default("salon")
-  /// Their own takings on the sales page. Never anyone else's.
-  canSeeTakings      Boolean @default(true)
-  /// Set when the owner creates the login or resets its password; the
-  /// stylist cannot use anything else until they have chosen their own.
-  mustChangePassword Boolean @default(false)
+  diaryScope         String        @default("salon")
+  canSeeTakings      Boolean       @default(true)
+  mustChangePassword Boolean       @default(false)
   /// Copied into the login cookie at sign-in. Raising it (a password changed
   /// or reset) ends every session signed in before, on their next request.
-  sessionVersion     Int     @default(0)
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  accounts       Account[]
-  sessions       Session[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  sessionVersion     Int           @default(0)
+  organization       Organization? @relation(fields: [organizationId], references: [id])
+  accounts           Account[]
+  sessions           Session[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@map("ca_users")
 }

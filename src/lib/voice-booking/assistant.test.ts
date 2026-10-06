@@ -68,7 +68,7 @@ function asks(name: string, input: object): StreamingClient {
   };
 }
 
-const owner = { organizationId: "org", role: "admin" as const, stylist: null };
+const owner = { organizationId: "org", role: "admin" as const };
 
 describe("the assistant behind the diary's microphone", () => {
   it("has no tool that writes to the diary", async () => {

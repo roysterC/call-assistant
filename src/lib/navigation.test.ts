@@ -3,6 +3,7 @@ import {
   DASHBOARD,
   DIARY,
   NAV_PAGES,
+  isNavAllowed,
   isNavVisible,
   isStartPageChoice,
   orderForStartPage,
@@ -50,6 +51,27 @@ describe("resolveStartPage", () => {
     expect(resolveStartPage({ chosen: DIARY, flags: chatOnly, diaryTakesBookings: false })).toBe(DASHBOARD);
     expect(resolveStartPage({ chosen: "/nowhere", flags: salon, diaryTakesBookings: true })).toBe(DIARY);
     expect(resolveStartPage({ chosen: "/settings", flags: salon, diaryTakesBookings: false })).toBe(DASHBOARD);
+  });
+});
+
+describe("owner-only pages", () => {
+  const websites = NAV_PAGES.find((p) => p.href === "/websites")!;
+  const insights = NAV_PAGES.find((p) => p.href === "/insights")!;
+  const diary = NAV_PAGES.find((p) => p.href === DIARY)!;
+
+  it("keep the websites and chatbot pages from members", () => {
+    for (const page of [websites, insights]) {
+      expect(isNavAllowed(page, "member")).toBe(false);
+      expect(isNavAllowed(page, "admin")).toBe(true);
+      expect(isNavAllowed(page, "superAdmin")).toBe(true);
+    }
+    expect(isNavAllowed(diary, "member")).toBe(true);
+  });
+
+  it("are a start page for the owner, but a member opens on the automatic page", () => {
+    const chosen = "/insights";
+    expect(resolveStartPage({ chosen, flags: chatOnly, diaryTakesBookings: false })).toBe(chosen);
+    expect(resolveStartPage({ chosen, flags: chatOnly, diaryTakesBookings: false, isOwner: false })).toBe(DASHBOARD);
   });
 });
 

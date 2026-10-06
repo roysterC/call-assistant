@@ -39,6 +39,7 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
+import { useMe } from "@/components/providers/me-provider";
 
 interface Stats {
   totalCalls: number;
@@ -103,8 +104,13 @@ export default function DashboardPage() {
   const [features, setFeatures] = useState<Features | null>(null);
 
   const [loading, setLoading] = useState(true);
+  // Who is looking decides whether the chatbot's figures are fetched, so the
+  // page waits for the role before loading anything.
+  const role = useMe()?.role ?? null;
+  const isOwner = role === "admin" || role === "superAdmin";
 
   useEffect(() => {
+    if (!role) return;
     async function fetchData() {
       try {
         const settings = await apiFetch("/api/settings")
@@ -141,7 +147,9 @@ export default function DashboardPage() {
           );
         }
 
-        if (flags.chatbot) {
+        // The chatbot's figures are the owner's (is it earning its keep?);
+        // a member's dashboard leaves them out.
+        if (flags.chatbot && isOwner) {
           work.push(
             apiFetch("/api/website-chat/analytics?days=30")
               .then((r) => (r.ok ? r.json() : null))
@@ -162,7 +170,7 @@ export default function DashboardPage() {
       }
     }
     fetchData();
-  }, []);
+  }, [role, isOwner]);
 
   if (loading) {
     return (
@@ -176,7 +184,8 @@ export default function DashboardPage() {
   // a transient settings failure degrades to the old behaviour rather than to
   // a blank page.
   const showVoice = features ? features.voice : true;
-  const showChat = features ? features.chatbot : false;
+  const showChat = features ? features.chatbot && isOwner : false;
+  const chatbotOn = Boolean(features?.chatbot);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -195,13 +204,25 @@ export default function DashboardPage() {
         anyway — seven panels of zeroes about a product the account does not
         have — which is exactly what a newly created client saw.
       */}
-      {!showVoice && !showChat && (
+      {!showVoice && !chatbotOn && (
         <Card>
           <CardContent className="p-0">
             <EmptyState
               icon={Sparkles}
               title="Nothing switched on yet"
               hint="Your account is set up but no channels are active. Your account manager at Kikai enables these."
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {!showVoice && chatbotOn && !showChat && (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={Sparkles}
+              title="Your chats are in Conversations"
+              hint="The chatbot's figures are on the owner's dashboard."
             />
           </CardContent>
         </Card>

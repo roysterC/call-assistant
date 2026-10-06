@@ -30,7 +30,6 @@ import {
   STATUS_BADGE,
 } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
-import { useMe } from "@/components/providers/me-provider";
 
 interface Appointment {
   id: string;
@@ -74,10 +73,6 @@ function smsState(a: Appointment): keyof typeof SMS_STATUS {
 }
 
 export default function AppointmentsPage() {
-  const me = useMe();
-  // A stylist login changes only bookings in their own column.
-  const canChange = (stylistName: string) =>
-    !me?.stylist || stylistName.toLowerCase() === me.stylist.name.toLowerCase();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState("upcoming");
@@ -304,7 +299,7 @@ export default function AppointmentsPage() {
           )}
 
           <DialogFooter className="gap-2">
-            {detail?.status === "booked" && canChange(detail.stylistName) && (
+            {detail?.status === "booked" && (
               <>
                 <Button
                   variant="outline"

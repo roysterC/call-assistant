@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { clientIp, loginThrottle } from "@/lib/login-throttle";
+import { isTenantRole } from "@/lib/tenant-roles";
 
 /** Too many wrong passwords; the login page says so instead of "invalid". */
 class TooManyAttempts extends CredentialsSignin {
@@ -47,6 +48,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
         loginThrottle.succeed(email);
+        // A withdrawn role (stylist logins) cannot sign in at all.
+        if (!isTenantRole(user.role || "member")) return null;
 
         return {
           id: user.id,
@@ -88,7 +91,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           organizationName:
             (token.organizationName as string | null) || null,
           role:
-            (token.role as "member" | "admin" | "superAdmin" | "stylist") || "member",
+            (token.role as "member" | "admin" | "superAdmin") || "member",
           // Sessions from before this was recorded count as the first.
           sessionVersion: token.sessionVersion ?? 0,
         },

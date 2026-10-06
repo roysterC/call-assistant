@@ -34,10 +34,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { callbacksChanged, usePendingCallbacks } from "@/lib/use-pending-callbacks";
 import { apiFetch } from "@/lib/api-fetch";
-import { stylistMayVisit, useMe } from "@/components/providers/me-provider";
+import { useMe } from "@/components/providers/me-provider";
 import {
   DASHBOARD,
   NAV_PAGES,
+  isNavAllowed,
   isNavVisible,
   orderForStartPage,
   type FeatureFlags,
@@ -92,14 +93,16 @@ export function Sidebar({
   const { data: session } = useSession();
   const [orgs, setOrgs] = useState<OrgSummary[]>([]);
 
-  const isSuperAdmin = session?.user?.role === "superAdmin";
   const user = session?.user;
-  const me = useMe();
+  // The role from the database (/api/me), not the login cookie, so a role
+  // changed since signing in shows at once. Nothing role-gated is shown
+  // until it has loaded.
+  const role = useMe()?.role ?? null;
+  const isSuperAdmin = role === "superAdmin";
 
   const [features, setFeatures] = useState<FeatureFlags | null>(null);
-  // The red counter beside Callbacks. Not for a stylist login, which has no
-  // callbacks page.
-  const pending = usePendingCallbacks(Boolean(features?.voiceEnabled) && !me?.stylist);
+  // The red counter beside Callbacks.
+  const pending = usePendingCallbacks(Boolean(features?.voiceEnabled));
   useEffect(() => {
     // Another organisation (super-admin switcher): its own count.
     callbacksChanged();
@@ -242,14 +245,9 @@ export function Sidebar({
           Menu
         </p>
         {orderForStartPage(navItems, startPage)
-          .filter((item) =>
-            // A stylist login's pages are the diary, their bookings and, if
-            // allowed, their own takings — whatever the salon has switched on.
-            me?.stylist
-              ? stylistMayVisit(me, item.href)
-              : isNavVisible(item, features) &&
-                (!item.ownerOnly || user?.role === "admin" || user?.role === "superAdmin") &&
-                (!item.superAdminOnly || isSuperAdmin)
+          .filter(
+            (item) =>
+              isNavVisible(item, features) && isNavAllowed(item, role)
           )
           .map((item) => {
             const isActive = pathname === item.href;
@@ -341,7 +339,7 @@ export function Sidebar({
             <DropdownMenuContent side="top" align="start" className="w-56">
               <div className="px-2 py-1.5 text-xs">
                 <p className="font-medium">{user.name || user.email}</p>
-                <p className="text-[10px] text-muted-foreground">{user.role}</p>
+                <p className="text-[10px] text-muted-foreground">{role ?? user.role}</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => (window.location.href = "/settings/account")}>

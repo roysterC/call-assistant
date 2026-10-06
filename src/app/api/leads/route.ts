@@ -4,7 +4,7 @@ import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { parsePagination } from "@/lib/pagination";
 
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {

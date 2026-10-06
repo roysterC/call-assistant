@@ -47,11 +47,11 @@ import {
 import { namesMatch } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
 import { matchStylist, resolveBookedService, servicesLike, type SalonService, type Stylist } from "@/lib/salon-config";
-import { canWriteColumn, type TenantContext } from "@/lib/tenant";
+import type { TenantContext } from "@/lib/tenant";
 import { phoneSlotProblem, stylistServiceProblem } from "@/lib/vapi-functions";
 
 /** Who is asking, as far as drafting cares. */
-export type Asker = Pick<TenantContext, "organizationId" | "role" | "stylist">;
+export type Asker = Pick<TenantContext, "organizationId" | "role">;
 
 interface DraftBase {
   id: string;
@@ -197,7 +197,6 @@ export async function upcomingBookings(asker: Asker, clientId: string, cfg?: Sal
     when: spokenWhen(a.startsAt, salon.timeZone),
     service: a.serviceText,
     stylist: a.stylistName,
-    yours: canWriteColumn(asker as TenantContext, a.stylistName),
   }));
 }
 
@@ -229,9 +228,6 @@ async function slotProblem(
   excludeAppointmentId?: string
 ): Promise<string | null> {
   if (startsAt.getTime() < Date.now() - PAST_GRACE_MS) return "That time has already gone.";
-  if (!canWriteColumn(asker as TenantContext, stylist.name)) {
-    return `You can only book into your own column, not ${stylist.name}'s.`;
-  }
   const pairing = stylistServiceProblem(stylist.name, service, cfg.stylists);
   if (pairing) return pairing.replace(/ Offer that, or ask whether they wanted a different service\.$/, "");
   const provider = await getBookingProvider(asker.organizationId);
@@ -383,12 +379,6 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
     }
     const why = await slotProblem(asker, cfg, startsAt, service, stylist);
     if (why) return { ok: false, message: why };
-  } else if (asker.role === "stylist" && asker.stylist) {
-    // A stylist booking for themselves.
-    stylist = matchStylist(asker.stylist.name, cfg.stylists);
-    if (!stylist) return { ok: false, message: "Your login is not linked to anyone on the team." };
-    const why = await slotProblem(asker, cfg, startsAt, service, stylist);
-    if (why) return { ok: false, message: why };
   } else {
     const free = await anyFreeStylist(asker, cfg, startsAt, service);
     if ("reason" in free) return { ok: false, message: free.reason };
@@ -447,9 +437,6 @@ async function changeable(asker: Asker, appointmentId: string | undefined) {
   });
   if (!appt) return { ok: false as const, message: "That booking was not found." };
   if (appt.status !== "booked") return { ok: false as const, message: `That booking is ${appt.status}, so it cannot be changed.` };
-  if (!canWriteColumn(asker as TenantContext, appt.stylistName)) {
-    return { ok: false as const, message: `That booking is in ${appt.stylistName}'s column, not yours.` };
-  }
   return { ok: true as const, appt };
 }
 
@@ -555,10 +542,9 @@ export async function proposeNote(asker: Asker, req: { clientId?: string; note?:
 
 /**
  * A text to a client in the salon's name: running late, a gap has opened.
- * Owners only: a message from the salon's number is the salon speaking.
+ * A message from the salon's number is the salon speaking.
  */
 export async function proposeText(asker: Asker, req: { clientId?: string; message?: string }): Promise<Proposal> {
-  if (asker.stylist) return { ok: false, message: "Only the salon's owner can send texts from here." };
   const body = req.message?.replace(/\s+/g, " ").trim();
   if (!body) return { ok: false, message: "What should the text say?" };
   if (body.length > 480) return { ok: false, message: "That is too long for a text; say it shorter." };
@@ -596,7 +582,6 @@ export type Committed =
 export async function commitDraft(asker: Asker, draft: Draft): Promise<Committed> {
   if (draft.kind === "note") return commitNote(asker, draft);
   if (draft.kind === "text") {
-    if (asker.stylist) return { ok: false, message: "Only the salon's owner can send texts from here." };
     const sent = await sendSms(asker.organizationId, draft.to, draft.body);
     return sent.ok
       ? { ok: true, kind: "text", texted: { sent: true } }
@@ -604,9 +589,6 @@ export async function commitDraft(asker: Asker, draft: Draft): Promise<Committed
   }
   const provider = await getBookingProvider(asker.organizationId);
   if (!canCreateBooking(provider)) return { ok: false, message: "This diary is not set up to take bookings yet." };
-  if (!canWriteColumn(asker as TenantContext, draft.stylist)) {
-    return { ok: false, message: `That is ${draft.stylist}'s column, not yours.` };
-  }
 
   if (draft.kind === "book") {
     let lead;
@@ -696,8 +678,7 @@ async function commitNote(asker: Asker, draft: NoteDraft): Promise<Committed> {
   if (!lead) return { ok: false, message: "That client is no longer on the books." };
   const cfg = await getSalonConfig(asker.organizationId);
   const day = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: cfg.timeZone });
-  const by = asker.stylist?.name;
-  const line = `${day}${by ? ` (${by})` : ""}: ${draft.note}`;
+  const line = `${day}: ${draft.note}`;
   await prisma.lead.update({ where: { id: lead.id }, data: { notes: lead.notes?.trim() ? `${lead.notes.trim()}\n${line}` : line } });
   return { ok: true, kind: "note" };
 }

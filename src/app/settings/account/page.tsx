@@ -9,6 +9,12 @@ import { Lock, User as UserIcon, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
 
+const ROLE_LABEL: Record<string, string> = {
+  superAdmin: "Super admin",
+  admin: "Admin (owner)",
+  member: "Member (staff)",
+};
+
 export default function AccountSettingsPage() {
   const { data: session } = useSession();
   const me = useMe();
@@ -64,9 +70,6 @@ export default function AccountSettingsPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      // A stylist replacing a temporary password goes straight on to the
-      // diary; a full reload so the new state is read fresh everywhere.
-      if (me?.mustChangePassword) window.location.href = "/calendar";
     } finally {
       setSaving(false);
     }
@@ -76,15 +79,6 @@ export default function AccountSettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Account</h1>
 
-      {me?.mustChangePassword && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm">
-          <p className="font-medium">Choose your own password to get started</p>
-          <p className="text-muted-foreground mt-1">
-            You signed in with a temporary password. Enter it as your current
-            password below, then pick a new one only you know.
-          </p>
-        </div>
-      )}
 
       <Card>
         <CardHeader>
@@ -104,8 +98,8 @@ export default function AccountSettingsPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Role</label>
-            <p className="text-sm mt-1 capitalize">
-              {session?.user?.role || "member"}
+            <p className="text-sm mt-1">
+              {ROLE_LABEL[me?.role ?? session?.user?.role ?? "member"] ?? "Member"}
             </p>
           </div>
         </CardContent>

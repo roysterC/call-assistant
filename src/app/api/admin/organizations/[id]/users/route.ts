@@ -58,8 +58,7 @@ export async function POST(
 
     const normalizedEmail = String(email).toLowerCase().trim();
 
-    // Owners and staff only. A super-admin is made by hand, never from a form,
-    // and a stylist login belongs to a column of the diary (Settings → Team logins).
+    // Owners and staff only. A super-admin is made by hand, never from a form.
     if (role !== undefined && !ASSIGNABLE_ROLES.includes(role)) {
       return NextResponse.json(
         { error: `role must be one of: ${ASSIGNABLE_ROLES.join(", ")}` },
@@ -78,12 +77,6 @@ export async function POST(
       if (existing.organizationId !== organizationId || existing.role === "superAdmin") {
         return NextResponse.json(
           { error: "That email already has a login elsewhere. Use a different address." },
-          { status: 409 }
-        );
-      }
-      if (existing.role === "stylist") {
-        return NextResponse.json(
-          { error: "That email is a stylist login. Manage it from Settings → Team logins." },
           { status: 409 }
         );
       }

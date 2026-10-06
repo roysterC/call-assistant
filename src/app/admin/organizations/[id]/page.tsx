@@ -111,7 +111,7 @@ export default function OrganizationDetailPage() {
   const [userForm, setUserForm] = useState({
     email: "",
     name: "",
-    role: "member",
+    role: "admin",
     password: "",
   });
   const [userJustCreated, setUserJustCreated] = useState<{
@@ -352,7 +352,7 @@ export default function OrganizationDetailPage() {
       email: userForm.email,
       password: userForm.password,
     });
-    setUserForm({ email: "", name: "", role: "member", password: "" });
+    setUserForm({ email: "", name: "", role: "admin", password: "" });
     await load();
   }
 
@@ -1277,10 +1277,15 @@ export default function OrganizationDetailPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="admin">Admin (owner)</SelectItem>
+                  <SelectItem value="member">Member (staff)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {userForm.role === "member"
+                  ? "Day-to-day: diary, clients, calls, conversations and takings. Settings are read-only; no websites, chatbot or charges."
+                  : "Everything for this salon: settings, websites and chatbot, and charges."}
+              </p>
             </div>
             <div>
               <label className="text-xs font-medium">
