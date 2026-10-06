@@ -30,7 +30,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
+  MoreHorizontal,
+  KeyRound,
+  UserCog,
   Save,
   Trash2,
   Plus,
@@ -117,8 +127,14 @@ export default function OrganizationDetailPage() {
   const [userJustCreated, setUserJustCreated] = useState<{
     email: string;
     password: string;
+    /** "User created" when absent. */
+    title?: string;
   } | null>(null);
   const [copiedPw, setCopiedPw] = useState(false);
+  // A new password for someone who has forgotten theirs. There is no email,
+  // so they ask us; we set one here and pass it on.
+  const [resetFor, setResetFor] = useState<{ id: string; email: string } | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
 
   // Websites
   type WebsiteRow = {
@@ -357,13 +373,53 @@ export default function OrganizationDetailPage() {
   }
 
   function generatePassword() {
-    // 12-char random password using safe letters/digits
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    let out = "";
-    const arr = new Uint32Array(12);
-    crypto.getRandomValues(arr);
-    for (let i = 0; i < 12; i++) out += chars[arr[i] % chars.length];
-    setUserForm((f) => ({ ...f, password: out }));
+    setUserForm((f) => ({ ...f, password: randomPassword() }));
+  }
+
+  async function changeUser(userId: string, body: { role?: string; password?: string }) {
+    if (!org) return false;
+    const res = await fetch(`/api/admin/organizations/${org.id}/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to change that login");
+      return false;
+    }
+    await load();
+    return true;
+  }
+
+  async function saveNewPassword() {
+    if (!resetFor) return;
+    if (resetPassword.length < 8) {
+      alert("Password must be at least 8 characters");
+      return;
+    }
+    if (!(await changeUser(resetFor.id, { password: resetPassword }))) return;
+    setUserJustCreated({ email: resetFor.email, password: resetPassword, title: "Password reset" });
+    setResetFor(null);
+    setResetPassword("");
+  }
+
+  async function removeUser(u: { id: string; email: string }) {
+    if (!org) return;
+    if (
+      !confirm(
+        `Remove ${u.email}? They are signed out at once and can't sign in again. The salon's bookings, clients and calls are kept.`
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/admin/organizations/${org.id}/users/${u.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to remove that login");
+      return;
+    }
+    await load();
   }
 
   // Note: feature/prompt saving was previously a separate `saveFeatures`
@@ -1007,12 +1063,15 @@ export default function OrganizationDetailPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead className="w-10">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {org.users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="p-0">
+                  <TableCell colSpan={4} className="p-0">
                     <EmptyState
                       icon={UsersIcon}
                       title="No users yet"
@@ -1027,8 +1086,48 @@ export default function OrganizationDetailPage() {
                     <TableCell className="text-sm">{u.name || "—"}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-[10px]">
-                        {u.role === "superAdmin" ? "Super admin" : u.role}
+                        {ROLE_LABEL[u.role] ?? u.role}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {u.role !== "superAdmin" && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            aria-label={`Manage ${u.email}`}
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            {u.role !== "admin" && (
+                              <DropdownMenuItem onClick={() => changeUser(u.id, { role: "admin" })}>
+                                <UserCog />
+                                Make admin (owner)
+                              </DropdownMenuItem>
+                            )}
+                            {u.role !== "member" && (
+                              <DropdownMenuItem onClick={() => changeUser(u.id, { role: "member" })}>
+                                <UserCog />
+                                Make member (staff)
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setResetPassword("");
+                                setResetFor({ id: u.id, email: u.email });
+                              }}
+                            >
+                              <KeyRound />
+                              Reset password
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive" onClick={() => removeUser(u)}>
+                              <Trash2 />
+                              Remove login
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -1334,6 +1433,52 @@ export default function OrganizationDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* New password for a login whose owner has forgotten it */}
+      <Dialog
+        open={!!resetFor}
+        onOpenChange={(open) => {
+          if (!open) setResetFor(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-foreground/80">
+              A new password for <strong>{resetFor?.email}</strong>. Every
+              device they are signed in on is signed out. Pass it on to them;
+              they can change it under Settings → Account.
+            </p>
+            <div>
+              <label htmlFor="reset-password" className="text-xs font-medium">
+                New password (min 8 chars)
+              </label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  id="reset-password"
+                  type="text"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  className="flex-1 font-mono"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={() => setResetPassword(randomPassword())}>
+                  Generate
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetFor(null)}>
+              Cancel
+            </Button>
+            <Button onClick={saveNewPassword} disabled={resetPassword.length < 8}>
+              Set password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Post-creation password confirmation */}
       <Dialog
         open={!!userJustCreated}
@@ -1347,7 +1492,7 @@ export default function OrganizationDetailPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>User created</DialogTitle>
+            <DialogTitle>{userJustCreated?.title ?? "User created"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-foreground/80">
@@ -1403,6 +1548,21 @@ export default function OrganizationDetailPage() {
       </Dialog>
     </div>
   );
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  superAdmin: "Super admin",
+  admin: "Admin (owner)",
+  member: "Member (staff)",
+  stylist: "Stylist (withdrawn)",
+};
+
+/** 12 characters from letters and digits that can't be misread (no 0/O, 1/l/I). */
+function randomPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const arr = new Uint32Array(12);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (n) => chars[n % chars.length]).join("");
 }
 
 function FeatureToggle({
