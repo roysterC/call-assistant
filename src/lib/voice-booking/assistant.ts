@@ -71,8 +71,9 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "client_history",
     description:
-      "A client's notes, recent visits (service, stylist, notes, what they paid) and upcoming bookings. " +
-      "For 'when was Sarah last in', 'what colour did we use'. clientId from find_client.",
+      "A client's notes, patch test, recent visits (service, stylist, notes, what they paid) and upcoming " +
+      "bookings. For 'when was Sarah last in', 'what colour did we use', 'has she had a patch test'. " +
+      "clientId from find_client.",
     input_schema: { type: "object", properties: { clientId: { type: "string" } }, required: ["clientId"] },
   },
   {
@@ -121,7 +122,8 @@ const TOOLS: Anthropic.Tool[] = [
     description:
       "Show a new booking on screen for the person to save. Nothing is saved. Give clientId from find_client " +
       "for someone on the books, or clientName (and clientPhone if said) for a new client. Day and time in " +
-      "the words used. Leave stylist out if none was said. Set skinTestDone only if they say the client has had one.",
+      "the words used. Leave stylist out if none was said. Set skinTestDone only if they say the client has had one; " +
+      "a patch test on the client's record (find_client's patchTest) already counts, so do not ask about it then.",
     input_schema: {
       type: "object",
       properties: {

@@ -94,7 +94,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       serviceText = picked.service.name;
       data.serviceText = serviceText;
       data.patchTestRequired =
-        picked.service.requiresPatchTest && appt.clientType !== "returning";
+        picked.service.requiresPatchTest && appt.clientType !== "returning" && !appt.lead.patchTestAt;
       // A new set of services brings its own length, unless one is given.
       if (upcoming) durationMinutes = picked.service.durationMinutes;
     }

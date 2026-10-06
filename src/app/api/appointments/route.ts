@@ -334,8 +334,9 @@ export async function POST(req: NextRequest) {
         durationMinutes,
         stylistName: stylist.name,
         clientType: String(clientType),
+        // A patch test on the client's record counts as having had one.
         patchTestRequired:
-          Boolean(service?.requiresPatchTest) && clientType !== "returning",
+          Boolean(service?.requiresPatchTest) && clientType !== "returning" && !lead.patchTestAt,
         notes: notes || null,
         source: "manual",
       }

@@ -1,6 +1,11 @@
 /**
  * A client's most recent skin (patch) test, as recorded at the desk.
  *
+ * A test on record answers the patch-test question for a colour booking:
+ * the phone receptionist, the personal assistant and the desk all treat the
+ * client as needing no new test and no 48-hour wait, as for a returning
+ * client.
+ *
  * It is a day, not a moment: stored at noon UTC so it reads as the same date
  * wherever it is shown, and sent to the screens as "YYYY-MM-DD".
  */
@@ -29,4 +34,9 @@ export function parsePatchTestDate(raw: unknown, now: Date = new Date()): PatchT
 /** The stored date as the screens show it. */
 export function patchTestDay(at: Date | null): string | null {
   return at ? at.toISOString().slice(0, 10) : null;
+}
+
+/** "1 October 2026", for a person or an agent to say. */
+export function spokenPatchTest(at: Date): string {
+  return at.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }

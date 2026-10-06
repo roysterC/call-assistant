@@ -27,6 +27,8 @@ export interface ClientRow {
   phone: string | null;
   email: string | null;
   notes: string | null;
+  /** Their most recent patch test, "YYYY-MM-DD", if one is on record. */
+  patchTestAt?: string | null;
   /** Set when they have no number of their own and are reached through this client's. */
   contactLead?: { id: string; name: string | null; phone: string | null } | null;
   /** Other clients with exactly the same name: shown as a possible duplicate. */

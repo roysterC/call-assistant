@@ -323,6 +323,35 @@ describe("check_availability late on a Saturday", () => {
     expect(r.message).toMatch(/^Today is Saturday, so "Saturday" was taken as a week today/);
   });
 
+  it("tells the agent when the caller has a patch test on record, and not otherwise", async () => {
+    salon.free = [{ start: "2026-09-29T12:15:00.000Z", end: "", stylistName: "Jo" }];
+    const ask = () =>
+      handleCheckAvailability("org", { date: "Tuesday", service: "root tint", callerNumber: SARAH }) as Promise<{
+        patchTestOnRecord?: string;
+        message: string;
+      }>;
+
+    const untested = await ask();
+    expect(untested.patchTestOnRecord).toBeUndefined();
+    expect(untested.message).not.toMatch(/patch test on record/);
+
+    db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
+    const tested = await ask();
+    expect(tested.patchTestOnRecord).toBe("1 September 2026");
+    expect(tested.message).toMatch(/patch test on record from 1 September 2026, so no new test is needed/);
+  });
+
+  it("checks a caller with a patch test on record as returning, so colour has no 48-hour wait", async () => {
+    // Nothing free, so the answer comes from the lead-time rules alone.
+    const ask = () =>
+      handleCheckAvailability("org", { date: "Tuesday", service: "root tint", callerNumber: SARAH }) as Promise<{
+        patchTestRequired?: boolean;
+      }>;
+    expect((await ask()).patchTestRequired).toBe(true);
+    db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
+    expect((await ask()).patchTestRequired).toBeUndefined();
+  });
+
   it("adds nothing when the day named is not today's", async () => {
     const r = (await handleCheckAvailability("org", { date: "Tuesday", service: "blow dry" })) as { message: string };
     expect(r.message).not.toMatch(/Today is/);
@@ -441,6 +470,47 @@ describe("book_appointment", () => {
       customerName: "Priya Shah",
     })) as { success: boolean; tooSoon?: boolean };
     expect(r).toMatchObject({ success: false, tooSoon: true });
+    expect(written).toHaveLength(0);
+  });
+
+  it("books colour for a client with a patch test on record, without asking or the 48-hour wait", async () => {
+    // Saturday half five: too soon for a new client's colour on Tuesday.
+    vi.setSystemTime(new Date("2026-09-26T17:30:00+01:00"));
+    db.lead.findUnique.mockResolvedValue({
+      id: "lead-sarah",
+      name: "Sarah Friend",
+      phone: SARAH,
+      email: null,
+      patchTestAt: new Date("2026-09-01T12:00:00Z"),
+    });
+    const r = (await handleBookAppointment("org", {
+      time: quarterPastOne,
+      service: "root tint",
+      stylist: "Jo",
+      customerPhone: "07700 900715",
+      customerName: "Sarah Friend",
+    })) as { success: boolean; patchTestRequired?: boolean; patchTestOnRecord?: string; message: string };
+    expect(r).toMatchObject({ success: true, patchTestRequired: false, patchTestOnRecord: "1 September 2026" });
+    expect(r.message).not.toMatch(/skin test/);
+    expect(written[0].record).toMatchObject({ patchTestRequired: false });
+  });
+
+  it("does not count a mum's patch test for her daughter on the same phone", async () => {
+    db.lead.findUnique.mockResolvedValue({
+      id: "lead-claire",
+      name: "Claire Burns",
+      phone: CLAIRE,
+      email: null,
+      patchTestAt: new Date("2026-09-01T12:00:00Z"),
+    });
+    const r = (await handleBookAppointment("org", {
+      time: quarterPastOne,
+      service: "root tint",
+      stylist: "Jo",
+      customerPhone: "07700 900721",
+      customerName: "Amy Burns",
+    })) as { success: boolean; needsClientType?: boolean };
+    expect(r).toMatchObject({ success: false, needsClientType: true });
     expect(written).toHaveLength(0);
   });
 
