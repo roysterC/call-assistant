@@ -29,6 +29,7 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "conversations/[id]": { GET: "members" },
   "conversations/[id]/star": { PATCH: "members" },
   conversations: { GET: "members" },
+  dashboard: { GET: "members" },
   leads: { GET: "members" },
   me: { GET: "members" },
   "phone-numbers": { GET: "members" },

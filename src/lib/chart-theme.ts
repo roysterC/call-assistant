@@ -42,10 +42,3 @@ export const CHART_TOOLTIP = {
 
 /** Applied to <XAxis>/<YAxis> `tick`. */
 export const CHART_TICK = { fontSize: 11, fill: CHART_AXIS } as const;
-
-/** Sentiment keeps meaning-bearing colours rather than the series order. */
-export const SENTIMENT_COLORS: Record<string, string> = {
-  positive: "#0e9f6e",
-  neutral: "#94a3b8",
-  negative: "#e11d48",
-};
