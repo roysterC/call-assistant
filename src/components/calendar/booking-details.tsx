@@ -131,7 +131,8 @@ export function BookingDetails({
       : (combined?.durationMinutes ?? 0);
 
   const isNew = !client || client.visits === 0;
-  const patchTest = Boolean(combined?.requiresPatchTest) && isNew;
+  // A patch test on their record counts as having had one.
+  const patchTest = Boolean(combined?.requiresPatchTest) && isNew && !client?.patchTestAt;
 
   // Only the day on screen is loaded, so a clash can only be checked there.
   const clash = (() => {

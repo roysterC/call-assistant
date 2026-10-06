@@ -17,6 +17,7 @@ import {
 import { describePeriod, resolvePeriod, shiftPeriod, type PeriodKind } from "@/lib/sales-period";
 import { computeTakings } from "@/lib/takings";
 import type { Asker } from "./drafts";
+import { spokenPatchTest } from "@/lib/patch-test";
 
 const clock = (at: Date, tz: string) =>
   at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: tz });
@@ -140,6 +141,8 @@ export async function clientHistory(asker: Asker, clientId: string) {
     name: lead.name,
     phone: lead.phone ?? (lead.contactLead ? `reached through ${lead.contactLead.name} on ${lead.contactLead.phone}` : null),
     notes: lead.notes ?? null,
+    // Their most recent skin test, if the salon recorded one: colour needs no new one.
+    patchTest: lead.patchTestAt ? `done ${spokenPatchTest(lead.patchTestAt)}` : "none on record",
     past: visits.filter((a) => a.startsAt.getTime() < now && a.status !== "cancelled").slice(0, 6).map(line),
     upcoming: visits.filter((a) => a.startsAt.getTime() >= now && a.status === "booked").reverse().map(line),
     cancelledRecently: visits.filter((a) => a.status === "cancelled").slice(0, 3).map(line),

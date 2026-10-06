@@ -52,7 +52,8 @@ import {
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
 import { namesMatch, splitName } from "@/lib/client-name";
-import { clientForBooking, peopleOnNumber, textRecipient } from "@/lib/client-link";
+import { clientForBooking, findClientOnNumber, peopleOnNumber, textRecipient } from "@/lib/client-link";
+import { spokenPatchTest } from "@/lib/patch-test";
 
 /**
  * The Vapi tool handlers.
@@ -235,6 +236,24 @@ function resolveCallerPhone(
       ? fromSpoken.reason
       : "No number was given.",
   };
+}
+
+/**
+ * The caller's patch test, if the salon has one on record: the day, as it is
+ * said, or null. Looked up by the number they gave or rang from, and the name
+ * the booking is for, the same way book_appointment picks the client record —
+ * a mum's test does not count for her daughter on the same phone.
+ *
+ * A test on record answers the colour question: no new test, no 48-hour wait.
+ */
+async function patchTestOnFile(
+  organizationId: string,
+  params: { customerPhone?: string; callerNumber?: string; customerName?: string }
+): Promise<string | null> {
+  const phone = resolveCallerPhone(params.customerPhone, params.callerNumber);
+  if (!phone.ok) return null;
+  const client = await findClientOnNumber(organizationId, phone.e164, blankToUndefined(params.customerName));
+  return client?.patchTestAt ? spokenPatchTest(client.patchTestAt) : null;
 }
 
 /**
@@ -669,9 +688,33 @@ function spokenDay(date: string, timeZone: string, now = new Date()): string {
  */
 export async function handleCheckAvailability(
   organizationId: string,
-  params: Parameters<typeof checkAvailability>[1]
+  params: Parameters<typeof checkAvailability>[1] & {
+    customerPhone?: string;
+    callerNumber?: string;
+    customerName?: string;
+  }
 ) {
-  const result = await checkAvailability(organizationId, params);
+  // A patch test on record: offered as for a returning client, with no
+  // 48-hour wait for colour, and the agent is told so it need not ask.
+  const askedType = normaliseClientType(
+    params.clientType ?? (params.newClient === true ? "new" : params.newClient === false ? "returning" : undefined)
+  );
+  const onFile = askedType === "returning" ? null : await patchTestOnFile(organizationId, params);
+  const checked = await checkAvailability(
+    organizationId,
+    onFile ? { ...params, clientType: "returning", newClient: undefined } : params
+  );
+  const result = onFile
+    ? {
+        ...checked,
+        patchTestOnRecord: onFile,
+        ...(typeof (checked as { message?: unknown }).message === "string"
+          ? {
+              message: `${(checked as { message: string }).message} They have a patch test on record from ${onFile}, so no new test is needed.`,
+            }
+          : {}),
+      }
+    : checked;
   const asked = (params.date || params.day || "").trim().toLowerCase().replace(/^(this|on)\s+/, "");
   const r = result as { today?: string; date?: string; requestedDate?: string; message?: unknown };
   if (!r.today || typeof r.message !== "string") return result;
@@ -1218,6 +1261,57 @@ export async function handleBookAppointment(
     return { success: false, message: "That date and time did not parse." };
   }
 
+  const clientType = normaliseClientType(
+    params.clientType ??
+      (params.newClient === true
+        ? "new"
+        : params.newClient === false
+          ? "returning"
+          : undefined)
+  );
+
+  // A patch test on the salon's records for whoever this is for: colour
+  // needs no new test and no 48-hour wait, and there is nothing to ask.
+  const onFile = service.requiresPatchTest
+    ? await patchTestOnFile(organizationId, { customerPhone: phone, customerName: clientName })
+    : null;
+  // For the patch-test rules only; the booking still records what was said.
+  const patchType = onFile ? "returning" : clientType;
+
+  // The rule the prompt states, enforced: colour needs to know. Treating
+  // "unknown" as new is safe for the diary, but a regular who had colour
+  // here last month was booked as new and told she needed a skin test.
+  if (service.requiresPatchTest && patchType === "unknown") {
+    return {
+      success: false,
+      needsClientType: true,
+      message:
+        `${service.name} is a colour service. Ask whether they have had colour here before, ` +
+        "then book again with clientType 'returning' if they have, or 'new' if not.",
+    };
+  }
+
+  const today = zonedDateString(new Date(), cfg.timeZone);
+
+  // Re-apply the lead-time rules here as well as in availability. The model
+  // can reach book_appointment without ever calling check_availability, and a
+  // patch-test window is not something to enforce only on the happy path.
+  // Before the stylist is worked out, so a new client's colour is told about
+  // the skin test rather than that nobody is free.
+  const floor = earliestBookableStart(service, patchType, new Date(), undefined, undefined, cfg);
+  if (startsAt < floor.at) {
+    return {
+      success: false,
+      today,
+      tooSoon: true,
+      patchTestRequired: floor.reason === "patch_test",
+      message:
+        floor.reason === "patch_test"
+          ? `${service.name} needs a skin patch test at least 48 hours beforehand for a new client. Explain that and offer a later date.`
+          : "That is too soon. Offer a later time.",
+    };
+  }
+
   // No stylist named: work out who owns the slot that was offered.
   if (!stylist && canReadAvailability(provider)) {
     const iso = startsAt.toISOString();
@@ -1229,6 +1323,10 @@ export async function handleBookAppointment(
         // time from check_availability arrives with no separate date.
         date: zonedDateString(startsAt, cfg.timeZone),
         serviceName: service.name,
+        // As check_availability offered it: a returning client's colour, or
+        // one with a patch test on record, has no 48-hour wait. Left out,
+        // every colour slot inside 48 hours looked taken.
+        clientType: patchType,
       });
       const atThatTime = slots.filter((sl) => sl.start === iso);
       const free = [...new Set(atThatTime.map((sl) => sl.stylistName ?? ""))];
@@ -1279,49 +1377,8 @@ export async function handleBookAppointment(
     return { success: false, message: bookingPairing };
   }
 
-  const today = zonedDateString(new Date(), cfg.timeZone);
-
-  const clientType = normaliseClientType(
-    params.clientType ??
-      (params.newClient === true
-        ? "new"
-        : params.newClient === false
-          ? "returning"
-          : undefined)
-  );
-
-  // The rule the prompt states, enforced: colour needs to know. Treating
-  // "unknown" as new is safe for the diary, but a regular who had colour
-  // here last month was booked as new and told she needed a skin test.
-  if (service.requiresPatchTest && clientType === "unknown") {
-    return {
-      success: false,
-      needsClientType: true,
-      message:
-        `${service.name} is a colour service. Ask whether they have had colour here before, ` +
-        "then book again with clientType 'returning' if they have, or 'new' if not.",
-    };
-  }
-
-  // Re-apply the lead-time rules here as well as in availability. The model
-  // can reach book_appointment without ever calling check_availability, and a
-  // patch-test window is not something to enforce only on the happy path.
-  const floor = earliestBookableStart(service, clientType, new Date(), undefined, undefined, cfg);
-  if (startsAt < floor.at) {
-    return {
-      success: false,
-      today,
-      tooSoon: true,
-      patchTestRequired: floor.reason === "patch_test",
-      message:
-        floor.reason === "patch_test"
-          ? `${service.name} needs a skin patch test at least 48 hours beforehand for a new client. Explain that and offer a later date.`
-          : "That is too soon. Offer a later time.",
-    };
-  }
-
   const slotProblem = await phoneSlotProblem(provider, organizationId, cfg, startsAt, service, stylist, {
-    clientType,
+    clientType: patchType,
     offeredOnly: true,
   });
   if (slotProblem) {
@@ -1334,7 +1391,7 @@ export async function handleBookAppointment(
   const { lead, contact } = await clientForBooking(organizationId, phone, clientName);
   const bookingNotes = blankToUndefined(notes);
 
-  const needsSkinTest = service.requiresPatchTest && clientType !== "returning";
+  const needsSkinTest = service.requiresPatchTest && patchType !== "returning";
 
   const written = await bookAppointment(
     provider,
@@ -1474,10 +1531,12 @@ export async function handleBookAppointment(
     textSent: sms.ok,
     usedCallerId: resolvedPhone.source === "callerId",
     patchTestRequired: needsSkinTest,
+    ...(onFile ? { patchTestOnRecord: onFile } : {}),
     message:
       `Booked: ${service.name} for ${clientName} with ${stylist.name} ${bookedWhen}. Confirm that ` +
       "in one sentence, without repeating what you said before booking" +
       (sms.ok ? ", and say a text is on its way." : ". Do NOT promise a text — one could not be sent.") +
+      (onFile ? ` If it helps, they have a patch test on record from ${onFile}, so no new one is needed.` : "") +
       // A model left to explain the skin test invented one: "Jo will do it
       // as part of the colour appointment", which is the one thing it is not.
       (needsSkinTest
@@ -2196,8 +2255,12 @@ export async function handleRescheduleAppointment(
   // The lead-time rules apply to the new slot as much as the original. A
   // colour moved inside the patch-test window is the same hazard whether it
   // was booked that way or moved there.
+  // A patch test recorded since the booking was made counts too.
+  const tested =
+    appt.patchTestRequired &&
+    Boolean((await prisma.lead.findUnique({ where: { id: appt.lead.id }, select: { patchTestAt: true } }))?.patchTestAt);
   const clientType =
-    appt.clientType === "returning" ? "returning" : appt.patchTestRequired ? "new" : "unknown";
+    appt.clientType === "returning" || tested ? "returning" : appt.patchTestRequired ? "new" : "unknown";
   const floor = earliestBookableStart(service, clientType, new Date(), undefined, undefined, cfg);
   if (startsAt < floor.at) {
     return {

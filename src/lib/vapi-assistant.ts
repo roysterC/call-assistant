@@ -146,7 +146,8 @@ const CHECK_AVAILABILITY: VapiTool = {
           enum: ["new", "returning", "unknown"],
           description:
             "Whether the caller has been to the salon before. Colour " +
-            "services need a patch test for new clients.",
+            "services need a patch test for new clients, unless one is on " +
+            "the salon's records (the result says so).",
         },
       },
       required: ["date", "service"],
@@ -214,7 +215,8 @@ const BOOK_APPOINTMENT: VapiTool = {
           enum: ["new", "returning", "unknown"],
           description:
             "Whether they have been to the salon before. Required for a " +
-            "colour service: ask if you do not know.",
+            "colour service: ask if you do not know, unless a patch test is " +
+            "on record for them.",
         },
         notes: { type: "string", description: "Anything the stylist should know" },
       },
@@ -552,8 +554,11 @@ it.
   they asked for is not on the list, say which and ask what it is rather than
   quietly booking the rest.
 - You must know whether they are a new or returning client before booking any
-  colour service. New clients need a skin patch test 48 hours beforehand, so
-  the earliest colour appointment is two days after the salon is next open. Explain that plainly if it
+  colour service, unless the salon's records already answer it: when
+  \`check_availability\` or \`book_appointment\` says they have a patch test on
+  record, no new test is needed and there is nothing to ask. Otherwise, new
+  clients need a skin patch test 48 hours beforehand, so the earliest colour
+  appointment is two days after the salon is next open. Explain that plainly if it
   comes up; do not treat it as negotiable. The skin test is not part of the
   colour appointment and you cannot book it: the salon arranges it.
 

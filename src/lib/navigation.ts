@@ -24,6 +24,8 @@ export interface NavPage {
   label: string;
   /** Shown when ANY of these is switched on for the organisation. */
   requires?: FeatureKey | FeatureKey[];
+  /** Hidden when this is switched on: another page has taken its place. */
+  hiddenWhen?: FeatureKey;
   /**
    * Owners (admin) and super-admins only, never members: the salon's
    * websites and chatbot. The API refuses members too; this keeps the menu
@@ -50,9 +52,11 @@ export const NAV_PAGES: NavPage[] = [
   },
   { href: "/websites", label: "Websites", requires: "chatbot", ownerOnly: true },
   { href: "/insights", label: "Insights", requires: "chatbot", ownerOnly: true },
-  { href: "/leads", label: "Leads" },
+  // A salon's people are its clients, with their bookings and patch tests;
+  // Leads stays for an organisation without the diary (chat, WhatsApp).
+  { href: "/leads", label: "Leads", hiddenWhen: "voice" },
   { href: DIARY, label: "Diary", requires: "voice" },
-  { href: "/appointments", label: "Appointments", requires: "voice" },
+  { href: "/clients", label: "Clients", requires: "voice" },
   { href: "/sales", label: "Sales", requires: "voice" },
   { href: "/callbacks", label: "Callbacks", requires: "voice" },
   // Where we test the receptionist before a salon hears it. It books into the
@@ -83,9 +87,11 @@ export function isNavAllowed(page: NavPage, role: string | null | undefined): bo
 
 /** Whether the organisation's switched-on features show this page. */
 export function isNavVisible(page: NavPage, flags: FeatureFlags | null): boolean {
-  if (!page.requires) return true;
+  if (!page.requires && !page.hiddenWhen) return true;
   // Flags not loaded yet: show nothing feature-gated, rather than flash it.
   if (!flags) return false;
+  if (page.hiddenWhen && flags[`${page.hiddenWhen}Enabled` as keyof FeatureFlags]) return false;
+  if (!page.requires) return true;
   const reqs = Array.isArray(page.requires) ? page.requires : [page.requires];
   return reqs.some((r) => flags[`${r}Enabled` as keyof FeatureFlags]);
 }

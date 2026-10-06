@@ -257,6 +257,10 @@ model Lead {
   status                String                 @default("new") // new, callback_booked, contacted, resolved, lost
   source                String                 @default("phone") // phone, manual, whatsapp, website, instagram, facebook
   notes                 String?
+  // The day of the client's most recent skin (patch) test, recorded at the
+  // desk on the client's page. Stored at noon UTC so the date reads the same
+  // in any timezone. Null when none is on record.
+  patchTestAt           DateTime?
   // Reached through another client's number: a child booked on a parent's
   // phone has a record of their own, with their own history, but no number.
   // Their texts go to the contact's number, and a call from that number can

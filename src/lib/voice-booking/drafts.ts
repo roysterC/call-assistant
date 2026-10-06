@@ -49,6 +49,7 @@ import { normalisePhone } from "@/lib/phone";
 import { matchStylist, resolveBookedService, servicesLike, type SalonService, type Stylist } from "@/lib/salon-config";
 import type { TenantContext } from "@/lib/tenant";
 import { phoneSlotProblem, stylistServiceProblem } from "@/lib/vapi-functions";
+import { spokenPatchTest } from "@/lib/patch-test";
 
 /** Who is asking, as far as drafting cares. */
 export type Asker = Pick<TenantContext, "organizationId" | "role">;
@@ -146,6 +147,7 @@ export async function findClients(organizationId: string, heard: string) {
       id: true,
       name: true,
       phone: true,
+      patchTestAt: true,
       contactLead: { select: { name: true, phone: true } },
       appointments: {
         where: { status: { in: ["booked", "completed"] } },
@@ -173,6 +175,7 @@ export async function findClients(organizationId: string, heard: string) {
         phoneEnding: phone ? phone.slice(-3) : null,
         reachedThrough: r.contactLead?.name ?? null,
         lastVisit: r.appointments[0]?.startsAt.toISOString().slice(0, 10) ?? null,
+        patchTest: r.patchTestAt ? spokenPatchTest(r.patchTestAt) : null,
         exactMatch: namesMatch(r.name, heard),
       };
     });
@@ -358,7 +361,9 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
   const startsAt = when.at;
 
   const clientType = leadId && (await hasVisited(leadId)) ? "returning" : "new";
-  const needsTest = service.requiresPatchTest && clientType === "new" && !req.skinTestDone;
+  // A patch test on the client's record counts as having had one.
+  const tested = leadId ? await patchTestOnRecord(leadId) : false;
+  const needsTest = service.requiresPatchTest && clientType === "new" && !req.skinTestDone && !tested;
   if (needsTest) {
     const floor = earliestBookableStart(service, "new", new Date(), 0, undefined, { hours: cfg.hours, timeZone: cfg.timeZone });
     if (startsAt < floor.at) {
@@ -412,10 +417,15 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
       startsAt: startsAt.toISOString(),
       endsAt: endsAt.toISOString(),
       clientType,
-      patchTestRequired: service.requiresPatchTest && clientType === "new" && !req.skinTestDone,
+      patchTestRequired: needsTest,
       notes: req.notes?.trim() || null,
     },
   };
+}
+
+async function patchTestOnRecord(leadId: string): Promise<boolean> {
+  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { patchTestAt: true } });
+  return Boolean(lead?.patchTestAt);
 }
 
 async function hasVisited(leadId: string): Promise<boolean> {

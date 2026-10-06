@@ -68,6 +68,31 @@ export async function clientForBooking(
   return { lead, contact: holder };
 }
 
+/**
+ * The record clientForBooking would pick for `name` on `phone`, read only:
+ * nothing is created or renamed. Null when there is none yet. With no name,
+ * the number's own client.
+ *
+ * For checking what is on file before a booking is made — a patch test, say —
+ * so the same person is looked at as the booking will then be written to.
+ */
+export async function findClientOnNumber(
+  organizationId: string,
+  phone: string,
+  name?: string | null
+): Promise<LeadRow | null> {
+  const holder = await prisma.lead.findUnique({
+    where: { organizationId_phone: { organizationId, phone } },
+  });
+  if (!holder) return null;
+  if (!name?.trim() || !holder.name?.trim() || namesMatch(holder.name, name)) return holder;
+  const dependents = await prisma.lead.findMany({
+    where: { organizationId, contactLeadId: holder.id },
+    orderBy: { createdAt: "asc" },
+  });
+  return dependents.find((d) => namesMatch(d.name, name)) ?? null;
+}
+
 /** Whether `next` says more of the same name than `current` does. */
 function longerName(current: string | null, next: string): boolean {
   return (current ?? "").trim().split(/\s+/).filter(Boolean).length < next.trim().split(/\s+/).length;

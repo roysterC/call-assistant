@@ -15,6 +15,7 @@ import { parsePagination } from "@/lib/pagination";
 import { joinName, parseClientQuery } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
 import { nameKey, sameNameCounts } from "@/lib/client-link";
+import { patchTestDay } from "@/lib/patch-test";
 
 const SORTABLE = ["firstName", "lastName", "phone", "email"] as const;
 type SortKey = (typeof SORTABLE)[number];
@@ -30,6 +31,8 @@ const CLIENT_FIELDS = {
   phone: true,
   email: true,
   notes: true,
+  // So the booking form knows a colour needs no new test.
+  patchTestAt: true,
   // Set for a client with no number of their own, reached through another
   // client's (a child booked on a parent's phone).
   contactLead: { select: { id: true, name: true, phone: true } },
@@ -170,6 +173,7 @@ export async function GET(req: NextRequest) {
 
     const clients = rows.map((r) => ({
       ...r,
+      patchTestAt: patchTestDay(r.patchTestAt),
       lastVisit: pastBy.get(r.id)?._max.startsAt ?? null,
       visits: pastBy.get(r.id)?._count._all ?? 0,
       nextBooking: nextBy.get(r.id) ?? null,
