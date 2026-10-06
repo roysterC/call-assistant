@@ -8,7 +8,7 @@ import { CURRENCY } from "@/lib/money";
 
 /** Takings for a window: see src/lib/takings.ts. */
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {

@@ -14,6 +14,18 @@ export type TenantContext = {
   isSuperAdmin: boolean;
 };
 
+export interface TenantOptions {
+  /**
+   * Let members (the salon's staff) through. Every route is for the owner
+   * (admin) unless it says otherwise, so a route added later is owner-only
+   * until someone decides staff should have it. Day-to-day work — the diary,
+   * clients, calls, conversations, takings — opens itself to members; the
+   * salon's setup, its websites and chatbot, and what it pays do not.
+   * src/lib/route-access.test.ts holds the list.
+   */
+  members?: boolean;
+}
+
 /**
  * Local dev escape hatch — when DEV_BYPASS_AUTH=1 is set (via .env.local),
  * skip real session lookups and return a mock super-admin context pointing
@@ -50,7 +62,8 @@ async function devBypassTenant(
  * Returns an NextResponse error on failure.
  */
 export async function requireTenant(
-  req: Request
+  req: Request,
+  opts: TenantOptions = {}
 ): Promise<TenantContext | NextResponse> {
   const dev = await devBypassTenant(req);
   if (dev) return dev;
@@ -97,6 +110,13 @@ export async function requireTenant(
   if (!orgId) {
     return NextResponse.json(
       { error: "User has no organization" },
+      { status: 403 }
+    );
+  }
+
+  if (role === "member" && !opts.members) {
+    return NextResponse.json(
+      { error: "Only the salon's owner can do this.", code: "OWNER_ONLY" },
       { status: 403 }
     );
   }

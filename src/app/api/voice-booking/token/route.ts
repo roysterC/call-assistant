@@ -12,7 +12,7 @@ import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { signVoicePass } from "@/lib/receptionist/voice/token";
 
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   const base = process.env.RECEPTIONIST_VOICE_URL?.replace(/\/+$/, "");

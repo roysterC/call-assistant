@@ -19,7 +19,7 @@ const MAX_RANGE_DAYS = 62;
 
 /** Every stretch of blocked time in [from, to), with the blocks they come from. */
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
  * bookings that fall inside it, so the form can show them first.
  */
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {

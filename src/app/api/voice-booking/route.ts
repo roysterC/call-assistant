@@ -32,7 +32,7 @@ import { fakeBookingModel } from "@/lib/voice-booking/fake-model";
 type Body = { text?: unknown; sessionId?: unknown; action?: unknown };
 
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
   const body = ((await req.json().catch(() => null)) ?? {}) as Body;
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
   const id = req.nextUrl.searchParams.get("sessionId") ?? undefined;
   if (findSession(id, ctx.organizationId, ctx.userId)) endSession(id!);

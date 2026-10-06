@@ -15,6 +15,7 @@ import { ConversationListItem } from "@/components/conversations/conversation-li
 import { ContactPanel } from "@/components/conversations/contact-panel";
 import { MessageBubble } from "@/components/conversations/message-bubble";
 import { apiFetch } from "@/lib/api-fetch";
+import { useMe } from "@/components/providers/me-provider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
 
@@ -156,6 +157,9 @@ type ChannelFlags = {
 };
 
 export default function ConversationsPage() {
+  // Resetting the bot's persona follows a change to its prompt: the owner's.
+  const role = useMe()?.role;
+  const isOwner = role === "admin" || role === "superAdmin";
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversation, setActiveConversation] =
     useState<ConversationDetail | null>(null);
@@ -816,7 +820,7 @@ export default function ConversationsPage() {
           <ContactPanel
             conversation={contactPanelData}
             onToggleStar={toggleStar}
-            onResetPersona={resetPersona}
+            onResetPersona={isOwner ? resetPersona : undefined}
           />
         </aside>
       )}
@@ -845,7 +849,7 @@ export default function ConversationsPage() {
               <ContactPanel
                 conversation={contactPanelData}
                 onToggleStar={toggleStar}
-                onResetPersona={resetPersona}
+                onResetPersona={isOwner ? resetPersona : undefined}
               />
             </div>
           </div>

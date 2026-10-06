@@ -24,7 +24,7 @@ async function findOwn(id: string, organizationId: string) {
  * Anything else is the whole form again, as on create (with `preview`).
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {

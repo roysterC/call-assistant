@@ -85,7 +85,7 @@ function searchSql(q: string | null): Prisma.Sql {
 }
 
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -200,7 +200,7 @@ function clean(value: unknown): string | null {
  * their own, linked to the number's owner.
  */
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {

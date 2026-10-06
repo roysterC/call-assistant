@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -43,7 +43,7 @@ const VALID_OUTCOMES = [
 ];
 
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {

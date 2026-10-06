@@ -110,8 +110,20 @@ const SUPER_ADMIN_ONLY_FIELDS = [
   "facebookPageAccessToken",
 ];
 
+/**
+ * The salon's keys and tokens are set by a super-admin and read only by the
+ * server. Anyone else is told whether one is set, never what it is.
+ */
+const SECRET_FIELDS = ["calComApiKey", "instagramAccessToken", "facebookPageAccessToken"] as const;
+
+function withoutSecrets<T extends Record<string, unknown>>(settings: T): T {
+  const out: Record<string, unknown> = { ...settings };
+  for (const f of SECRET_FIELDS) out[f] = settings[f] ? "set" : null;
+  return out as T;
+}
+
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -133,16 +145,20 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Where this organisation opens, resolved here so the sidebar and the
-    // root route agree without each re-deriving the diary's state.
+    // Where this login opens, resolved here so the sidebar and the root
+    // route agree without each re-deriving the diary's state.
     const cfg = await getSalonConfig(ctx.organizationId);
     const startPage = resolveStartPage({
       chosen: settings.startPage,
       flags: settings,
       diaryTakesBookings: selectProvider(cfg).capabilities.createBooking,
+      isOwner: ctx.role !== "member",
     });
 
-    return NextResponse.json({ settings, startPage });
+    return NextResponse.json({
+      settings: ctx.isSuperAdmin ? settings : withoutSecrets(settings),
+      startPage,
+    });
   } catch (error) {
     console.error("[SETTINGS API] GET error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

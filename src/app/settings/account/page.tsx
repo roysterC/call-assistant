@@ -7,9 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lock, User as UserIcon, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
+import { useMe } from "@/components/providers/me-provider";
+
+const ROLE_LABEL: Record<string, string> = {
+  superAdmin: "Super admin",
+  admin: "Admin (owner)",
+  member: "Member (staff)",
+};
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession();
+  const me = useMe();
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -90,8 +98,8 @@ export default function AccountSettingsPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Role</label>
-            <p className="text-sm mt-1 capitalize">
-              {session?.user?.role || "member"}
+            <p className="text-sm mt-1">
+              {ROLE_LABEL[me?.role ?? session?.user?.role ?? "member"] ?? "Member"}
             </p>
           </div>
         </CardContent>

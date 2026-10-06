@@ -37,7 +37,8 @@ interface ContactPanelProps {
   };
   onToggleStar: () => void;
   /** Triggered by the "Reset persona" button in the AI section. */
-  onResetPersona: () => void;
+  /** The owner's; left out for a member, and the AI section with it. */
+  onResetPersona?: () => void;
 }
 
 export function ContactPanel({
@@ -224,37 +225,41 @@ export function ContactPanel({
           </div>
         </div>
 
-        <Separator className="bg-border" />
+        {onResetPersona && (
+          <>
+            <Separator className="bg-border" />
 
-        {/* AI controls — manual override for the bot's behaviour on this
-            conversation. Reset persona = ignore everything before NOW
-            when generating future replies (used after the org changes
-            its system prompt and wants old conversations to switch
-            cleanly to the new persona). */}
-        <div>
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            AI
-          </h4>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onResetPersona}
-            className="w-full justify-start gap-2 text-xs"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset persona
-          </Button>
-          {conversation.personaResetAt && (
-            <p className="text-[11px] text-muted-foreground mt-1.5">
-              Last reset{" "}
-              {format(new Date(conversation.personaResetAt), "MMM d, h:mm a")}
-            </p>
-          )}
-          <p className="text-[11px] text-muted-foreground mt-1.5">
-            The bot will ignore messages before the reset point when
-            generating new replies. Customer history stays visible here.
-          </p>
-        </div>
+            {/* AI controls — manual override for the bot's behaviour on this
+                conversation. Reset persona = ignore everything before NOW
+                when generating future replies (used after the org changes
+                its system prompt and wants old conversations to switch
+                cleanly to the new persona). */}
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                AI
+              </h4>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onResetPersona}
+                className="w-full justify-start gap-2 text-xs"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset persona
+              </Button>
+              {conversation.personaResetAt && (
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  Last reset{" "}
+                  {format(new Date(conversation.personaResetAt), "MMM d, h:mm a")}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                The bot will ignore messages before the reset point when
+                generating new replies. Customer history stays visible here.
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
