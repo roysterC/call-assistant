@@ -1,17 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  DataTable,
+  PersonCell,
+  SubText,
+  TableTabs,
+  TableToolbar,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
@@ -139,171 +137,130 @@ export default function CallbacksPage() {
     }
   }
 
+  const columns: ColumnDef<Callback>[] = [
+    {
+      id: "customer",
+      header: "Customer",
+      accessorFn: (cb) => cb.lead.name ?? "",
+      cell: ({ row: { original: cb } }) => (
+        <PersonCell
+          name={cb.lead.name || "Unknown"}
+          detail={[cb.lead.phone, cb.lead.company].filter(Boolean).join(" · ")}
+        />
+      ),
+    },
+    {
+      // When the caller rang (there is no due time), and who it is for.
+      id: "called",
+      header: "Called",
+      accessorFn: (cb) => cb.createdAt,
+      meta: { className: "whitespace-nowrap text-muted-foreground" },
+      cell: ({ row: { original: cb } }) => (
+        <>
+          {format(new Date(cb.createdAt), "d MMM, HH:mm")}
+          {cb.assignedTo && <SubText>For {cb.assignedTo}</SubText>}
+        </>
+      ),
+    },
+    {
+      id: "notes",
+      header: "Notes",
+      enableSorting: false,
+      cell: ({ row: { original: cb } }) =>
+        cb.notes ? (
+          <button
+            type="button"
+            onClick={() => setExpandedNotes(expandedNotes === cb.id ? null : cb.id)}
+            aria-expanded={expandedNotes === cb.id}
+            className={cn(
+              "block w-full max-w-60 text-left text-muted-foreground transition-colors hover:text-foreground",
+              expandedNotes === cb.id ? "whitespace-normal" : "truncate"
+            )}
+          >
+            {cb.notes}
+          </button>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    ...(filter === "completed"
+      ? [
+          {
+            id: "outcome",
+            header: "Outcome",
+            accessorFn: (cb) => (cb.outcome ? OUTCOME_LABEL[cb.outcome] || cb.outcome : ""),
+            cell: ({ row: { original: cb } }) =>
+              cb.outcome ? (
+                <span className={cn(STATUS_BADGE, callbackStatus("completed").className)}>
+                  {OUTCOME_LABEL[cb.outcome] || cb.outcome}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              ),
+          } satisfies ColumnDef<Callback>,
+        ]
+      : []),
+    ...(filter === "pending"
+      ? [
+          {
+            id: "actions",
+            header: () => <span className="sr-only">Actions</span>,
+            enableSorting: false,
+            meta: { align: "right" },
+            cell: ({ row: { original: cb } }) => (
+              <div className="flex justify-end gap-1">
+                <Button size="sm" variant="outline" onClick={() => openCompleteDialog(cb)} title="Mark complete with outcome">
+                  <Check className="mr-1 h-3 w-3" />
+                  Complete
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => updateStatus(cb.id, "missed")} title="Mark missed">
+                  <X className="mr-1 h-3 w-3" />
+                  Missed
+                </Button>
+              </div>
+            ),
+          } satisfies ColumnDef<Callback>,
+        ]
+      : []),
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Callbacks"
       />
 
-      <div className="flex gap-1">
-        {["pending", "completed", "missed"].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilter(status)}
-            aria-pressed={filter === status}
-            className={cn(
-              "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-              filter === status
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-            )}
-          >
-            {callbackStatus(status).label}
-          </button>
-        ))}
-      </div>
+      <TableToolbar>
+        <TableTabs
+          label="Show"
+          value={filter}
+          onChange={setFilter}
+          items={["pending", "completed", "missed"].map((status) => ({
+            value: status,
+            label: callbackStatus(status).label,
+          }))}
+        />
+      </TableToolbar>
 
-      <Card className="py-0">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Customer</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Assigned to</TableHead>
-                <TableHead>Called</TableHead>
-                <TableHead>Notes</TableHead>
-                <TableHead>Status</TableHead>
-                {filter === "completed" && <TableHead>Outcome</TableHead>}
-                {filter === "pending" && <TableHead>Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
-                    <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : callbacks.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="p-0">
-                    <EmptyState
-                      icon={CalendarClock}
-                      title={`No ${filter} callbacks`}
-                      hint={
-                        filter === "pending"
-                          ? "When a caller asks for someone, the receptionist takes a message and it lands here."
-                          : `Callbacks you mark as ${filter} will be listed here.`
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                callbacks.map((cb) => (
-                  <TableRow key={cb.id}>
-                    <TableCell>
-                      <span
-                        className={
-                          cb.lead.name
-                            ? "font-medium"
-                            : "text-muted-foreground italic"
-                        }
-                      >
-                        {cb.lead.name || "Unknown"}
-                      </span>
-                      {cb.lead.company && (
-                        <span className="text-xs text-muted-foreground block">
-                          {cb.lead.company}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {cb.lead.phone}
-                    </TableCell>
-                    <TableCell className="text-sm">{cb.assignedTo}</TableCell>
-                    {/* When the caller rang; there is no due time. */}
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {format(new Date(cb.createdAt), "d MMM, HH:mm")}
-                    </TableCell>
-                    {/* Same expand treatment as the leads and calls tables. */}
-                    <TableCell className="max-w-xs">
-                      {cb.notes ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedNotes(
-                              expandedNotes === cb.id ? null : cb.id
-                            )
-                          }
-                          aria-expanded={expandedNotes === cb.id}
-                          className={cn(
-                            "text-sm text-left text-muted-foreground hover:text-foreground transition-colors w-full",
-                            expandedNotes === cb.id
-                              ? "whitespace-normal"
-                              : "truncate"
-                          )}
-                        >
-                          {cb.notes}
-                        </button>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const s = callbackStatus(cb.status);
-                        return (
-                          <span className={cn(STATUS_BADGE, s.className)}>
-                            {s.label}
-                          </span>
-                        );
-                      })()}
-                    </TableCell>
-                    {filter === "completed" && (
-                      <TableCell>
-                        {cb.outcome ? (
-                          <Badge variant="secondary" className="text-[10px]">
-                            {OUTCOME_LABEL[cb.outcome] || cb.outcome}
-                          </Badge>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            —
-                          </span>
-                        )}
-                      </TableCell>
-                    )}
-                    {filter === "pending" && (
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openCompleteDialog(cb)}
-                            title="Mark complete with outcome"
-                          >
-                            <Check className="w-3 h-3 mr-1" />
-                            Complete
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => updateStatus(cb.id, "missed")}
-                            title="Mark missed"
-                          >
-                            <X className="w-3 h-3 mr-1" />
-                            Missed
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={callbacks}
+        getRowId={(cb) => cb.id}
+        loading={loading}
+        pageSize={25}
+        noun="callbacks"
+        empty={
+          <EmptyState
+            icon={CalendarClock}
+            title={`No ${filter} callbacks`}
+            hint={
+              filter === "pending"
+                ? "When a caller asks for someone, the receptionist takes a message and it lands here."
+                : `Callbacks you mark as ${filter} will be listed here.`
+            }
+          />
+        }
+      />
 
       {/* Mark Complete dialog */}
       <Dialog

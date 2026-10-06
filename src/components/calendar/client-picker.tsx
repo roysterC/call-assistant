@@ -11,11 +11,12 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Search, UserPlus } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api-fetch";
+import { DataTable, PersonCell, Pill, type ColumnDef } from "@/components/ui/data-table";
 import { speakablePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
@@ -123,13 +124,46 @@ export function ClientPicker({
     };
   }, [q, sort, dir, mode]);
 
-  const toggleSort = (key: SortKey) => {
-    if (key === sort) setDir(dir === "asc" ? "desc" : "asc");
-    else {
-      setSort(key);
-      setDir("asc");
-    }
-  };
+  const columns: ColumnDef<ClientRow>[] = [
+    {
+      // Sorted by first name; search finds a surname.
+      id: "firstName",
+      header: "Client",
+      cell: ({ row: { original: c } }) => (
+        <PersonCell
+          name={c.name}
+          badge={<DuplicateFlag client={c} />}
+          detail={c.phone ? speakablePhone(c.phone) : reachedThrough(c)}
+        />
+      ),
+    },
+    {
+      id: "email",
+      header: "Email",
+      meta: {
+        className: "hidden max-w-[14rem] truncate text-muted-foreground md:table-cell",
+        headerClassName: "hidden md:table-cell",
+      },
+      cell: ({ row: { original: c } }) => c.email ?? "",
+    },
+    {
+      id: "lastVisit",
+      header: "Last visit",
+      enableSorting: false,
+      meta: {
+        className: "hidden whitespace-nowrap text-muted-foreground sm:table-cell",
+        headerClassName: "hidden sm:table-cell",
+      },
+      cell: ({ row: { original: c } }) => (c.lastVisit ? shortDate(c.lastVisit, timeZone) : "New client"),
+    },
+    {
+      id: "nextBooking",
+      header: "Next booking",
+      enableSorting: false,
+      meta: { className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell" },
+      cell: ({ row: { original: c } }) => (c.nextBooking ? <Pill>{shortDateTime(c.nextBooking, timeZone)}</Pill> : null),
+    },
+  ];
 
   if (mode === "new") {
     return (
@@ -161,89 +195,41 @@ export function ClientPicker({
         </Button>
       </div>
 
-      <div className="rounded-md border border-border overflow-auto max-h-[50vh] max-md:max-h-[60dvh]">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-popover">
-            <tr className="border-b border-border text-left">
-              <SortHeader label="First name" col="firstName" sort={sort} dir={dir} onSort={toggleSort} />
-              <SortHeader label="Last name" col="lastName" sort={sort} dir={dir} onSort={toggleSort} />
-              <SortHeader label="Phone" col="phone" sort={sort} dir={dir} onSort={toggleSort} />
-              <SortHeader
-                label="Email"
-                col="email"
-                sort={sort}
-                dir={dir}
-                onSort={toggleSort}
-                className="hidden md:table-cell"
-              />
-              <th className="hidden sm:table-cell px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap">
-                Last visit
-              </th>
-              <th className="hidden lg:table-cell px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap">
-                Next booking
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c) => (
-              <tr
-                key={c.id}
-                tabIndex={0}
-                onClick={() => onPick(c)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onPick(c);
-                  }
-                }}
-                className="border-b border-border last:border-0 cursor-pointer hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
-              >
-                <td className="px-3 py-2 font-medium">{c.firstName || "—"}</td>
-                <td className="px-3 py-2 font-medium">
-                  {c.lastName || ""}
-                  <DuplicateFlag client={c} className="ml-2" />
-                </td>
-                <td className="px-3 py-2 tabular-nums whitespace-nowrap">
-                  {c.phone ? (
-                    speakablePhone(c.phone)
-                  ) : (
-                    <span className="text-muted-foreground">{reachedThrough(c) ?? ""}</span>
-                  )}
-                </td>
-                <td className="hidden md:table-cell px-3 py-2 text-muted-foreground truncate max-w-[14rem]">
-                  {c.email ?? ""}
-                </td>
-                <td className="hidden sm:table-cell px-3 py-2 text-muted-foreground whitespace-nowrap">
-                  {c.lastVisit ? shortDate(c.lastVisit, timeZone) : "New client"}
-                </td>
-                <td className="hidden lg:table-cell px-3 py-2 text-muted-foreground whitespace-nowrap">
-                  {c.nextBooking ? shortDateTime(c.nextBooking, timeZone) : ""}
-                </td>
-              </tr>
-            ))}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
-                  {q ? (
-                    <>
-                      No client matches &ldquo;{q}&rdquo;.{" "}
-                      <button
-                        type="button"
-                        className="underline underline-offset-2 hover:text-foreground"
-                        onClick={() => setMode("new")}
-                      >
-                        Add them as a new client
-                      </button>
-                    </>
-                  ) : (
-                    "No clients yet."
-                  )}
-                </td>
-              </tr>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(c) => c.id}
+        onRowClick={onPick}
+        rowLabel={(c) => c.name ?? "client"}
+        loading={loading}
+        manualSorting
+        sorting={[{ id: sort, desc: dir === "desc" }]}
+        onSortingChange={(update) => {
+          const next = typeof update === "function" ? update([{ id: sort, desc: dir === "desc" }]) : update;
+          const first = next[0];
+          if (!first) {
+            setDir(dir === "asc" ? "desc" : "asc");
+            return;
+          }
+          setSort(first.id as SortKey);
+          setDir(first.desc ? "desc" : "asc");
+        }}
+        scrollClassName="max-h-[50vh] max-md:max-h-[60dvh]"
+        empty={
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            {q ? (
+              <>
+                No client matches &ldquo;{q}&rdquo;.{" "}
+                <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => setMode("new")}>
+                  Add them as a new client
+                </button>
+              </>
+            ) : (
+              "No clients yet."
             )}
-          </tbody>
-        </table>
-      </div>
+          </p>
+        }
+      />
 
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span aria-live="polite">
@@ -276,43 +262,6 @@ export function ClientPicker({
         </span>
       </div>
     </div>
-  );
-}
-
-function SortHeader({
-  label,
-  col,
-  sort,
-  dir,
-  onSort,
-  className,
-}: {
-  label: string;
-  col: SortKey;
-  sort: SortKey;
-  dir: Dir;
-  onSort: (col: SortKey) => void;
-  className?: string;
-}) {
-  const active = sort === col;
-  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
-  return (
-    <th
-      className={cn("px-1 py-1", className)}
-      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <button
-        type="button"
-        onClick={() => onSort(col)}
-        className={cn(
-          "inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium whitespace-nowrap hover:bg-muted",
-          active ? "text-foreground" : "text-muted-foreground"
-        )}
-      >
-        {label}
-        <Icon className={cn("h-3 w-3", !active && "opacity-50")} />
-      </button>
-    </th>
   );
 }
 

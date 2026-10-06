@@ -1,20 +1,29 @@
 "use client";
 
 /**
- * The salon's clients: name, number and email, searchable. Opening one shows
- * their bookings, notes and patch test (ClientSheet).
+ * The salon's clients: who they are, when they were last in and what they
+ * have coming, searchable. Opening one shows their bookings, notes and patch
+ * test (ClientSheet).
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { Contact, Search } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Contact } from "lucide-react";
+import { format } from "date-fns";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  DataTable,
+  PersonCell,
+  Pill,
+  SubText,
+  TableSearch,
+  TableToolbar,
+  type ColumnDef,
+  type SortingState,
+} from "@/components/ui/data-table";
 import { ClientSheet } from "@/components/clients/client-sheet";
 import { apiFetch } from "@/lib/api-fetch";
+import { plural } from "@/lib/plural";
 
 interface ClientRow {
   id: string;
@@ -22,38 +31,58 @@ interface ClientRow {
   phone: string | null;
   email: string | null;
   contactLead: { name: string | null; phone: string | null } | null;
+  lastVisit: string | null;
+  visits: number;
+  nextBooking: string | null;
 }
 
 const PAGE = 50;
 
+/** The columns the server can sort by, by column id. */
+const SERVER_SORT: Record<string, string> = { name: "firstName", email: "email" };
+
+const nextLabel = (iso: string) => format(new Date(iso), "EEE d MMM, h:mmaaa").replace(":00", "");
+
 export default function ClientsPage() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
-  const [offset, setOffset] = useState(0);
+  const [sorting, setSorting] = useState<SortingState>([{ id: "name", desc: false }]);
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Search as they type, once they pause.
   useEffect(() => {
-    const t = setTimeout(() => {
-      setSearch(query.trim());
-      setOffset(0);
-    }, 250);
+    const t = setTimeout(() => setSearch(query.trim()), 250);
     return () => clearTimeout(t);
   }, [query]);
 
+  const fetchPage = useCallback(
+    async (offset: number) => {
+      const sort = sorting[0];
+      const qs = new URLSearchParams({
+        limit: String(PAGE),
+        offset: String(offset),
+        sort: SERVER_SORT[sort?.id ?? "name"] ?? "firstName",
+        dir: sort?.desc ? "desc" : "asc",
+      });
+      if (search) qs.set("q", search);
+      const res = await apiFetch(`/api/clients?${qs}`);
+      if (!res.ok) throw new Error();
+      return (await res.json()) as { clients: ClientRow[]; total: number };
+    },
+    [search, sorting]
+  );
+
+  /** From the top: on a new search or sort, and after a change in the sheet. */
   const load = useCallback(async () => {
     setLoading(true);
     setFailed(false);
     try {
-      const qs = new URLSearchParams({ limit: String(PAGE), offset: String(offset), sort: "firstName" });
-      if (search) qs.set("q", search);
-      const res = await apiFetch(`/api/clients?${qs}`);
-      if (!res.ok) throw new Error();
-      const d = await res.json();
+      const d = await fetchPage(0);
       setClients(d.clients ?? []);
       setTotal(d.total ?? 0);
     } catch {
@@ -61,106 +90,111 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, offset]);
+  }, [fetchPage]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const from = total === 0 ? 0 : offset + 1;
-  const to = Math.min(offset + PAGE, total);
+  async function showMore() {
+    setLoadingMore(true);
+    try {
+      const d = await fetchPage(clients.length);
+      setClients((prev) => [...prev, ...(d.clients ?? [])]);
+      setTotal(d.total ?? 0);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  const columns = useMemo<ColumnDef<ClientRow>[]>(
+    () => [
+      {
+        id: "name",
+        header: "Client",
+        accessorFn: (c) => c.name ?? "",
+        cell: ({ row: { original: c } }) => (
+          <PersonCell
+            name={c.name}
+            detail={c.phone ?? (c.contactLead ? `via ${c.contactLead.name ?? "another client"}` : null)}
+          />
+        ),
+      },
+      {
+        id: "email",
+        header: "Email",
+        accessorFn: (c) => c.email ?? "",
+        cell: ({ row: { original: c } }) => <span className="text-muted-foreground">{c.email ?? "—"}</span>,
+      },
+      {
+        id: "lastVisit",
+        header: "Last visit",
+        enableSorting: false,
+        cell: ({ row: { original: c } }) => (
+          <span className="text-muted-foreground">
+            {c.lastVisit ? format(new Date(c.lastVisit), "d MMM yyyy") : "—"}
+            <SubText>{plural(c.visits, "visit")}</SubText>
+          </span>
+        ),
+      },
+      {
+        id: "nextBooking",
+        header: "Next booking",
+        enableSorting: false,
+        cell: ({ row: { original: c } }) =>
+          c.nextBooking ? (
+            <Pill>{nextLabel(c.nextBooking)}</Pill>
+          ) : (
+            <span className="text-[13px] text-muted-foreground/80">Nothing booked</span>
+          ),
+      },
+    ],
+    []
+  );
 
   return (
     <div className="space-y-6">
       <PageHeader title="Clients" />
 
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          aria-label="Search clients"
+      <TableToolbar>
+        <TableSearch
+          label="Search clients"
           placeholder="Search by name, number or email"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="pl-9"
+          onChange={setQuery}
         />
-      </div>
+      </TableToolbar>
 
-      <Card className="py-0">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Email</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {failed ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="py-8 text-center text-sm text-red-600">
-                    Clients couldn&apos;t be loaded. Refresh to try again.
-                  </TableCell>
-                </TableRow>
-              ) : !loading && clients.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="p-0">
-                    <EmptyState
-                      icon={Contact}
-                      title={search ? "No clients match that" : "No clients yet"}
-                      hint={search ? "Try part of their name, number or email." : "Clients appear here as they are booked."}
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                clients.map((c) => (
-                  <TableRow
-                    key={c.id}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`Open ${c.name ?? "client"}`}
-                    onClick={() => setOpenId(c.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setOpenId(c.id);
-                      }
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <TableCell className="font-medium">{c.name ?? "—"}</TableCell>
-                    <TableCell className="tabular-nums">
-                      {c.phone ?? (c.contactLead ? (
-                        <span className="text-muted-foreground">via {c.contactLead.name ?? "another client"}</span>
-                      ) : (
-                        "—"
-                      ))}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{c.email ?? "—"}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {total > 0 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            {from}–{to} of {total.toLocaleString()}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={offset === 0 || loading} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
-              Previous
-            </Button>
-            <Button variant="outline" size="sm" disabled={to >= total || loading} onClick={() => setOffset(offset + PAGE)}>
-              Next
-            </Button>
-          </div>
-        </div>
+      {failed && (
+        <p role="alert" className="text-sm text-red-600">
+          Clients couldn&apos;t be loaded. Refresh to try again.
+        </p>
       )}
+
+      <DataTable
+        columns={columns}
+        data={clients}
+        getRowId={(c) => c.id}
+        onRowClick={(c) => setOpenId(c.id)}
+        rowLabel={(c) => c.name ?? "client"}
+        loading={loading}
+        manualSorting
+        sorting={sorting}
+        onSortingChange={setSorting}
+        total={total}
+        onShowMore={showMore}
+        loadingMore={loadingMore}
+        noun="clients"
+        empty={
+          <EmptyState
+            icon={Contact}
+            title={search ? "No clients match that" : "No clients yet"}
+            hint={search ? "Try part of their name, number or email." : "Clients appear here as they are booked."}
+          />
+        }
+      />
 
       <ClientSheet clientId={openId} onClose={() => setOpenId(null)} onChanged={load} />
     </div>

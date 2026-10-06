@@ -13,19 +13,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { apiFetch } from "@/lib/api-fetch";
 import { cn } from "@/lib/utils";
 import { formatMoney, formatMoneyShort } from "@/lib/money";
 import { plural } from "@/lib/plural";
-import { APPOINTMENT_STATUS } from "@/lib/status-styles";
+import { APPOINTMENT_STATUS, STATUS_BADGE } from "@/lib/status-styles";
+import { DataTable, PersonCell, type ColumnDef } from "@/components/ui/data-table";
 import {
   describePeriod,
   PERIOD_KINDS,
@@ -140,6 +133,55 @@ export default function SalesPage() {
     const now = resolvePeriod(kind, today, timeZone);
     return now.firstDate === period.firstDate;
   }, [kind, today, timeZone, period.firstDate]);
+
+  const when = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const columns: ColumnDef<SaleRow>[] = [
+    {
+      id: "client",
+      header: "Client",
+      accessorFn: (r) => r.clientName ?? "Walk-in",
+      cell: ({ row: { original: r } }) => <PersonCell name={r.clientName ?? "Walk-in"} detail={r.serviceText} />,
+    },
+    {
+      id: "date",
+      header: "Date",
+      accessorFn: (r) => r.startsAt,
+      meta: { className: "whitespace-nowrap tabular-nums text-muted-foreground" },
+      cell: ({ row: { original: r } }) => when.format(new Date(r.startsAt)),
+    },
+    { id: "stylist", header: "Stylist", accessorKey: "stylistName", meta: { className: "whitespace-nowrap" } },
+    {
+      id: "status",
+      header: "Status",
+      accessorFn: (r) => (APPOINTMENT_STATUS[r.status] ?? APPOINTMENT_STATUS.booked).label,
+      cell: ({ row: { original: r } }) => {
+        const tone = APPOINTMENT_STATUS[r.status] ?? APPOINTMENT_STATUS.booked;
+        return <span className={cn(STATUS_BADGE, tone.className)}>{tone.label}</span>;
+      },
+    },
+    {
+      // A figure in brackets is the list price, not money taken.
+      id: "amount",
+      header: "Amount",
+      accessorFn: (r) => r.amountMinor ?? -1,
+      meta: { align: "right", className: "whitespace-nowrap" },
+      cell: ({ row: { original: r } }) =>
+        r.amountMinor !== null ? (
+          formatMoney(r.amountMinor)
+        ) : (
+          <span className="text-muted-foreground">
+            {r.listPriceMinor !== null ? `(${formatMoney(r.listPriceMinor)})` : "—"}
+          </span>
+        ),
+    },
+  ];
 
   return (
     <div className="space-y-5">
@@ -268,77 +310,21 @@ export default function SalesPage() {
         </div>
       )}
 
-      <div className="rounded-md border border-border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Service</TableHead>
-              <TableHead>Stylist</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 && !loading && (
-              <TableRow>
-                <TableCell colSpan={6}>
-                  <span className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-                    <Receipt className="h-4 w-4" />
-                    Nothing in this {PERIOD_LABEL[kind].toLowerCase()}.
-                  </span>
-                </TableCell>
-              </TableRow>
-            )}
-
-            {rows.map((r) => {
-              const tone =
-                APPOINTMENT_STATUS[r.status] ?? APPOINTMENT_STATUS.booked;
-              return (
-                <TableRow key={r.id}>
-                  <TableCell className="tabular-nums whitespace-nowrap">
-                    {new Intl.DateTimeFormat("en-GB", {
-                      timeZone,
-                      day: "2-digit",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    }).format(new Date(r.startsAt))}
-                  </TableCell>
-                  <TableCell>{r.clientName ?? "Walk-in"}</TableCell>
-                  <TableCell>{r.serviceText}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {r.stylistName}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "rounded-md border px-2 py-0.5 text-xs whitespace-nowrap",
-                        tone.className
-                      )}
-                    >
-                      {tone.label}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums whitespace-nowrap">
-                    {r.amountMinor !== null ? (
-                      formatMoney(r.amountMinor)
-                    ) : (
-                      <span className="text-muted-foreground">
-                        {r.listPriceMinor !== null
-                          ? `(${formatMoney(r.listPriceMinor)})`
-                          : "—"}
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(r) => r.id}
+        loading={loading}
+        initialSorting={[{ id: "date", desc: false }]}
+        pageSize={50}
+        noun="appointments"
+        empty={
+          <span className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <Receipt className="h-4 w-4" />
+            Nothing in this {PERIOD_LABEL[kind].toLowerCase()}.
+          </span>
+        }
+      />
 
       <p className="text-xs text-muted-foreground">
         A figure in brackets is the list price, not money taken — the

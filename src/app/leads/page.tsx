@@ -1,25 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import { Card, CardContent } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  DataTable,
+  PersonCell,
+  SubText,
+  TableSearch,
+  TableToolbar,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { Users } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
-import {
-  CHANNEL_META,
-  avatarColorFor,
-  initialsFor,
-  type Channel,
-} from "@/lib/channels";
+import { plural } from "@/lib/plural";
+import { CHANNEL_META, type Channel } from "@/lib/channels";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -137,6 +131,7 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     async function fetchLeads() {
@@ -153,200 +148,121 @@ export default function LeadsPage() {
     fetchLeads();
   }, []);
 
+  const columns: ColumnDef<Lead>[] = [
+    {
+      // For a website lead the identifier already is the email, so it is
+      // not printed twice; a phone lead that also has an email gets both.
+      id: "contact",
+      header: "Contact",
+      accessorFn: (lead) =>
+        [displayName(lead), displayIdentifier(lead), lead.email, lead.company].filter(Boolean).join(" "),
+      sortingFn: (a, b) => displayName(a.original).localeCompare(displayName(b.original)),
+      cell: ({ row: { original: lead } }) => {
+        const name = displayName(lead);
+        const identifier = displayIdentifier(lead);
+        return (
+          <PersonCell
+            name={name === "Unknown" ? null : name}
+            photoUrl={lead.socialContact?.profilePicUrl}
+            detail={[identifier, lead.email !== identifier && lead.email, lead.company].filter(Boolean).join(" · ")}
+          />
+        );
+      },
+    },
+    {
+      id: "channel",
+      header: "Channel",
+      accessorFn: (lead) => CHANNEL_META[sourceToChannel(lead.source)].label,
+      cell: ({ row: { original: lead } }) => {
+        const meta = CHANNEL_META[sourceToChannel(lead.source)];
+        const ChannelIcon = meta.icon;
+        return (
+          <span className="flex items-center gap-1.5">
+            <span className={cn("flex h-5 w-5 items-center justify-center rounded-full", meta.bg)}>
+              <ChannelIcon className="h-3 w-3 text-white" />
+            </span>
+            <span className="text-xs text-foreground/80">{meta.label}</span>
+          </span>
+        );
+      },
+    },
+    {
+      // A real button, so it can be reached by keyboard and says it expands.
+      id: "issue",
+      header: "Issue",
+      enableSorting: false,
+      accessorFn: (lead) => lead.issue ?? "",
+      cell: ({ row: { original: lead } }) =>
+        lead.issue ? (
+          <button
+            type="button"
+            onClick={() => setExpandedIssue(expandedIssue === lead.id ? null : lead.id)}
+            aria-expanded={expandedIssue === lead.id}
+            className={cn(
+              "block w-full max-w-48 text-left text-muted-foreground transition-colors hover:text-foreground",
+              expandedIssue === lead.id ? "whitespace-normal" : "truncate"
+            )}
+          >
+            {lead.issue}
+          </button>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      accessorFn: (lead) => leadStatus(lead.status).label,
+      meta: { className: "whitespace-nowrap" },
+      cell: ({ row: { original: lead } }) => {
+        const st = leadStatus(lead.status);
+        return <span className={cn(STATUS_BADGE, st.className)}>{st.label}</span>;
+      },
+    },
+    {
+      id: "created",
+      header: "Created",
+      accessorFn: (lead) => lead.createdAt,
+      meta: { className: "whitespace-nowrap text-muted-foreground" },
+      cell: ({ row: { original: lead } }) => (
+        <>
+          {format(new Date(lead.createdAt), "d MMM yyyy")}
+          {lead._count.calls > 0 && <SubText>{plural(lead._count.calls, "call")}</SubText>}
+        </>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Leads"
       />
 
-      <Card className="py-0">
-        <CardContent className="p-0">
-          {/*
-            The Email column is gone, and with it the horizontal scrollbar.
+      <TableToolbar>
+        <TableSearch label="Search leads" placeholder="Search leads" value={query} onChange={setQuery} />
+      </TableToolbar>
 
-            For a website lead the Contact cell's second line already *is* the
-            email — displayIdentifier() returns it — so every row printed the
-            same address twice, and those duplicated ~180px were what pushed
-            the table past the width of the page. Phone leads keep their email:
-            it moved into the contact cell alongside the number.
-          */}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Contact</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Issue</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Calls</TableHead>
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
-                    <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : leads.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="p-0">
-                    <EmptyState
-                      icon={Users}
-                      title="No leads captured yet"
-                      hint="A lead appears here as soon as someone leaves their details on a call or in a chat."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                leads.map((lead) => {
-                  const name = displayName(lead);
-                  const identifier = displayIdentifier(lead);
-                  // The dropped Email column's job. The identifier is already
-                  // the email for website leads, so appending it again would
-                  // just reinstate the duplication in a smaller font; a phone
-                  // lead that also has an email gets both.
-                  const secondary =
-                    lead.email && lead.email !== identifier
-                      ? `${identifier} · ${lead.email}`
-                      : identifier;
-                  const channel = sourceToChannel(lead.source);
-                  const channelMeta = CHANNEL_META[channel];
-                  const ChannelIcon = channelMeta.icon;
-                  const avatarUrl = lead.socialContact?.profilePicUrl || null;
-                  // Seeded from email when there is no number, so a website
-                  // lead still gets stable initials and a stable colour.
-                  const seed = lead.phone || lead.email || lead.id;
-                  const initials = initialsFor(
-                    name === "Unknown" ? null : name,
-                    seed
-                  );
-                  const avatarColor = avatarColorFor(name + seed);
-                  return (
-                    <TableRow key={lead.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="relative shrink-0">
-                            {avatarUrl ? (
-                              <Image
-                                src={avatarUrl}
-                                alt={name}
-                                width={36}
-                                height={36}
-                                className="w-9 h-9 rounded-full object-cover"
-                                unoptimized
-                              />
-                            ) : (
-                              <div
-                                className={cn(
-                                  "w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold",
-                                  avatarColor
-                                )}
-                              >
-                                {initials}
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div
-                              className={cn(
-                                "font-medium truncate",
-                                name === "Unknown" && "text-muted-foreground italic"
-                              )}
-                            >
-                              {name}
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {secondary}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className={cn(
-                              "w-5 h-5 rounded-full flex items-center justify-center",
-                              channelMeta.bg
-                            )}
-                          >
-                            <ChannelIcon className="w-3 h-3 text-white" />
-                          </div>
-                          <span className="text-xs text-foreground/80">
-                            {channelMeta.label}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {lead.company || (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      {/*
-                        A real button, not a clickable cell.
-
-                        Expanding used to be a td with cursor-pointer and a
-                        title attribute — invisible to the keyboard, invisible
-                        to a screen reader, and discoverable only by hovering
-                        long enough for a tooltip. The text still truncates by
-                        default; now something says so.
-                      */}
-                      <TableCell className="max-w-xs">
-                        {lead.issue ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedIssue(
-                                expandedIssue === lead.id ? null : lead.id
-                              )
-                            }
-                            aria-expanded={expandedIssue === lead.id}
-                            className={cn(
-                              "text-sm text-left text-muted-foreground hover:text-foreground transition-colors w-full",
-                              expandedIssue === lead.id
-                                ? "whitespace-normal"
-                                : "truncate"
-                            )}
-                          >
-                            {lead.issue}
-                          </button>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            —
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const s = leadStatus(lead.status);
-                          return (
-                            <span
-                              className={cn(STATUS_BADGE, s.className)}
-                            >
-                              {s.label}
-                            </span>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-sm text-right tabular-nums">
-                        {lead._count.calls > 0 ? (
-                          lead._count.calls
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {format(new Date(lead.createdAt), "d MMM yyyy")}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={leads}
+        getRowId={(lead) => lead.id}
+        search={query}
+        loading={loading}
+        pageSize={25}
+        noun="leads"
+        empty={
+          <EmptyState
+            icon={Users}
+            title={query ? "No leads match that" : "No leads captured yet"}
+            hint={
+              query
+                ? "Try part of their name, number, email or company."
+                : "A lead appears here as soon as someone leaves their details on a call or in a chat."
+            }
+          />
+        }
+      />
     </div>
   );
 }
