@@ -92,6 +92,14 @@ describe("owner-only pages", () => {
     expect(isNavAllowed(diary, "member")).toBe(true);
   });
 
+  it("show Insights to a salon with the receptionist but no chatbot", () => {
+    expect(isNavVisible(insights, { ...salon, chatbotEnabled: false })).toBe(true);
+    expect(isNavVisible(insights, chatOnly)).toBe(true);
+    expect(
+      isNavVisible(insights, { ...salon, voiceEnabled: false, chatbotEnabled: false })
+    ).toBe(false);
+  });
+
   it("are a start page for the owner, but a member opens on the automatic page", () => {
     const chosen = "/insights";
     expect(resolveStartPage({ chosen, flags: chatOnly, diaryTakesBookings: false })).toBe(chosen);
