@@ -6,15 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable, PersonCell, Pill, type ColumnDef } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
@@ -53,9 +45,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { STATUS_BADGE } from "@/lib/status-styles";
 import { plural } from "@/lib/plural";
-import { cn } from "@/lib/utils";
 import { VapiSyncCard } from "@/components/admin/vapi-sync-card";
 
 interface Org {
@@ -460,6 +450,140 @@ export default function OrganizationDetailPage() {
       </div>
     );
   }
+
+  const phoneColumns: ColumnDef<Org["phoneNumbers"][number]>[] = [
+    {
+      id: "number",
+      header: "Number",
+      accessorKey: "number",
+      cell: ({ row: { original: p } }) => <PersonCell name={p.label || p.number} detail={p.label ? p.number : null} />,
+    },
+    {
+      id: "channel",
+      header: "Channel",
+      accessorFn: (p) => (p.channel === "vapi" ? "Voice" : p.channel),
+      cell: ({ row: { original: p } }) => (
+        <Pill className="bg-muted capitalize text-foreground">{p.channel === "vapi" ? "Voice" : p.channel}</Pill>
+      ),
+    },
+    {
+      id: "provider",
+      header: "Provider ID",
+      accessorFn: (p) => p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "",
+      meta: { className: "font-mono text-xs text-muted-foreground" },
+      cell: ({ row: { original: p } }) => p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "—",
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: "right" },
+      cell: ({ row: { original: p } }) => (
+        <Button variant="ghost" size="sm" onClick={() => deletePhone(p.id)} aria-label={`Remove ${p.number}`}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ),
+    },
+  ];
+
+  const websiteColumns: ColumnDef<WebsiteRow>[] = [
+    {
+      id: "name",
+      header: "Website",
+      accessorKey: "name",
+      cell: ({ row: { original: w } }) => <PersonCell name={w.name} detail={<code className="text-xs">{w.siteId}</code>} />,
+    },
+    { id: "bot", header: "Bot", accessorKey: "botName" },
+    { id: "conversations", header: "Conversations", accessorFn: (w) => w._count.conversations, meta: { align: "right" } },
+    {
+      id: "status",
+      header: "Status",
+      accessorFn: (w) => (w.enabled ? "Enabled" : "Disabled"),
+      cell: ({ row: { original: w } }) =>
+        w.enabled ? (
+          <Pill className="bg-emerald-50 text-emerald-800">Enabled</Pill>
+        ) : (
+          <Pill className="bg-red-50 text-red-800">Disabled</Pill>
+        ),
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: "right" },
+      cell: ({ row: { original: w } }) => (
+        <span className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="sm" onClick={() => copyEmbedForSite(w.siteId)} aria-label={`Copy embed code for ${w.name}`} title="Copy embed code">
+            {copiedSiteId === w.siteId ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => deleteWebsite(w.id, w.name)} aria-label={`Delete ${w.name}`} title="Delete">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </span>
+      ),
+    },
+  ];
+
+  const userColumns: ColumnDef<Org["users"][number]>[] = [
+    {
+      id: "user",
+      header: "User",
+      accessorFn: (u) => `${u.name ?? ""} ${u.email}`,
+      sortingFn: (a, b) => (a.original.name || a.original.email).localeCompare(b.original.name || b.original.email),
+      cell: ({ row: { original: u } }) => <PersonCell name={u.name || u.email} detail={u.name ? u.email : null} />,
+    },
+    {
+      id: "role",
+      header: "Role",
+      accessorFn: (u) => ROLE_LABEL[u.role] ?? u.role,
+      cell: ({ row: { original: u } }) => <Pill className="bg-muted text-foreground">{ROLE_LABEL[u.role] ?? u.role}</Pill>,
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: "right" },
+      cell: ({ row: { original: u } }) =>
+        u.role === "superAdmin" ? null : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`Manage ${u.email}`}
+              className="ml-auto flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {u.role !== "admin" && (
+                <DropdownMenuItem onClick={() => changeUser(u.id, { role: "admin" })}>
+                  <UserCog />
+                  Make admin (owner)
+                </DropdownMenuItem>
+              )}
+              {u.role !== "member" && (
+                <DropdownMenuItem onClick={() => changeUser(u.id, { role: "member" })}>
+                  <UserCog />
+                  Make member (staff)
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => {
+                  setResetPassword("");
+                  setResetFor({ id: u.id, email: u.email });
+                }}
+              >
+                <KeyRound />
+                Reset password
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => removeUser(u)}>
+                <Trash2 />
+                Remove login
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -888,254 +1012,74 @@ export default function OrganizationDetailPage() {
         <VapiSyncCard organizationId={org.id} />
       )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Phone className="w-5 h-5" />
+      <section className="space-y-3" aria-labelledby="org-phones">
+        <div className="flex items-center justify-between">
+          <h2 id="org-phones" className="flex items-center gap-2 font-heading text-base font-semibold">
+            <Phone className="h-5 w-5" />
             Phone numbers
-          </CardTitle>
+          </h2>
           <Button size="sm" onClick={() => setPhoneDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Add
           </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Number</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Provider ID</TableHead>
-                <TableHead>Label</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {org.phoneNumbers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="p-0">
-                    <EmptyState
-                      icon={Phone}
-                      title="No phone numbers registered"
-                      hint="Add the WhatsApp or voice number this client answers on."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                org.phoneNumbers.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-sm">{p.number}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] capitalize">
-                        {p.channel === "vapi" ? "Voice" : p.channel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-mono">
-                      {p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "—"}
-                    </TableCell>
-                    <TableCell className="text-sm">{p.label || "—"}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => deletePhone(p.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+        <DataTable
+          columns={phoneColumns}
+          data={org.phoneNumbers}
+          getRowId={(p) => p.id}
+          empty={
+            <EmptyState
+              icon={Phone}
+              title="No phone numbers registered"
+              hint="Add the WhatsApp or voice number this client answers on."
+            />
+          }
+        />
+      </section>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Globe className="w-5 h-5" />
+      <section className="space-y-3" aria-labelledby="org-websites">
+        <div className="flex items-center justify-between">
+          <h2 id="org-websites" className="flex items-center gap-2 font-heading text-base font-semibold">
+            <Globe className="h-5 w-5" />
             Websites
-          </CardTitle>
+          </h2>
           <Button size="sm" onClick={() => setWebsiteDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Add website
           </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Site ID</TableHead>
-                <TableHead>Bot</TableHead>
-                <TableHead>Conversations</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {websites.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="p-0">
-                    <EmptyState
-                      icon={Globe}
-                      title="No websites yet"
-                      hint="Each site gets its own chatbot, prompt and embed snippet."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                websites.map((w) => (
-                  <TableRow key={w.id}>
-                    <TableCell className="font-medium">
-                      <button
-                        onClick={() =>
-                          router.push(`/websites/${w.id}?asOrg=${org.id}`)
-                        }
-                        className="hover:underline text-left"
-                      >
-                        {w.name}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                        {w.siteId}
-                      </code>
-                    </TableCell>
-                    <TableCell className="text-sm">{w.botName}</TableCell>
-                    <TableCell className="text-sm">
-                      {w._count.conversations}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          STATUS_BADGE,
-                          w.enabled
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                        )}
-                      >
-                        {w.enabled ? "Enabled" : "Disabled"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="flex items-center gap-1 justify-end pr-4">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyEmbedForSite(w.siteId)}
-                        title="Copy embed code"
-                      >
-                        {copiedSiteId === w.siteId ? (
-                          <Check className="w-4 h-4 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteWebsite(w.id, w.name)}
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+        <DataTable
+          columns={websiteColumns}
+          data={websites}
+          getRowId={(w) => w.id}
+          onRowClick={(w) => router.push(`/websites/${w.id}?asOrg=${org.id}`)}
+          rowLabel={(w) => w.name}
+          empty={
+            <EmptyState icon={Globe} title="No websites yet" hint="Each site gets its own chatbot, prompt and embed snippet." />
+          }
+        />
+      </section>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <UsersIcon className="w-5 h-5" />
+      <section className="space-y-3" aria-labelledby="org-users">
+        <div className="flex items-center justify-between">
+          <h2 id="org-users" className="flex items-center gap-2 font-heading text-base font-semibold">
+            <UsersIcon className="h-5 w-5" />
             Users
-          </CardTitle>
+          </h2>
           <Button size="sm" onClick={() => setUserDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Invite
           </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="w-10">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {org.users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="p-0">
-                    <EmptyState
-                      icon={UsersIcon}
-                      title="No users yet"
-                      hint="Nobody at this client can sign in until you add one."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                org.users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="text-sm">{u.email}</TableCell>
-                    <TableCell className="text-sm">{u.name || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px]">
-                        {ROLE_LABEL[u.role] ?? u.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {u.role !== "superAdmin" && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            aria-label={`Manage ${u.email}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52">
-                            {u.role !== "admin" && (
-                              <DropdownMenuItem onClick={() => changeUser(u.id, { role: "admin" })}>
-                                <UserCog />
-                                Make admin (owner)
-                              </DropdownMenuItem>
-                            )}
-                            {u.role !== "member" && (
-                              <DropdownMenuItem onClick={() => changeUser(u.id, { role: "member" })}>
-                                <UserCog />
-                                Make member (staff)
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setResetPassword("");
-                                setResetFor({ id: u.id, email: u.email });
-                              }}
-                            >
-                              <KeyRound />
-                              Reset password
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem variant="destructive" onClick={() => removeUser(u)}>
-                              <Trash2 />
-                              Remove login
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+        <DataTable
+          columns={userColumns}
+          data={org.users}
+          getRowId={(u) => u.id}
+          empty={
+            <EmptyState icon={UsersIcon} title="No users yet" hint="Nobody at this client can sign in until you add one." />
+          }
+        />
+      </section>
 
       {/* Add Phone dialog */}
       <Dialog open={phoneDialog} onOpenChange={setPhoneDialog}>
