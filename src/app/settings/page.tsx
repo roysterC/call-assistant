@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AssistantShortcut } from "@/components/settings/assistant-shortcut";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +26,8 @@ import type { SalonService, Stylist } from "@/lib/salon-config";
 import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 import { useMe } from "@/components/providers/me-provider";
+import { ExpandableSection } from "@/components/settings/expandable-section";
+import { plural } from "@/lib/plural";
 
 const labelFor = (href: string) => NAV_PAGES.find((p) => p.href === href)?.label ?? "Dashboard";
 
@@ -399,50 +400,43 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Card className="gap-0">
-              <CardHeader className="border-b pb-3">
-                <CardTitle className="text-base">Services</CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  What you offer and how long each takes.
-                </p>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <ServicesEditor
-                  value={settings.services}
-                  onChange={(services) => setSettings({ ...settings, services })}
-                />
-              </CardContent>
-            </Card>
+            <ExpandableSection
+              title="Services"
+              description="What you offer and how long each takes."
+              summary={plural(settings.services.length, "service")}
+            >
+              <ServicesEditor
+                value={settings.services}
+                onChange={(services) => setSettings({ ...settings, services })}
+              />
+            </ExpandableSection>
 
-            <Card className="gap-0">
-              <CardHeader className="border-b pb-3">
-                <CardTitle className="text-base">Stylists</CardTitle>
-                {settings.diaryProvider === "google" && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Each needs a Google calendar shared with the service account
-                    before they can be booked.
-                  </p>
-                )}
-              </CardHeader>
-              <CardContent className="pt-4">
-                {settings.teamMembers.length === 0 ? (
-                  <EmptyState
-                    icon={Users}
-                    title="No one added yet"
-                    hint="Add a stylist so the receptionist has someone to book with."
-                  />
-                ) : null}
-                <StylistsEditor
-                  value={settings.teamMembers}
-                  services={settings.services}
-                  businessHours={settings.businessHours}
-                  usesGoogle={settings.diaryProvider === "google"}
-                  onChange={(teamMembers) =>
-                    setSettings({ ...settings, teamMembers })
-                  }
+            <ExpandableSection
+              title="Stylists"
+              description={
+                settings.diaryProvider === "google"
+                  ? "Each needs a Google calendar shared with the service account before they can be booked."
+                  : undefined
+              }
+              summary={plural(settings.teamMembers.length, "stylist")}
+            >
+              {settings.teamMembers.length === 0 ? (
+                <EmptyState
+                  icon={Users}
+                  title="No one added yet"
+                  hint="Add a stylist so the receptionist has someone to book with."
                 />
-              </CardContent>
-            </Card>
+              ) : null}
+              <StylistsEditor
+                value={settings.teamMembers}
+                services={settings.services}
+                businessHours={settings.businessHours}
+                usesGoogle={settings.diaryProvider === "google"}
+                onChange={(teamMembers) =>
+                  setSettings({ ...settings, teamMembers })
+                }
+              />
+            </ExpandableSection>
           </>
         )}
 
@@ -455,18 +449,22 @@ export default function SettingsPage() {
           settings.whatsappEnabled ||
           settings.instagramEnabled ||
           settings.facebookEnabled) && (
-          <Card className="gap-0">
-            <CardHeader className="border-b pb-3">
-              <CardTitle className="text-base">Salon FAQs</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                What the receptionist and the chat bots tell customers who ask.
+          <ExpandableSection
+            title="Salon FAQs"
+            description="What the receptionist and the chat bots tell customers who ask."
+            summary={
+              settings.salonFaq.trim()
+                ? plural(settings.salonFaq.split("\n").filter((l) => l.trim()).length, "line")
+                : "None yet"
+            }
+          >
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">
                 They already know your hours, services, prices and team from
                 above, and can explain things like what balayage is. For anything
                 else about the salon they only use what you write here, and say
                 they are not sure otherwise.
               </p>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-1.5">
               <Textarea
                 aria-label="Salon FAQs"
                 value={settings.salonFaq}
@@ -485,24 +483,10 @@ export default function SettingsPage() {
                 A question and its answer per line is plenty. Prices come from
                 Services, quoted as &ldquo;from&rdquo;. {settings.salonFaq.length}/{SALON_FAQ_MAX}
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </ExpandableSection>
         )}
-
       </fieldset>
-
-      <Card className="gap-0">
-        <CardHeader className="border-b pb-3">
-          <CardTitle className="text-base">Your assistant, hands-free</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-            Open the assistant already listening, with Siri or from your phone&apos;s home screen, without touching the
-            screen.
-          </p>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <AssistantShortcut />
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -231,8 +231,7 @@ How it is built:
 - Hands-free: `/assistant` opens the start page with the assistant already
   listening, for a Siri Shortcut ("Hey Siri, salon assistant"), a Google
   Assistant routine, or the home-screen icon's long-press shortcut (in the
-  manifest). Settings → "Your assistant, hands-free" has the link and the
-  steps. A phone that wants a touch before it uses the microphone gets one
+  manifest). A phone that wants a touch before it uses the microphone gets one
   big "Tap to talk" instead.
 
 ### What the bots know about the salon
