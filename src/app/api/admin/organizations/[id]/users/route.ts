@@ -3,11 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
 import { hashPassword, validatePassword } from "@/lib/password";
 import { parsePagination } from "@/lib/pagination";
-
-const ASSIGNABLE_ROLES = ["member", "admin"];
-
-/** Never the password hash. */
-const USER_FIELDS = { id: true, email: true, name: true, role: true, createdAt: true } as const;
+import { ASSIGNABLE_ROLES, USER_FIELDS, isAssignableRole } from "@/lib/admin-users";
 
 export async function GET(
   req: NextRequest,
@@ -59,7 +55,7 @@ export async function POST(
     const normalizedEmail = String(email).toLowerCase().trim();
 
     // Owners and staff only. A super-admin is made by hand, never from a form.
-    if (role !== undefined && !ASSIGNABLE_ROLES.includes(role)) {
+    if (role !== undefined && !isAssignableRole(role)) {
       return NextResponse.json(
         { error: `role must be one of: ${ASSIGNABLE_ROLES.join(", ")}` },
         { status: 400 }
