@@ -51,7 +51,8 @@ export const NAV_PAGES: NavPage[] = [
     requires: ["chatbot", "whatsapp", "instagram", "facebook"],
   },
   { href: "/websites", label: "Websites", requires: "chatbot", ownerOnly: true },
-  { href: "/insights", label: "Insights", requires: "chatbot", ownerOnly: true },
+  // The receptionist's figures for a salon, the chatbot's for a website.
+  { href: "/insights", label: "Insights", requires: ["voice", "chatbot"], ownerOnly: true },
   // A salon's people are its clients, with their bookings and patch tests;
   // Leads stays for an organisation without the diary (chat, WhatsApp).
   { href: "/leads", label: "Leads", hiddenWhen: "voice" },

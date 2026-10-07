@@ -17,14 +17,11 @@ import type { Period } from "@/lib/sales-period";
 import { salonDate } from "@/lib/calendar-layout";
 import { splitServiceText } from "@/lib/salon-config";
 
-export async function computeTakings(
-  organizationId: string,
-  period: Period,
-  cfg: SalonConfig,
-  /** One stylist's own takings only. */
-  stylistName?: string
-) {
-  // List prices, for what has not been rung up yet.
+/**
+ * A service's list price, from the salon's price list, for what has not been
+ * rung up yet. Null when it has no price.
+ */
+export function listPriceLookup(cfg: Pick<SalonConfig, "services">): (serviceText: string) => number | null {
   const listPrice = new Map<string, number | null>();
   for (const s of cfg.services) {
     listPrice.set(s.name.toLowerCase(), s.priceMinor);
@@ -34,7 +31,7 @@ export async function computeTakings(
   // names, which matches nothing in the list above. Its list price is the
   // sum of the parts — and only a sum when every part still has a price,
   // because a partial total read as a whole one understates the day.
-  const listPriceFor = (serviceText: string): number | null => {
+  return (serviceText: string): number | null => {
     const direct = listPrice.get(serviceText.toLowerCase());
     if (direct !== undefined) return direct;
 
@@ -49,6 +46,16 @@ export async function computeTakings(
     }
     return total;
   };
+}
+
+export async function computeTakings(
+  organizationId: string,
+  period: Period,
+  cfg: SalonConfig,
+  /** One stylist's own takings only. */
+  stylistName?: string
+) {
+  const listPriceFor = listPriceLookup(cfg);
 
   const appointments = await prisma.appointment.findMany({
     where: {

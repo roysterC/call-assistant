@@ -30,6 +30,8 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "conversations/[id]/star": { PATCH: "members" },
   conversations: { GET: "members" },
   dashboard: { GET: "members" },
+  // The owner's question of the receptionist: is it earning its keep?
+  "insights/receptionist": { GET: "owner" },
   leads: { GET: "members" },
   me: { GET: "members" },
   "phone-numbers": { GET: "members" },
