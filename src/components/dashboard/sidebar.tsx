@@ -87,6 +87,8 @@ export function Sidebar({
 }) {
   /** Hidden on the folded rail; always shown in the phone drawer. */
   const wide = collapsed ? "md:hidden" : "";
+  /** Hidden on the folded rail but still taking its space, so nothing below moves. */
+  const keep = collapsed ? "md:invisible" : "";
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const asOrg = searchParams.get("asOrg");
@@ -184,11 +186,20 @@ export function Sidebar({
         "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transition-transform duration-200 md:static md:max-w-none md:translate-x-0 md:transition-[width]",
         collapsed ? "md:w-16" : "md:w-64",
         open ? "translate-x-0" : "-translate-x-full",
-        "overflow-y-auto md:min-h-screen"
+        "overflow-y-auto overflow-x-hidden md:min-h-screen"
       )}
     >
-      <div className={cn("px-5 pt-6 pb-5", collapsed && "md:px-3.5")}>
-        <div className={cn("flex items-center gap-3", collapsed && "md:flex-col")}>
+      {/*
+        Every icon keeps one left edge whether the menu is open or folded, so
+        nothing moves when it is toggled; the 64px rail is sized to centre them
+        there (logo 14px + 36px, menu icons 8 + 15px + 18px, avatar 8 + 8px +
+        32px). Centring them instead tied their position to the width, which
+        animates, so they slid across and back on every fold. Vertically the
+        same: what the rail hides keeps its space, and the fold button has its
+        own row rather than stacking under the logo.
+      */}
+      <div className="px-3.5 pt-6 pb-5">
+        <div className="flex h-10 items-center gap-3">
           <BrandMark />
           <div className={cn("min-w-0 flex-1", wide)}>
             {/* Held blank, at full height, until the name and role are known. */}
@@ -203,22 +214,13 @@ export function Sidebar({
               )}
             </p>
           </div>
-          {onToggleCollapsed && (
-            <button
-              type="button"
-              onClick={onToggleCollapsed}
-              aria-label={collapsed ? "Expand menu" : "Collapse menu"}
-              title={collapsed ? "Expand menu" : "Collapse menu"}
-              className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-foreground hover:bg-accent transition-colors"
-            >
-              {collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
-            </button>
-          )}
         </div>
 
         {/* Super-admin org switcher */}
         {isSuperAdmin && orgs.length > 0 && (
-          <div className={cn("mt-3", wide)}>
+          // Its full width even on the rail, where it is invisible: squeezed into
+          // 36px its text wrapped and the box grew, pushing the menu down.
+          <div className={cn("mt-3 w-full whitespace-nowrap md:w-[228px]", keep)}>
             <DropdownMenu>
               <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-foreground/80 bg-card hover:bg-accent border border-input">
                 <span className="flex items-center gap-1.5">
@@ -248,8 +250,8 @@ export function Sidebar({
         )}
       </div>
 
-      <nav className={cn("flex-1 px-3 pb-3 space-y-0.5", collapsed && "md:px-2")}>
-        <p className={cn("px-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80", wide)}>
+      <nav className="flex-1 px-2 pb-3 space-y-0.5">
+        <p className={cn("px-[15px] pb-2 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap text-muted-foreground/80", keep)}>
           Menu
         </p>
         {orderForStartPage(navItems, startPage)
@@ -271,8 +273,7 @@ export function Sidebar({
                   badge ? `${item.label}, ${badge} waiting` : collapsed ? item.label : undefined
                 }
                 className={cn(
-                  "group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                  collapsed && "md:justify-center md:px-0",
+                  "group relative flex h-9 items-center gap-3 px-[15px] rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-slate-600 hover:text-foreground hover:bg-accent"
@@ -310,8 +311,7 @@ export function Sidebar({
             title={collapsed ? "Admin" : undefined}
             aria-label={collapsed ? "Admin" : undefined}
             className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors mt-4",
-              collapsed && "md:justify-center md:px-0",
+              "flex h-9 items-center gap-3 px-[15px] rounded-lg text-sm font-medium whitespace-nowrap transition-colors mt-4",
               pathname?.startsWith("/admin")
                 ? "bg-amber-50 text-amber-800"
                 : "text-slate-600 hover:text-amber-800 hover:bg-amber-50"
@@ -323,15 +323,34 @@ export function Sidebar({
         )}
       </nav>
 
+      {/* Folding sits on its own row, its icon in line with the menu's. */}
+      {onToggleCollapsed && (
+        <div className="hidden px-2 pb-2 md:block">
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+            title={collapsed ? "Expand menu" : "Collapse menu"}
+            className="group flex h-9 w-full items-center gap-3 whitespace-nowrap rounded-lg px-[15px] text-sm font-medium text-slate-500 transition-colors hover:bg-accent hover:text-foreground"
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-[18px] w-[18px] text-slate-400 group-hover:text-slate-600" />
+            ) : (
+              <PanelLeftClose className="h-[18px] w-[18px] text-slate-400 group-hover:text-slate-600" />
+            )}
+            <span className={wide}>Collapse menu</span>
+          </button>
+        </div>
+      )}
+
       {/* User menu */}
-      <div className={cn("p-3 border-t border-sidebar-border", collapsed && "md:px-2")}>
+      <div className="px-2 py-3 border-t border-sidebar-border">
         {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger
               title={collapsed ? user.name || user.email || undefined : undefined}
               className={cn(
-                "w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-accent",
-                collapsed && "md:justify-center md:px-0"
+                "w-full flex h-[52px] items-center gap-2.5 px-2 rounded-lg hover:bg-accent"
               )}
             >
               <div className="w-8 h-8 shrink-0 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold">
