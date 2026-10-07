@@ -109,6 +109,10 @@ export function Sidebar({
   }, [asOrg]);
   // The organisation's start page goes to the top (Settings → Start page).
   const [startPage, setStartPage] = useState<string | null>(null);
+  // The organisation's name, from the same request as the menu. Until it
+  // arrives the header stays blank: showing the login's own organisation or a
+  // placeholder first made the name visibly change on every reload.
+  const [orgName, setOrgName] = useState<string | null>(null);
 
   // Super-admins: load all orgs for the switcher
   useEffect(() => {
@@ -134,6 +138,7 @@ export function Sidebar({
     apiFetch("/api/settings")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
+        setOrgName(d?.organizationName || session?.user?.organizationName || "Call Assistant");
         if (!d?.settings) return;
         setStartPage(d.startPage ?? null);
         setFeatures({
@@ -144,8 +149,8 @@ export function Sidebar({
           facebookEnabled: !!d.settings.facebookEnabled,
         });
       })
-      .catch(() => {});
-  }, [session?.user?.id, asOrg]);
+      .catch(() => setOrgName(session?.user?.organizationName || "Call Assistant"));
+  }, [session?.user?.id, session?.user?.organizationName, asOrg]);
 
   const activeOrgId = asOrg || session?.user?.organizationId || null;
   const activeOrg = orgs.find((o) => o.id === activeOrgId);
@@ -186,13 +191,16 @@ export function Sidebar({
         <div className={cn("flex items-center gap-3", collapsed && "md:flex-col")}>
           <BrandMark />
           <div className={cn("min-w-0 flex-1", wide)}>
+            {/* Held blank, at full height, until the name and role are known. */}
             <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate">
-              {activeOrg?.name ||
-                session?.user?.organizationName ||
-                "Call Assistant"}
+              {orgName ?? <span className="invisible">Loading</span>}
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {isSuperAdmin && asOrg ? "viewing as super-admin" : "AI CRM"}
+              {role ? (
+                isSuperAdmin && asOrg ? "viewing as super-admin" : "AI CRM"
+              ) : (
+                <span className="invisible">AI CRM</span>
+              )}
             </p>
           </div>
           {onToggleCollapsed && (
