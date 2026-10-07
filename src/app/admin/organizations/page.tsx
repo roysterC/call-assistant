@@ -121,7 +121,7 @@ export default function OrganizationsPage() {
       accessorFn: (org) => (org.enabled ? "Enabled" : "Disabled"),
       cell: ({ row: { original: org } }) =>
         org.enabled ? (
-          <Pill className="bg-emerald-50 text-emerald-800">Enabled</Pill>
+          <Pill className="bg-tea-green-800 text-tea-green-100">Enabled</Pill>
         ) : (
           <Pill className="bg-red-50 text-red-800">Disabled</Pill>
         ),

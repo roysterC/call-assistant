@@ -121,7 +121,7 @@ export function StylistsEditor({
                   aria-label="Google calendar ID"
                 />
                 {!bookable && (
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-700">
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-papaya-whip-100">
                     <CircleAlert className="h-3.5 w-3.5 shrink-0" />
                     Not bookable until a calendar is shared with the service
                     account.

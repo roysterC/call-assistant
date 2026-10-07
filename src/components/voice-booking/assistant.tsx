@@ -399,11 +399,11 @@ export function Assistant() {
             <span
               className={cn(
                 "ml-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                listening ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
+                listening ? "bg-tea-green-800 text-tea-green-200" : "bg-muted text-muted-foreground"
               )}
               aria-live="polite"
             >
-              <span className={cn("h-1.5 w-1.5 rounded-full", listening ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
+              <span className={cn("h-1.5 w-1.5 rounded-full", listening ? "bg-tea-green-300 animate-pulse" : "bg-tea-green-500")} />
               {connecting ? "Starting…" : listening ? "Listening" : "Not listening"}
             </span>
             <Button
@@ -482,7 +482,7 @@ export function Assistant() {
                 <p className="font-medium">
                   {draft.clientName}
                   {draft.newClient && (
-                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">New client</span>
+                    <span className="ml-2 rounded bg-papaya-whip-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-papaya-whip-100">New client</span>
                   )}
                 </p>
                 {draft.kind === "note" && <p className="mt-1 text-sm italic">&ldquo;{draft.note}&rdquo;</p>}
@@ -504,7 +504,7 @@ export function Assistant() {
                   </p>
                 )}
                 {draft.phone && <p className="text-xs text-muted-foreground">{draft.phone}</p>}
-                {draft.skinTest && <p className="mt-1 text-xs font-medium text-amber-800">Skin test needed 48 hours before</p>}
+                {draft.skinTest && <p className="mt-1 text-xs font-medium text-papaya-whip-100">Skin test needed 48 hours before</p>}
                 {draft.notes && <p className="mt-1 text-xs text-muted-foreground">{draft.notes}</p>}
                 {draft.textTo && (
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">

@@ -452,7 +452,7 @@ export function DuplicateFlag({ client, className }: { client: ClientRow; classN
     <span
       title={`${n === 1 ? "Another client is" : `${n} other clients are`} also called ${client.name}. If it is the same person, their bookings are split across records.`}
       className={cn(
-        "inline-block rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-normal text-amber-800 whitespace-nowrap align-middle",
+        "inline-block rounded-md border border-papaya-whip-400 bg-papaya-whip-700 px-1.5 py-0.5 text-[11px] font-normal text-papaya-whip-100 whitespace-nowrap align-middle",
         className
       )}
     >

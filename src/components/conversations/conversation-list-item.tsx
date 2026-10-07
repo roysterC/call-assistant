@@ -97,7 +97,7 @@ export function ConversationListItem({
       className={cn(
         "w-full flex items-start gap-3 px-3 py-3 text-left transition-colors border-b border-border/60",
         isActive
-          ? "bg-blue-600/15 border-l-2 border-l-blue-500"
+          ? "bg-accent border-l-2 border-l-primary"
           : "hover:bg-accent/50"
       )}
     >
@@ -158,10 +158,10 @@ export function ConversationListItem({
 
         <div className="flex items-center gap-1.5 mt-0.5">
           {!isRead && (
-            <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+            <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
           )}
           {starred && (
-            <Star className="w-3 h-3 text-amber-600 fill-amber-500 shrink-0" />
+            <Star className="w-3 h-3 text-papaya-whip-200 fill-papaya-whip-300 shrink-0" />
           )}
           <p
             className={cn(

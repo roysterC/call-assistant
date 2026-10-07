@@ -98,8 +98,8 @@ export function UsageSummary() {
       </div>
 
       {admin && (
-        <div className="border-t border-border bg-indigo-50/60 px-5 py-3.5 rounded-b-xl">
-          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-indigo-700">
+        <div className="border-t border-border bg-tea-green-900 px-5 py-3.5 rounded-b-xl">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-tea-green-200">
             <ShieldCheck className="h-3.5 w-3.5" />
             Super-admin only · the salon never sees this
           </p>

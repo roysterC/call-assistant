@@ -429,7 +429,7 @@ export default function CalendarPage() {
                 className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm ${
                   on
                     ? "border-primary bg-primary text-primary-foreground shadow-[0_1px_2px_0_rgb(79_70_229/0.25)]"
-                    : "border-input bg-card text-slate-600"
+                    : "border-input bg-card text-muted-foreground"
                 } ${c.worksToday ? "" : "opacity-60"}`}
               >
                 {c.name}

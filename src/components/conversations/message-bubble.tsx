@@ -30,7 +30,7 @@ export function MessageBubble({
         impossible to see where a handoff happened.
       */}
       {isAgent && showTail && (
-        <span className="text-[10px] font-medium text-emerald-700 mb-0.5 px-1">
+        <span className="text-[10px] font-medium text-tea-green-200 mb-0.5 px-1">
           You
         </span>
       )}
@@ -49,7 +49,7 @@ export function MessageBubble({
           isUser && "bg-primary text-primary-foreground",
           isUser && (showTail ? "rounded-br-md" : "rounded-br-2xl"),
           isAgent &&
-            "bg-emerald-50 text-foreground border border-emerald-200",
+            "bg-tea-green-800 text-foreground border border-tea-green-600",
           // The bot's bubble is a filled grey with a hairline, not a faint wash of the
           // pane behind it, which read as loose text rather than messages.
           !isUser && !isAgent && "bg-muted text-foreground border border-border",
@@ -62,7 +62,7 @@ export function MessageBubble({
         <p
           className={cn(
             "text-[10px] mt-1 tabular-nums",
-            isUser ? "text-indigo-100" : "text-muted-foreground"
+            isUser ? "text-primary-foreground/75" : "text-muted-foreground"
           )}
         >
           {format(new Date(createdAt), "HH:mm")}

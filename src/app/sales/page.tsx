@@ -250,7 +250,7 @@ export default function SalesPage() {
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
               Taken
             </p>
-            <p className="text-2xl font-semibold tabular-nums text-emerald-700">
+            <p className="text-2xl font-semibold tabular-nums text-tea-green-200">
               {formatMoneyShort(totals.takenMinor)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -383,7 +383,7 @@ function Breakdown({
             {/* One scale across the list, so the bars are comparable. */}
             <div className="h-1 rounded-full bg-muted overflow-hidden">
               <div
-                className="h-full bg-emerald-500/70"
+                className="h-full bg-tea-green-300/70"
                 style={{ width: `${(i.minor / max) * 100}%` }}
               />
             </div>

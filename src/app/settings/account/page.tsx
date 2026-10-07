@@ -154,7 +154,7 @@ export default function AccountSettingsPage() {
               <p
                 className={`text-xs ${
                   message.type === "success"
-                    ? "text-emerald-700"
+                    ? "text-tea-green-200"
                     : "text-rose-600"
                 }`}
               >

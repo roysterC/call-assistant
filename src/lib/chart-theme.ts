@@ -15,29 +15,29 @@
 /** --card */
 export const CHART_SURFACE = "#ffffff";
 /** --background */
-export const CHART_BACKDROP = "#f7f8fa";
-/** --muted-foreground, 6.1:1 on the card — axis labels are small text. */
-export const CHART_AXIS = "#586275";
+export const CHART_BACKDROP = "#fbfbf4";
+/** --muted-foreground, 6.2:1 on the card — axis labels are small text. */
+export const CHART_AXIS = "#5b6635";
 /** --border, which is exactly what gridlines want on white. */
-export const CHART_GRID = "#e9ecf1";
+export const CHART_GRID = "#ebeedf";
 
 /** Series colours, ordered for first-in-chart legibility on a white surface. */
 export const CHART_SERIES = [
-  "#4f46e5", // indigo (the accent)
-  "#0e9f6e", // green
-  "#d97706", // amber
-  "#e11d48", // rose
-  "#0284c7", // sky
+  "#5b6635", // tea green 200 (the accent)
+  "#c58341", // light bronze 400
+  "#a57b10", // papaya whip 200
+  "#79842c", // beige 200
+  "#96622e", // light bronze 300
 ] as const;
 
 /** Applied to Recharts' <Tooltip contentStyle>. */
 export const CHART_TOOLTIP = {
   background: CHART_SURFACE,
-  border: "1px solid #e3e6ec",
+  border: "1px solid #e1e6cf",
   borderRadius: 10,
   fontSize: 12,
-  color: "#151b2c",
-  boxShadow: "0 4px 6px -2px rgba(21,27,44,0.05), 0 12px 24px -6px rgba(21,27,44,0.12)",
+  color: "#2d331a",
+  boxShadow: "0 4px 6px -2px rgba(45,51,26,0.05), 0 12px 24px -6px rgba(45,51,26,0.12)",
 } as const;
 
 /** Applied to <XAxis>/<YAxis> `tick`. */

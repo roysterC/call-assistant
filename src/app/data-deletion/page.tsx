@@ -47,7 +47,7 @@ export default function DataDeletionPage() {
             <li>
               Send an email to{" "}
               <a
-                className="text-blue-600 hover:underline"
+                className="text-primary hover:underline"
                 href="mailto:roy962002@hotmail.com?subject=Data%20deletion%20request"
               >
                 roy962002@hotmail.com
@@ -150,7 +150,7 @@ export default function DataDeletionPage() {
             <li>
               WhatsApp / Instagram / Facebook:{" "}
               <a
-                className="text-blue-600 hover:underline"
+                className="text-primary hover:underline"
                 href="https://www.facebook.com/help"
               >
                 Meta Help Centre
@@ -159,7 +159,7 @@ export default function DataDeletionPage() {
             <li>
               Anthropic:{" "}
               <a
-                className="text-blue-600 hover:underline"
+                className="text-primary hover:underline"
                 href="https://support.anthropic.com/"
               >
                 support.anthropic.com
@@ -167,19 +167,19 @@ export default function DataDeletionPage() {
             </li>
             <li>
               Twilio:{" "}
-              <a className="text-blue-600 hover:underline" href="https://www.twilio.com">
+              <a className="text-primary hover:underline" href="https://www.twilio.com">
                 twilio.com
               </a>
             </li>
             <li>
               Deepgram:{" "}
-              <a className="text-blue-600 hover:underline" href="https://deepgram.com">
+              <a className="text-primary hover:underline" href="https://deepgram.com">
                 deepgram.com
               </a>
             </li>
             <li>
               ElevenLabs:{" "}
-              <a className="text-blue-600 hover:underline" href="https://elevenlabs.io">
+              <a className="text-primary hover:underline" href="https://elevenlabs.io">
                 elevenlabs.io
               </a>
             </li>
@@ -194,7 +194,7 @@ export default function DataDeletionPage() {
             Data deletion is one of several rights you have under UK/EU
             GDPR. For the full list, see our{" "}
             <Link
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline"
               href="/privacy-policy"
             >
               Privacy Policy
@@ -202,7 +202,7 @@ export default function DataDeletionPage() {
             . You may also lodge a complaint with the UK Information
             Commissioner&rsquo;s Office at{" "}
             <a
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline"
               href="https://ico.org.uk"
             >
               ico.org.uk

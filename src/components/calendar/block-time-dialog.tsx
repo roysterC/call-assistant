@@ -377,8 +377,8 @@ export function BlockTimeDialog({
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
 
           {affected.length > 0 && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs">
-              <p className="flex gap-2 text-amber-700 mb-1.5">
+            <div className="rounded-md border border-papaya-whip-400 bg-papaya-whip-700 p-3 text-xs">
+              <p className="flex gap-2 text-papaya-whip-100 mb-1.5">
                 <TriangleAlert className="h-4 w-4 shrink-0" />
                 {affected.length === 1
                   ? "1 booking falls in this time. It stays booked; move it if you need to."

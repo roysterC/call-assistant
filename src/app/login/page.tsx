@@ -74,17 +74,17 @@ function LoginForm() {
     <div className="min-h-dvh grid lg:grid-cols-[1fr_minmax(0,560px)] bg-background">
       {/* The brand panel: what the product is, for the first screen anyone
           sees. Hidden on a phone, where the form is the whole point. */}
-      <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 p-12 text-white">
+      <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-tea-green-100 p-12 text-cornsilk-500">
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-white/10 blur-3xl"
+          className="pointer-events-none absolute -right-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-tea-green-200/40 blur-3xl"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-40 -left-24 h-[26rem] w-[26rem] rounded-full bg-violet-400/30 blur-3xl"
+          className="pointer-events-none absolute -bottom-40 -left-24 h-[26rem] w-[26rem] rounded-full bg-light-bronze-300/25 blur-3xl"
         />
         <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/15 ring-1 ring-white/25 flex items-center justify-center font-heading font-bold">
+          <div className="w-10 h-10 rounded-xl bg-tea-green-500 text-tea-green-100 flex items-center justify-center font-heading font-bold">
             K
           </div>
           <span className="font-heading text-lg font-semibold tracking-tight">Kikai</span>
@@ -93,14 +93,14 @@ function LoginForm() {
           <h2 className="font-heading text-4xl font-semibold leading-[1.15]">
             Your diary, your clients and every call, in one place.
           </h2>
-          <ul className="mt-10 space-y-5 text-indigo-50">
+          <ul className="mt-10 space-y-5 text-tea-green-700">
             {[
               { icon: CalendarDays, text: "A live diary for the whole team, on any screen" },
               { icon: PhoneCall, text: "Calls answered and booked in, day and night" },
               { icon: Receipt, text: "Takings recorded against every appointment" },
             ].map(({ icon: Icon, text }) => (
               <li key={text} className="flex items-center gap-3.5">
-                <span className="w-9 h-9 shrink-0 rounded-lg bg-white/15 ring-1 ring-white/20 flex items-center justify-center">
+                <span className="w-9 h-9 shrink-0 rounded-lg bg-tea-green-200 text-cornsilk-500 flex items-center justify-center">
                   <Icon className="w-[18px] h-[18px]" />
                 </span>
                 <span className="text-[0.95rem]">{text}</span>
@@ -108,7 +108,7 @@ function LoginForm() {
             ))}
           </ul>
         </div>
-        <p className="relative text-xs text-indigo-100/80">© Kikai</p>
+        <p className="relative text-xs text-tea-green-400">© Kikai</p>
       </aside>
 
       <main className="flex items-center justify-center p-6 sm:p-10">

@@ -322,12 +322,13 @@ export function DataTable<T>({
  * Cells and the bar above a table, so every page draws them the same way.
  * ------------------------------------------------------------------------- */
 
+/** The five Sage scales' pale steps, each with its darkest for the initials. */
 const TINTS = [
-  "bg-indigo-50 text-indigo-800",
-  "bg-emerald-50 text-emerald-800",
-  "bg-orange-50 text-orange-800",
-  "bg-violet-50 text-violet-800",
-  "bg-sky-50 text-sky-800",
+  "bg-tea-green-800 text-tea-green-100",
+  "bg-cornsilk-600 text-cornsilk-100",
+  "bg-papaya-whip-600 text-papaya-whip-100",
+  "bg-beige-800 text-beige-100",
+  "bg-light-bronze-900 text-light-bronze-100",
 ];
 
 /** The same colour for the same name, wherever it appears. */
@@ -397,7 +398,7 @@ export function Pill({ children, className }: { children: React.ReactNode; class
   return (
     <span
       className={cn(
-        "inline-block whitespace-nowrap rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-800",
+        "inline-block whitespace-nowrap rounded-full bg-tea-green-800 px-2.5 py-1 text-xs font-medium text-tea-green-100",
         className
       )}
     >

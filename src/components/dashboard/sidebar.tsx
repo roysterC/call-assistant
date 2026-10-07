@@ -203,10 +203,10 @@ export function Sidebar({
           <BrandMark />
           <div className={cn("min-w-0 flex-1", wide)}>
             {/* Held blank, at full height, until the name and role are known. */}
-            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate">
+            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate text-cornsilk-500">
               {orgName ?? <span className="invisible">Loading</span>}
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-tea-green-400 mt-0.5">
               {role ? (
                 isSuperAdmin && asOrg ? "viewing as super-admin" : "AI CRM"
               ) : (
@@ -222,12 +222,12 @@ export function Sidebar({
           // 36px its text wrapped and the box grew, pushing the menu down.
           <div className={cn("mt-3 w-full whitespace-nowrap md:w-[228px]", keep)}>
             <DropdownMenu>
-              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-foreground/80 bg-card hover:bg-accent border border-input">
+              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-sidebar-foreground bg-white/5 hover:bg-white/10 border border-sidebar-border">
                 <span className="flex items-center gap-1.5">
                   <Building2 className="w-3 h-3" />
                   Switch org
                 </span>
-                <span className="text-muted-foreground truncate">
+                <span className="text-tea-green-400 truncate">
                   {activeOrg?.slug || "—"}
                 </span>
               </DropdownMenuTrigger>
@@ -251,7 +251,7 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 px-2 pb-3 space-y-0.5">
-        <p className={cn("px-[15px] pb-2 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap text-muted-foreground/80", keep)}>
+        <p className={cn("px-[15px] pb-2 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap text-tea-green-400", keep)}>
           Menu
         </p>
         {orderForStartPage(navItems, startPage)
@@ -276,15 +276,15 @@ export function Sidebar({
                   "group relative flex h-9 items-center gap-3 px-[15px] rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-slate-600 hover:text-foreground hover:bg-accent"
+                    : "text-sidebar-foreground hover:text-cornsilk-500 hover:bg-white/8"
                 )}
               >
                 <item.icon
                   className={cn(
                     "w-[18px] h-[18px]",
                     isActive
-                      ? "text-primary"
-                      : "text-slate-400 group-hover:text-slate-600"
+                      ? "text-tea-green-700"
+                      : "text-tea-green-400 group-hover:text-tea-green-700"
                   )}
                 />
                 <span className={wide}>{item.label}</span>
@@ -292,7 +292,7 @@ export function Sidebar({
                   <span
                     aria-hidden
                     className={cn(
-                      "ml-auto min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-semibold leading-5 text-center tabular-nums",
+                      "ml-auto min-w-5 h-5 px-1.5 rounded-full bg-light-bronze-500 text-light-bronze-100 text-[11px] font-bold leading-5 text-center tabular-nums",
                       // On the folded rail, a smaller counter on the icon's corner.
                       collapsed && "md:absolute md:top-0.5 md:right-2 md:ml-0 md:min-w-4 md:h-4 md:px-1 md:text-[10px] md:leading-4"
                     )}
@@ -313,8 +313,8 @@ export function Sidebar({
             className={cn(
               "flex h-9 items-center gap-3 px-[15px] rounded-lg text-sm font-medium whitespace-nowrap transition-colors mt-4",
               pathname?.startsWith("/admin")
-                ? "bg-amber-50 text-amber-800"
-                : "text-slate-600 hover:text-amber-800 hover:bg-amber-50"
+                ? "bg-light-bronze-200 text-cornsilk-500"
+                : "text-sidebar-foreground hover:text-light-bronze-700 hover:bg-white/8"
             )}
           >
             <Shield className="w-[18px] h-[18px]" />
@@ -331,12 +331,12 @@ export function Sidebar({
             onClick={onToggleCollapsed}
             aria-label={collapsed ? "Expand menu" : "Collapse menu"}
             title={collapsed ? "Expand menu" : "Collapse menu"}
-            className="group flex h-9 w-full items-center gap-3 whitespace-nowrap rounded-lg px-[15px] text-sm font-medium text-slate-500 transition-colors hover:bg-accent hover:text-foreground"
+            className="group flex h-9 w-full items-center gap-3 whitespace-nowrap rounded-lg px-[15px] text-sm font-medium text-tea-green-400 transition-colors hover:bg-white/8 hover:text-cornsilk-500"
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-[18px] w-[18px] text-slate-400 group-hover:text-slate-600" />
+              <PanelLeftOpen className="h-[18px] w-[18px] text-tea-green-400 group-hover:text-tea-green-700" />
             ) : (
-              <PanelLeftClose className="h-[18px] w-[18px] text-slate-400 group-hover:text-slate-600" />
+              <PanelLeftClose className="h-[18px] w-[18px] text-tea-green-400 group-hover:text-tea-green-700" />
             )}
             <span className={wide}>Collapse menu</span>
           </button>
@@ -350,15 +350,15 @@ export function Sidebar({
             <DropdownMenuTrigger
               title={collapsed ? user.name || user.email || undefined : undefined}
               className={cn(
-                "w-full flex h-[52px] items-center gap-2.5 px-2 rounded-lg hover:bg-accent"
+                "w-full flex h-[52px] items-center gap-2.5 px-2 rounded-lg hover:bg-white/8"
               )}
             >
-              <div className="w-8 h-8 shrink-0 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold">
+              <div className="w-8 h-8 shrink-0 rounded-full bg-tea-green-200 text-cornsilk-500 flex items-center justify-center text-xs font-semibold">
                 {(user.name || user.email || "?")[0].toUpperCase()}
               </div>
               <div className={cn("flex-1 min-w-0 text-left", wide)}>
-                <p className="text-sm font-medium truncate">{user.name || user.email}</p>
-                <p className="text-[11px] text-muted-foreground truncate">
+                <p className="text-sm font-medium truncate text-cornsilk-500">{user.name || user.email}</p>
+                <p className="text-[11px] text-tea-green-400 truncate">
                   {user.email}
                 </p>
               </div>
@@ -381,8 +381,8 @@ export function Sidebar({
           </DropdownMenu>
         ) : (
           <div className="flex items-center gap-2 px-3 py-2">
-            <div className="w-2 h-2 bg-slate-300 rounded-full" />
-            <span className={cn("text-xs text-muted-foreground", wide)}>Not signed in</span>
+            <div className="w-2 h-2 bg-tea-green-400 rounded-full" />
+            <span className={cn("text-xs text-tea-green-400", wide)}>Not signed in</span>
           </div>
         )}
       </div>
@@ -391,8 +391,8 @@ export function Sidebar({
 }
 
 /**
- * The product mark: a rounded indigo tile. Shared with the mobile header and
- * the sign-in page so the three never drift apart.
+ * The product mark: a rounded tile in pale tea green. Shared with the mobile
+ * header and the sign-in page so the three never drift apart.
  */
 export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const box = size === "sm" ? "w-7 h-7 rounded-lg" : size === "lg" ? "w-11 h-11 rounded-xl" : "w-9 h-9 rounded-xl";
@@ -401,7 +401,7 @@ export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
     <div
       className={cn(
         box,
-        "shrink-0 flex items-center justify-center text-white bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_6px_-1px_rgb(79_70_229/0.45)]"
+        "shrink-0 flex items-center justify-center bg-tea-green-500 text-tea-green-100"
       )}
     >
       <Bot className={icon} />

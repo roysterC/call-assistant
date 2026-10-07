@@ -286,7 +286,7 @@ export function ClientSheet({
           </p>
         )}
         {saved && (
-          <p role="status" className="mx-4 mt-4 text-sm text-emerald-700">
+          <p role="status" className="mx-4 mt-4 text-sm text-tea-green-200">
             {saved}
           </p>
         )}

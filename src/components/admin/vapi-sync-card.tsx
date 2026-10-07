@@ -106,7 +106,7 @@ export function VapiSyncCard({ organizationId }: { organizationId: string }) {
         {result && !result.error && (
           <div className="space-y-2 text-xs">
             {result.synced && (
-              <p className="flex items-center gap-1.5 text-emerald-700">
+              <p className="flex items-center gap-1.5 text-tea-green-200">
                 <Check className="h-3.5 w-3.5" />
                 Pushed to assistant {result.assistantId}
               </p>
@@ -127,7 +127,7 @@ export function VapiSyncCard({ organizationId }: { organizationId: string }) {
                   Tools:{" "}
                   <span
                     className={cn(
-                      missing.length > 0 ? "text-amber-700" : "text-emerald-700"
+                      missing.length > 0 ? "text-papaya-whip-100" : "text-tea-green-200"
                     )}
                   >
                     {missing.length === 0
@@ -139,7 +139,7 @@ export function VapiSyncCard({ organizationId }: { organizationId: string }) {
             </div>
 
             {missing.length > 0 && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+              <div className="flex items-start gap-2 rounded-md border border-papaya-whip-400 bg-papaya-whip-700 px-3 py-2 text-papaya-whip-100">
                 <TriangleAlert className="h-4 w-4 shrink-0 mt-px" />
                 <div>
                   <p>
@@ -156,7 +156,7 @@ export function VapiSyncCard({ organizationId }: { organizationId: string }) {
             {result.warnings
               .filter((w) => !w.startsWith("Not attached in Vapi"))
               .map((w, i) => (
-                <p key={i} className="text-amber-700">
+                <p key={i} className="text-papaya-whip-100">
                   {w}
                 </p>
               ))}

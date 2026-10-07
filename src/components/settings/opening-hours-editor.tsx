@@ -78,7 +78,7 @@ export function OpeningHoursEditor({
                 "px-2.5 py-1 rounded-md text-xs font-medium transition-colors w-16 text-center",
                 d.closed
                   ? "bg-muted text-muted-foreground hover:text-foreground"
-                  : "bg-emerald-50 text-emerald-700"
+                  : "bg-tea-green-800 text-tea-green-200"
               )}
             >
               {d.closed ? "Closed" : "Open"}
