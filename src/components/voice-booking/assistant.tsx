@@ -85,6 +85,11 @@ export function Assistant() {
   const [error, setError] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
   const [speakReplies, setSpeakReplies] = useState(true);
+  // What speak() reads. The microphone's handlers are set up once, when it
+  // starts, and kept the state of that moment: switching reading aloud on or
+  // off mid-conversation did nothing to spoken questions until the
+  // microphone was restarted.
+  const speakRepliesRef = useRef(true);
   /** The browser wants a touch before it will use the microphone. */
   const [needsTap, setNeedsTap] = useState(false);
   const speaking = useRef(false);
@@ -117,15 +122,21 @@ export function Assistant() {
   // Remembered per browser; a browser that refuses storage just speaks.
   useEffect(() => {
     try {
-      if (localStorage.getItem(SPEAK_KEY) === "off") setSpeakReplies(false);
+      if (localStorage.getItem(SPEAK_KEY) === "off") {
+        speakRepliesRef.current = false;
+        setSpeakReplies(false);
+      }
     } catch {
       // Storage refused: keep the default.
     }
   }, []);
   function toggleSpeak() {
-    const next = !speakReplies;
+    const next = !speakRepliesRef.current;
+    speakRepliesRef.current = next;
     setSpeakReplies(next);
-    if (!next) stopSpeaking();
+    // A tap: the moment a phone allows speech to be unlocked.
+    if (next) unlockSpeech();
+    else stopSpeaking();
     try {
       localStorage.setItem(SPEAK_KEY, next ? "on" : "off");
     } catch {
@@ -149,7 +160,7 @@ export function Assistant() {
 
   /** Read a reply aloud, with the microphone paused so it does not hear itself. */
   function speak(text: string) {
-    if (!speakReplies || typeof window === "undefined" || !("speechSynthesis" in window) || !text) return;
+    if (!speakRepliesRef.current || typeof window === "undefined" || !("speechSynthesis" in window) || !text) return;
     const synth = window.speechSynthesis;
     synth.cancel();
     // A phone can leave speech paused after the page was in the background.
