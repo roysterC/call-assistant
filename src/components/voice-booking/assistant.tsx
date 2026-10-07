@@ -11,7 +11,10 @@
  *
  * Replies are read aloud in the device's own British voice, so it works with
  * hands full, and the microphone pauses while it speaks so it does not hear
- * itself. The panel floats over the page rather than covering it; a box to
+ * itself. A phone only lets a page start speaking from inside a tap until it
+ * has done so once, so every tap here unlocks speech first; and the pause
+ * always lifts, even when the phone never plays a reply, or the microphone
+ * would stay deaf until restarted. The panel floats over the page rather than covering it; a box to
  * type into does the same job in a noisy salon.
  */
 
@@ -85,6 +88,10 @@ export function Assistant() {
   /** The browser wants a touch before it will use the microphone. */
   const [needsTap, setNeedsTap] = useState(false);
   const speaking = useRef(false);
+  /** The utterance the pause belongs to, so an older one's timers cannot lift a newer one's. */
+  const speech = useRef(0);
+  const unlocked = useRef(false);
+  const [silent, setSilent] = useState(false);
 
   // Opened by /assistant (Siri, Google Assistant, the app icon): start
   // listening straight away, and take the flag off the address so a reload
@@ -126,28 +133,67 @@ export function Assistant() {
     }
   }
 
+  /**
+   * Called from inside a tap. iPhones (and some Android browsers) let a page
+   * start speaking only from a tap until it has spoken once; a reply arrives
+   * seconds after the tap, so without this it was dropped without a sound.
+   * A silent utterance here is that first time.
+   */
+  function unlockSpeech() {
+    if (unlocked.current || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    unlocked.current = true;
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+  }
+
   /** Read a reply aloud, with the microphone paused so it does not hear itself. */
   function speak(text: string) {
     if (!speakReplies || typeof window === "undefined" || !("speechSynthesis" in window) || !text) return;
     const synth = window.speechSynthesis;
     synth.cancel();
+    // A phone can leave speech paused after the page was in the background.
+    synth.resume();
     const u = new SpeechSynthesisUtterance(text);
     const voices = synth.getVoices();
     const british = voices.find((v) => v.lang === "en-GB" && /female|serena|kate|libby|sonia/i.test(v.name)) ?? voices.find((v) => v.lang === "en-GB");
     if (british) u.voice = british;
     u.lang = "en-GB";
     u.rate = 1;
+
+    const id = ++speech.current;
     speaking.current = true;
-    const done = () => {
+    let started = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const lift = (graceMs: number) => {
+      timers.forEach(clearTimeout);
       // A moment's grace for the last of it to leave the speaker.
-      setTimeout(() => (speaking.current = false), 300);
+      setTimeout(() => {
+        if (speech.current === id) speaking.current = false;
+      }, graceMs);
     };
-    u.onend = done;
-    u.onerror = done;
+    u.onstart = () => {
+      started = true;
+      setSilent(false);
+    };
+    u.onend = () => lift(300);
+    u.onerror = () => lift(0);
+    // The pause must always lift. A phone that will not play the reply fires
+    // no event at all, and the microphone stayed deaf until restarted.
+    timers.push(
+      setTimeout(() => {
+        if (started || speech.current !== id) return;
+        setSilent(true);
+        lift(0);
+      }, 1500),
+      // Never longer than the reply could take to say, with room to spare.
+      setTimeout(() => lift(0), 4000 + text.length * 90)
+    );
     synth.speak(u);
   }
   function stopSpeaking() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    speech.current++;
     speaking.current = false;
   }
 
@@ -311,6 +357,7 @@ export function Assistant() {
   }
 
   function openAndListen() {
+    unlockSpeech();
     setOpen(true);
     void startListening();
   }
@@ -367,7 +414,10 @@ export function Assistant() {
             {needsTap && (
               <button
                 type="button"
-                onClick={() => void startListening()}
+                onClick={() => {
+                  unlockSpeech();
+                  void startListening();
+                }}
                 className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 py-8 text-primary"
               >
                 <Mic className="h-10 w-10" />
@@ -452,15 +502,36 @@ export function Assistant() {
                   </p>
                 )}
                 <div className="mt-3 flex gap-2">
-                  <Button size="sm" disabled={busy} onClick={() => void send("", "save")}>
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      unlockSpeech();
+                      void send("", "save");
+                    }}
+                  >
                     {SAVE_LABEL[draft.kind]}
                   </Button>
-                  <Button size="sm" variant="outline" disabled={busy} onClick={() => void send("", "discard")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      unlockSpeech();
+                      void send("", "discard");
+                    }}
+                  >
                     Not this
                   </Button>
                   <span className="ml-auto self-center text-[11px] text-muted-foreground">or say &ldquo;yes&rdquo;</span>
                 </div>
               </div>
+            )}
+            {silent && speakReplies && (
+              <p className="text-xs text-muted-foreground">
+                This device didn&apos;t read that reply aloud. Check its volume and that it isn&apos;t on silent; the
+                microphone is still listening.
+              </p>
             )}
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div ref={endRef} />
@@ -470,6 +541,7 @@ export function Assistant() {
             className="flex items-center gap-2 border-t border-border px-3 py-2.5"
             onSubmit={(e) => {
               e.preventDefault();
+              unlockSpeech();
               const t = typed.trim();
               if (!t || busy) return;
               setTyped("");
@@ -483,6 +555,7 @@ export function Assistant() {
               aria-label={listening ? "Stop listening" : "Start listening"}
               onClick={() => {
                 stopSpeaking();
+                unlockSpeech();
                 if (listening || connecting) stopListening();
                 else void startListening();
               }}
