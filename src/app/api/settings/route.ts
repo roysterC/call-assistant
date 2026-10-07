@@ -155,9 +155,17 @@ export async function GET(req: NextRequest) {
       isOwner: ctx.role !== "member",
     });
 
+    // The name the sidebar heads with: this organisation's, including the one
+    // a super-admin is viewing as, so it never shows another name first.
+    const org = await prisma.organization.findUnique({
+      where: { id: ctx.organizationId },
+      select: { name: true },
+    });
+
     return NextResponse.json({
       settings: ctx.isSuperAdmin ? settings : withoutSecrets(settings),
       startPage,
+      organizationName: org?.name ?? null,
     });
   } catch (error) {
     console.error("[SETTINGS API] GET error:", error);
