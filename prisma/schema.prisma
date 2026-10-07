@@ -56,14 +56,6 @@ model User {
   passwordHash       String?
   role               String        @default("member") // member, admin, superAdmin
   organizationId     String?
-  // Withdrawn: stylist logins (role "stylist") were removed. @ignore keeps
-  // these out of the Prisma client, so nothing loads them, while the columns
-  // stay until they are dropped by hand on the box; the deploy refuses to
-  // drop columns itself (see README, schema-change policy). Delete these
-  // lines once the columns are gone.
-  stylistName        String?       @ignore
-  diaryScope         String        @default("salon") @ignore
-  canSeeTakings      Boolean       @default(true) @ignore
   mustChangePassword Boolean       @default(false)
   /// Copied into the login cookie at sign-in. Raising it (a password changed
   /// or reset) ends every session signed in before, on their next request.
