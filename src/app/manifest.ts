@@ -22,8 +22,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "any",
-    background_color: "#ffffff",
-    theme_color: "#ffffff",
+    background_color: "#fbfbf4",
+    theme_color: "#2d331a",
     // Long-press the app icon (Android): straight into the assistant, listening.
     shortcuts: [
       {

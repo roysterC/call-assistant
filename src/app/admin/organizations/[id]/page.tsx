@@ -438,7 +438,7 @@ export default function OrganizationDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -501,7 +501,7 @@ export default function OrganizationDetailPage() {
       accessorFn: (w) => (w.enabled ? "Enabled" : "Disabled"),
       cell: ({ row: { original: w } }) =>
         w.enabled ? (
-          <Pill className="bg-emerald-50 text-emerald-800">Enabled</Pill>
+          <Pill className="bg-tea-green-800 text-tea-green-100">Enabled</Pill>
         ) : (
           <Pill className="bg-red-50 text-red-800">Disabled</Pill>
         ),
@@ -514,7 +514,7 @@ export default function OrganizationDetailPage() {
       cell: ({ row: { original: w } }) => (
         <span className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Button variant="ghost" size="sm" onClick={() => copyEmbedForSite(w.siteId)} aria-label={`Copy embed code for ${w.name}`} title="Copy embed code">
-            {copiedSiteId === w.siteId ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+            {copiedSiteId === w.siteId ? <Check className="h-4 w-4 text-tea-green-200" /> : <Copy className="h-4 w-4" />}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => deleteWebsite(w.id, w.name)} aria-label={`Delete ${w.name}`} title="Delete">
             <Trash2 className="h-4 w-4" />
@@ -638,7 +638,7 @@ export default function OrganizationDetailPage() {
         <span>{plural(org._count.leads, "lead")}</span>
         <span>{plural(org._count.calls, "call")}</span>
         <span>{plural(org._count.websites, "site")}</span>
-        <span className={org.enabled ? "text-emerald-700" : "text-red-600"}>
+        <span className={org.enabled ? "text-tea-green-200" : "text-red-600"}>
           {org.enabled ? "Enabled" : "Disabled"}
         </span>
       </p>
@@ -798,7 +798,7 @@ export default function OrganizationDetailPage() {
                 href="https://developers.facebook.com/docs/messenger-platform/instagram/"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Instagram Messaging setup docs
@@ -869,7 +869,7 @@ export default function OrganizationDetailPage() {
                 href="https://developers.facebook.com/docs/messenger-platform/webhooks/"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Messenger webhook setup docs
@@ -941,7 +941,7 @@ export default function OrganizationDetailPage() {
                 href="https://dashboard.vapi.ai"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Open Vapi dashboard
@@ -962,7 +962,7 @@ export default function OrganizationDetailPage() {
                   href="https://app.cal.com/settings/developer/api-keys"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
                 >
                   <ExternalLink className="w-3 h-3" />
                   Get a Cal.com API key

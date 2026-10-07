@@ -53,7 +53,7 @@ export function StatCard({
         <p
           className={cn(
             "font-heading text-2xl md:text-[2rem] leading-none font-semibold mt-3 tabular-nums tracking-tight",
-            accent ? "text-emerald-700" : "text-foreground"
+            accent ? "text-tea-green-200" : "text-foreground"
           )}
         >
           {value}
@@ -62,7 +62,7 @@ export function StatCard({
           <p
             className={cn(
               "text-xs mt-2.5",
-              trend === "up" && "text-emerald-700",
+              trend === "up" && "text-tea-green-200",
               trend === "down" && "text-red-600",
               (!trend || trend === "neutral") && "text-muted-foreground"
             )}

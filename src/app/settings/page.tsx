@@ -178,7 +178,7 @@ export default function SettingsPage() {
   if (loading || !settings) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -243,7 +243,7 @@ export default function SettingsPage() {
             {saveResult && (
               <span
                 role="status"
-                className={saveResult.ok ? "text-sm text-emerald-700" : "text-sm text-red-600"}
+                className={saveResult.ok ? "text-sm text-tea-green-200" : "text-sm text-red-600"}
               >
                 {saveResult.message}
               </span>

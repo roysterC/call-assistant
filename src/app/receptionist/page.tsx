@@ -174,7 +174,7 @@ function Lab() {
         title="Receptionist lab"
       />
 
-      <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+      <div className="flex items-start gap-2 rounded-lg border border-papaya-whip-400 bg-papaya-whip-700 px-3 py-2 text-sm text-papaya-whip-100">
         <TriangleAlert className="h-4 w-4 mt-0.5 shrink-0" />
         <p>
           This uses the real diary. Anything it books, moves or cancels really happens, and

@@ -503,7 +503,7 @@ function StylistColumn({
             </span>
             <span className="block truncate text-foreground/70">{a.serviceText}</span>
             {a.patchTestRequired && (
-              <span className="block truncate font-medium text-amber-800">patch test</span>
+              <span className="block truncate font-medium text-papaya-whip-100">patch test</span>
             )}
           </button>
         );

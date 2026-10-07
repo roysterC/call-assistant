@@ -111,7 +111,7 @@ export default function CallsPage() {
               id: "cost",
               header: "Cost",
               enableSorting: false,
-              meta: { align: "right", className: "text-indigo-700" },
+              meta: { align: "right", className: "text-tea-green-200" },
               cell: ({ row: { original: c } }) => (c.costPence !== undefined ? formatPence(c.costPence) : "—"),
             } satisfies ColumnDef<Call>,
           ]

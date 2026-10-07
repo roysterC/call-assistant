@@ -396,13 +396,13 @@ export function BookingDetails({
       </Field>
 
       {patchTest && (
-        <p className="flex gap-2 text-xs text-amber-700">
+        <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
           New client having colour: needs a skin patch test 48 hours before.
         </p>
       )}
       {blocked && (
-        <p className="flex gap-2 text-xs text-amber-700">
+        <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
           {blocked.stylistName === null
             ? `The salon is blocked for ${blocked.label}.`
@@ -411,7 +411,7 @@ export function BookingDetails({
         </p>
       )}
       {clash && (
-        <p className="flex gap-2 text-xs text-amber-700">
+        <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
           Overlaps {clash.lead.name ?? "another booking"} ({clash.serviceText}) with{" "}
           {clash.stylistName}. You can still book it.

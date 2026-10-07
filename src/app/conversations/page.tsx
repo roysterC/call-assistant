@@ -542,7 +542,7 @@ export default function ConversationsPage() {
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full" />
+              <div className="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full" />
             </div>
           ) : conversations.length === 0 ? (
             <EmptyState
@@ -597,7 +597,7 @@ export default function ConversationsPage() {
           </div>
         ) : loadingDetail ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full" />
+            <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
           </div>
         ) : activeConversation ? (
           <>
@@ -752,8 +752,8 @@ export default function ConversationsPage() {
                     className={cn(
                       "w-1.5 h-1.5 rounded-full shrink-0",
                       activeConversation.handoffState === "bot"
-                        ? "bg-blue-500"
-                        : "bg-emerald-500"
+                        ? "bg-primary"
+                        : "bg-tea-green-300"
                     )}
                   />
                   <span className="truncate">
@@ -829,7 +829,7 @@ export default function ConversationsPage() {
       {contactPanelOpen && contactPanelData && (
         <div className="xl:hidden fixed inset-0 z-50 flex">
           <button
-            className="flex-1 bg-slate-900/30 backdrop-blur-[2px]"
+            className="flex-1 bg-tea-green-100/30 backdrop-blur-[2px]"
             onClick={() => setContactPanelOpen(false)}
             aria-label="Close contact panel"
           />

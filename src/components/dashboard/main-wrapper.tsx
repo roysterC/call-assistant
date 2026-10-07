@@ -51,29 +51,30 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         into what was left — the conversations list rendered about 119px wide.
         Below md the rail is now a drawer behind this button.
       */}
-      <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-border bg-card/95 backdrop-blur">
+      {/* Dark, as the menu it opens and the phone's own bar above it. */}
+      <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <button
           onClick={() => setNavOpen(true)}
           aria-label="Open navigation"
           aria-expanded={navOpen}
-          className="relative h-9 w-9 -ml-1.5 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="relative h-9 w-9 -ml-1.5 rounded-md flex items-center justify-center text-tea-green-400 hover:text-cornsilk-500 hover:bg-white/10 transition-colors"
         >
           <Menu className="w-5 h-5" />
           {pending > 0 && (
             <>
-              <span aria-hidden className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-card" />
+              <span aria-hidden className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2 ring-sidebar" />
               <span className="sr-only">{pending} callbacks waiting</span>
             </>
           )}
         </button>
         <BrandMark size="sm" />
-        <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate">Kikai</span>
+        <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate text-cornsilk-500">Kikai</span>
       </header>
 
       <div className="flex flex-1 min-h-0 w-full">
         {navOpen && (
           <div
-            className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[2px] md:hidden"
+            className="fixed inset-0 z-40 bg-tea-green-100/30 backdrop-blur-[2px] md:hidden"
             onClick={() => setNavOpen(false)}
             aria-hidden
           />

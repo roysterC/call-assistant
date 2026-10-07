@@ -115,7 +115,7 @@ export function ContactPanel({
               className={cn(
                 "w-4 h-4",
                 conversation.starred
-                  ? "text-amber-600 fill-amber-500"
+                  ? "text-papaya-whip-200 fill-papaya-whip-300"
                   : "text-muted-foreground"
               )}
             />

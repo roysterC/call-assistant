@@ -304,11 +304,11 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
           className={cn(
             "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium",
             state === "speaking"
-              ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+              ? "border-tea-green-600 bg-tea-green-800 text-tea-green-200"
               : state === "thinking"
-                ? "border-amber-200 bg-amber-50 text-amber-800"
+                ? "border-papaya-whip-400 bg-papaya-whip-700 text-papaya-whip-100"
                 : state === "listening"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  ? "border-tea-green-600 bg-tea-green-800 text-tea-green-200"
                   : "border-border bg-muted text-muted-foreground"
           )}
           aria-live="polite"
@@ -316,7 +316,7 @@ export function VoiceLab({ callerNumber }: { callerNumber: string }) {
           <span
             className={cn(
               "h-2 w-2 rounded-full",
-              state === "speaking" ? "bg-indigo-500 animate-pulse" : state === "thinking" ? "bg-amber-500 animate-pulse" : state === "listening" ? "bg-emerald-500" : "bg-slate-300"
+              state === "speaking" ? "bg-tea-green-300 animate-pulse" : state === "thinking" ? "bg-papaya-whip-300 animate-pulse" : state === "listening" ? "bg-tea-green-300" : "bg-tea-green-500"
             )}
           />
           {STATE_LABEL[state]}

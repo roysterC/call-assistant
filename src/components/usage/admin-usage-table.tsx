@@ -123,7 +123,7 @@ export function AdminUsageTable({ names }: { names: Record<string, string> }) {
       id: "margin",
       header: "Margin",
       accessorFn: (r) => r.marginPence ?? -1,
-      meta: { ...right, className: "text-emerald-700" },
+      meta: { ...right, className: "text-tea-green-200" },
       cell: ({ row: { original: r } }) => money(r.marginPence),
       footer: () => formatPence(total.margin),
     },

@@ -90,7 +90,7 @@ function WebsitesPageInner() {
       accessorFn: (site) => (site.enabled ? "Live" : "Off"),
       cell: ({ row: { original: site } }) =>
         site.enabled ? (
-          <Pill className="bg-emerald-50 text-emerald-800">Live</Pill>
+          <Pill className="bg-tea-green-800 text-tea-green-100">Live</Pill>
         ) : (
           <Pill className="bg-muted text-muted-foreground">Off</Pill>
         ),
@@ -118,7 +118,7 @@ function WebsitesPageInner() {
           aria-label={`Copy embed code for ${site.name}`}
           title="Copy embed code"
         >
-          {copiedId === site.siteId ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+          {copiedId === site.siteId ? <Check className="h-4 w-4 text-tea-green-200" /> : <Copy className="h-4 w-4" />}
         </Button>
       ),
     },

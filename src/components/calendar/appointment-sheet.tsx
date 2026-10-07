@@ -214,7 +214,7 @@ export function AppointmentSheet({
             </div>
 
             {a.patchTestRequired && (
-              <p className="flex gap-2 text-xs text-amber-700">
+              <p className="flex gap-2 text-xs text-papaya-whip-100">
                 <TriangleAlert className="h-4 w-4 shrink-0" />
                 Needs a skin patch test 48 hours before the colour.
               </p>

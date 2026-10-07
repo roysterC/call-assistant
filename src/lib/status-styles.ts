@@ -18,27 +18,30 @@ interface StatusStyle {
 }
 
 /**
- * Every entry is the same shape — a 50 fill, a 700-weight text colour, a 200
- * border — and each is written out in full rather than assembled from a hue.
+ * Every entry is the same shape, from the Sage palette (globals.css): a pale
+ * fill, the darkest step of the same scale for text, a mid step for the
+ * border. Tea green is done or good, cornsilk new or waiting, papaya whip
+ * needs attention, red (kept from Tailwind; the palette has none) a problem.
+ * Each is written out in full rather than assembled from a hue.
  * Tailwind scans source for literal class names, so `bg-${hue}-500/15` would
  * compile to nothing and the badges would render bare.
  */
 export const LEAD_STATUS: Record<string, StatusStyle> = {
   new: {
     label: "New",
-    className: "bg-blue-50 text-blue-700 border-blue-200",
+    className: "bg-cornsilk-600 text-cornsilk-100 border-cornsilk-400",
   },
   contacted: {
     label: "Contacted",
-    className: "bg-slate-100 text-slate-600 border-slate-200",
+    className: "bg-tea-green-900 text-tea-green-200 border-tea-green-700",
   },
   callback_booked: {
     label: "Callback booked",
-    className: "bg-amber-50 text-amber-800 border-amber-200",
+    className: "bg-papaya-whip-700 text-papaya-whip-100 border-papaya-whip-400",
   },
   resolved: {
     label: "Resolved",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    className: "bg-tea-green-800 text-tea-green-100 border-tea-green-600",
   },
   lost: {
     label: "Lost",
@@ -61,11 +64,11 @@ export function leadStatus(status: string): StatusStyle {
 export const SENTIMENT: Record<string, StatusStyle> = {
   positive: {
     label: "Positive",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    className: "bg-tea-green-800 text-tea-green-100 border-tea-green-600",
   },
   neutral: {
     label: "Neutral",
-    className: "bg-slate-100 text-slate-600 border-slate-200",
+    className: "bg-tea-green-900 text-tea-green-200 border-tea-green-700",
   },
   negative: {
     label: "Negative",
@@ -85,11 +88,11 @@ export function sentimentStyle(value: string): StatusStyle {
 export const CALLBACK_STATUS: Record<string, StatusStyle> = {
   pending: {
     label: "Pending",
-    className: "bg-blue-50 text-blue-700 border-blue-200",
+    className: "bg-cornsilk-600 text-cornsilk-100 border-cornsilk-400",
   },
   completed: {
     label: "Completed",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    className: "bg-tea-green-800 text-tea-green-100 border-tea-green-600",
   },
   missed: {
     label: "Missed",
@@ -118,22 +121,22 @@ export const STATUS_BADGE =
 
 /** A call's outcome in Call History (src/lib/receptionist/outcomes.ts). */
 export const OUTCOME_STYLE: Record<string, StatusStyle> = {
-  booked: { label: "Booked", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
-  rescheduled: { label: "Rescheduled", className: "border-sky-200 bg-sky-50 text-sky-800" },
-  cancelled: { label: "Cancelled", className: "border-amber-200 bg-amber-50 text-amber-800" },
-  message: { label: "Left a message", className: "border-violet-200 bg-violet-50 text-violet-800" },
-  enquiry: { label: "Enquiry", className: "border-slate-200 bg-slate-50 text-slate-700" },
-  hung_up: { label: "Hung up", className: "border-slate-200 bg-white text-slate-500" },
+  booked: { label: "Booked", className: "border-tea-green-600 bg-tea-green-800 text-tea-green-100" },
+  rescheduled: { label: "Rescheduled", className: "border-light-bronze-700 bg-light-bronze-900 text-light-bronze-100" },
+  cancelled: { label: "Cancelled", className: "border-papaya-whip-400 bg-papaya-whip-700 text-papaya-whip-100" },
+  message: { label: "Left a message", className: "border-beige-600 bg-beige-800 text-beige-100" },
+  enquiry: { label: "Enquiry", className: "border-tea-green-700 bg-tea-green-900 text-tea-green-200" },
+  hung_up: { label: "Hung up", className: "border-tea-green-700 bg-white text-tea-green-200" },
 };
 
 export const APPOINTMENT_STATUS: Record<string, StatusStyle> = {
   booked: {
     label: "Booked",
-    className: "bg-blue-50 text-blue-700 border-blue-200",
+    className: "bg-cornsilk-600 text-cornsilk-100 border-cornsilk-400",
   },
   completed: {
     label: "Completed",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    className: "bg-tea-green-800 text-tea-green-100 border-tea-green-600",
   },
   cancelled: {
     label: "Cancelled",
@@ -155,20 +158,20 @@ export function appointmentStatus(status: string): StatusStyle {
 }
 
 /**
- * Amber, and never truncated in the table.
+ * Papaya whip (amber), and never truncated in the table.
  *
  * A patch test is a 48-hour lead time and a skin-reaction liability. Buried in
  * a notes column it gets missed, and the consequence lands on the client — so
  * it gets its own colour, distinct from every status above.
  */
 export const PATCH_TEST_BADGE =
-  "bg-amber-50 text-amber-800 border-amber-200";
+  "bg-papaya-whip-700 text-papaya-whip-100 border-papaya-whip-400";
 
 /** Whether the confirmation text actually went out. */
 export const SMS_STATUS: Record<"sent" | "failed" | "pending", StatusStyle> = {
   sent: {
     label: "Sent",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    className: "bg-tea-green-800 text-tea-green-100 border-tea-green-600",
   },
   failed: {
     label: "Failed",
