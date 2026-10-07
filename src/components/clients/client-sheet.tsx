@@ -2,11 +2,12 @@
 
 /**
  * One client, opened from the Clients page: how to reach them, their patch
- * test, their notes, and every booking they have had or have coming.
+ * test, their notes, and every booking they have had or have coming. All of
+ * it can be changed here, their name, number and email included.
  */
 
 import { useEffect, useState } from "react";
-import { Mail, Phone, TriangleAlert } from "lucide-react";
+import { Mail, Pencil, Phone, TriangleAlert } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,8 @@ import { cn } from "@/lib/utils";
 interface ClientDetail {
   id: string;
   name: string | null;
+  firstName: string | null;
+  lastName: string | null;
   phone: string | null;
   email: string | null;
   notes: string | null;
@@ -84,7 +87,10 @@ export function ClientSheet({
 
   const [notes, setNotes] = useState("");
   const [testDay, setTestDay] = useState("");
-  const [saving, setSaving] = useState<"notes" | "test" | null>(null);
+  const [saving, setSaving] = useState<"notes" | "test" | "details" | null>(null);
+  // Editing who they are: name, number, email.
+  const [editing, setEditing] = useState(false);
+  const [details, setDetails] = useState({ firstName: "", lastName: "", phone: "", email: "" });
   const [saved, setSaved] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,6 +100,7 @@ export function ClientSheet({
     setBookings([]);
     setError(null);
     setSaved(null);
+    setEditing(false);
     apiFetch(`/api/clients/${clientId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => {
@@ -110,7 +117,35 @@ export function ClientSheet({
     };
   }, [clientId]);
 
-  async function save(kind: "notes" | "test", body: Record<string, unknown>) {
+  function startEditing() {
+    if (!client) return;
+    setDetails({
+      firstName: client.firstName ?? client.name ?? "",
+      lastName: client.lastName ?? "",
+      phone: client.phone ?? "",
+      email: client.email ?? "",
+    });
+    setSaved(null);
+    setError(null);
+    setEditing(true);
+  }
+
+  /** Only what changed is sent, so an untouched number is not re-checked. */
+  async function saveDetails() {
+    if (!client) return;
+    const body: Record<string, string> = {};
+    if (details.firstName.trim() !== (client.firstName ?? client.name ?? "")) body.firstName = details.firstName;
+    if (details.lastName.trim() !== (client.lastName ?? "")) body.lastName = details.lastName;
+    if (details.phone.trim() !== (client.phone ?? "")) body.phone = details.phone;
+    if (details.email.trim() !== (client.email ?? "")) body.email = details.email;
+    if (Object.keys(body).length === 0) {
+      setEditing(false);
+      return;
+    }
+    await save("details", body);
+  }
+
+  async function save(kind: "notes" | "test" | "details", body: Record<string, unknown>) {
     if (!client) return;
     setSaving(kind);
     setError(null);
@@ -126,9 +161,21 @@ export function ClientSheet({
         setError(d.error || "That didn't save. Try again.");
         return;
       }
-      setClient({ ...client, notes: d.client.notes, patchTestAt: d.client.patchTestAt });
-      setNotes(d.client.notes ?? "");
-      setSaved(kind === "notes" ? "Notes saved." : "Patch test saved.");
+      setClient({
+        ...client,
+        name: d.client.name,
+        firstName: d.client.firstName,
+        lastName: d.client.lastName,
+        phone: d.client.phone,
+        email: d.client.email,
+        contactLead: d.client.contactLead,
+        notes: d.client.notes,
+        patchTestAt: d.client.patchTestAt,
+      });
+      // Notes being typed are kept when something else is saved.
+      if (kind === "notes") setNotes(d.client.notes ?? "");
+      if (kind === "details") setEditing(false);
+      setSaved(kind === "notes" ? "Notes saved." : kind === "test" ? "Patch test saved." : "Details saved.");
       onChanged();
     } finally {
       setSaving(null);
@@ -150,7 +197,57 @@ export function ClientSheet({
       <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto gap-0">
         <SheetHeader className="border-b pr-12">
           <SheetTitle className="text-lg">{client?.name ?? (error ? "Client" : "Loading…")}</SheetTitle>
-          {client && (
+          {client && editing && (
+            <form
+              className="mt-2 grid grid-cols-2 gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void saveDetails();
+              }}
+            >
+              <DetailField
+                id="client-first-name"
+                label="First name"
+                value={details.firstName}
+                onChange={(v) => setDetails({ ...details, firstName: v })}
+                autoComplete="given-name"
+                required
+              />
+              <DetailField
+                id="client-last-name"
+                label="Last name"
+                value={details.lastName}
+                onChange={(v) => setDetails({ ...details, lastName: v })}
+                autoComplete="family-name"
+              />
+              <DetailField
+                id="client-phone"
+                label="Mobile"
+                type="tel"
+                value={details.phone}
+                onChange={(v) => setDetails({ ...details, phone: v })}
+                autoComplete="tel"
+                placeholder={client.contactLead ? `Through ${client.contactLead.name ?? "another client"}` : undefined}
+              />
+              <DetailField
+                id="client-email"
+                label="Email"
+                type="email"
+                value={details.email}
+                onChange={(v) => setDetails({ ...details, email: v })}
+                autoComplete="email"
+              />
+              <div className="col-span-2 flex gap-2 pt-1">
+                <Button type="submit" size="sm" disabled={saving !== null || !details.firstName.trim()}>
+                  {saving === "details" ? "Saving…" : "Save details"}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={saving !== null} onClick={() => setEditing(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
+          {client && !editing && (
             <div className="mt-1 space-y-1 text-sm">
               {client.phone ? (
                 <a href={`tel:${client.phone}`} className="flex items-center gap-2 hover:underline">
@@ -175,6 +272,10 @@ export function ClientSheet({
                   Also books for {client.dependents.map((d) => d.name ?? "someone").join(", ")}
                 </p>
               )}
+              <Button size="xs" variant="outline" className="mt-1.5" onClick={startEditing}>
+                <Pencil />
+                Edit details
+              </Button>
             </div>
           )}
         </SheetHeader>
@@ -286,6 +387,44 @@ export function ClientSheet({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function DetailField({
+  id,
+  label,
+  value,
+  onChange,
+  type = "text",
+  autoComplete,
+  placeholder,
+  required,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  autoComplete?: string;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <label htmlFor={id} className="block text-xs text-muted-foreground">
+        {label}
+      </label>
+      <Input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete}
+        placeholder={placeholder}
+        required={required}
+        className="mt-1 h-8"
+      />
+    </div>
   );
 }
 

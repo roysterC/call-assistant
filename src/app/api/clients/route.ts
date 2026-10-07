@@ -1,5 +1,6 @@
 /**
- * The salon's clients, as the desk sees them: search, sort, add.
+ * The salon's clients, as the desk sees them: search, sort (by name, number,
+ * email, last visit or next booking), add.
  *
  * Separate from /api/leads on purpose. That endpoint serves the inbox and
  * drags in each lead's latest WhatsApp and social conversation; the diary
@@ -17,7 +18,7 @@ import { normalisePhone } from "@/lib/phone";
 import { nameKey, sameNameCounts } from "@/lib/client-link";
 import { patchTestDay } from "@/lib/patch-test";
 
-const SORTABLE = ["firstName", "lastName", "phone", "email"] as const;
+const SORTABLE = ["firstName", "lastName", "phone", "email", "lastVisit", "nextBooking"] as const;
 type SortKey = (typeof SORTABLE)[number];
 
 /** Statuses that mean the client actually came in (or was due to). */
@@ -110,7 +111,23 @@ export async function GET(req: NextRequest) {
     `;
 
     // Column names come from the whitelist above, never from the request.
-    const col = Prisma.raw(`lower("${sort}")`);
+    // The two visit dates are worked out per client from their appointments,
+    // exactly as the rows below report them, so the order matches what shows.
+    const now = new Date();
+    const col =
+      sort === "lastVisit"
+        ? Prisma.sql`(
+            SELECT max(a."startsAt") FROM ca_appointments a
+            WHERE a."leadId" = ca_leads.id AND a."organizationId" = ${ctx.organizationId}
+              AND a.status IN (${Prisma.join(VISITED)}) AND a."startsAt" < ${now}
+          )`
+        : sort === "nextBooking"
+          ? Prisma.sql`(
+              SELECT min(a."startsAt") FROM ca_appointments a
+              WHERE a."leadId" = ca_leads.id AND a."organizationId" = ${ctx.organizationId}
+                AND a.status = 'booked' AND a."startsAt" >= ${now}
+            )`
+          : Prisma.raw(`lower("${sort}")`);
     // Ties broken by the other half of the name, then id, so paging through
     // a salon with six Sarahs neither repeats nor skips one.
     const tie = Prisma.raw(
@@ -140,7 +157,6 @@ export async function GET(req: NextRequest) {
     const byId = new Map(found.map((r) => [r.id, r]));
     const rows = ids.flatMap((id) => byId.get(id) ?? []);
 
-    const now = new Date();
     const [past, upcoming] = ids.length
       ? await Promise.all([
           prisma.appointment.groupBy({
