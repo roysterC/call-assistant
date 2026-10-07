@@ -1,6 +1,7 @@
 /**
  * One client, for the Clients page: who they are, their bookings, their
- * notes and their patch test; and changing those at the desk.
+ * notes and their patch test; and changing any of those at the desk,
+ * including their name, number and email.
  *
  * Changing how a client is reached:
  *
@@ -18,6 +19,17 @@ import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { normalisePhone } from "@/lib/phone";
 import { getSalonConfig } from "@/lib/booking";
 import { parsePatchTestDate, patchTestDay } from "@/lib/patch-test";
+import { joinName } from "@/lib/client-name";
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** A trimmed string, "" as nothing; undefined when the field was not sent. */
+function field(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+  return value.trim() || null;
+}
 
 /** Long enough for years of a regular's notes; short enough to refuse a paste of a file. */
 const NOTES_MAX = 10_000;
@@ -94,16 +106,72 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const client = await prisma.lead.findFirst({
       where: { id, organizationId: ctx.organizationId },
-      select: { id: true, phone: true, contactLeadId: true },
+      select: {
+        id: true,
+        phone: true,
+        contactLeadId: true,
+        firstName: true,
+        lastName: true,
+        _count: { select: { dependents: true } },
+      },
     });
     if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const data: {
-      phone?: string;
+      firstName?: string;
+      lastName?: string | null;
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
       contactLeadId?: null;
       notes?: string | null;
       patchTestAt?: Date | null;
     } = {};
+
+    // The name, in its two halves as the desk enters it.
+    const firstName = field(body.firstName);
+    const lastName = field(body.lastName);
+    if (firstName !== undefined || lastName !== undefined) {
+      const first = firstName === undefined ? client.firstName : firstName;
+      const last = lastName === undefined ? client.lastName : lastName;
+      if (!first) return NextResponse.json({ error: "A first name is needed." }, { status: 400 });
+      data.firstName = first;
+      data.lastName = last;
+      data.name = joinName(first, last);
+    }
+
+    const email = field(body.email);
+    if (email !== undefined) {
+      const lower = email?.toLowerCase() ?? null;
+      if (lower && !EMAIL.test(lower)) {
+        return NextResponse.json({ error: "That email address does not look right." }, { status: 400 });
+      }
+      if (lower) {
+        const taken = await prisma.lead.findFirst({
+          where: { organizationId: ctx.organizationId, email: lower, id: { not: id } },
+          select: { name: true },
+        });
+        if (taken) {
+          return NextResponse.json(
+            { error: `${taken.name ?? "Another client"} already has that email.` },
+            { status: 409 }
+          );
+        }
+      }
+      data.email = lower;
+    }
+
+    // Taking a number away. Not while someone else books through it (a child
+    // on a parent's phone): nobody could text them or find their bookings.
+    if (body.phone === null || (typeof body.phone === "string" && !body.phone.trim())) {
+      if (client.phone && client._count.dependents > 0) {
+        return NextResponse.json(
+          { error: "Someone else books through this number. Give them their own number first." },
+          { status: 400 }
+        );
+      }
+      data.phone = null;
+    }
 
     if (body.notes !== undefined) {
       if (body.notes !== null && typeof body.notes !== "string") {
@@ -144,7 +212,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (body.unlink === true && client.contactLeadId) {
-      if (!(data.phone ?? client.phone)) {
+      if (!("phone" in data ? data.phone : client.phone)) {
         return NextResponse.json(
           { error: "Give them a number of their own before unlinking, or nobody can text them." },
           { status: 400 }
@@ -162,7 +230,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data,
       select: {
         id: true,
+        name: true,
+        firstName: true,
+        lastName: true,
         phone: true,
+        email: true,
         notes: true,
         patchTestAt: true,
         contactLead: { select: { id: true, name: true, phone: true } },

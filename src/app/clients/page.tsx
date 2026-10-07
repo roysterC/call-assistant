@@ -39,7 +39,12 @@ interface ClientRow {
 const PAGE = 50;
 
 /** The columns the server can sort by, by column id. */
-const SERVER_SORT: Record<string, string> = { name: "firstName", email: "email" };
+const SERVER_SORT: Record<string, string> = {
+  name: "firstName",
+  email: "email",
+  lastVisit: "lastVisit",
+  nextBooking: "nextBooking",
+};
 
 const nextLabel = (iso: string) => format(new Date(iso), "EEE d MMM, h:mmaaa").replace(":00", "");
 
@@ -131,7 +136,9 @@ export default function ClientsPage() {
       {
         id: "lastVisit",
         header: "Last visit",
-        enableSorting: false,
+        // Oldest first on the first click: who hasn't been in for a while.
+        sortDescFirst: false,
+        accessorFn: (c) => c.lastVisit ?? "",
         cell: ({ row: { original: c } }) => (
           <span className="text-muted-foreground">
             {c.lastVisit ? format(new Date(c.lastVisit), "d MMM yyyy") : "—"}
@@ -142,7 +149,9 @@ export default function ClientsPage() {
       {
         id: "nextBooking",
         header: "Next booking",
-        enableSorting: false,
+        // Soonest first. Clients with nothing booked come last either way.
+        sortDescFirst: false,
+        accessorFn: (c) => c.nextBooking ?? "",
         cell: ({ row: { original: c } }) =>
           c.nextBooking ? (
             <Pill>{nextLabel(c.nextBooking)}</Pill>
