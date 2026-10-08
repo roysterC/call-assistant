@@ -18,15 +18,38 @@ import { toClaudeTools, withCallerContext } from "./tools";
 import { salonKeyterms } from "./voice/keyterms";
 
 /**
- * Claude Haiku 4.5 by default: a receptionist's turns are short and the rules
+ * Claude Haiku 5.5 by default: a receptionist's turns are short and the rules
  * that matter are enforced by the booking code, so speed is what the caller
  * notices. One setting, so a bigger model can be tried against the same
  * scripted calls without touching code.
  */
-export const DEFAULT_RECEPTIONIST_MODEL = "claude-haiku-4-5";
+export const DEFAULT_RECEPTIONIST_MODEL = "claude-haiku-5-5";
 
 export function receptionistModel(): string {
   return process.env.RECEPTIONIST_MODEL?.trim() || DEFAULT_RECEPTIONIST_MODEL;
+}
+
+export type ReceptionistRequestOptions = Pick<Anthropic.MessageCreateParams, "thinking" | "output_config">;
+
+const EFFORTS = ["low", "medium", "high"] as const;
+
+/**
+ * What a model needs sent alongside it. They are not interchangeable: Haiku
+ * 4.5 rejects `output_config.effort` (400), and Haiku 5.5 thinks before every
+ * reply unless told not to.
+ *
+ * On Haiku 5.5 thinking is off. On a phone line the pause before the first
+ * word is what the caller hears, thinking comes before any of it, and Haiku
+ * 4.5 — what the prompts and scripted calls were tuned on — never thought.
+ * Effort stays at the model's own default, medium, unless
+ * RECEPTIONIST_EFFORT says otherwise; with thinking off only low, medium and
+ * high are accepted.
+ */
+export function receptionistRequestOptions(model: string): ReceptionistRequestOptions {
+  if (model !== "claude-haiku-5-5") return {};
+  const asked = process.env.RECEPTIONIST_EFFORT?.trim().toLowerCase();
+  const effort = EFFORTS.find((e) => e === asked) ?? "medium";
+  return { thinking: { type: "disabled" }, output_config: { effort } };
 }
 
 export interface ReceptionistSession {
@@ -80,6 +103,7 @@ export async function startReceptionist(
   const engine = new ReceptionistEngine({
     client: opts.client ?? new Anthropic({ apiKey: key!.apiKey }),
     model: receptionistModel(),
+    request: receptionistRequestOptions(receptionistModel()),
     system: buildSystem(
       cfg,
       businessName,

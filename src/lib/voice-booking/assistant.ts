@@ -14,7 +14,7 @@ import { getSalonConfig } from "@/lib/booking";
 import { executeVapiFunction } from "@/lib/vapi-functions";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
 import { upcomingDays } from "@/lib/receptionist/prompt";
-import { receptionistApiKey, receptionistModel } from "@/lib/receptionist/session";
+import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
 import {
   findClients,
   proposeBooking,
@@ -270,7 +270,9 @@ export async function startVoiceBooking(
   session.engine = new ReceptionistEngine({
     client: opts.client ?? new Anthropic({ apiKey: key!.apiKey }),
     model: session.model,
-    maxTokens: 600,
+    request: receptionistRequestOptions(session.model),
+    // Haiku 5.5 counts the same text as about 30% more tokens than 4.5 did.
+    maxTokens: 800,
     system: [
       {
         type: "text",

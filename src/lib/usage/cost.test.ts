@@ -24,6 +24,18 @@ describe("costOf", () => {
     expect(c.total).toBe(110_400); // 11 cents
   });
 
+  it("prices Haiku 5.5 at a tenth of Haiku 4.5", () => {
+    // $0.10 in, $0.50 out per million; cache reads a tenth of input, writes a quarter more.
+    const c = costOf({
+      model: "claude-haiku-5-5",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cacheReadTokens: 1_000_000,
+      cacheWriteTokens: 1_000_000,
+    });
+    expect(c.llm).toBe(100_000 + 500_000 + 10_000 + 125_000);
+  });
+
   it("prices a bigger model higher and an unknown one as Haiku, never as free", () => {
     expect(costOf({ model: "claude-sonnet-5", inputTokens: 1_000_000 }).llm).toBe(2_000_000);
     expect(costOf({ model: "mystery", inputTokens: 1_000_000 }).llm).toBe(1_000_000);

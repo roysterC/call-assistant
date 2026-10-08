@@ -39,6 +39,8 @@ export interface CostBreakdown {
  * setting mistake shows up as a plausible cost, not a zero.
  */
 const MODEL_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
+  // For prompts up to 100K tokens; a receptionist's never come near that.
+  "claude-haiku-5-5": { input: 0.1, output: 0.5 },
   "claude-haiku-4-5": { input: 1, output: 5 },
   "claude-sonnet-5": { input: 2, output: 10 },
   "claude-sonnet-4-6": { input: 3, output: 15 },

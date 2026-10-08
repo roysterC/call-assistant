@@ -42,7 +42,8 @@ vi.mock("@/lib/vapi-functions", () => ({ executeVapiFunction: vi.fn() }));
 vi.mock("./knowledge", () => ({ daySchedule: vi.fn(), clientHistory: vi.fn(), phoneMessages: vi.fn(), takings: vi.fn() }));
 vi.mock("@/lib/receptionist/session", () => ({
   receptionistApiKey: async () => null,
-  receptionistModel: () => "claude-haiku-4-5",
+  receptionistModel: () => "claude-haiku-5-5",
+  receptionistRequestOptions: () => ({ thinking: { type: "disabled" }, output_config: { effort: "medium" } }),
 }));
 
 import { findSession, keepSession, startVoiceBooking, type VoiceBookingSession } from "./assistant";

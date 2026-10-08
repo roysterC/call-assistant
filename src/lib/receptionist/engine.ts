@@ -69,6 +69,8 @@ export interface TurnHooks {
 export interface EngineConfig {
   client: StreamingClient;
   model: string;
+  /** Whatever this model needs sent with it: see receptionistRequestOptions. */
+  request?: Pick<Anthropic.MessageCreateParams, "thinking" | "output_config">;
   /** Stable text first (cached), then anything that changes per call. */
   system: Anthropic.TextBlockParam[];
   tools: Anthropic.Tool[];
@@ -148,6 +150,7 @@ export class ReceptionistEngine {
       const stream = this.cfg.client.messages.stream(
         {
           model: this.cfg.model,
+          ...this.cfg.request,
           max_tokens: this.cfg.maxTokens ?? 2048,
           system: this.cfg.system,
           tools: this.cfg.tools,
