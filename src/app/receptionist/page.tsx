@@ -39,6 +39,7 @@ type Line =
 const TOOL_LABEL: Record<string, string> = {
   save_customer_details: "Saved the caller's details",
   check_availability: "Checked the diary",
+  prepare_booking: "Read the booking back",
   book_appointment: "Booked an appointment",
   find_appointment: "Looked up a booking",
   cancel_appointment: "Cancelled a booking",

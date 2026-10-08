@@ -106,6 +106,13 @@ export class ReceptionistEngine {
    */
   readonly messages: Anthropic.MessageParam[] = [];
 
+  /**
+   * How many times the caller has spoken. Tools read it to tell whether the
+   * caller has answered since something was put to them: a booking is only
+   * made after a read-back the caller has replied to.
+   */
+  turns = 0;
+
   constructor(private readonly cfg: EngineConfig) {}
 
   async respond(
@@ -113,6 +120,7 @@ export class ReceptionistEngine {
     hooks: TurnHooks = {},
     signal?: AbortSignal
   ): Promise<TurnResult> {
+    this.turns++;
     const result: TurnResult = {
       text: "",
       tools: [],

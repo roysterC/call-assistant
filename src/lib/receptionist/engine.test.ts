@@ -3,7 +3,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { END_CALL, FALLBACK_REPLY, ReceptionistEngine, type StreamingClient, type ToolExecutor } from "./engine";
 import { toClaudeTools, withCallerContext } from "./tools";
 import { buildSystem, greetingFor } from "./prompt";
-import type { SalonConfig } from "@/lib/booking";
+import { selectProvider, type SalonConfig } from "@/lib/booking";
+import { buildVoiceTools, composeVoicePrompt } from "@/lib/vapi-assistant";
 
 // --- A stand-in for the model ------------------------------------------------
 
@@ -126,6 +127,15 @@ describe("ReceptionistEngine", () => {
     await engineWith(without.client).engine.respond("Hi");
     expect(without.sent[0]).not.toHaveProperty("thinking");
     expect(without.sent[0]).not.toHaveProperty("output_config");
+  });
+
+  it("counts each time the caller speaks", async () => {
+    const { client } = fakeClient([{ text: ["Yes?"] }]);
+    const { engine } = engineWith(client);
+    expect(engine.turns).toBe(0);
+    await engine.respond("Hello");
+    await engine.respond("Can I book?");
+    expect(engine.turns).toBe(2);
   });
 
   it("streams a plain reply and records the exchange", async () => {
@@ -345,6 +355,45 @@ describe("receptionist prompt", () => {
     calComApiKey: null,
     calComEventTypeId: null,
   } as unknown as SalonConfig;
+
+  // A salon that can take bookings: the booking steps only appear for one.
+  const bookable = {
+    ...cfg,
+    hours: [{ day: 4, closed: false, open: "10:00", close: "19:00" }],
+    services: [{ name: "Blow dry", durationMinutes: 45, bufferMinutes: 0, requiresPatchTest: false, priceMinor: null }],
+    stylists: [{ name: "Chloe", workingDays: [4], services: [] }],
+  } as unknown as SalonConfig;
+
+  it("has our own line read every booking back before it is made, and never ask for an email", () => {
+    const [stable] = buildSystem(bookable, "Shogo", null, new Date("2026-09-25T17:05:00Z"), "+447700900123");
+    expect(stable.text).toContain("Read it back before you book");
+    expect(stable.text).toContain("call `prepare_booking`");
+    expect(stable.text).toContain("Never ask for an email address");
+    expect(stable.text).toContain("or for the manager or the owner");
+    expect(stable.text).not.toContain("Before you book, sum it up once and ask");
+  });
+
+  it("leaves Vapi's instructions and tools as they were", () => {
+    const vapi = composeVoicePrompt(bookable, null);
+    expect(vapi.prompt).toContain("Before you book, sum it up once and ask");
+    expect(vapi.prompt).not.toContain("prepare_booking");
+    expect(vapi.prompt).not.toContain("Never ask for an email address");
+    expect(vapi.toolNames).not.toContain("prepare_booking");
+  });
+
+  it("gives our own line the two booking steps and no email field; Vapi the one booking tool", () => {
+    const caps = selectProvider(bookable).capabilities;
+    const own = buildVoiceTools(caps, { ownLine: true });
+    const fn = (tools: typeof own, name: string) => tools.find((t) => t.function.name === name)!.function;
+    expect(own.map((t) => t.function.name)).toEqual(expect.arrayContaining(["prepare_booking", "book_appointment"]));
+    expect((fn(own, "book_appointment").parameters as { required: string[] }).required).toEqual(["bookingRef"]);
+    expect(Object.keys((fn(own, "save_customer_details").parameters as { properties: object }).properties)).not.toContain("email");
+
+    const vapi = buildVoiceTools(caps);
+    expect(vapi.map((t) => t.function.name)).not.toContain("prepare_booking");
+    expect((fn(vapi, "book_appointment").parameters as { required: string[] }).required).toContain("time");
+    expect(Object.keys((fn(vapi, "save_customer_details").parameters as { properties: object }).properties)).toContain("email");
+  });
 
   it("caches the instructions and keeps the clock out of the cached part", () => {
     const now = new Date("2026-09-25T17:05:00Z");

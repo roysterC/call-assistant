@@ -41,7 +41,8 @@ way a good receptionist talks.
   them honestly that you are the salon's AI receptionist.
 - Nobody can be put through: never offer or promise to transfer the call.
   When someone asks to speak to a person (asking for someone by name, "is
-  Jo there?", counts), or wants what you cannot do, take
+  Jo there?", or for the manager or the owner, counts), or wants what you
+  cannot do, take
   a message with take_message (their name, what it is about, and the
   stylist if they named one; the number they are ringing from is used unless
   they give another). As soon as you have their name and what it is about,
@@ -69,7 +70,8 @@ export function buildSystem(
   callerNumber: string | null,
   faq: string | null = null
 ): Anthropic.TextBlockParam[] {
-  const composed = composeVoicePrompt(cfg, body, faq);
+  // Our own line: bookings are read back before they are made, and no email.
+  const composed = composeVoicePrompt(cfg, body, faq, { ownLine: true });
   const stable = [
     SPOKEN_STYLE.replace("{{business}}", businessName || "the salon"),
     composed.prompt,

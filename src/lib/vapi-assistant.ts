@@ -234,6 +234,69 @@ const BOOK_APPOINTMENT: VapiTool = {
   },
 };
 
+/**
+ * Our own receptionist books in two steps, read back in between (see
+ * src/lib/receptionist/read-back.ts). The first takes everything
+ * book_appointment used to and books nothing.
+ */
+const PREPARE_BOOKING: VapiTool = {
+  type: "function",
+  function: {
+    name: "prepare_booking",
+    description:
+      "Check a booking and get its details to read back to the caller. Nothing is " +
+      "booked. Call it once they have picked a time that check_availability " +
+      "offered and you have their name. Pass the exact startsAt value " +
+      "check_availability returned as `time`.",
+    parameters: BOOK_APPOINTMENT.function.parameters,
+  },
+};
+
+const BOOK_PREPARED: VapiTool = {
+  type: "function",
+  function: {
+    name: "book_appointment",
+    description:
+      "Book what prepare_booking read back, once the caller has said yes to it. " +
+      "Refused if they have not answered the read-back yet.",
+    parameters: {
+      type: "object",
+      properties: {
+        bookingRef: {
+          type: "string",
+          description: "The bookingRef prepare_booking gave you.",
+        },
+      },
+      required: ["bookingRef"],
+    },
+  },
+};
+
+/** As SAVE_CUSTOMER_DETAILS, with no email: our line never asks for one. */
+const SAVE_CUSTOMER_DETAILS_NO_EMAIL: VapiTool = {
+  ...SAVE_CUSTOMER_DETAILS,
+  function: {
+    ...SAVE_CUSTOMER_DETAILS.function,
+    parameters: {
+      ...SAVE_CUSTOMER_DETAILS.function.parameters,
+      properties: Object.fromEntries(
+        Object.entries(SAVE_CUSTOMER_DETAILS.function.parameters.properties as Record<string, unknown>).filter(
+          ([k]) => k !== "email"
+        )
+      ),
+    },
+  },
+};
+
+/**
+ * Our own receptionist rather than Vapi. Vapi is kept as it was, as the line
+ * to go back to: its tools and prompt are synced from here and it has no
+ * per-call state to hold a read-back in.
+ */
+export interface VoiceToolOptions {
+  ownLine?: boolean;
+}
+
 const BOOK_CALLBACK: VapiTool = {
   type: "function",
   function: {
@@ -473,11 +536,11 @@ const RESCHEDULE_APPOINTMENT: VapiTool = {
  * read a diary — an absent tool cannot be called by mistake, and every tool
  * schema costs prefill tokens on every turn of the call.
  */
-export function buildVoiceTools(caps: BookingCapabilities): VapiTool[] {
-  const tools: VapiTool[] = [SAVE_CUSTOMER_DETAILS];
+export function buildVoiceTools(caps: BookingCapabilities, opts: VoiceToolOptions = {}): VapiTool[] {
+  const tools: VapiTool[] = [opts.ownLine ? SAVE_CUSTOMER_DETAILS_NO_EMAIL : SAVE_CUSTOMER_DETAILS];
   if (caps.readAvailability) tools.push(CHECK_AVAILABILITY);
   if (caps.createBooking) {
-    tools.push(BOOK_APPOINTMENT);
+    tools.push(...(opts.ownLine ? [PREPARE_BOOKING, BOOK_PREPARED] : [BOOK_APPOINTMENT]));
     // Changing a booking needs the same write access as making one. On an
     // after-hours line these matter as much as new bookings — someone
     // realising at nine at night that tomorrow will not work.
@@ -497,12 +560,44 @@ export function buildVoiceTools(caps: BookingCapabilities): VapiTool[] {
 // Prompt
 // -------------------------------------------------------------------------
 
+/** Before booking, for Vapi: asked of the model, not enforced. */
+const SUM_UP_STEPS = `- **Before you book, sum it up once and ask.** When they have picked a time
+  and you have their name, say it all back in one go: the service, the day
+  and time, the stylist if one was named, their name, and where the
+  confirmation text will go — *"the phone you're calling from"*, or the
+  number they read out. Then ask if you should book it: *"So that's a wash and
+  blow dry for medium hair, Thursday at 11, for Hannah Lee, and I'll text the
+  confirmation to the phone you're calling from. Shall I book that in?"* This
+  is their chance to change anything, including the number, before it is in
+  the diary and the text has gone. Do not read out the digits of the number
+  they are ringing from.
+- When they say yes, call \`book_appointment\` with the exact \`startsAt\`
+  value that \`check_availability\` gave you for that option. If they change
+  something instead, sort that out and sum it up again. Once it is booked, do
+  not ask about any of it again.`;
+
+/** Before booking, on our own line: the read-back is enforced by the tools. */
+const READ_BACK_STEPS = `- **Read it back before you book.** When they have picked a time and you
+  have their name, call \`prepare_booking\`. It checks everything and books
+  nothing, and gives you the details to read back: the service, the stylist,
+  the day and date and time, their name, and where the confirmation text will
+  go. Read them back in one go, in your own words, keeping every detail, and
+  ask if you should book it: *"So that's a wash and blow dry for medium hair
+  with Chloe on Thursday the 15th of October at 11, for Hannah Lee, and the
+  confirmation text will come to the phone you're calling from. Shall I book
+  that in?"* Do not read out the digits of the number they are ringing from.
+- When they say yes, call \`book_appointment\` with the \`bookingRef\`
+  \`prepare_booking\` gave you. It will not book before they have answered,
+  so never call it in the same breath as the read-back. If they change
+  anything instead, sort it out and call \`prepare_booking\` again. Once it
+  is booked, say so in one sentence and do not ask about any of it again.`;
+
 /**
  * The availability stance, generated rather than written by hand.
  *
  * Three cases, and they must match the tools exactly.
  */
-export function buildAvailabilityStance(caps: BookingCapabilities): string {
+export function buildAvailabilityStance(caps: BookingCapabilities, opts: VoiceToolOptions = {}): string {
   if (!caps.readAvailability) {
     return `# The one thing you must never do
 
@@ -549,20 +644,7 @@ it.
   time** whenever it is not the day they asked for.
 - Otherwise offer at most two or three options. Reading a long list down the
   phone is worse than offering three good ones.
-- **Before you book, sum it up once and ask.** When they have picked a time
-  and you have their name, say it all back in one go: the service, the day
-  and time, the stylist if one was named, their name, and where the
-  confirmation text will go — *"the phone you're calling from"*, or the
-  number they read out. Then ask if you should book it: *"So that's a wash and
-  blow dry for medium hair, Thursday at 11, for Hannah Lee, and I'll text the
-  confirmation to the phone you're calling from. Shall I book that in?"* This
-  is their chance to change anything, including the number, before it is in
-  the diary and the text has gone. Do not read out the digits of the number
-  they are ringing from.
-- When they say yes, call \`book_appointment\` with the exact \`startsAt\`
-  value that \`check_availability\` gave you for that option. If they change
-  something instead, sort that out and sum it up again. Once it is booked, do
-  not ask about any of it again.
+${opts.ownLine ? READ_BACK_STEPS : SUM_UP_STEPS}
 - Only once the tool confirms it worked may you say they are booked in. If it
   reports a clash, apologise and offer another time. If it fails any other way,
   say the salon will ring to confirm — **do not** tell them they are booked.
@@ -730,14 +812,17 @@ export interface ComposedPrompt {
 export function composeVoicePrompt(
   cfg: SalonConfig,
   body: string | null,
-  faq: string | null = null
+  faq: string | null = null,
+  opts: VoiceToolOptions = {}
 ): ComposedPrompt {
   const provider = selectProvider(cfg);
   const caps = provider.capabilities;
 
   const sections = [
-    buildAvailabilityStance(caps),
-    CALLER_IDENTITY_RULES,
+    buildAvailabilityStance(caps, opts),
+    opts.ownLine
+      ? `${CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`
+      : CALLER_IDENTITY_RULES,
     CALL_CLOSING_RULES,
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
     `# Services\n\n${NOT_LISTED}\n\n${describeServicesForPrompt(cfg.services)}`,
@@ -762,7 +847,7 @@ export function composeVoicePrompt(
 
   return {
     prompt: sections.join("\n\n---\n\n"),
-    toolNames: buildVoiceTools(caps).map((t) => t.function.name),
+    toolNames: buildVoiceTools(caps, opts).map((t) => t.function.name),
     providerId: provider.id,
     warnings,
   };
