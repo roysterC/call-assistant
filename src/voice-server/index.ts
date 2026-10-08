@@ -69,6 +69,13 @@ async function main() {
    */
   let phoneAudioBytesOut = 0;
   let lastPhoneProblem: { at: string; message: string } | null = null;
+  /**
+   * How long callers waited for each reply on the last few phone turns, in
+   * ms, newest last: from the recogniser handing over their last words to the
+   * reply's first audio going down the line. The phone network adds its own
+   * delay on top, a few hundred ms both ways, which no server can see.
+   */
+  const phoneReplyMs: number[] = [];
   const notePhoneProblem = (message: string) => {
     lastPhoneProblem = { at: new Date().toISOString(), message: problemForHealth(message) };
   };
@@ -88,6 +95,8 @@ async function main() {
           audioBytesIn,
           phoneAudioBytesOut,
           lastPhoneProblem,
+          phoneReplyMs,
+          phoneReplyMedianMs: median(phoneReplyMs),
           fakes: FAKES,
         })
       );
@@ -532,6 +541,14 @@ async function main() {
         },
         clear: () => send(clearFrame(start.streamSid)),
         event: (e) => {
+          if (e.type === "metrics" && e.sinceHeardMs !== null) {
+            console.log(
+              `[VOICE] phone call ${start.callSid}: reply began ${e.sinceHeardMs}ms after their last words ` +
+                `(${e.firstAudioMs}ms after the turn ended)`
+            );
+            phoneReplyMs.push(e.sinceHeardMs);
+            if (phoneReplyMs.length > 20) phoneReplyMs.shift();
+          }
           if (e.type !== "error") return;
           console.warn(`[VOICE] phone call ${start.callSid}: ${e.message}`);
           notePhoneProblem(e.message);
@@ -622,6 +639,13 @@ async function main() {
  */
 function problemForHealth(message: string): string {
   return message.replace(/\+?\d[\d ]{6,}\d/g, "…").slice(0, 200);
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
 function sendJson(ws: WebSocket, payload: unknown) {

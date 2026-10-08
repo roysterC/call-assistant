@@ -1,3 +1,4 @@
+import { currentModelName } from "@/lib/chat-models";
 import Anthropic from "@anthropic-ai/sdk";
 import { execFile } from "child_process";
 import { prisma } from "@/lib/prisma";
@@ -377,35 +378,27 @@ async function getChatResponseCLI(
  * Per-model request parameters for the chat path.
  *
  * These travel with the model on purpose: the two are not interchangeable.
- * Haiku 4.5 has no adaptive thinking and rejects `output_config.effort`
- * outright (400), while Sonnet 5 wants both. Swapping only the model string
- * would either error or silently run Sonnet at default effort, so the shape
- * is bound to the choice.
+ * Swapping only the model string would run a model with settings meant for
+ * another (Haiku 4.5, for one, refused `output_config.effort` outright), so
+ * the shape is bound to the choice.
  *
- * Quality note, measured over 3 runs each on the same prompt and input:
- * Haiku invented sales statistics in 2 of 3 responses ("an extra 5-10 calls a
- * week", "3-4 warm leads") despite the prompt forbidding invented stats.
- * Sonnet did it 0 times in 6, and was fractionally faster (4.9s vs 5.4s).
- *
- * Haiku is the default while we're testing, because dev traffic is sporadic
- * enough that most requests cold-start and pay the cache-write premium, where
- * the cheaper base rate actually tells. Go to Sonnet before this faces
- * prospects — fabricated social proof is not something to ship.
+ * Quality note, measured on Haiku 4.5 over 3 runs each on the same prompt and
+ * input: it invented sales statistics in 2 of 3 responses ("an extra 5-10
+ * calls a week", "3-4 warm leads") despite the prompt forbidding invented
+ * stats. Sonnet did it 0 times in 6. Haiku 5.5, which replaced it, follows
+ * instructions much better but has not been measured on this yet: check it
+ * before this faces prospects, and keep Sonnet for anything customer-facing
+ * until it has been.
  */
 const CHAT_MODELS = {
-  "claude-haiku-4-5": {
-    model: "claude-haiku-4-5",
-    // No `thinking` and no `output_config` — both are rejected on this model.
-    //
-    // Also expect cache_read/cache_write to stay 0 on this model: Haiku 4.5
-    // requires a 4096-token minimum cacheable prefix and our system prompt
-    // tokenizes to ~3970 here, so the cache_control marker below is silently
-    // ignored. No error, just no caching. (The same prompt is ~5546 tokens
-    // under Sonnet's tokenizer, comfortably over its 1024 minimum.)
-    //
-    // Don't pad the prompt to cross the threshold — for the sporadic traffic
-    // this default exists to serve, a cold Sonnet request costs more than an
-    // uncached Haiku one anyway.
+  "claude-haiku-5-5": {
+    model: "claude-haiku-5-5",
+    // Adaptive thinking at low effort: the level meant for chat, where it
+    // thinks briefly or not at all. Thinking counts towards max_tokens, which
+    // has room for it. Unlike Haiku 4.5, it caches prompts from 512 tokens,
+    // so the system prompt below is cached.
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
   },
   "claude-sonnet-5": {
     model: "claude-sonnet-5",
@@ -419,7 +412,7 @@ export type ChatModelName = keyof typeof CHAT_MODELS;
 export const CHAT_MODEL_NAMES = Object.keys(CHAT_MODELS) as ChatModelName[];
 
 /** Change this one line to switch models (or set CHAT_MODEL in .env). */
-const DEFAULT_CHAT_MODEL: ChatModelName = "claude-haiku-4-5";
+const DEFAULT_CHAT_MODEL: ChatModelName = "claude-haiku-5-5";
 
 /**
  * Which models each plan may use, cheapest first.
@@ -430,10 +423,10 @@ const DEFAULT_CHAT_MODEL: ChatModelName = "claude-haiku-4-5";
  * in a plan name should cost us nothing.
  */
 export const PLAN_MODELS: Record<string, ChatModelName[]> = {
-  starter: ["claude-haiku-4-5"],
-  pro: ["claude-haiku-4-5", "claude-sonnet-5"],
+  starter: ["claude-haiku-5-5"],
+  pro: ["claude-haiku-5-5", "claude-sonnet-5"],
   // Bespoke arrangements get the full set.
-  custom: ["claude-haiku-4-5", "claude-sonnet-5"],
+  custom: ["claude-haiku-5-5", "claude-sonnet-5"],
 };
 
 export function modelsForPlan(planTier: string | null | undefined) {
@@ -452,6 +445,7 @@ export function resolveModelForSite(
   requested: string | null | undefined
 ): ChatModelName {
   const allowed = modelsForPlan(planTier);
+  requested = currentModelName(requested);
   if (requested && (allowed as string[]).includes(requested)) {
     return requested as ChatModelName;
   }
@@ -471,7 +465,7 @@ export function resolveModelForSite(
  * whenever it overrides a caller's choice so that never looks like a bug.
  */
 function resolveChatModel(requested?: ChatModelName) {
-  const fromEnv = process.env.CHAT_MODEL as ChatModelName | undefined;
+  const fromEnv = currentModelName(process.env.CHAT_MODEL?.trim()) as ChatModelName | undefined;
   if (fromEnv && fromEnv in CHAT_MODELS) {
     if (requested && requested !== fromEnv) {
       console.log(

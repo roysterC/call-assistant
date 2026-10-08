@@ -64,8 +64,8 @@ const SAVE_CUSTOMER_DETAILS: VapiTool = {
         issue: {
           type: "string",
           description:
-            "What they want: service, stylist, preferred times, new or " +
-            "returning client, and anything else relevant.",
+            "What they want: service, stylist, preferred times, and anything " +
+            "else relevant.",
         },
         callerNumber: {
           type: "string",
@@ -141,13 +141,20 @@ const CHECK_AVAILABILITY: VapiTool = {
           type: "string",
           description: "Preferred stylist's name, if the caller named one",
         },
+        customerName: {
+          type: "string",
+          description:
+            "The name of the person it is for, once you have it. For a colour " +
+            "service, get it before checking: with their number it finds " +
+            "whether they have been before, which decides the earliest times.",
+        },
         clientType: {
           type: "string",
           enum: ["new", "returning", "unknown"],
           description:
-            "Whether the caller has been to the salon before. Colour " +
-            "services need a patch test for new clients, unless one is on " +
-            "the salon's records (the result says so).",
+            "Leave this out: whether they have been before is worked out from " +
+            "their name and number, as is a patch test on the salon's records. " +
+            "Only send it once a tool has asked you to find out.",
         },
       },
       required: ["date", "service"],
@@ -161,7 +168,9 @@ const BOOK_APPOINTMENT: VapiTool = {
     name: "book_appointment",
     description:
       "Put a confirmed appointment in the diary. Only call this after " +
-      "check_availability offered the time and the caller accepted it. Pass " +
+      "check_availability offered the time, you have summed the booking up " +
+      "(service, day and time, name, where the text goes) and the caller said " +
+      "yes to it. Pass " +
       "the exact startsAt value that check_availability returned as `time`.",
     parameters: {
       type: "object",
@@ -214,9 +223,9 @@ const BOOK_APPOINTMENT: VapiTool = {
           type: "string",
           enum: ["new", "returning", "unknown"],
           description:
-            "Whether they have been to the salon before. Required for a " +
-            "colour service: ask if you do not know, unless a patch test is " +
-            "on record for them.",
+            "Leave this out: whether they have been before is worked out from " +
+            "their name and number, as is a patch test on the salon's records. " +
+            "Only send it once a tool has asked you to find out.",
         },
         notes: { type: "string", description: "Anything the stylist should know" },
       },
@@ -540,8 +549,20 @@ it.
   time** whenever it is not the day they asked for.
 - Otherwise offer at most two or three options. Reading a long list down the
   phone is worse than offering three good ones.
-- When the caller picks one, call \`book_appointment\` straight away with the
-  exact \`startsAt\` value that \`check_availability\` gave you for that option.
+- **Before you book, sum it up once and ask.** When they have picked a time
+  and you have their name, say it all back in one go: the service, the day
+  and time, the stylist if one was named, their name, and where the
+  confirmation text will go — *"the phone you're calling from"*, or the
+  number they read out. Then ask if you should book it: *"So that's a wash and
+  blow dry for medium hair, Thursday at 11, for Hannah Lee, and I'll text the
+  confirmation to the phone you're calling from. Shall I book that in?"* This
+  is their chance to change anything, including the number, before it is in
+  the diary and the text has gone. Do not read out the digits of the number
+  they are ringing from.
+- When they say yes, call \`book_appointment\` with the exact \`startsAt\`
+  value that \`check_availability\` gave you for that option. If they change
+  something instead, sort that out and sum it up again. Once it is booked, do
+  not ask about any of it again.
 - Only once the tool confirms it worked may you say they are booked in. If it
   reports a clash, apologise and offer another time. If it fails any other way,
   say the salon will ring to confirm — **do not** tell them they are booked.
@@ -553,14 +574,19 @@ it.
   time and the client expecting work nobody wrote down. If one of the things
   they asked for is not on the list, say which and ask what it is rather than
   quietly booking the rest.
-- You must know whether they are a new or returning client before booking any
-  colour service, unless the salon's records already answer it: when
-  \`check_availability\` or \`book_appointment\` says they have a patch test on
-  record, no new test is needed and there is nothing to ask. Otherwise, new
-  clients need a skin patch test 48 hours beforehand, so the earliest colour
-  appointment is two days after the salon is next open. Explain that plainly if it
-  comes up; do not treat it as negotiable. The skin test is not part of the
-  colour appointment and you cannot book it: the salon arranges it.
+- **Do not ask whether they have been before.** The tools work it out from
+  their name and number: someone who has visited, or who has a patch test on
+  the salon's records, is booked as a returning client without a word about
+  it. The one time to ask is when a tool tells you it needs to know, which is
+  a colour service for someone with neither on record; then ask whether they
+  have had colour here before.
+- For a colour service, get their name before you check the diary, and pass
+  it to \`check_availability\`: whether they have been before decides the
+  earliest times. New clients need a skin patch test 48 hours beforehand, so
+  the earliest colour appointment for them is two days after the salon is
+  next open. Explain that plainly if it comes up; do not treat it as
+  negotiable. The skin test is not part of the colour appointment and you
+  cannot book it: the salon arranges it.
 
 ## Changing an existing appointment
 
@@ -637,14 +663,12 @@ digits yourself, but the tools can, and they will use it.
 
 So when the caller says to use the number they are calling on — *"the one I'm
 ringing from"*, *"this number"* — that is a complete answer. Do not ask them to
-read it out. Call the tool as you normally would; it will fall back to their
-caller ID and tell you in its reply which number it used. **Read that number
-back to them**, because they never said it out loud and this is their only
-chance to catch it being wrong.
+read it out, and do not read it back or ask whether it is right: it is the
+phone in their hand, and the confirmation text goes to it. Call the tool as you
+normally would; it falls back to their caller ID, and its reply says what to
+tell them.
 
-Never tell the caller a number works and then ask them for it again. Either you
-have it, in which case confirm it, or you have not, in which case ask — but not
-both in the same breath.
+Never tell the caller a number works and then ask them for it again.
 
 If the tool comes back saying it could not get a number at all, then their
 caller ID is withheld and you do need them to read it out, digit by digit.
@@ -678,7 +702,7 @@ export const CALL_CLOSING_RULES = `# Ending the call
 **Never hang up without saying goodbye.** Before you end a call:
 
 1. Make sure everything is actually settled — the booking is confirmed, the
-   time is right, and they have heard their number read back.
+   time is right, and any number they read out has been read back to them.
 2. Ask whether there is anything else they need.
 3. Say goodbye properly, and mention when you will see them:
    *"Thanks for calling — see you Wednesday at one."*

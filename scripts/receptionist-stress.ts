@@ -725,7 +725,12 @@ async function main() {
   ].join("\n");
 
   const client = dry ? null : new Anthropic();
-  const callerModel = process.env.STRESS_CALLER_MODEL || "claude-haiku-4-5";
+  const callerModel = process.env.STRESS_CALLER_MODEL || "claude-haiku-5-5";
+  // Haiku 5.5 thinks unless told not to, and the thinking counts towards the
+  // short reply cap: off, or a caller can run out of room before saying anything.
+  const callerOptions = callerModel === "claude-haiku-5-5"
+    ? { thinking: { type: "disabled" as const }, output_config: { effort: "low" as const } }
+    : {};
   const judgeModel = process.env.STRESS_JUDGE_MODEL || "claude-sonnet-5";
   const scenarios = SCENARIOS.filter((s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()));
   const startedAt = new Date();
@@ -772,7 +777,7 @@ async function main() {
         callerMessages.push({ role: "user", content: heard });
         let line: string;
         if (client) {
-          const r = await client.messages.create({ model: callerModel, max_tokens: 200, system: callerSystem(s.persona, s.caller), messages: callerMessages });
+          const r = await client.messages.create({ model: callerModel, ...callerOptions, max_tokens: 200, system: callerSystem(s.persona, s.caller), messages: callerMessages });
           line = r.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
         } else {
           line = ["Hi, can I book a cut on Thursday?", "Yes please.", "It's Sam Reid.", "That's all, bye"][Math.min(turn, 3)];

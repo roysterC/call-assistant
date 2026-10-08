@@ -36,7 +36,7 @@ import {
   zonedParts,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
-import { clientForBooking, textRecipient } from "@/lib/client-link";
+import { clientForBooking, hasVisited, textRecipient } from "@/lib/client-link";
 import {
   cancellationBody,
   confirmationBody,
@@ -426,16 +426,6 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
 async function patchTestOnRecord(leadId: string): Promise<boolean> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { patchTestAt: true } });
   return Boolean(lead?.patchTestAt);
-}
-
-async function hasVisited(leadId: string): Promise<boolean> {
-  const n = await prisma.appointment.count({
-    where: {
-      leadId,
-      OR: [{ status: "completed" }, { status: "booked", startsAt: { lt: new Date() } }],
-    },
-  });
-  return n > 0;
 }
 
 /** An upcoming booking this person may change, or why not. */

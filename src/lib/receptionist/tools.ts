@@ -43,9 +43,9 @@ export function toClaudeTools(tools: VapiTool[]): Anthropic.Tool[] {
  *
  * `callerNumber` always comes from caller ID, whatever the model sent. The
  * phone field itself is left alone: every handler falls back to caller ID
- * when it is blank, and says so when it does (`usedCallerId`), which is what
- * prompts the receptionist to read the number back to a caller who never
- * said it aloud. Filling it in here would hide that. The look-up tools also
+ * when it is blank, and says so when it does (`usedCallerId`), which is how
+ * the receptionist knows the text went to the phone in the caller's hand.
+ * Filling it in here would hide that. The look-up tools also
  * compare it with caller ID to tell a client's own booking from someone
  * else's.
  */

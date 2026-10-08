@@ -93,6 +93,32 @@ export async function findClientOnNumber(
   return dependents.find((d) => namesMatch(d.name, name)) ?? null;
 }
 
+/**
+ * Whether the person a booking is for has been to the salon before, going by
+ * the record that booking goes on (findClientOnNumber). Read only.
+ *
+ * The record has to carry their name, not just the number: a mum's visits
+ * never make her daughter, booked on the mum's phone, a returning client
+ * (that would skip the daughter's skin test), and a record with no name on it
+ * cannot say whose visits they were.
+ */
+export async function hasBeenBefore(organizationId: string, phone: string, name: string): Promise<boolean> {
+  const client = await findClientOnNumber(organizationId, phone, name);
+  if (!client?.name?.trim() || !namesMatch(client.name, name)) return false;
+  return hasVisited(client.id);
+}
+
+/** A visit that happened: done, or booked for a time now past. */
+export async function hasVisited(leadId: string): Promise<boolean> {
+  const n = await prisma.appointment.count({
+    where: {
+      leadId,
+      OR: [{ status: "completed" }, { status: "booked", startsAt: { lt: new Date() } }],
+    },
+  });
+  return n > 0;
+}
+
 /** Whether `next` says more of the same name than `current` does. */
 function longerName(current: string | null, next: string): boolean {
   return (current ?? "").trim().split(/\s+/).filter(Boolean).length < next.trim().split(/\s+/).length;

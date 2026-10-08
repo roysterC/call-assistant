@@ -101,6 +101,33 @@ function expectValidHistory(messages: Anthropic.MessageParam[]) {
 // --- The loop -----------------------------------------------------------------
 
 describe("ReceptionistEngine", () => {
+  it("sends what the model needs with every request, and nothing for a model that needs nothing", async () => {
+    const withOptions = fakeClient([{ tools: [{ name: "check_availability", input: {} }] }, { text: ["Thursday at 11?"] }]);
+    const engine = new ReceptionistEngine({
+      client: withOptions.client,
+      model: "claude-haiku-5-5",
+      request: { thinking: { type: "disabled" }, output_config: { effort: "medium" } },
+      system: [{ type: "text", text: "sys" }],
+      tools: [],
+      execute: vi.fn(async () => ({ ok: true })),
+    });
+    await engine.respond("Anything Thursday?");
+    // Both round trips of the turn, not just the first.
+    expect(withOptions.sent).toHaveLength(2);
+    for (const params of withOptions.sent) {
+      expect(params).toMatchObject({
+        model: "claude-haiku-5-5",
+        thinking: { type: "disabled" },
+        output_config: { effort: "medium" },
+      });
+    }
+
+    const without = fakeClient([{ text: ["Hello"] }]);
+    await engineWith(without.client).engine.respond("Hi");
+    expect(without.sent[0]).not.toHaveProperty("thinking");
+    expect(without.sent[0]).not.toHaveProperty("output_config");
+  });
+
   it("streams a plain reply and records the exchange", async () => {
     const { client, sent } = fakeClient([{ text: ["Of course", ", what day?"] }]);
     const { engine } = engineWith(client);

@@ -266,6 +266,25 @@ describe("VoiceCall", () => {
     expect(h.call.log.map((l) => l.who)).toEqual(["assistant", "caller", "assistant"]);
   });
 
+  it("times the reply from the caller's last words, not only from the end of their turn", async () => {
+    const h = harness(async (text, hooks) => {
+      hooks.onText?.("Of course. ");
+      return done("Of course.");
+    });
+    await h.call.start();
+    await tick();
+    h.advance(5_000);
+    h.stt().onFinal("A cut please");
+    h.advance(400); // the recogniser waiting to be sure they have finished
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    const m = h.events.find((e) => e.type === "metrics");
+    expect(m).toBeDefined();
+    if (m?.type !== "metrics" || m.firstAudioMs === null || m.sinceHeardMs === null) throw new Error("no timing");
+    expect(m.sinceHeardMs - m.firstAudioMs).toBe(400);
+  });
+
   it("stops talking when the caller talks over it", async () => {
     let seenSignal: AbortSignal | undefined;
     const h = harness(

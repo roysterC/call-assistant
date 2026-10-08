@@ -52,7 +52,7 @@ import {
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
 import { namesMatch, splitName } from "@/lib/client-name";
-import { clientForBooking, findClientOnNumber, peopleOnNumber, textRecipient } from "@/lib/client-link";
+import { clientForBooking, findClientOnNumber, hasBeenBefore, peopleOnNumber, textRecipient } from "@/lib/client-link";
 import { spokenPatchTest } from "@/lib/patch-test";
 
 /**
@@ -741,6 +741,10 @@ async function checkAvailability(
     clientType?: string;
     /** Some phrasings produce a boolean instead of clientType. */
     newClient?: boolean;
+    /** Who it is for, with their number: enough to tell a regular from their record. */
+    customerName?: string;
+    customerPhone?: string;
+    callerNumber?: string;
     /** "morning" | "afternoon" | "evening" */
     timeOfDay?: string;
     /** "HH:MM" local — caller wants nothing before this. */
@@ -795,7 +799,7 @@ async function checkAvailability(
   }
   const service = resolvedService.service;
 
-  const clientType = normaliseClientType(
+  let clientType = normaliseClientType(
     params.clientType ??
       (params.newClient === true
         ? "new"
@@ -803,6 +807,20 @@ async function checkAvailability(
           ? "returning"
           : undefined)
   );
+  // Only colour cares (a new client's skin test holds back the first two
+  // days), and then a regular found on their own record is offered those
+  // days like anyone else, without being asked.
+  const forName = normaliseCallerName(params.customerName);
+  const forPhone = resolveCallerPhone(params.customerPhone, params.callerNumber);
+  if (
+    service.requiresPatchTest &&
+    clientType !== "returning" &&
+    forName.ok &&
+    forPhone.ok &&
+    (await hasBeenBefore(organizationId, forPhone.e164, forName.name))
+  ) {
+    clientType = "returning";
+  }
   const stylistName =
     blankToUndefined(params.stylist) ?? blankToUndefined(params.teamMember);
 
@@ -1261,7 +1279,7 @@ export async function handleBookAppointment(
     return { success: false, message: "That date and time did not parse." };
   }
 
-  const clientType = normaliseClientType(
+  let clientType = normaliseClientType(
     params.clientType ??
       (params.newClient === true
         ? "new"
@@ -1269,6 +1287,11 @@ export async function handleBookAppointment(
           ? "returning"
           : undefined)
   );
+  // Their own record, found by name and number, has a visit on it: they have
+  // been before, whatever was said or misheard, and nobody needs to ask.
+  if (clientType !== "returning" && (await hasBeenBefore(organizationId, phone, clientName))) {
+    clientType = "returning";
+  }
 
   // A patch test on the salon's records for whoever this is for: colour
   // needs no new test and no 48-hour wait, and there is nothing to ask.
@@ -1286,8 +1309,9 @@ export async function handleBookAppointment(
       success: false,
       needsClientType: true,
       message:
-        `${service.name} is a colour service. Ask whether they have had colour here before, ` +
-        "then book again with clientType 'returning' if they have, or 'new' if not.",
+        `${service.name} is a colour service and there is no visit or patch test on record for ` +
+        `${clientName} on this number. Ask whether they have had colour here before, then book ` +
+        "again with clientType 'returning' if they have, or 'new' if not.",
     };
   }
 
@@ -1544,17 +1568,17 @@ export async function handleBookAppointment(
           "test at the salon at least 48 hours before, which is separate and which the salon " +
           "will be in touch to arrange."
         : "") +
-      // They never said the number out loud, so they have not had the chance
-      // to catch it being wrong — and the confirmation text has just gone to
-      // it.
-      // Told only "check it", a receptionist given a correction saved the new
-      // number on the client's record and said "all updated", leaving the
-      // booking (and its text) on the old one; another booked everything
-      // again and left the first two in the diary.
+      // Booked on caller ID: the number is the phone in their hand, and the
+      // text has already gone to it. Asking afterwards whether the number is
+      // right put a question to the caller about something they could not
+      // change and had just been told was done; it only sounded unsure.
       (resolvedPhone.source === "callerId"
-        ? ` It was booked against the number they are ringing from, ` +
-          `${speakablePhone(phone)} — read that back and check it is right. ` +
-          "If it is wrong, the booking is on that number: cancel it and book it again on the right one."
+        ? sms.ok
+          ? " It is on the number they are ringing from, so say the text is on its way to this phone. " +
+            "Do not read the number out or ask whether it is right."
+          : // Why it failed is not the caller's business, and a guess ("a
+            // landline?") is wrong whenever it was our side that failed.
+            " It is on the number they are ringing from. The booking still stands; do not read the number out."
         : ""),
   };
 }
