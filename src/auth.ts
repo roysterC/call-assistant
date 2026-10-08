@@ -1,7 +1,14 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { clientIp, loginThrottle } from "@/lib/login-throttle";
+import { isTenantRole } from "@/lib/tenant-roles";
+
+/** Too many wrong passwords; the login page says so instead of "invalid". */
+class TooManyAttempts extends CredentialsSignin {
+  code = "too_many_attempts";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -11,12 +18,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const email = String(credentials?.email || "")
           .toLowerCase()
           .trim();
         const password = String(credentials?.password || "");
         if (!email || !password) return null;
+
+        const ip = clientIp(request.headers);
+        if (!loginThrottle.allowed(email, ip)) throw new TooManyAttempts();
 
         const user = await prisma.user.findUnique({
           where: { email },
@@ -27,13 +37,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             passwordHash: true,
             organizationId: true,
             role: true,
+            sessionVersion: true,
             organization: { select: { name: true } },
           },
         });
-        if (!user?.passwordHash) return null;
 
-        const ok = await verifyPassword(password, user.passwordHash);
-        if (!ok) return null;
+        const ok = Boolean(user?.passwordHash) && (await verifyPassword(password, user!.passwordHash!));
+        if (!user || !ok) {
+          loginThrottle.fail(email, ip);
+          return null;
+        }
+        loginThrottle.succeed(email);
+        // A withdrawn role (stylist logins) cannot sign in at all.
+        if (!isTenantRole(user.role || "member")) return null;
 
         return {
           id: user.id,
@@ -42,6 +58,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           organizationId: user.organizationId,
           organizationName: user.organization?.name || null,
           role: user.role,
+          sessionVersion: user.sessionVersion,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
       },
@@ -54,11 +71,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           organizationId?: string | null;
           organizationName?: string | null;
           role?: string;
+          sessionVersion?: number;
         };
         token.userId = u.id;
         token.organizationId = u.organizationId || null;
         token.organizationName = u.organizationName || null;
-        token.role = u.role || "member";
+        token.role = (u.role || "member") as NonNullable<typeof token.role>;
+        token.sessionVersion = u.sessionVersion ?? 0;
       }
       return token;
     },
@@ -72,7 +91,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           organizationName:
             (token.organizationName as string | null) || null,
           role:
-            (token.role as "member" | "admin" | "superAdmin" | "stylist") || "member",
+            (token.role as "member" | "admin" | "superAdmin") || "member",
+          // Sessions from before this was recorded count as the first.
+          sessionVersion: token.sessionVersion ?? 0,
         },
       };
     },

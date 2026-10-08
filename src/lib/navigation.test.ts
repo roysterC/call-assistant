@@ -3,6 +3,7 @@ import {
   DASHBOARD,
   DIARY,
   NAV_PAGES,
+  isNavAllowed,
   isNavVisible,
   isStartPageChoice,
   orderForStartPage,
@@ -28,6 +29,30 @@ describe("isNavVisible", () => {
   });
 });
 
+describe("a salon's people", () => {
+  const leads = NAV_PAGES.find((p) => p.href === "/leads")!;
+  const clients = NAV_PAGES.find((p) => p.href === "/clients")!;
+
+  it("are its Clients, not Leads, once it has the diary", () => {
+    expect(isNavVisible(clients, salon)).toBe(true);
+    expect(isNavVisible(leads, salon)).toBe(false);
+  });
+
+  it("stay Leads for an organisation without it", () => {
+    expect(isNavVisible(leads, chatOnly)).toBe(true);
+    expect(isNavVisible(clients, chatOnly)).toBe(false);
+  });
+
+  it("show neither until the features have loaded", () => {
+    expect(isNavVisible(leads, null)).toBe(false);
+    expect(isNavVisible(clients, null)).toBe(false);
+  });
+
+  it("no longer include Appointments, which the diary shows", () => {
+    expect(NAV_PAGES.some((p) => p.href === "/appointments")).toBe(false);
+  });
+});
+
 describe("resolveStartPage", () => {
   it("opens a salon whose diary takes bookings on the diary", () => {
     expect(resolveStartPage({ chosen: null, flags: salon, diaryTakesBookings: true })).toBe(DIARY);
@@ -50,6 +75,35 @@ describe("resolveStartPage", () => {
     expect(resolveStartPage({ chosen: DIARY, flags: chatOnly, diaryTakesBookings: false })).toBe(DASHBOARD);
     expect(resolveStartPage({ chosen: "/nowhere", flags: salon, diaryTakesBookings: true })).toBe(DIARY);
     expect(resolveStartPage({ chosen: "/settings", flags: salon, diaryTakesBookings: false })).toBe(DASHBOARD);
+  });
+});
+
+describe("owner-only pages", () => {
+  const websites = NAV_PAGES.find((p) => p.href === "/websites")!;
+  const insights = NAV_PAGES.find((p) => p.href === "/insights")!;
+  const diary = NAV_PAGES.find((p) => p.href === DIARY)!;
+
+  it("keep the websites and chatbot pages from members", () => {
+    for (const page of [websites, insights]) {
+      expect(isNavAllowed(page, "member")).toBe(false);
+      expect(isNavAllowed(page, "admin")).toBe(true);
+      expect(isNavAllowed(page, "superAdmin")).toBe(true);
+    }
+    expect(isNavAllowed(diary, "member")).toBe(true);
+  });
+
+  it("show Insights to a salon with the receptionist but no chatbot", () => {
+    expect(isNavVisible(insights, { ...salon, chatbotEnabled: false })).toBe(true);
+    expect(isNavVisible(insights, chatOnly)).toBe(true);
+    expect(
+      isNavVisible(insights, { ...salon, voiceEnabled: false, chatbotEnabled: false })
+    ).toBe(false);
+  });
+
+  it("are a start page for the owner, but a member opens on the automatic page", () => {
+    const chosen = "/insights";
+    expect(resolveStartPage({ chosen, flags: chatOnly, diaryTakesBookings: false })).toBe(chosen);
+    expect(resolveStartPage({ chosen, flags: chatOnly, diaryTakesBookings: false, isOwner: false })).toBe(DASHBOARD);
   });
 });
 

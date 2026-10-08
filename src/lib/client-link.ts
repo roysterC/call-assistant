@@ -69,27 +69,43 @@ export async function clientForBooking(
 }
 
 /**
- * Whether the person a booking is for has been to the salon before, going by
- * the record that booking goes on (see clientForBooking): the number's own
- * client when the name matches, or someone reached through the number under
- * that name. Read only.
+ * The record clientForBooking would pick for `name` on `phone`, read only:
+ * nothing is created or renamed. Null when there is none yet. With no name,
+ * the number's own client.
  *
- * The name has to match, not just the number: a mum's visits never make her
- * daughter, booked on the mum's phone, a returning client. That would skip
- * the daughter's skin test.
+ * For checking what is on file before a booking is made — a patch test, say —
+ * so the same person is looked at as the booking will then be written to.
  */
-export async function hasBeenBefore(organizationId: string, phone: string, name: string): Promise<boolean> {
+export async function findClientOnNumber(
+  organizationId: string,
+  phone: string,
+  name?: string | null
+): Promise<LeadRow | null> {
   const holder = await prisma.lead.findUnique({
     where: { organizationId_phone: { organizationId, phone } },
   });
-  if (!holder) return false;
-  if (namesMatch(holder.name, name)) return hasVisited(holder.id);
+  if (!holder) return null;
+  if (!name?.trim() || !holder.name?.trim() || namesMatch(holder.name, name)) return holder;
   const dependents = await prisma.lead.findMany({
     where: { organizationId, contactLeadId: holder.id },
     orderBy: { createdAt: "asc" },
   });
-  const known = dependents.find((d) => namesMatch(d.name, name));
-  return known ? hasVisited(known.id) : false;
+  return dependents.find((d) => namesMatch(d.name, name)) ?? null;
+}
+
+/**
+ * Whether the person a booking is for has been to the salon before, going by
+ * the record that booking goes on (findClientOnNumber). Read only.
+ *
+ * The record has to carry their name, not just the number: a mum's visits
+ * never make her daughter, booked on the mum's phone, a returning client
+ * (that would skip the daughter's skin test), and a record with no name on it
+ * cannot say whose visits they were.
+ */
+export async function hasBeenBefore(organizationId: string, phone: string, name: string): Promise<boolean> {
+  const client = await findClientOnNumber(organizationId, phone, name);
+  if (!client?.name?.trim() || !namesMatch(client.name, name)) return false;
+  return hasVisited(client.id);
 }
 
 /** A visit that happened: done, or booked for a time now past. */

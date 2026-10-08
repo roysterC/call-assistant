@@ -6,15 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable, PersonCell, Pill, type ColumnDef } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +22,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
+  MoreHorizontal,
+  KeyRound,
+  UserCog,
   Save,
   Trash2,
   Plus,
@@ -43,9 +45,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { STATUS_BADGE } from "@/lib/status-styles";
 import { plural } from "@/lib/plural";
-import { cn } from "@/lib/utils";
 import { VapiSyncCard } from "@/components/admin/vapi-sync-card";
 
 interface Org {
@@ -111,14 +111,20 @@ export default function OrganizationDetailPage() {
   const [userForm, setUserForm] = useState({
     email: "",
     name: "",
-    role: "member",
+    role: "admin",
     password: "",
   });
   const [userJustCreated, setUserJustCreated] = useState<{
     email: string;
     password: string;
+    /** "User created" when absent. */
+    title?: string;
   } | null>(null);
   const [copiedPw, setCopiedPw] = useState(false);
+  // A new password for someone who has forgotten theirs. There is no email,
+  // so they ask us; we set one here and pass it on.
+  const [resetFor, setResetFor] = useState<{ id: string; email: string } | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
 
   // Websites
   type WebsiteRow = {
@@ -352,18 +358,58 @@ export default function OrganizationDetailPage() {
       email: userForm.email,
       password: userForm.password,
     });
-    setUserForm({ email: "", name: "", role: "member", password: "" });
+    setUserForm({ email: "", name: "", role: "admin", password: "" });
     await load();
   }
 
   function generatePassword() {
-    // 12-char random password using safe letters/digits
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    let out = "";
-    const arr = new Uint32Array(12);
-    crypto.getRandomValues(arr);
-    for (let i = 0; i < 12; i++) out += chars[arr[i] % chars.length];
-    setUserForm((f) => ({ ...f, password: out }));
+    setUserForm((f) => ({ ...f, password: randomPassword() }));
+  }
+
+  async function changeUser(userId: string, body: { role?: string; password?: string }) {
+    if (!org) return false;
+    const res = await fetch(`/api/admin/organizations/${org.id}/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to change that login");
+      return false;
+    }
+    await load();
+    return true;
+  }
+
+  async function saveNewPassword() {
+    if (!resetFor) return;
+    if (resetPassword.length < 8) {
+      alert("Password must be at least 8 characters");
+      return;
+    }
+    if (!(await changeUser(resetFor.id, { password: resetPassword }))) return;
+    setUserJustCreated({ email: resetFor.email, password: resetPassword, title: "Password reset" });
+    setResetFor(null);
+    setResetPassword("");
+  }
+
+  async function removeUser(u: { id: string; email: string }) {
+    if (!org) return;
+    if (
+      !confirm(
+        `Remove ${u.email}? They are signed out at once and can't sign in again. The salon's bookings, clients and calls are kept.`
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/admin/organizations/${org.id}/users/${u.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Failed to remove that login");
+      return;
+    }
+    await load();
   }
 
   // Note: feature/prompt saving was previously a separate `saveFeatures`
@@ -392,7 +438,7 @@ export default function OrganizationDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -404,6 +450,140 @@ export default function OrganizationDetailPage() {
       </div>
     );
   }
+
+  const phoneColumns: ColumnDef<Org["phoneNumbers"][number]>[] = [
+    {
+      id: "number",
+      header: "Number",
+      accessorKey: "number",
+      cell: ({ row: { original: p } }) => <PersonCell name={p.label || p.number} detail={p.label ? p.number : null} />,
+    },
+    {
+      id: "channel",
+      header: "Channel",
+      accessorFn: (p) => (p.channel === "vapi" ? "Voice" : p.channel),
+      cell: ({ row: { original: p } }) => (
+        <Pill className="bg-muted capitalize text-foreground">{p.channel === "vapi" ? "Voice" : p.channel}</Pill>
+      ),
+    },
+    {
+      id: "provider",
+      header: "Provider ID",
+      accessorFn: (p) => p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "",
+      meta: { className: "font-mono text-xs text-muted-foreground" },
+      cell: ({ row: { original: p } }) => p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "—",
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: "right" },
+      cell: ({ row: { original: p } }) => (
+        <Button variant="ghost" size="sm" onClick={() => deletePhone(p.id)} aria-label={`Remove ${p.number}`}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ),
+    },
+  ];
+
+  const websiteColumns: ColumnDef<WebsiteRow>[] = [
+    {
+      id: "name",
+      header: "Website",
+      accessorKey: "name",
+      cell: ({ row: { original: w } }) => <PersonCell name={w.name} detail={<code className="text-xs">{w.siteId}</code>} />,
+    },
+    { id: "bot", header: "Bot", accessorKey: "botName" },
+    { id: "conversations", header: "Conversations", accessorFn: (w) => w._count.conversations, meta: { align: "right" } },
+    {
+      id: "status",
+      header: "Status",
+      accessorFn: (w) => (w.enabled ? "Enabled" : "Disabled"),
+      cell: ({ row: { original: w } }) =>
+        w.enabled ? (
+          <Pill className="bg-tea-green-800 text-tea-green-100">Enabled</Pill>
+        ) : (
+          <Pill className="bg-red-50 text-red-800">Disabled</Pill>
+        ),
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: "right" },
+      cell: ({ row: { original: w } }) => (
+        <span className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="sm" onClick={() => copyEmbedForSite(w.siteId)} aria-label={`Copy embed code for ${w.name}`} title="Copy embed code">
+            {copiedSiteId === w.siteId ? <Check className="h-4 w-4 text-tea-green-200" /> : <Copy className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => deleteWebsite(w.id, w.name)} aria-label={`Delete ${w.name}`} title="Delete">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </span>
+      ),
+    },
+  ];
+
+  const userColumns: ColumnDef<Org["users"][number]>[] = [
+    {
+      id: "user",
+      header: "User",
+      accessorFn: (u) => `${u.name ?? ""} ${u.email}`,
+      sortingFn: (a, b) => (a.original.name || a.original.email).localeCompare(b.original.name || b.original.email),
+      cell: ({ row: { original: u } }) => <PersonCell name={u.name || u.email} detail={u.name ? u.email : null} />,
+    },
+    {
+      id: "role",
+      header: "Role",
+      accessorFn: (u) => ROLE_LABEL[u.role] ?? u.role,
+      cell: ({ row: { original: u } }) => <Pill className="bg-muted text-foreground">{ROLE_LABEL[u.role] ?? u.role}</Pill>,
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      meta: { align: "right" },
+      cell: ({ row: { original: u } }) =>
+        u.role === "superAdmin" ? null : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`Manage ${u.email}`}
+              className="ml-auto flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {u.role !== "admin" && (
+                <DropdownMenuItem onClick={() => changeUser(u.id, { role: "admin" })}>
+                  <UserCog />
+                  Make admin (owner)
+                </DropdownMenuItem>
+              )}
+              {u.role !== "member" && (
+                <DropdownMenuItem onClick={() => changeUser(u.id, { role: "member" })}>
+                  <UserCog />
+                  Make member (staff)
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => {
+                  setResetPassword("");
+                  setResetFor({ id: u.id, email: u.email });
+                }}
+              >
+                <KeyRound />
+                Reset password
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => removeUser(u)}>
+                <Trash2 />
+                Remove login
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -424,7 +604,7 @@ export default function OrganizationDetailPage() {
             <>
               <Button
                 variant="outline"
-                onClick={() => router.push(`/?asOrg=${org.id}`)}
+                onClick={() => router.push(`/start?asOrg=${org.id}`)}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 View as org
@@ -458,7 +638,7 @@ export default function OrganizationDetailPage() {
         <span>{plural(org._count.leads, "lead")}</span>
         <span>{plural(org._count.calls, "call")}</span>
         <span>{plural(org._count.websites, "site")}</span>
-        <span className={org.enabled ? "text-emerald-700" : "text-red-600"}>
+        <span className={org.enabled ? "text-tea-green-200" : "text-red-600"}>
           {org.enabled ? "Enabled" : "Disabled"}
         </span>
       </p>
@@ -618,7 +798,7 @@ export default function OrganizationDetailPage() {
                 href="https://developers.facebook.com/docs/messenger-platform/instagram/"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Instagram Messaging setup docs
@@ -689,7 +869,7 @@ export default function OrganizationDetailPage() {
                 href="https://developers.facebook.com/docs/messenger-platform/webhooks/"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Messenger webhook setup docs
@@ -761,7 +941,7 @@ export default function OrganizationDetailPage() {
                 href="https://dashboard.vapi.ai"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
               >
                 <ExternalLink className="w-3 h-3" />
                 Open Vapi dashboard
@@ -782,7 +962,7 @@ export default function OrganizationDetailPage() {
                   href="https://app.cal.com/settings/developer/api-keys"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-2"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
                 >
                   <ExternalLink className="w-3 h-3" />
                   Get a Cal.com API key
@@ -832,211 +1012,74 @@ export default function OrganizationDetailPage() {
         <VapiSyncCard organizationId={org.id} />
       )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Phone className="w-5 h-5" />
+      <section className="space-y-3" aria-labelledby="org-phones">
+        <div className="flex items-center justify-between">
+          <h2 id="org-phones" className="flex items-center gap-2 font-heading text-base font-semibold">
+            <Phone className="h-5 w-5" />
             Phone numbers
-          </CardTitle>
+          </h2>
           <Button size="sm" onClick={() => setPhoneDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Add
           </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Number</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Provider ID</TableHead>
-                <TableHead>Label</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {org.phoneNumbers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="p-0">
-                    <EmptyState
-                      icon={Phone}
-                      title="No phone numbers registered"
-                      hint="Add the WhatsApp or voice number this client answers on."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                org.phoneNumbers.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-sm">{p.number}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] capitalize">
-                        {p.channel === "vapi" ? "Voice" : p.channel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-mono">
-                      {p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "—"}
-                    </TableCell>
-                    <TableCell className="text-sm">{p.label || "—"}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => deletePhone(p.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+        <DataTable
+          columns={phoneColumns}
+          data={org.phoneNumbers}
+          getRowId={(p) => p.id}
+          empty={
+            <EmptyState
+              icon={Phone}
+              title="No phone numbers registered"
+              hint="Add the WhatsApp or voice number this client answers on."
+            />
+          }
+        />
+      </section>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Globe className="w-5 h-5" />
+      <section className="space-y-3" aria-labelledby="org-websites">
+        <div className="flex items-center justify-between">
+          <h2 id="org-websites" className="flex items-center gap-2 font-heading text-base font-semibold">
+            <Globe className="h-5 w-5" />
             Websites
-          </CardTitle>
+          </h2>
           <Button size="sm" onClick={() => setWebsiteDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Add website
           </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Site ID</TableHead>
-                <TableHead>Bot</TableHead>
-                <TableHead>Conversations</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {websites.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="p-0">
-                    <EmptyState
-                      icon={Globe}
-                      title="No websites yet"
-                      hint="Each site gets its own chatbot, prompt and embed snippet."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                websites.map((w) => (
-                  <TableRow key={w.id}>
-                    <TableCell className="font-medium">
-                      <button
-                        onClick={() =>
-                          router.push(`/websites/${w.id}?asOrg=${org.id}`)
-                        }
-                        className="hover:underline text-left"
-                      >
-                        {w.name}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                        {w.siteId}
-                      </code>
-                    </TableCell>
-                    <TableCell className="text-sm">{w.botName}</TableCell>
-                    <TableCell className="text-sm">
-                      {w._count.conversations}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          STATUS_BADGE,
-                          w.enabled
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                        )}
-                      >
-                        {w.enabled ? "Enabled" : "Disabled"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="flex items-center gap-1 justify-end pr-4">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyEmbedForSite(w.siteId)}
-                        title="Copy embed code"
-                      >
-                        {copiedSiteId === w.siteId ? (
-                          <Check className="w-4 h-4 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteWebsite(w.id, w.name)}
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+        <DataTable
+          columns={websiteColumns}
+          data={websites}
+          getRowId={(w) => w.id}
+          onRowClick={(w) => router.push(`/websites/${w.id}?asOrg=${org.id}`)}
+          rowLabel={(w) => w.name}
+          empty={
+            <EmptyState icon={Globe} title="No websites yet" hint="Each site gets its own chatbot, prompt and embed snippet." />
+          }
+        />
+      </section>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <UsersIcon className="w-5 h-5" />
+      <section className="space-y-3" aria-labelledby="org-users">
+        <div className="flex items-center justify-between">
+          <h2 id="org-users" className="flex items-center gap-2 font-heading text-base font-semibold">
+            <UsersIcon className="h-5 w-5" />
             Users
-          </CardTitle>
+          </h2>
           <Button size="sm" onClick={() => setUserDialog(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Invite
           </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {org.users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="p-0">
-                    <EmptyState
-                      icon={UsersIcon}
-                      title="No users yet"
-                      hint="Nobody at this client can sign in until you add one."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                org.users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="text-sm">{u.email}</TableCell>
-                    <TableCell className="text-sm">{u.name || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px]">
-                        {u.role === "superAdmin" ? "Super admin" : u.role}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+        <DataTable
+          columns={userColumns}
+          data={org.users}
+          getRowId={(u) => u.id}
+          empty={
+            <EmptyState icon={UsersIcon} title="No users yet" hint="Nobody at this client can sign in until you add one." />
+          }
+        />
+      </section>
 
       {/* Add Phone dialog */}
       <Dialog open={phoneDialog} onOpenChange={setPhoneDialog}>
@@ -1277,10 +1320,15 @@ export default function OrganizationDetailPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="admin">Admin (owner)</SelectItem>
+                  <SelectItem value="member">Member (staff)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {userForm.role === "member"
+                  ? "Day-to-day: diary, clients, calls, conversations and takings. Settings are read-only; no websites, chatbot or charges."
+                  : "Everything for this salon: settings, websites and chatbot, and charges."}
+              </p>
             </div>
             <div>
               <label className="text-xs font-medium">
@@ -1329,6 +1377,52 @@ export default function OrganizationDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* New password for a login whose owner has forgotten it */}
+      <Dialog
+        open={!!resetFor}
+        onOpenChange={(open) => {
+          if (!open) setResetFor(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-foreground/80">
+              A new password for <strong>{resetFor?.email}</strong>. Every
+              device they are signed in on is signed out. Pass it on to them;
+              they can change it under Settings → Account.
+            </p>
+            <div>
+              <label htmlFor="reset-password" className="text-xs font-medium">
+                New password (min 8 chars)
+              </label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  id="reset-password"
+                  type="text"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  className="flex-1 font-mono"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={() => setResetPassword(randomPassword())}>
+                  Generate
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetFor(null)}>
+              Cancel
+            </Button>
+            <Button onClick={saveNewPassword} disabled={resetPassword.length < 8}>
+              Set password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Post-creation password confirmation */}
       <Dialog
         open={!!userJustCreated}
@@ -1342,7 +1436,7 @@ export default function OrganizationDetailPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>User created</DialogTitle>
+            <DialogTitle>{userJustCreated?.title ?? "User created"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-foreground/80">
@@ -1398,6 +1492,21 @@ export default function OrganizationDetailPage() {
       </Dialog>
     </div>
   );
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  superAdmin: "Super admin",
+  admin: "Admin (owner)",
+  member: "Member (staff)",
+  stylist: "Stylist (withdrawn)",
+};
+
+/** 12 characters from letters and digits that can't be misread (no 0/O, 1/l/I). */
+function randomPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const arr = new Uint32Array(12);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (n) => chars[n % chars.length]).join("");
 }
 
 function FeatureToggle({

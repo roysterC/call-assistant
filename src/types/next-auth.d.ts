@@ -6,7 +6,8 @@ declare module "next-auth" {
       id: string;
       organizationId: string | null;
       organizationName: string | null;
-      role: "member" | "admin" | "superAdmin" | "stylist";
+      role: "member" | "admin" | "superAdmin";
+      sessionVersion: number;
     } & DefaultSession["user"];
   }
 }
@@ -16,6 +17,7 @@ declare module "next-auth/jwt" {
     userId?: string;
     organizationId?: string | null;
     organizationName?: string | null;
-    role?: "member" | "admin" | "superAdmin" | "stylist";
+    role?: "member" | "admin" | "superAdmin";
+    sessionVersion?: number;
   }
 }

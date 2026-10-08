@@ -18,8 +18,6 @@ import { prisma } from "@/lib/prisma";
 import { textRecipient } from "@/lib/client-link";
 import type { Prisma } from "@/generated/prisma/client";
 import {
-  canWriteColumn,
-  notYourColumn,
   requireTenant,
   isErrorResponse,
 } from "@/lib/tenant";
@@ -33,7 +31,7 @@ import { rescheduleBody, sendSms } from "@/lib/sms";
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -45,7 +43,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       include: { lead: true },
     });
     if (!appt) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (!canWriteColumn(ctx, appt.stylistName)) return notYourColumn();
     if (appt.status === "cancelled") {
       return NextResponse.json(
         { error: "A cancelled booking can't be changed. Book a new one instead." },
@@ -75,7 +72,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         );
       }
       stylistName = stylist.name;
-      if (!canWriteColumn(ctx, stylistName)) return notYourColumn();
     }
 
     // --- What --------------------------------------------------------------
@@ -98,7 +94,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       serviceText = picked.service.name;
       data.serviceText = serviceText;
       data.patchTestRequired =
-        picked.service.requiresPatchTest && appt.clientType !== "returning";
+        picked.service.requiresPatchTest && appt.clientType !== "returning" && !appt.lead.patchTestAt;
       // A new set of services brings its own length, unless one is given.
       if (upcoming) durationMinutes = picked.service.durationMinutes;
     }

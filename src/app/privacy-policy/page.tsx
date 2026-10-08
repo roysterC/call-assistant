@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
             <br />
             Contact:{" "}
             <a
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline"
               href="mailto:roy962002@hotmail.com"
             >
               roy962002@hotmail.com
@@ -213,7 +213,7 @@ export default function PrivacyPolicyPage() {
               Request erasure of your data (&ldquo;right to be
               forgotten&rdquo;) &mdash; see{" "}
               <Link
-                className="text-blue-600 hover:underline"
+                className="text-primary hover:underline"
                 href="/data-deletion"
               >
                 our data-deletion procedure
@@ -225,7 +225,7 @@ export default function PrivacyPolicyPage() {
               Lodge a complaint with the Information Commissioner&rsquo;s
               Office (ICO) at{" "}
               <a
-                className="text-blue-600 hover:underline"
+                className="text-primary hover:underline"
                 href="https://ico.org.uk"
               >
                 ico.org.uk
@@ -236,7 +236,7 @@ export default function PrivacyPolicyPage() {
           <p className="mt-2">
             To exercise any of these rights, email{" "}
             <a
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline"
               href="mailto:roy962002@hotmail.com"
             >
               roy962002@hotmail.com
@@ -262,7 +262,7 @@ export default function PrivacyPolicyPage() {
           <p>
             Questions about this policy or about how your data is handled:{" "}
             <a
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline"
               href="mailto:roy962002@hotmail.com"
             >
               roy962002@hotmail.com

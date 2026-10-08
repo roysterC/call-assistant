@@ -2,16 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable, PersonCell, Pill, type ColumnDef } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Globe, Copy, Check, Plus } from "lucide-react";
 import { format } from "date-fns";
@@ -77,6 +68,62 @@ function WebsitesPageInner() {
     setTimeout(() => setCopiedId(null), 2000);
   }
 
+  const columns: ColumnDef<Site>[] = [
+    {
+      id: "name",
+      header: "Website",
+      accessorKey: "name",
+      cell: ({ row: { original: site } }) => (
+        <PersonCell name={site.name} detail={<code className="text-xs">{site.siteId}</code>} />
+      ),
+    },
+    { id: "bot", header: "Bot", accessorKey: "botName" },
+    {
+      id: "conversations",
+      header: "Conversations",
+      accessorFn: (site) => site._count.conversations,
+      meta: { align: "right" },
+    },
+    {
+      id: "status",
+      header: "Status",
+      accessorFn: (site) => (site.enabled ? "Live" : "Off"),
+      cell: ({ row: { original: site } }) =>
+        site.enabled ? (
+          <Pill className="bg-tea-green-800 text-tea-green-100">Live</Pill>
+        ) : (
+          <Pill className="bg-muted text-muted-foreground">Off</Pill>
+        ),
+    },
+    {
+      id: "created",
+      header: "Created",
+      accessorFn: (site) => site.createdAt,
+      meta: { className: "whitespace-nowrap text-muted-foreground" },
+      cell: ({ row: { original: site } }) => format(new Date(site.createdAt), "d MMM yyyy"),
+    },
+    {
+      id: "embed",
+      header: () => <span className="sr-only">Embed code</span>,
+      enableSorting: false,
+      meta: { align: "right" },
+      cell: ({ row: { original: site } }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            copyEmbed(site.siteId);
+          }}
+          aria-label={`Copy embed code for ${site.name}`}
+          title="Copy embed code"
+        >
+          {copiedId === site.siteId ? <Check className="h-4 w-4 text-tea-green-200" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -89,100 +136,27 @@ function WebsitesPageInner() {
         }
       />
 
-      <Card className="py-0">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Site ID</TableHead>
-                <TableHead>Bot</TableHead>
-                <TableHead>Conversations</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
-                    <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : sites.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="p-0">
-                    <EmptyState
-                      icon={Globe}
-                      title="No chatbot set up yet"
-                      hint="Add a website to generate a chatbot and the one-line snippet that puts it on your page."
-                      action={
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            router.push(`/websites/new${navSuffix}`)
-                          }
-                        >
-                          <Plus className="w-4 h-4 mr-1.5" />
-                          Add website
-                        </Button>
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sites.map((site) => (
-                  <TableRow
-                    key={site.id}
-                    className="cursor-pointer hover:bg-accent/50"
-                    onClick={() => router.push(`/websites/${site.id}${navSuffix}`)}
-                  >
-                    <TableCell className="font-medium">{site.name}</TableCell>
-                    <TableCell>
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                        {site.siteId}
-                      </code>
-                    </TableCell>
-                    <TableCell className="text-sm">{site.botName}</TableCell>
-                    <TableCell className="text-sm">
-                      {site._count.conversations}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={site.enabled ? "default" : "secondary"}
-                        className="text-[10px]"
-                      >
-                        {site.enabled ? "enabled" : "disabled"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(site.createdAt), "MMM d, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyEmbed(site.siteId);
-                        }}
-                        title="Copy embed code"
-                      >
-                        {copiedId === site.siteId ? (
-                          <Check className="w-4 h-4 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={sites}
+        getRowId={(site) => site.id}
+        onRowClick={(site) => router.push(`/websites/${site.id}${navSuffix}`)}
+        rowLabel={(site) => site.name}
+        loading={loading}
+        empty={
+          <EmptyState
+            icon={Globe}
+            title="No chatbot set up yet"
+            hint="Add a website to generate a chatbot and the one-line snippet that puts it on your page."
+            action={
+              <Button size="sm" onClick={() => router.push(`/websites/new${navSuffix}`)}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Add website
+              </Button>
+            }
+          />
+        }
+      />
     </div>
   );
 }

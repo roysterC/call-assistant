@@ -128,8 +128,8 @@ export default function NewWebsitePage() {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center py-6">
-          <div className="w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto mb-3">
-            <Check className="w-6 h-6 text-emerald-600" />
+          <div className="w-12 h-12 rounded-full bg-tea-green-300/15 flex items-center justify-center mx-auto mb-3">
+            <Check className="w-6 h-6 text-tea-green-200" />
           </div>
           <h1 className="text-2xl font-bold">{form.name} is ready</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -154,7 +154,7 @@ export default function NewWebsitePage() {
                 }}
               >
                 {copied ? (
-                  <Check className="w-4 h-4 text-emerald-600" />
+                  <Check className="w-4 h-4 text-tea-green-200" />
                 ) : (
                   <Copy className="w-4 h-4" />
                 )}
@@ -193,7 +193,7 @@ export default function NewWebsitePage() {
           <div key={label} className="flex-1">
             <div
               className={`h-1 rounded-full ${
-                i <= step ? "bg-emerald-500" : "bg-accent"
+                i <= step ? "bg-tea-green-300" : "bg-accent"
               }`}
             />
             <p
@@ -353,7 +353,7 @@ export default function NewWebsitePage() {
                 {form.ctaLabel.trim() &&
                   !form.ctaUrl.trim() &&
                   !form.ctaSelector.trim() && (
-                    <p className="text-xs text-amber-700">
+                    <p className="text-xs text-papaya-whip-100">
                       Add a link or a section id, or the button stays hidden —
                       it has nowhere to send anyone.
                     </p>
@@ -443,7 +443,7 @@ export default function NewWebsitePage() {
                   </div>
                   <span
                     className={`text-xs ${
-                      contrast.meetsAA ? "text-muted-foreground" : "text-amber-700"
+                      contrast.meetsAA ? "text-muted-foreground" : "text-papaya-whip-100"
                     }`}
                   >
                     {contrast.meetsAA

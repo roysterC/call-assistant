@@ -5,11 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  canWriteColumn,
-  notYourColumn,
   requireTenant,
   isErrorResponse,
-  type TenantContext,
 } from "@/lib/tenant";
 import { getSalonConfig } from "@/lib/booking";
 import { matchStylist } from "@/lib/salon-config";
@@ -22,25 +19,18 @@ async function findOwn(id: string, organizationId: string) {
   return prisma.timeBlock.findFirst({ where: { id, organizationId } });
 }
 
-/** A stylist may change only a block of their own; the owner any. */
-function mayChange(ctx: TenantContext, stylistName: string | null): boolean {
-  if (!ctx.stylist) return true;
-  return stylistName !== null && canWriteColumn(ctx, stylistName);
-}
-
 /**
  * `{ skipDate: "YYYY-MM-DD" }` takes that week out of a weekly block.
  * Anything else is the whole form again, as on create (with `preview`).
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
     const { id } = await params;
     const existing = await findOwn(id, ctx.organizationId);
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (!mayChange(ctx, existing.stylistName)) return notYourColumn();
 
     const body = await req.json().catch(() => ({}));
 
@@ -72,7 +62,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
       data.stylistName = stylist.name;
     }
-    if (!mayChange(ctx, data.stylistName)) return notYourColumn();
     // Weeks already skipped stay skipped while the rule is the same shape.
     if (existing.repeat === "weekly" && data.repeat === "weekly") {
       data.skipDates = existing.skipDates;
@@ -90,14 +79,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
     const { id } = await params;
     const existing = await findOwn(id, ctx.organizationId);
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (!mayChange(ctx, existing.stylistName)) return notYourColumn();
     await prisma.timeBlock.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {

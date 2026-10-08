@@ -14,7 +14,7 @@ import {
   type Stylist,
 } from "@/lib/salon-config";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
-import { DIARY, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
+import { isStartPageChoice, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
 
@@ -110,8 +110,20 @@ const SUPER_ADMIN_ONLY_FIELDS = [
   "facebookPageAccessToken",
 ];
 
+/**
+ * The salon's keys and tokens are set by a super-admin and read only by the
+ * server. Anyone else is told whether one is set, never what it is.
+ */
+const SECRET_FIELDS = ["calComApiKey", "instagramAccessToken", "facebookPageAccessToken"] as const;
+
+function withoutSecrets<T extends Record<string, unknown>>(settings: T): T {
+  const out: Record<string, unknown> = { ...settings };
+  for (const f of SECRET_FIELDS) out[f] = settings[f] ? "set" : null;
+  return out as T;
+}
+
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -133,45 +145,28 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // A stylist's diary needs the hours, the services and who works when —
-    // not the salon's keys and tokens, prompts, or colleagues' contact
-    // details. Allowlisted, so a field added to settings later stays hidden.
-    if (ctx.stylist) {
-      const team = Array.isArray(settings.teamMembers) ? settings.teamMembers : [];
-      return NextResponse.json({
-        settings: {
-          businessName: settings.businessName,
-          timezone: settings.timezone,
-          businessHours: settings.businessHours,
-          services: settings.services,
-          diaryProvider: settings.diaryProvider,
-          teamMembers: team.map((m) => {
-            const t = (m ?? {}) as Record<string, unknown>;
-            return {
-              name: t.name,
-              role: t.role,
-              workingDays: t.workingDays,
-              services: t.services,
-              // Only whether one is set: the diary needs to know who is bookable.
-              googleCalendarId: t.googleCalendarId ? "set" : undefined,
-            };
-          }),
-        },
-        // A stylist login is for the diary, whatever the salon opens on.
-        startPage: DIARY,
-      });
-    }
-
-    // Where this organisation opens, resolved here so the sidebar and the
-    // root route agree without each re-deriving the diary's state.
+    // Where this login opens, resolved here so the sidebar and the root
+    // route agree without each re-deriving the diary's state.
     const cfg = await getSalonConfig(ctx.organizationId);
     const startPage = resolveStartPage({
       chosen: settings.startPage,
       flags: settings,
       diaryTakesBookings: selectProvider(cfg).capabilities.createBooking,
+      isOwner: ctx.role !== "member",
     });
 
-    return NextResponse.json({ settings, startPage });
+    // The name the sidebar heads with: this organisation's, including the one
+    // a super-admin is viewing as, so it never shows another name first.
+    const org = await prisma.organization.findUnique({
+      where: { id: ctx.organizationId },
+      select: { name: true },
+    });
+
+    return NextResponse.json({
+      settings: ctx.isSuperAdmin ? settings : withoutSecrets(settings),
+      startPage,
+      organizationName: org?.name ?? null,
+    });
   } catch (error) {
     console.error("[SETTINGS API] GET error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

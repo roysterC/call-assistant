@@ -33,6 +33,8 @@ export interface ChannelMeta {
   label: string;
 }
 
+// Each channel keeps its own brand colour, not the CRM's palette, so it reads
+// as WhatsApp or Messenger at a glance.
 // Lucide 1.x removed Meta brand icons (licensing). We use evocative
 // generics: Camera for Instagram (the app's original camera-shutter
 // branding), Send (paper-plane) for Messenger, Phone for voice.
@@ -55,16 +57,13 @@ export function avatarColorFor(seed: string): string {
   }
   // Soft tint with a strong initial, rather than a saturated disc with white
   // text: a page of forty leads in solid colour reads as confetti on a light
-  // background. Each pair clears 4.5:1.
+  // background. One per Sage scale (globals.css); each pair clears 7:1.
   const colors = [
-    "bg-blue-100 text-blue-700",
-    "bg-emerald-100 text-emerald-700",
-    "bg-violet-100 text-violet-700",
-    "bg-amber-100 text-amber-800",
-    "bg-rose-100 text-rose-700",
-    "bg-cyan-100 text-cyan-800",
-    "bg-indigo-100 text-indigo-700",
-    "bg-orange-100 text-orange-800",
+  "bg-tea-green-800 text-tea-green-100",
+  "bg-cornsilk-600 text-cornsilk-100",
+  "bg-papaya-whip-600 text-papaya-whip-100",
+  "bg-beige-800 text-beige-100",
+  "bg-light-bronze-900 text-light-bronze-100",
   ];
   return colors[Math.abs(hash) % colors.length];
 }

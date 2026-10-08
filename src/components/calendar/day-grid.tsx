@@ -60,6 +60,16 @@ export interface CalendarAppointment {
   };
 }
 
+/**
+ * Time nobody can be booked into, blocked or outside opening hours: one look
+ * for both, so a closed morning and a stylist's lunch read the same.
+ */
+const UNAVAILABLE_BG: React.CSSProperties = {
+  backgroundImage:
+    "repeating-linear-gradient(135deg, color-mix(in oklab, var(--muted-foreground) 14%, transparent) 0 6px, transparent 6px 12px)",
+  backgroundColor: "color-mix(in oklab, var(--muted) 55%, transparent)",
+};
+
 /** A stretch of blocked time as the diary fetch returns it. */
 export interface DiaryBlock {
   blockId: string;
@@ -77,8 +87,6 @@ export interface CalendarStylist {
   name: string;
   worksToday: boolean;
   bookable: boolean;
-  /** A colleague's column seen by a stylist login: shown, not bookable. */
-  readOnly?: boolean;
 }
 
 interface DayGridProps {
@@ -154,7 +162,7 @@ export function DayGrid({
             >
               <div className="text-sm font-semibold truncate">{s.name}</div>
               <div className="text-[11px] text-muted-foreground truncate">
-                {!s.bookable && !s.readOnly
+                {!s.bookable
                   ? "no calendar"
                   : s.worksToday
                     ? "working"
@@ -352,11 +360,13 @@ function StylistColumn({
         bookable ? "cursor-copy" : "cursor-not-allowed"
       )}
     >
+      {/* Closed hours look like blocked time: either way, nobody can be
+          booked then. */}
       {shaded.map((b, i) => (
         <div
           key={i}
-          className="absolute inset-x-0 bg-muted/40 pointer-events-none"
-          style={{ top: `${b.topPct}%`, height: `${b.heightPct}%` }}
+          className="absolute inset-x-0 pointer-events-none"
+          style={{ top: `${b.topPct}%`, height: `${b.heightPct}%`, ...UNAVAILABLE_BG }}
         />
       ))}
 
@@ -411,13 +421,7 @@ function StylistColumn({
             }}
             title={b.stylistName === null ? `${b.label} (everyone)` : b.label}
             className="absolute inset-x-0 overflow-hidden border-y border-border/60 px-1.5 py-1 text-left text-[11px] leading-tight text-muted-foreground hover:text-foreground focus-visible:ring-2"
-            style={{
-              top: `${g.topPct}%`,
-              height: `${g.heightPct}%`,
-              backgroundImage:
-                "repeating-linear-gradient(135deg, color-mix(in oklab, var(--muted-foreground) 14%, transparent) 0 6px, transparent 6px 12px)",
-              backgroundColor: "color-mix(in oklab, var(--muted) 55%, transparent)",
-            }}
+            style={{ top: `${g.topPct}%`, height: `${g.heightPct}%`, ...UNAVAILABLE_BG }}
           >
             <span className="font-medium">{b.label}</span>
           </button>
@@ -499,7 +503,7 @@ function StylistColumn({
             </span>
             <span className="block truncate text-foreground/70">{a.serviceText}</span>
             {a.patchTestRequired && (
-              <span className="block truncate font-medium text-amber-800">patch test</span>
+              <span className="block truncate font-medium text-papaya-whip-100">patch test</span>
             )}
           </button>
         );

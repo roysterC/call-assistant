@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,8 @@ interface StatCardProps {
    * the subtitle to say which way something moved.
    */
   accent?: boolean;
+  /** The page behind the number; the whole card becomes the link. */
+  href?: string;
 }
 
 /**
@@ -32,9 +35,10 @@ export function StatCard({
   icon: Icon,
   trend,
   accent,
+  href,
 }: StatCardProps) {
-  return (
-    <Card className="gap-0 py-0 transition-shadow hover:shadow-raised">
+  const card = (
+    <Card className="h-full gap-0 py-0 transition-shadow hover:shadow-raised">
       <CardContent className="p-4 md:p-5">
         <div className="flex items-start justify-between gap-3">
           <p className="text-[13px] md:text-sm font-medium text-muted-foreground">{title}</p>
@@ -49,7 +53,7 @@ export function StatCard({
         <p
           className={cn(
             "font-heading text-2xl md:text-[2rem] leading-none font-semibold mt-3 tabular-nums tracking-tight",
-            accent ? "text-emerald-700" : "text-foreground"
+            accent ? "text-tea-green-200" : "text-foreground"
           )}
         >
           {value}
@@ -58,7 +62,7 @@ export function StatCard({
           <p
             className={cn(
               "text-xs mt-2.5",
-              trend === "up" && "text-emerald-700",
+              trend === "up" && "text-tea-green-200",
               trend === "down" && "text-red-600",
               (!trend || trend === "neutral") && "text-muted-foreground"
             )}
@@ -68,5 +72,12 @@ export function StatCard({
         )}
       </CardContent>
     </Card>
+  );
+  return href ? (
+    <Link href={href} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {card}
+    </Link>
+  ) : (
+    card
   );
 }

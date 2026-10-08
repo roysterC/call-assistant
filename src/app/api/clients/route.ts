@@ -1,5 +1,6 @@
 /**
- * The salon's clients, as the desk sees them: search, sort, add.
+ * The salon's clients, as the desk sees them: search, sort (by name, number,
+ * email, last visit or next booking), add.
  *
  * Separate from /api/leads on purpose. That endpoint serves the inbox and
  * drags in each lead's latest WhatsApp and social conversation; the diary
@@ -15,8 +16,9 @@ import { parsePagination } from "@/lib/pagination";
 import { joinName, parseClientQuery } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
 import { nameKey, sameNameCounts } from "@/lib/client-link";
+import { patchTestDay } from "@/lib/patch-test";
 
-const SORTABLE = ["firstName", "lastName", "phone", "email"] as const;
+const SORTABLE = ["firstName", "lastName", "phone", "email", "lastVisit", "nextBooking"] as const;
 type SortKey = (typeof SORTABLE)[number];
 
 /** Statuses that mean the client actually came in (or was due to). */
@@ -30,6 +32,8 @@ const CLIENT_FIELDS = {
   phone: true,
   email: true,
   notes: true,
+  // So the booking form knows a colour needs no new test.
+  patchTestAt: true,
   // Set for a client with no number of their own, reached through another
   // client's (a child booked on a parent's phone).
   contactLead: { select: { id: true, name: true, phone: true } },
@@ -84,23 +88,8 @@ function searchSql(q: string | null): Prisma.Sql {
   }
 }
 
-/**
- * A stylist's client list is the clients they have had a booking with. In a
- * salon of chair renters, one stylist's clients are not another's to read.
- * The owner (null) sees everyone.
- */
-function ownClientsSql(organizationId: string, stylistName: string | null): Prisma.Sql {
-  if (stylistName === null) return Prisma.sql`TRUE`;
-  return Prisma.sql`EXISTS (
-    SELECT 1 FROM ca_appointments ap
-    WHERE ap."leadId" = ca_leads.id
-      AND ap."organizationId" = ${organizationId}
-      AND lower(ap."stylistName") = lower(${stylistName})
-  )`;
-}
-
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -119,11 +108,26 @@ export async function GET(req: NextRequest) {
       "organizationId" = ${ctx.organizationId}
       AND (name IS NOT NULL OR phone IS NOT NULL OR email IS NOT NULL)
       AND ${searchSql(searchParams.get("q"))}
-      AND ${ownClientsSql(ctx.organizationId, ctx.stylist?.name ?? null)}
     `;
 
     // Column names come from the whitelist above, never from the request.
-    const col = Prisma.raw(`lower("${sort}")`);
+    // The two visit dates are worked out per client from their appointments,
+    // exactly as the rows below report them, so the order matches what shows.
+    const now = new Date();
+    const col =
+      sort === "lastVisit"
+        ? Prisma.sql`(
+            SELECT max(a."startsAt") FROM ca_appointments a
+            WHERE a."leadId" = ca_leads.id AND a."organizationId" = ${ctx.organizationId}
+              AND a.status IN (${Prisma.join(VISITED)}) AND a."startsAt" < ${now}
+          )`
+        : sort === "nextBooking"
+          ? Prisma.sql`(
+              SELECT min(a."startsAt") FROM ca_appointments a
+              WHERE a."leadId" = ca_leads.id AND a."organizationId" = ${ctx.organizationId}
+                AND a.status = 'booked' AND a."startsAt" >= ${now}
+            )`
+          : Prisma.raw(`lower("${sort}")`);
     // Ties broken by the other half of the name, then id, so paging through
     // a salon with six Sarahs neither repeats nor skips one.
     const tie = Prisma.raw(
@@ -153,11 +157,6 @@ export async function GET(req: NextRequest) {
     const byId = new Map(found.map((r) => [r.id, r]));
     const rows = ids.flatMap((id) => byId.get(id) ?? []);
 
-    const now = new Date();
-    // A stylist sees the visits they did, not a colleague's.
-    const ownVisits = ctx.stylist
-      ? { stylistName: { equals: ctx.stylist.name, mode: "insensitive" as const } }
-      : {};
     const [past, upcoming] = ids.length
       ? await Promise.all([
           prisma.appointment.groupBy({
@@ -167,7 +166,6 @@ export async function GET(req: NextRequest) {
               leadId: { in: ids },
               status: { in: VISITED },
               startsAt: { lt: now },
-              ...ownVisits,
             },
             _max: { startsAt: true },
             _count: { _all: true },
@@ -179,7 +177,6 @@ export async function GET(req: NextRequest) {
               leadId: { in: ids },
               status: "booked",
               startsAt: { gte: now },
-              ...ownVisits,
             },
             _min: { startsAt: true },
           }),
@@ -192,6 +189,7 @@ export async function GET(req: NextRequest) {
 
     const clients = rows.map((r) => ({
       ...r,
+      patchTestAt: patchTestDay(r.patchTestAt),
       lastVisit: pastBy.get(r.id)?._max.startsAt ?? null,
       visits: pastBy.get(r.id)?._count._all ?? 0,
       nextBooking: nextBy.get(r.id) ?? null,
@@ -222,7 +220,7 @@ function clean(value: unknown): string | null {
  * their own, linked to the number's owner.
  */
 export async function POST(req: NextRequest) {
-  const ctx = await requireTenant(req, { stylists: true });
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {
@@ -294,21 +292,7 @@ export async function POST(req: NextRequest) {
           // A number clash may be a family sharing a phone, which the desk
           // can resolve by adding them reached through it (contactThrough).
           matched: phone && existing.phone === phone ? "phone" : "email",
-          // A stylist can book them, but not read what another stylist holds
-          // on them: the name to confirm it is the right person, and nothing
-          // else.
-          existing: ctx.stylist
-            ? {
-                id: existing.id,
-                name: existing.name,
-                firstName: existing.firstName,
-                lastName: existing.lastName,
-                phone: null,
-                email: null,
-                notes: null,
-                contactLead: null,
-              }
-            : existing,
+          existing,
         },
         { status: 409 }
       );

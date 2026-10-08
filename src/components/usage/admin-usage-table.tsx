@@ -9,8 +9,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import { formatPence } from "@/lib/usage/cost";
 
 interface Row {
@@ -61,10 +60,89 @@ export function AdminUsageTable({ names }: { names: Record<string, string> }) {
     { calls: 0, minutes: 0, cost: 0, charge: 0, margin: 0, lab: 0 }
   );
 
+  const right = { align: "right" } as const;
+  const columns: ColumnDef<Row>[] = [
+    {
+      id: "organisation",
+      header: "Organisation",
+      accessorFn: (r) => names[r.organizationId] ?? "—",
+      meta: { className: "font-medium" },
+      footer: "All organisations",
+    },
+    { id: "calls", header: "Calls", accessorKey: "calls", meta: right, footer: () => total.calls },
+    {
+      id: "minutes",
+      header: "Minutes",
+      accessorFn: (r) => r.minutes,
+      meta: right,
+      cell: ({ row: { original: r } }) => Math.round(r.minutes),
+      footer: () => Math.round(total.minutes),
+    },
+    {
+      id: "cost",
+      header: "Our cost",
+      accessorFn: (r) => r.costPence,
+      meta: right,
+      cell: ({ row: { original: r } }) => money(r.costPence),
+      footer: () => formatPence(total.cost),
+    },
+    {
+      id: "perCall",
+      header: "Per call",
+      accessorFn: (r) => r.costPerCallPence ?? -1,
+      meta: right,
+      cell: ({ row: { original: r } }) => money(r.costPerCallPence),
+      footer: () => (total.calls ? formatPence(total.cost / total.calls) : "—"),
+    },
+    {
+      id: "perMinute",
+      header: "Per minute",
+      accessorFn: (r) => r.costPerMinutePence ?? -1,
+      meta: right,
+      cell: ({ row: { original: r } }) => money(r.costPerMinutePence),
+      footer: () => (total.minutes ? formatPence(total.cost / total.minutes) : "—"),
+    },
+    {
+      id: "markup",
+      header: "Markup",
+      accessorFn: (r) => r.markupPercent ?? -1,
+      meta: right,
+      cell: ({ row: { original: r } }) =>
+        r.markupPercent === null ? <span className="text-muted-foreground">not set</span> : `${r.markupPercent}%`,
+      footer: () => null,
+    },
+    {
+      id: "charged",
+      header: "Charged",
+      accessorFn: (r) => r.chargePence ?? -1,
+      meta: right,
+      cell: ({ row: { original: r } }) => money(r.chargePence),
+      footer: () => formatPence(total.charge),
+    },
+    {
+      id: "margin",
+      header: "Margin",
+      accessorFn: (r) => r.marginPence ?? -1,
+      meta: { ...right, className: "text-tea-green-200" },
+      cell: ({ row: { original: r } }) => money(r.marginPence),
+      footer: () => formatPence(total.margin),
+    },
+    {
+      id: "lab",
+      header: "Lab testing",
+      accessorFn: (r) => r.labCostPence,
+      meta: { ...right, className: "text-muted-foreground" },
+      cell: ({ row: { original: r } }) => money(r.labCostPence),
+      footer: () => formatPence(total.lab),
+    },
+  ];
+
   return (
-    <Card className="py-0 gap-0">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b py-4">
-        <CardTitle>AI call costs</CardTitle>
+    <section className="space-y-3" aria-labelledby="ai-call-costs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="ai-call-costs" className="font-heading text-base font-semibold">
+          AI call costs
+        </h2>
         <div className="flex items-center gap-1.5">
           <Button variant="ghost" size="icon-sm" aria-label="Previous month" onClick={() => setAnchor(shiftMonth(data.period.anchor, -1))}>
             <ChevronLeft />
@@ -74,59 +152,17 @@ export function AdminUsageTable({ names }: { names: Record<string, string> }) {
             <ChevronRight />
           </Button>
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Organisation</TableHead>
-              <TableHead className="text-right">Calls</TableHead>
-              <TableHead className="text-right">Minutes</TableHead>
-              <TableHead className="text-right">Our cost</TableHead>
-              <TableHead className="text-right">Per call</TableHead>
-              <TableHead className="text-right">Per minute</TableHead>
-              <TableHead className="text-right">Markup</TableHead>
-              <TableHead className="text-right">Charged</TableHead>
-              <TableHead className="text-right">Margin</TableHead>
-              <TableHead className="text-right">Lab testing</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.organizationId}>
-                <TableCell className="font-medium">{names[r.organizationId] ?? "—"}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.calls}</TableCell>
-                <TableCell className="text-right tabular-nums">{Math.round(r.minutes)}</TableCell>
-                <TableCell className="text-right tabular-nums">{money(r.costPence)}</TableCell>
-                <TableCell className="text-right tabular-nums">{money(r.costPerCallPence)}</TableCell>
-                <TableCell className="text-right tabular-nums">{money(r.costPerMinutePence)}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {r.markupPercent === null ? <span className="text-muted-foreground">not set</span> : `${r.markupPercent}%`}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{money(r.chargePence)}</TableCell>
-                <TableCell className="text-right tabular-nums text-emerald-700">{money(r.marginPence)}</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">{money(r.labCostPence)}</TableCell>
-              </TableRow>
-            ))}
-            <TableRow className="bg-muted/40 font-medium hover:bg-muted/40">
-              <TableCell>All organisations</TableCell>
-              <TableCell className="text-right tabular-nums">{total.calls}</TableCell>
-              <TableCell className="text-right tabular-nums">{Math.round(total.minutes)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatPence(total.cost)}</TableCell>
-              <TableCell className="text-right tabular-nums">{total.calls ? formatPence(total.cost / total.calls) : "—"}</TableCell>
-              <TableCell className="text-right tabular-nums">{total.minutes ? formatPence(total.cost / total.minutes) : "—"}</TableCell>
-              <TableCell />
-              <TableCell className="text-right tabular-nums">{formatPence(total.charge)}</TableCell>
-              <TableCell className="text-right tabular-nums text-emerald-700">{formatPence(total.margin)}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">{formatPence(total.lab)}</TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-        <p className="px-4 py-3 text-[11px] text-muted-foreground border-t">
-          Our cost is what the providers bill (Vapi as reported; our own receptionist worked out from its usage),
-          shown at $1 = £{data.usdToGbp}. Lab testing is on our bill but never charged to the salon.
-        </p>
-      </CardContent>
-    </Card>
+      </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(r) => r.organizationId}
+        empty={<p className="px-5 py-8 text-center text-sm text-muted-foreground">No calls this month.</p>}
+      />
+      <p className="text-[11px] text-muted-foreground">
+        Our cost is what the providers bill (Vapi as reported; our own receptionist worked out from its usage),
+        shown at $1 = £{data.usdToGbp}. Lab testing is on our bill but never charged to the salon.
+      </p>
+    </section>
   );
 }

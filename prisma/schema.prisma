@@ -48,30 +48,31 @@ model Organization {
 }
 
 model User {
-  id             String        @id @default(cuid())
-  email          String        @unique
-  name           String?
-  emailVerified  DateTime?
-  image          String?
-  passwordHash   String?
-  role           String        @default("member") // member, admin, superAdmin, stylist
-  organizationId String?
-  // Stylist logins only (role "stylist"). A stylist login belongs to one
-  // column of the diary — linked by name, as bookings are — and sees what the
-  // owner allows. Every other role is unaffected by these.
-  stylistName        String?
-  /// "own": only their column. "salon": every column, others read-only.
-  diaryScope         String  @default("salon")
-  /// Their own takings on the sales page. Never anyone else's.
-  canSeeTakings      Boolean @default(true)
-  /// Set when the owner creates the login or resets its password; the
-  /// stylist cannot use anything else until they have chosen their own.
-  mustChangePassword Boolean @default(false)
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  accounts       Account[]
-  sessions       Session[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                 String        @id @default(cuid())
+  email              String        @unique
+  name               String?
+  emailVerified      DateTime?
+  image              String?
+  passwordHash       String?
+  role               String        @default("member") // member, admin, superAdmin
+  organizationId     String?
+  // Withdrawn: stylist logins (role "stylist") were removed. @ignore keeps
+  // these out of the Prisma client, so nothing loads them, while the columns
+  // stay until they are dropped by hand on the box; the deploy refuses to
+  // drop columns itself (see README, schema-change policy). Delete these
+  // lines once the columns are gone.
+  stylistName        String?       @ignore
+  diaryScope         String        @default("salon") @ignore
+  canSeeTakings      Boolean       @default(true) @ignore
+  mustChangePassword Boolean       @default(false)
+  /// Copied into the login cookie at sign-in. Raising it (a password changed
+  /// or reset) ends every session signed in before, on their next request.
+  sessionVersion     Int           @default(0)
+  organization       Organization? @relation(fields: [organizationId], references: [id])
+  accounts           Account[]
+  sessions           Session[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@map("ca_users")
 }
@@ -258,6 +259,10 @@ model Lead {
   status                String                 @default("new") // new, callback_booked, contacted, resolved, lost
   source                String                 @default("phone") // phone, manual, whatsapp, website, instagram, facebook
   notes                 String?
+  // The day of the client's most recent skin (patch) test, recorded at the
+  // desk on the client's page. Stored at noon UTC so the date reads the same
+  // in any timezone. Null when none is on record.
+  patchTestAt           DateTime?
   // Reached through another client's number: a child booked on a parent's
   // phone has a record of their own, with their own history, but no number.
   // Their texts go to the contact's number, and a call from that number can

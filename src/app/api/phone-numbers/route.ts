@@ -13,7 +13,7 @@ import { parsePagination } from "@/lib/pagination";
  * exposed here — those live on the super-admin admin route.
  */
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req);
+  const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
 
   try {

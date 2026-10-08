@@ -54,7 +54,7 @@ export default function TermsOfServicePage() {
             of their organisation. End customers messaging those businesses do
             not hold accounts; their interaction is governed by our{" "}
             <Link
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline"
               href="/privacy-policy"
             >
               Privacy Policy
@@ -191,7 +191,7 @@ export default function TermsOfServicePage() {
           <p>
             Questions about these Terms:{" "}
             <a
-              className="text-blue-600 hover:underline"
+              className="text-primary hover:underline"
               href="mailto:roy962002@hotmail.com"
             >
               roy962002@hotmail.com

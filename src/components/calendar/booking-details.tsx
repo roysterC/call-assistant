@@ -131,7 +131,8 @@ export function BookingDetails({
       : (combined?.durationMinutes ?? 0);
 
   const isNew = !client || client.visits === 0;
-  const patchTest = Boolean(combined?.requiresPatchTest) && isNew;
+  // A patch test on their record counts as having had one.
+  const patchTest = Boolean(combined?.requiresPatchTest) && isNew && !client?.patchTestAt;
 
   // Only the day on screen is loaded, so a clash can only be checked there.
   const clash = (() => {
@@ -395,13 +396,13 @@ export function BookingDetails({
       </Field>
 
       {patchTest && (
-        <p className="flex gap-2 text-xs text-amber-700">
+        <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
           New client having colour: needs a skin patch test 48 hours before.
         </p>
       )}
       {blocked && (
-        <p className="flex gap-2 text-xs text-amber-700">
+        <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
           {blocked.stylistName === null
             ? `The salon is blocked for ${blocked.label}.`
@@ -410,7 +411,7 @@ export function BookingDetails({
         </p>
       )}
       {clash && (
-        <p className="flex gap-2 text-xs text-amber-700">
+        <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
           Overlaps {clash.lead.name ?? "another booking"} ({clash.serviceText}) with{" "}
           {clash.stylistName}. You can still book it.

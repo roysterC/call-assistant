@@ -16,7 +16,7 @@ npm run db:up                       # if not already running
 npm run dev                         # http://localhost:4500
 ```
 
-With `DEV_BYPASS_AUTH=1` in `.env.local` (set by the example), you are auto-signed-in as the seeded super-admin and can navigate everything without a real session.
+With `DEV_BYPASS_AUTH=1` in `.env.local` (set by the example), you are auto-signed-in as the seeded super-admin and can navigate everything without a real session. `next dev` only: a production build (`next build` / `next start`) ignores both bypass variables, so they can never open up the live CRM.
 
 Reset the local DB and re-seed:
 ```bash
@@ -112,6 +112,12 @@ So an added column, a relaxed `NOT NULL` or a new unique constraint needs
 nothing from you. Anything destructive stops the deploy and prints the SQL, and
 is meant to be applied deliberately — usually as a two-commit dance: ship code
 that stops reading the column, then drop it.
+
+For Prisma, "stops reading" means marking the field `@ignore`, not deleting it:
+the client stops selecting the column (it otherwise selects every column, so
+dropping it under a live build breaks every query on that table), while the
+schema still matches the database and the deploy goes through. Then drop the
+column by hand on the box, and delete the field in a later commit.
 
 A new column that existing rows need filling in goes in
 `scripts/post-deploy.ts`, which the deploy runs after the restart. Everything
@@ -222,8 +228,6 @@ How it is built:
   "yes" or the card's button is handled by code, which saves it with the
   phone's rules (hours, working days, who does what, the skin test, no
   double-booking; a walk-in can be booked for now).
-- A stylist login sees and changes only what it could on screen: its own
-  column if that is all it sees, takings only if shared, no texts.
 - It uses the same settings as the receptionist's Talk tab
   (`RECEPTIONIST_VOICE_URL`, `RECEPTIONIST_VOICE_SECRET`, `DEEPGRAM_API_KEY`
   and an Anthropic key); texts need Twilio, as the confirmations do. Without
@@ -233,8 +237,7 @@ How it is built:
 - Hands-free: `/assistant` opens the start page with the assistant already
   listening, for a Siri Shortcut ("Hey Siri, salon assistant"), a Google
   Assistant routine, or the home-screen icon's long-press shortcut (in the
-  manifest). Settings → "Your assistant, hands-free" has the link and the
-  steps. A phone that wants a touch before it uses the microphone gets one
+  manifest). A phone that wants a touch before it uses the microphone gets one
   big "Tap to talk" instead.
 
 ### What the bots know about the salon

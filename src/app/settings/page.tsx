@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AssistantShortcut } from "@/components/settings/assistant-shortcut";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,11 +21,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
 import { ServicesEditor } from "@/components/settings/services-editor";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
-import { TeamLogins } from "@/components/settings/team-logins";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
+import { useMe } from "@/components/providers/me-provider";
+import { ExpandableSection } from "@/components/settings/expandable-section";
+import { plural } from "@/lib/plural";
 
 const labelFor = (href: string) => NAV_PAGES.find((p) => p.href === href)?.label ?? "Dashboard";
 
@@ -63,6 +64,11 @@ interface PhoneNumber {
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
+  // Members see the settings but cannot change them; the API refuses them
+  // too. Locked until the role has loaded, so nobody edits what they cannot
+  // save.
+  const me = useMe();
+  const canEdit = me !== null && me.role !== "member";
   const [whatsappNumbers, setWhatsappNumbers] = useState<PhoneNumber[]>([]);
   const [voiceNumbers, setVoiceNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,7 +178,7 @@ export default function SettingsPage() {
   if (loading || !settings) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -237,181 +243,183 @@ export default function SettingsPage() {
             {saveResult && (
               <span
                 role="status"
-                className={saveResult.ok ? "text-sm text-emerald-700" : "text-sm text-red-600"}
+                className={saveResult.ok ? "text-sm text-tea-green-200" : "text-sm text-red-600"}
               >
                 {saveResult.message}
               </span>
             )}
-            <Button onClick={handleSave} disabled={saving}>
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Saving…" : "Save changes"}
-            </Button>
+            {me?.role === "member" ? (
+              <span className="text-sm text-muted-foreground">
+                Only the salon&apos;s owner can change these.
+              </span>
+            ) : (
+              <Button onClick={handleSave} disabled={saving || !canEdit}>
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? "Saving…" : "Save changes"}
+              </Button>
+            )}
           </div>
         }
       />
 
-      {/* Business Info — always visible */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Business information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium">Business name</label>
-            <Input
-              value={settings.businessName}
-              onChange={(e) =>
-                setSettings({ ...settings, businessName: e.target.value })
-              }
-              className="mt-1"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Contact number</label>
-            <Input
-              value={settings.contactPhone ?? ""}
-              placeholder="01234 567890"
-              onChange={(e) =>
-                setSettings({ ...settings, contactPhone: e.target.value })
-              }
-              className="mt-1"
-            />
-            {/* Texts go out from a one-way sender, so without this a client
-                who cannot make their appointment has no way to tell you. */}
-            <p className="text-xs text-muted-foreground mt-1">
-              Printed in confirmation and reminder texts. Customers cannot
-              reply to those messages, so this is the only way they can reach
-              you about a booking.
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor="start-page" className="text-sm font-medium">
-              Start page
-            </label>
-            <select
-              id="start-page"
-              value={settings.startPage ?? ""}
-              onChange={(e) => setSettings({ ...settings, startPage: e.target.value || null })}
-              className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <option value="">Automatic ({labelFor(automaticStart)})</option>
-              {NAV_PAGES.filter((p) => isStartPageChoice(p.href) && isNavVisible(p, settings)).map((p) => (
-                <option key={p.href} value={p.href}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground mt-1">
-              The screen the CRM opens on after signing in, and the top of the
-              menu. Automatic opens a salon taking bookings on the Diary, and
-              anyone else on the Dashboard. Stylist logins always open on the
-              Diary.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/*
-        One card, one row per channel.
-
-        This was five near-identical cards — icon, name, an "Enabled" badge and
-        a single line of detail each — stacked down the page. Five card frames
-        to carry five lines of text made the page look padded out, and two of
-        them said "contact Kikai" in exactly the same words. A row each says the
-        same thing in a quarter of the height, and the differences between
-        channels are finally visible side by side.
-
-        Only enabled channels appear: a client has no use for a row telling
-        them about a product they have not bought.
-      */}
-      {channels.length > 0 && (
-        <Card className="gap-0">
-          <CardHeader className="border-b pb-3">
-            <CardTitle className="text-base">Channels</CardTitle>
+      {/* Everything a save changes. Disabled as one, so a member sees the
+          salon's setup but no control in it works. */}
+      <fieldset disabled={!canEdit} className="min-w-0 space-y-6">
+        {/* Business Info — always visible */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Business information</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <ul className="divide-y divide-border">
-              {channels.map((c) => (
-                <li
-                  key={c.label}
-                  className="flex items-center gap-3 px-4 py-3 flex-wrap"
-                >
-                  <c.icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm font-medium">{c.label}</span>
-                  <span className="flex-1 min-w-0 text-right">
-                    {c.detail ? (
-                      <span className="text-xs font-mono text-foreground/80 break-all">
-                        {c.detail}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        {c.missing}
-                      </span>
-                    )}
-                  </span>
-                  <Badge variant="secondary" className="text-[10px] shrink-0">
-                    Enabled
-                  </Badge>
-                </li>
-              ))}
-            </ul>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Business name</label>
+              <Input
+                value={settings.businessName}
+                onChange={(e) =>
+                  setSettings({ ...settings, businessName: e.target.value })
+                }
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Contact number</label>
+              <Input
+                value={settings.contactPhone ?? ""}
+                placeholder="01234 567890"
+                onChange={(e) =>
+                  setSettings({ ...settings, contactPhone: e.target.value })
+                }
+                className="mt-1"
+              />
+              {/* Texts go out from a one-way sender, so without this a client
+                  who cannot make their appointment has no way to tell you. */}
+              <p className="text-xs text-muted-foreground mt-1">
+                Printed in confirmation and reminder texts. Customers cannot
+                reply to those messages, so this is the only way they can reach
+                you about a booking.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="start-page" className="text-sm font-medium">
+                Start page
+              </label>
+              <select
+                id="start-page"
+                value={settings.startPage ?? ""}
+                onChange={(e) => setSettings({ ...settings, startPage: e.target.value || null })}
+                className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <option value="">Automatic ({labelFor(automaticStart)})</option>
+                {NAV_PAGES.filter((p) => isStartPageChoice(p.href) && isNavVisible(p, settings)).map((p) => (
+                  <option key={p.href} value={p.href}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                The screen the CRM opens on after signing in, and the top of the
+                menu. Automatic opens a salon taking bookings on the Diary, and
+                anyone else on the Dashboard.
+              </p>
+            </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* The salon diary — hours, services and who can be booked.
+        {/*
+          One card, one row per channel.
 
-          All three feed the same place: the availability algorithm enforces
-          them, and the voice prompt is generated from them, so what the agent
-          says and what it will actually do cannot drift apart. */}
-      {settings.voiceEnabled && (
-        <>
+          This was five near-identical cards — icon, name, an "Enabled" badge and
+          a single line of detail each — stacked down the page. Five card frames
+          to carry five lines of text made the page look padded out, and two of
+          them said "contact Kikai" in exactly the same words. A row each says the
+          same thing in a quarter of the height, and the differences between
+          channels are finally visible side by side.
+
+          Only enabled channels appear: a client has no use for a row telling
+          them about a product they have not bought.
+        */}
+        {channels.length > 0 && (
           <Card className="gap-0">
             <CardHeader className="border-b pb-3">
-              <CardTitle className="text-base">Opening hours</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                When appointments can be booked. Also what the receptionist
-                tells callers.
-              </p>
+              <CardTitle className="text-base">Channels</CardTitle>
             </CardHeader>
-            <CardContent className="pt-4">
-              <OpeningHoursEditor
-                value={settings.businessHours}
-                onChange={(businessHours) =>
-                  setSettings({ ...settings, businessHours })
-                }
-              />
+            <CardContent className="p-0">
+              <ul className="divide-y divide-border">
+                {channels.map((c) => (
+                  <li
+                    key={c.label}
+                    className="flex items-center gap-3 px-4 py-3 flex-wrap"
+                  >
+                    <c.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium">{c.label}</span>
+                    <span className="flex-1 min-w-0 text-right">
+                      {c.detail ? (
+                        <span className="text-xs font-mono text-foreground/80 break-all">
+                          {c.detail}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {c.missing}
+                        </span>
+                      )}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                      Enabled
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
+        )}
 
-          <Card className="gap-0">
-            <CardHeader className="border-b pb-3">
-              <CardTitle className="text-base">Services</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                What you offer and how long each takes.
-              </p>
-            </CardHeader>
-            <CardContent className="pt-4">
+        {/* The salon diary — hours, services and who can be booked.
+
+            All three feed the same place: the availability algorithm enforces
+            them, and the voice prompt is generated from them, so what the agent
+            says and what it will actually do cannot drift apart. */}
+        {settings.voiceEnabled && (
+          <>
+            <Card className="gap-0">
+              <CardHeader className="border-b pb-3">
+                <CardTitle className="text-base">Opening hours</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  When appointments can be booked. Also what the receptionist
+                  tells callers.
+                </p>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <OpeningHoursEditor
+                  value={settings.businessHours}
+                  onChange={(businessHours) =>
+                    setSettings({ ...settings, businessHours })
+                  }
+                />
+              </CardContent>
+            </Card>
+
+            <ExpandableSection
+              title="Services"
+              description="What you offer and how long each takes."
+              summary={plural(settings.services.length, "service")}
+            >
               <ServicesEditor
                 value={settings.services}
                 onChange={(services) => setSettings({ ...settings, services })}
               />
-            </CardContent>
-          </Card>
+            </ExpandableSection>
 
-          <Card className="gap-0">
-            <CardHeader className="border-b pb-3">
-              <CardTitle className="text-base">Stylists</CardTitle>
-              {settings.diaryProvider === "google" && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Each needs a Google calendar shared with the service account
-                  before they can be booked.
-                </p>
-              )}
-            </CardHeader>
-            <CardContent className="pt-4">
+            <ExpandableSection
+              title="Stylists"
+              description={
+                settings.diaryProvider === "google"
+                  ? "Each needs a Google calendar shared with the service account before they can be booked."
+                  : undefined
+              }
+              summary={plural(settings.teamMembers.length, "stylist")}
+            >
               {settings.teamMembers.length === 0 ? (
                 <EmptyState
                   icon={Users}
@@ -428,86 +436,57 @@ export default function SettingsPage() {
                   setSettings({ ...settings, teamMembers })
                 }
               />
-            </CardContent>
-          </Card>
+            </ExpandableSection>
+          </>
+        )}
 
-          <Card className="gap-0">
-            <CardHeader className="border-b pb-3">
-              <CardTitle className="text-base">Team logins</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                A login lets a stylist use their own column of the diary from
-                their phone. They see only their own clients, and never the
-                salon&apos;s calls, settings or anyone else&apos;s takings.
-                Changes here take effect straight away.
+        {/* What the bots may tell customers about the salon beyond the hours,
+            services, prices and team above. They answer salon questions only
+            from Settings, so anything not written anywhere gets "I'm not sure"
+            rather than a guess. */}
+        {(settings.voiceEnabled ||
+          settings.chatbotEnabled ||
+          settings.whatsappEnabled ||
+          settings.instagramEnabled ||
+          settings.facebookEnabled) && (
+          <ExpandableSection
+            title="Salon FAQs"
+            description="What the receptionist and the chat bots tell customers who ask."
+            summary={
+              settings.salonFaq.trim()
+                ? plural(settings.salonFaq.split("\n").filter((l) => l.trim()).length, "line")
+                : "None yet"
+            }
+          >
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">
+                They already know your hours, services, prices and team from
+                above, and can explain things like what balayage is. For anything
+                else about the salon they only use what you write here, and say
+                they are not sure otherwise.
               </p>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <TeamLogins
-                stylists={settings.teamMembers
-                  .map((m) => m.name)
-                  .filter((n): n is string => Boolean(n && n.trim()))}
+              <Textarea
+                aria-label="Salon FAQs"
+                value={settings.salonFaq}
+                maxLength={SALON_FAQ_MAX}
+                rows={8}
+                placeholder={
+                  "Where are you? 47 Bridge Street, next to the florist.\n" +
+                  "Parking? Six spaces behind the salon; the Castle Street multi-storey is two minutes away.\n" +
+                  "Cancellations: please give 24 hours' notice.\n" +
+                  "Gift vouchers: yes, any amount, from the desk."
+                }
+                onChange={(e) => setSettings({ ...settings, salonFaq: e.target.value })}
+                className="min-h-40"
               />
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      {/* What the bots may tell customers about the salon beyond the hours,
-          services, prices and team above. They answer salon questions only
-          from Settings, so anything not written anywhere gets "I'm not sure"
-          rather than a guess. */}
-      {(settings.voiceEnabled ||
-        settings.chatbotEnabled ||
-        settings.whatsappEnabled ||
-        settings.instagramEnabled ||
-        settings.facebookEnabled) && (
-        <Card className="gap-0">
-          <CardHeader className="border-b pb-3">
-            <CardTitle className="text-base">Salon FAQs</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              What the receptionist and the chat bots tell customers who ask.
-              They already know your hours, services, prices and team from
-              above, and can explain things like what balayage is. For anything
-              else about the salon they only use what you write here, and say
-              they are not sure otherwise.
-            </p>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-1.5">
-            <Textarea
-              aria-label="Salon FAQs"
-              value={settings.salonFaq}
-              maxLength={SALON_FAQ_MAX}
-              rows={8}
-              placeholder={
-                "Where are you? 47 Bridge Street, next to the florist.\n" +
-                "Parking? Six spaces behind the salon; the Castle Street multi-storey is two minutes away.\n" +
-                "Cancellations: please give 24 hours' notice.\n" +
-                "Gift vouchers: yes, any amount, from the desk."
-              }
-              onChange={(e) => setSettings({ ...settings, salonFaq: e.target.value })}
-              className="min-h-40"
-            />
-            <p className="text-xs text-muted-foreground">
-              A question and its answer per line is plenty. Prices come from
-              Services, quoted as &ldquo;from&rdquo;. {settings.salonFaq.length}/{SALON_FAQ_MAX}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="gap-0">
-        <CardHeader className="border-b pb-3">
-          <CardTitle className="text-base">Your assistant, hands-free</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-            Open the assistant already listening, with Siri or from your phone&apos;s home screen, without touching the
-            screen.
-          </p>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <AssistantShortcut />
-        </CardContent>
-      </Card>
-
+              <p className="text-xs text-muted-foreground">
+                A question and its answer per line is plenty. Prices come from
+                Services, quoted as &ldquo;from&rdquo;. {settings.salonFaq.length}/{SALON_FAQ_MAX}
+              </p>
+            </div>
+          </ExpandableSection>
+        )}
+      </fieldset>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { Plus, Trash2, CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Stylist, SalonService } from "@/lib/salon-config";
 import { openWeekdays, type DayHours } from "@/lib/business-hours";
+import { ServicePicker } from "@/components/settings/service-picker";
 
 /**
  * The team, and what makes each of them bookable.
@@ -67,14 +68,6 @@ export function StylistsEditor({
     update(index, { workingDays: next });
   }
 
-  function toggleService(index: number, name: string) {
-    const current = value[index].services ?? [];
-    const next = current.includes(name)
-      ? current.filter((s) => s !== name)
-      : [...current, name];
-    update(index, { services: next });
-  }
-
   return (
     <div className="space-y-4">
       {value.length === 0 && (
@@ -128,7 +121,7 @@ export function StylistsEditor({
                   aria-label="Google calendar ID"
                 />
                 {!bookable && (
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-700">
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-papaya-whip-100">
                     <CircleAlert className="h-3.5 w-3.5 shrink-0" />
                     Not bookable until a calendar is shared with the service
                     account.
@@ -176,35 +169,13 @@ export function StylistsEditor({
 
             {services.length > 0 && (
               <div>
-                <label className="text-xs text-muted-foreground">
-                  Services they do
-                </label>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {services.map((s) => {
-                    const on = (stylist.services ?? []).includes(s.name);
-                    return (
-                      <button
-                        key={s.name}
-                        type="button"
-                        onClick={() => toggleService(i, s.name)}
-                        aria-pressed={on}
-                        className={cn(
-                          "px-2 py-0.5 rounded-md text-xs transition-colors",
-                          on
-                            ? "bg-accent text-foreground"
-                            : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                        )}
-                      >
-                        {s.name}
-                      </button>
-                    );
-                  })}
-                </div>
-                {(stylist.services ?? []).length === 0 && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    None selected — treated as doing everything.
-                  </p>
-                )}
+                <span className="text-xs text-muted-foreground">Services they do</span>
+                <ServicePicker
+                  stylistName={stylist.name}
+                  services={services}
+                  value={stylist.services ?? []}
+                  onChange={(next) => update(i, { services: next })}
+                />
               </div>
             )}
           </div>

@@ -1,21 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Phone } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DataTable, PersonCell, type ColumnDef } from "@/components/ui/data-table";
 import { OUTCOME_STYLE, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 import { UsageSummary } from "@/components/usage/usage-summary";
@@ -35,166 +26,151 @@ interface Call {
   costPence?: number;
 }
 
+const PAGE = 20;
+
+const formatDuration = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
 export default function CallsPage() {
   const [calls, setCalls] = useState<Call[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const fetchPage = useCallback(async (page: number) => {
+    const res = await apiFetch(`/api/calls?page=${page}&limit=${PAGE}`);
+    if (!res.ok) throw new Error();
+    return (await res.json()) as { calls: Call[]; total: number };
+  }, []);
 
   useEffect(() => {
-    async function fetchCalls() {
-      setLoading(true);
-      try {
-        const res = await apiFetch(`/api/calls?page=${page}&limit=20`);
-        const data = await res.json();
-        setCalls(data.calls || []);
-        setTotalPages(data.totalPages || 1);
-      } catch (error) {
-        console.error("Failed to fetch calls:", error);
-      } finally {
-        setLoading(false);
-      }
+    fetchPage(1)
+      .then((d) => {
+        setCalls(d.calls || []);
+        setTotal(d.total || 0);
+      })
+      .catch((error) => console.error("Failed to fetch calls:", error))
+      .finally(() => setLoading(false));
+  }, [fetchPage]);
+
+  async function showMore() {
+    setLoadingMore(true);
+    try {
+      const d = await fetchPage(Math.floor(calls.length / PAGE) + 1);
+      setCalls((prev) => [...prev, ...(d.calls || [])]);
+      setTotal(d.total || 0);
+    } catch (error) {
+      console.error("Failed to fetch calls:", error);
+    } finally {
+      setLoadingMore(false);
     }
-    fetchCalls();
-  }, [page]);
+  }
 
   // Money columns appear only when the server sent money: charges once the
   // salon has a markup, our cost only to super-admins.
   const showCharge = calls.some((c) => c.chargePence !== null && c.chargePence !== undefined);
   const showCost = calls.some((c) => c.costPence !== undefined);
-  const columns = 5 + (showCharge ? 1 : 0) + (showCost ? 1 : 0);
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  const columns = useMemo<ColumnDef<Call>[]>(
+    () => [
+      {
+        id: "caller",
+        header: "Caller",
+        enableSorting: false,
+        cell: ({ row: { original: c } }) => (
+          <PersonCell
+            name={c.lead?.name || "Unknown caller"}
+            detail={[c.phoneNumber, c.lead?.company].filter(Boolean).join(" · ")}
+          />
+        ),
+      },
+      {
+        id: "duration",
+        header: "Duration",
+        enableSorting: false,
+        meta: { align: "right" },
+        cell: ({ row: { original: c } }) => formatDuration(c.duration),
+      },
+      ...(showCharge
+        ? [
+            {
+              id: "charge",
+              header: "Charge",
+              enableSorting: false,
+              meta: { align: "right" },
+              cell: ({ row: { original: c } }) => (c.chargePence != null ? formatPence(c.chargePence) : "—"),
+            } satisfies ColumnDef<Call>,
+          ]
+        : []),
+      ...(showCost
+        ? [
+            {
+              id: "cost",
+              header: "Cost",
+              enableSorting: false,
+              meta: { align: "right", className: "text-tea-green-200" },
+              cell: ({ row: { original: c } }) => (c.costPence !== undefined ? formatPence(c.costPence) : "—"),
+            } satisfies ColumnDef<Call>,
+          ]
+        : []),
+      {
+        // What the call came to. Nothing of what was said is kept.
+        id: "outcome",
+        header: "Outcome",
+        enableSorting: false,
+        cell: ({ row: { original: c } }) =>
+          c.outcomes?.length ? (
+            <span className="flex flex-wrap gap-1">
+              {c.outcomes.map((o) => {
+                const style = OUTCOME_STYLE[o] ?? { label: o, className: "" };
+                return (
+                  <span key={o} className={cn(STATUS_BADGE, style.className)}>
+                    {style.label}
+                  </span>
+                );
+              })}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        id: "date",
+        header: "Date",
+        enableSorting: false,
+        meta: { className: "whitespace-nowrap text-muted-foreground" },
+        cell: ({ row: { original: c } }) => format(new Date(c.createdAt), "d MMM, HH:mm"),
+      },
+    ],
+    [showCharge, showCost]
+  );
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Call history"
-      />
+      <PageHeader title="Call history" />
 
       <UsageSummary />
 
-      <Card className="py-0">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Caller</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead className="text-right">Duration</TableHead>
-                {showCharge && <TableHead className="text-right">Charge</TableHead>}
-                {showCost && <TableHead className="text-right">Cost</TableHead>}
-                <TableHead>Outcome</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={columns} className="text-center py-12">
-                    <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto" />
-                  </TableCell>
-                </TableRow>
-              ) : calls.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={columns} className="p-0">
-                    <EmptyState
-                      icon={Phone}
-                      title="No calls recorded yet"
-                      hint="Every call your receptionist answers is listed here with what it came to: booked, moved, cancelled, a message, or a hang-up."
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                calls.map((call) => (
-                  <TableRow key={call.id}>
-                    <TableCell>
-                      <span
-                        className={
-                          call.lead?.name
-                            ? "font-medium"
-                            : "text-muted-foreground italic"
-                        }
-                      >
-                        {call.lead?.name || "Unknown caller"}
-                      </span>
-                      {call.lead?.company && (
-                        <span className="text-xs text-muted-foreground block">
-                          {call.lead.company}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {call.phoneNumber}
-                    </TableCell>
-                    <TableCell className="text-sm text-right tabular-nums">
-                      {formatDuration(call.duration)}
-                    </TableCell>
-                    {showCharge && (
-                      <TableCell className="text-sm text-right tabular-nums">
-                        {call.chargePence != null ? formatPence(call.chargePence) : "—"}
-                      </TableCell>
-                    )}
-                    {showCost && (
-                      <TableCell className="text-sm text-right tabular-nums text-indigo-700">
-                        {call.costPence !== undefined ? formatPence(call.costPence) : "—"}
-                      </TableCell>
-                    )}
-                    {/* What the call came to. Nothing of what was said is kept. */}
-                    <TableCell>
-                      {call.outcomes?.length ? (
-                        <span className="flex flex-wrap gap-1">
-                          {call.outcomes.map((o) => {
-                            const style = OUTCOME_STYLE[o] ?? { label: o, className: "" };
-                            return (
-                              <span key={o} className={cn(STATUS_BADGE, style.className)}>
-                                {style.label}
-                              </span>
-                            );
-                          })}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {format(new Date(call.createdAt), "d MMM, HH:mm")}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Page {page} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        data={calls}
+        getRowId={(c) => c.id}
+        loading={loading}
+        total={total}
+        onShowMore={showMore}
+        loadingMore={loadingMore}
+        noun="calls"
+        empty={
+          <EmptyState
+            icon={Phone}
+            title="No calls recorded yet"
+            hint="Every call your receptionist answers is listed here with what it came to: booked, moved, cancelled, a message, or a hang-up."
+          />
+        }
+      />
     </div>
   );
 }

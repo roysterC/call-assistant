@@ -24,13 +24,21 @@ export interface NavPage {
   label: string;
   /** Shown when ANY of these is switched on for the organisation. */
   requires?: FeatureKey | FeatureKey[];
-  /** Owners and super-admins only: it acts on the real diary. */
+  /** Hidden when this is switched on: another page has taken its place. */
+  hiddenWhen?: FeatureKey;
+  /**
+   * Owners (admin) and super-admins only, never members: the salon's
+   * websites and chatbot. The API refuses members too; this keeps the menu
+   * from offering them a page that would only show an error.
+   */
   ownerOnly?: boolean;
   /** Kikai's own super-admins only: a tool for us, not for the salon. */
   superAdminOnly?: boolean;
 }
 
 export const DASHBOARD = "/dashboard";
+/** Sends a signed-in user on to their organisation's start page. */
+export const START = "/start";
 export const DIARY = "/calendar";
 
 /** In the order the sidebar lists them, before the start page is moved up. */
@@ -42,11 +50,14 @@ export const NAV_PAGES: NavPage[] = [
     label: "Conversations",
     requires: ["chatbot", "whatsapp", "instagram", "facebook"],
   },
-  { href: "/websites", label: "Websites", requires: "chatbot" },
-  { href: "/insights", label: "Insights", requires: "chatbot" },
-  { href: "/leads", label: "Leads" },
+  { href: "/websites", label: "Websites", requires: "chatbot", ownerOnly: true },
+  // The receptionist's figures for a salon, the chatbot's for a website.
+  { href: "/insights", label: "Insights", requires: ["voice", "chatbot"], ownerOnly: true },
+  // A salon's people are its clients, with their bookings and patch tests;
+  // Leads stays for an organisation without the diary (chat, WhatsApp).
+  { href: "/leads", label: "Leads", hiddenWhen: "voice" },
   { href: DIARY, label: "Diary", requires: "voice" },
-  { href: "/appointments", label: "Appointments", requires: "voice" },
+  { href: "/clients", label: "Clients", requires: "voice" },
   { href: "/sales", label: "Sales", requires: "voice" },
   { href: "/callbacks", label: "Callbacks", requires: "voice" },
   // Where we test the receptionist before a salon hears it. It books into the
@@ -57,21 +68,31 @@ export const NAV_PAGES: NavPage[] = [
 
 /**
  * Pages an organisation may open on. Not Settings or the lab: a start page is
- * where the day's work is.
+ * where the day's work is. An owner-only page may be chosen; members open on
+ * the automatic page instead (see resolveStartPage).
  */
 export const START_PAGE_CHOICES = NAV_PAGES.filter(
-  (p) => p.href !== "/settings" && !p.ownerOnly && !p.superAdminOnly
+  (p) => p.href !== "/settings" && !p.superAdminOnly
 ).map((p) => p.href);
 
 export function isStartPageChoice(href: unknown): href is string {
   return typeof href === "string" && START_PAGE_CHOICES.includes(href);
 }
 
+/** Whether this login's role may see the page at all. */
+export function isNavAllowed(page: NavPage, role: string | null | undefined): boolean {
+  if (page.superAdminOnly) return role === "superAdmin";
+  if (page.ownerOnly) return role === "admin" || role === "superAdmin";
+  return true;
+}
+
 /** Whether the organisation's switched-on features show this page. */
 export function isNavVisible(page: NavPage, flags: FeatureFlags | null): boolean {
-  if (!page.requires) return true;
+  if (!page.requires && !page.hiddenWhen) return true;
   // Flags not loaded yet: show nothing feature-gated, rather than flash it.
   if (!flags) return false;
+  if (page.hiddenWhen && flags[`${page.hiddenWhen}Enabled` as keyof FeatureFlags]) return false;
+  if (!page.requires) return true;
   const reqs = Array.isArray(page.requires) ? page.requires : [page.requires];
   return reqs.some((r) => flags[`${r}Enabled` as keyof FeatureFlags]);
 }
@@ -87,10 +108,14 @@ export function resolveStartPage(input: {
   chosen: string | null | undefined;
   flags: FeatureFlags;
   diaryTakesBookings: boolean;
+  /** False for a member: an owner-only start page is passed over. */
+  isOwner?: boolean;
 }): string {
   const visible = (href: string) => {
     const page = NAV_PAGES.find((p) => p.href === href);
-    return Boolean(page && isNavVisible(page, input.flags));
+    return Boolean(
+      page && isNavVisible(page, input.flags) && (input.isOwner !== false || !page.ownerOnly)
+    );
   };
   if (isStartPageChoice(input.chosen) && visible(input.chosen)) return input.chosen;
   if (input.diaryTakesBookings && visible(DIARY)) return DIARY;

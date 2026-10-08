@@ -1,26 +1,33 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { MainWrapper } from "@/components/dashboard/main-wrapper";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { MeProvider } from "@/components/providers/me-provider";
 
-const inter = Inter({
+// The fonts ship with the app (the @fontsource-variable packages, OFL) rather
+// than coming from Google Fonts. next/font/google downloads them during every
+// build, so a bad answer from Google failed the deploy: one did, with
+// "next/font/google queries have exactly one entry", on a change that never
+// touched them. Latin, variable weight, as the Google versions were.
+const inter = localFont({
+  src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-sans",
-  subsets: ["latin"],
 });
 
 // Titles and headline figures. Geometric, with a little warmth to it, so the
 // app reads as designed rather than defaulted; Inter carries everything else.
-const jakarta = Plus_Jakarta_Sans({
+const jakarta = localFont({
+  src: "../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2",
+  weight: "200 800",
   variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: "../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2",
+  weight: "100 800",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -39,7 +46,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   // The colour of the phone's own bars around the app, matched to the page.
-  themeColor: "#ffffff",
+  themeColor: "#2d331a",
 };
 
 export default function RootLayout({

@@ -10,21 +10,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Receipt } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { apiFetch } from "@/lib/api-fetch";
 import { cn } from "@/lib/utils";
 import { formatMoney, formatMoneyShort } from "@/lib/money";
-import { APPOINTMENT_STATUS } from "@/lib/status-styles";
+import { plural } from "@/lib/plural";
+import { APPOINTMENT_STATUS, STATUS_BADGE } from "@/lib/status-styles";
+import { DataTable, PersonCell, type ColumnDef } from "@/components/ui/data-table";
 import {
   describePeriod,
   PERIOD_KINDS,
@@ -140,6 +134,55 @@ export default function SalesPage() {
     return now.firstDate === period.firstDate;
   }, [kind, today, timeZone, period.firstDate]);
 
+  const when = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const columns: ColumnDef<SaleRow>[] = [
+    {
+      id: "client",
+      header: "Client",
+      accessorFn: (r) => r.clientName ?? "Walk-in",
+      cell: ({ row: { original: r } }) => <PersonCell name={r.clientName ?? "Walk-in"} detail={r.serviceText} />,
+    },
+    {
+      id: "date",
+      header: "Date",
+      accessorFn: (r) => r.startsAt,
+      meta: { className: "whitespace-nowrap tabular-nums text-muted-foreground" },
+      cell: ({ row: { original: r } }) => when.format(new Date(r.startsAt)),
+    },
+    { id: "stylist", header: "Stylist", accessorKey: "stylistName", meta: { className: "whitespace-nowrap" } },
+    {
+      id: "status",
+      header: "Status",
+      accessorFn: (r) => (APPOINTMENT_STATUS[r.status] ?? APPOINTMENT_STATUS.booked).label,
+      cell: ({ row: { original: r } }) => {
+        const tone = APPOINTMENT_STATUS[r.status] ?? APPOINTMENT_STATUS.booked;
+        return <span className={cn(STATUS_BADGE, tone.className)}>{tone.label}</span>;
+      },
+    },
+    {
+      // A figure in brackets is the list price, not money taken.
+      id: "amount",
+      header: "Amount",
+      accessorFn: (r) => r.amountMinor ?? -1,
+      meta: { align: "right", className: "whitespace-nowrap" },
+      cell: ({ row: { original: r } }) =>
+        r.amountMinor !== null ? (
+          formatMoney(r.amountMinor)
+        ) : (
+          <span className="text-muted-foreground">
+            {r.listPriceMinor !== null ? `(${formatMoney(r.listPriceMinor)})` : "—"}
+          </span>
+        ),
+    },
+  ];
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -207,7 +250,7 @@ export default function SalesPage() {
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
               Taken
             </p>
-            <p className="text-2xl font-semibold tabular-nums text-emerald-700">
+            <p className="text-2xl font-semibold tabular-nums text-tea-green-200">
               {formatMoneyShort(totals.takenMinor)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -262,82 +305,26 @@ export default function SalesPage() {
 
       {totals && totals.byStylist.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Breakdown title="By stylist" items={totals.byStylist} />
-          <Breakdown title="By service" items={totals.byService.slice(0, 8)} />
+          <Breakdown title="By stylist" noun="stylist" items={totals.byStylist} />
+          <Breakdown title="By service" noun="service" items={totals.byService.slice(0, 8)} />
         </div>
       )}
 
-      <div className="rounded-md border border-border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Service</TableHead>
-              <TableHead>Stylist</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 && !loading && (
-              <TableRow>
-                <TableCell colSpan={6}>
-                  <span className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-                    <Receipt className="h-4 w-4" />
-                    Nothing in this {PERIOD_LABEL[kind].toLowerCase()}.
-                  </span>
-                </TableCell>
-              </TableRow>
-            )}
-
-            {rows.map((r) => {
-              const tone =
-                APPOINTMENT_STATUS[r.status] ?? APPOINTMENT_STATUS.booked;
-              return (
-                <TableRow key={r.id}>
-                  <TableCell className="tabular-nums whitespace-nowrap">
-                    {new Intl.DateTimeFormat("en-GB", {
-                      timeZone,
-                      day: "2-digit",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    }).format(new Date(r.startsAt))}
-                  </TableCell>
-                  <TableCell>{r.clientName ?? "Walk-in"}</TableCell>
-                  <TableCell>{r.serviceText}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {r.stylistName}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "rounded-md border px-2 py-0.5 text-xs whitespace-nowrap",
-                        tone.className
-                      )}
-                    >
-                      {tone.label}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums whitespace-nowrap">
-                    {r.amountMinor !== null ? (
-                      formatMoney(r.amountMinor)
-                    ) : (
-                      <span className="text-muted-foreground">
-                        {r.listPriceMinor !== null
-                          ? `(${formatMoney(r.listPriceMinor)})`
-                          : "—"}
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(r) => r.id}
+        loading={loading}
+        initialSorting={[{ id: "date", desc: false }]}
+        pageSize={50}
+        noun="appointments"
+        empty={
+          <span className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <Receipt className="h-4 w-4" />
+            Nothing in this {PERIOD_LABEL[kind].toLowerCase()}.
+          </span>
+        }
+      />
 
       <p className="text-xs text-muted-foreground">
         A figure in brackets is the list price, not money taken — the
@@ -348,20 +335,40 @@ export default function SalesPage() {
   );
 }
 
+/**
+ * Closed until asked for: the totals and the bookings are what the page is
+ * for, and two lists of bars above the table pushed it off the screen. The
+ * summary names the biggest, which is usually what anyone opens it to see.
+ */
 function Breakdown({
   title,
+  noun,
   items,
 }: {
   title: string;
+  /** "stylist": the summary reads "4 stylists". */
+  noun: string;
   items: Array<{ name: string; minor: number; count: number }>;
 }) {
   const max = Math.max(...items.map((i) => i.minor), 1);
+  const top = items.reduce<(typeof items)[number] | null>((a, i) => (!a || i.minor > a.minor ? i : a), null);
   return (
-    <div className="rounded-md border border-border p-4">
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">
-        {title}
-      </p>
-      <ul className="space-y-2">
+    <details className="group self-start rounded-md border border-border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 hover:bg-accent/40 [&::-webkit-details-marker]:hidden">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{title}</span>
+        <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <span className="truncate">
+            {plural(items.length, noun)}
+            {top && top.minor > 0 && (
+              <>
+                {" "}· top: {top.name} {formatMoney(top.minor)}
+              </>
+            )}
+          </span>
+          <ChevronDown aria-hidden className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <ul className="space-y-2 border-t border-border p-4">
         {items.map((i) => (
           <li key={i.name} className="grid gap-1">
             <div className="flex justify-between gap-3 text-sm">
@@ -376,13 +383,13 @@ function Breakdown({
             {/* One scale across the list, so the bars are comparable. */}
             <div className="h-1 rounded-full bg-muted overflow-hidden">
               <div
-                className="h-full bg-emerald-500/70"
+                className="h-full bg-tea-green-300/70"
                 style={{ width: `${(i.minor / max) * 100}%` }}
               />
             </div>
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }

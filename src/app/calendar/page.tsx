@@ -28,7 +28,6 @@ import {
   type DiaryBlock,
 } from "@/components/calendar/day-grid";
 import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
-import { useMe } from "@/components/providers/me-provider";
 import { useIsPhone } from "@/lib/use-is-phone";
 import {
   EditBookingDialog,
@@ -152,11 +151,6 @@ function newBlockForm(
 }
 
 export default function CalendarPage() {
-  const me = useMe();
-  // A stylist login changes only their own column; null is the owner.
-  const ownColumn = me?.stylist?.name ?? null;
-  const mine = (name: string) =>
-    ownColumn === null || name.toLowerCase() === ownColumn.toLowerCase();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [selected, setSelected] = useState(() => dateIn(DEFAULT_TZ));
   const [view, setView] = useState(() => {
@@ -316,18 +310,11 @@ export default function CalendarPage() {
     return { openMin, closeMin };
   }, [hours, weekday]);
 
-  // Who this login can book, move and block for.
-  const writableStylists = stylists.map((s) => s.name).filter(mine);
+  const stylistNames = stylists.map((s) => s.name);
 
   const columns: CalendarStylist[] = useMemo(
     () =>
-      stylists
-        .filter(
-          (s) =>
-            me?.stylist?.diaryScope !== "own" ||
-            s.name.toLowerCase() === me.stylist.name.toLowerCase()
-        )
-        .map((s) => ({
+      stylists.map((s) => ({
         name: s.name,
         // An empty list means "any day the salon is open", the same rule the
         // booking engine applies.
@@ -335,44 +322,21 @@ export default function CalendarPage() {
           Boolean(open) &&
           ((s.workingDays?.length ?? 0) === 0 ||
             (s.workingDays ?? []).includes(weekday)),
-        // A colleague's column is there to see, not to book into.
-        bookable:
-          (!usesGoogle || Boolean(s.googleCalendarId)) &&
-          (!me?.stylist || s.name.toLowerCase() === me.stylist.name.toLowerCase()),
-        readOnly:
-          Boolean(me?.stylist) && s.name.toLowerCase() !== me?.stylist?.name.toLowerCase(),
+        bookable: !usesGoogle || Boolean(s.googleCalendarId),
       })),
-    [stylists, open, weekday, usesGoogle, me]
+    [stylists, open, weekday, usesGoogle]
   );
 
   // A phone shows one stylist at a time: five columns at phone width are
-  // five slivers nobody can tap. The one picked, else the login's own
-  // column, else whoever is working today.
+  // five slivers nobody can tap. The one picked, else whoever is working
+  // today.
   const isPhone = useIsPhone();
   const [phonePick, setPhonePick] = useState<string | null>(null);
   const phoneColumn =
     columns.find((c) => c.name === phonePick) ??
-    columns.find((c) => ownColumn !== null && c.name.toLowerCase() === ownColumn.toLowerCase()) ??
     columns.find((c) => c.worksToday) ??
     columns[0];
   const visibleColumns = isPhone && phoneColumn ? [phoneColumn] : columns;
-
-  // A stylist glancing at their phone between clients wants to know who is
-  // next. Today only, their own column only.
-  const nextClient = useMemo(() => {
-    if (!ownColumn || selected !== today) return null;
-    const now = new Date().getTime();
-    return (
-      appointments
-        .filter(
-          (a) =>
-            a.status === "booked" &&
-            a.stylistName.toLowerCase() === ownColumn.toLowerCase() &&
-            new Date(a.endsAt).getTime() > now
-        )
-        .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null
-    );
-  }, [appointments, ownColumn, selected, today]);
 
   const jump = (date: string) => {
     setSelected(date);
@@ -432,7 +396,7 @@ export default function CalendarPage() {
           onClick={() =>
             setBlockDialog({
               mode: "new",
-              initial: newBlockForm(selected, ownColumn ?? stylists[0]?.name ?? null, "13:00"),
+              initial: newBlockForm(selected, stylists[0]?.name ?? null, "13:00"),
             })
           }
           disabled={stylists.length === 0}
@@ -451,35 +415,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {ownColumn !== null && selected === today && settingsLoaded && (
-        <div className="shrink-0 pb-3">
-          {nextClient ? (
-            <button
-              type="button"
-              onClick={() => setOpenAppointment(nextClient)}
-              className="w-full rounded-md border border-border bg-card px-3 py-2.5 text-left hover:bg-accent"
-            >
-              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {new Date(nextClient.startsAt).getTime() <= new Date().getTime() ? "Now" : "Next"}
-              </span>
-              <span className="block text-sm">
-                <span className="font-semibold tabular-nums">
-                  {new Date(nextClient.startsAt).toLocaleTimeString("en-GB", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: false,
-                    timeZone,
-                  })}
-                </span>{" "}
-                · {nextClient.lead.name ?? "Client"} · {nextClient.serviceText}
-              </span>
-            </button>
-          ) : (
-            <p className="text-sm text-muted-foreground">No more bookings today.</p>
-          )}
-        </div>
-      )}
-
       {isPhone && columns.length > 1 && (
         <div className="shrink-0 -mx-4 px-4 pb-3 flex gap-2 overflow-x-auto" role="tablist" aria-label="Stylist">
           {columns.map((c) => {
@@ -494,7 +429,7 @@ export default function CalendarPage() {
                 className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm ${
                   on
                     ? "border-primary bg-primary text-primary-foreground shadow-[0_1px_2px_0_rgb(79_70_229/0.25)]"
-                    : "border-input bg-card text-slate-600"
+                    : "border-input bg-card text-muted-foreground"
                 } ${c.worksToday ? "" : "opacity-60"}`}
               >
                 {c.name}
@@ -590,7 +525,6 @@ export default function CalendarPage() {
 
       <AppointmentSheet
         appointment={openAppointment}
-        readOnly={Boolean(openAppointment && !mine(openAppointment.stylistName))}
         timeZone={timeZone}
         tones={tones}
         listPriceMinor={listPriceFor(openAppointment?.serviceText, services)}
@@ -608,7 +542,7 @@ export default function CalendarPage() {
       <NewBookingDialog
         slot={slot}
         services={services}
-        stylists={writableStylists}
+        stylists={stylistNames}
         timeZone={timeZone}
         dayAppointments={appointments}
         dayBlocks={blocks}
@@ -629,7 +563,7 @@ export default function CalendarPage() {
       <EditBookingDialog
         appointment={editing}
         services={services}
-        stylists={writableStylists}
+        stylists={stylistNames}
         timeZone={timeZone}
         dayAppointments={appointments}
         dayBlocks={blocks}
@@ -652,8 +586,7 @@ export default function CalendarPage() {
 
       <BlockTimeDialog
         state={blockDialog}
-        allowEveryone={ownColumn === null}
-        stylists={writableStylists}
+        stylists={stylistNames}
         timeZone={timeZone}
         onClose={() => setBlockDialog(null)}
         onSaved={loadDay}

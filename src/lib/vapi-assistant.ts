@@ -153,8 +153,8 @@ const CHECK_AVAILABILITY: VapiTool = {
           enum: ["new", "returning", "unknown"],
           description:
             "Leave this out: whether they have been before is worked out from " +
-            "their name and number. Only send it once a tool has asked you to " +
-            "find out.",
+            "their name and number, as is a patch test on the salon's records. " +
+            "Only send it once a tool has asked you to find out.",
         },
       },
       required: ["date", "service"],
@@ -224,8 +224,8 @@ const BOOK_APPOINTMENT: VapiTool = {
           enum: ["new", "returning", "unknown"],
           description:
             "Leave this out: whether they have been before is worked out from " +
-            "their name and number. Only send it once a tool has asked you to " +
-            "find out.",
+            "their name and number, as is a patch test on the salon's records. " +
+            "Only send it once a tool has asked you to find out.",
         },
         notes: { type: "string", description: "Anything the stylist should know" },
       },
@@ -575,10 +575,11 @@ it.
   they asked for is not on the list, say which and ask what it is rather than
   quietly booking the rest.
 - **Do not ask whether they have been before.** The tools work it out from
-  their name and number: someone who has visited is booked as a returning
-  client without a word about it. The one time to ask is when a tool tells
-  you it needs to know, which is a colour service for someone with no visit
-  on record; then ask whether they have had colour here before.
+  their name and number: someone who has visited, or who has a patch test on
+  the salon's records, is booked as a returning client without a word about
+  it. The one time to ask is when a tool tells you it needs to know, which is
+  a colour service for someone with neither on record; then ask whether they
+  have had colour here before.
 - For a colour service, get their name before you check the diary, and pass
   it to \`check_availability\`: whether they have been before decides the
   earliest times. New clients need a skin patch test 48 hours beforehand, so

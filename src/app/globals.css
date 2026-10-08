@@ -51,60 +51,120 @@
 }
 
 /*
- * One light palette, used everywhere.
+ * The palette: Sage.
  *
- * The app ran permanently dark until September 2026. It now runs permanently
- * light: a soft grey canvas, white surfaces that lift off it, slate text and a
- * single indigo accent. Colour is kept for things that carry meaning — service
- * families in the diary, statuses, charts — so the chrome around them stays
- * quiet and neutral rather than competing.
+ * Five scales (tea green, beige, cornsilk, papaya whip, light bronze), each
+ * 100 darkest to 900 lightest with the named colour at 500. They are usable
+ * as Tailwind colours by name (bg-tea-green-200, text-light-bronze-100), and
+ * the theme tokens below are drawn from them.
  *
- * Neutrals carry a faint blue-slate tint (hue ~260) rather than pure grey:
- * pure grey beside indigo reads as slightly dirty, a tinted grey reads as
- * deliberate. Text contrast on white: foreground 16:1, muted-foreground 6.1:1,
- * so even 11px secondary text clears WCAG AA.
+ * The scales are soft. Their 400-500 steps are too pale for text or buttons
+ * on a light ground, so text and buttons use 100-200 and the pale steps are
+ * kept for grounds, badges and hovers. Red stays for warnings and errors: the
+ * palette has no colour that reads as "stop".
+ */
+@theme {
+  --color-tea-green-100: #2d331a;
+  --color-tea-green-200: #5b6635;
+  --color-tea-green-300: #88994f;
+  --color-tea-green-400: #acbb7b;
+  --color-tea-green-500: #ccd5ae;
+  --color-tea-green-600: #d6debe;
+  --color-tea-green-700: #e1e6cf;
+  --color-tea-green-800: #ebeedf;
+  --color-tea-green-900: #f5f7ef;
+
+  --color-beige-100: #3d4216;
+  --color-beige-200: #79842c;
+  --color-beige-300: #b3c146;
+  --color-beige-400: #ced788;
+  --color-beige-500: #e9edc9;
+  --color-beige-600: #edf1d4;
+  --color-beige-700: #f2f4df;
+  --color-beige-800: #f6f8ea;
+  --color-beige-900: #fbfbf4;
+
+  --color-cornsilk-100: #5d5103;
+  --color-cornsilk-200: #baa206;
+  --color-cornsilk-300: #f8dc27;
+  --color-cornsilk-400: #fbeb84;
+  --color-cornsilk-500: #fefae0;
+  --color-cornsilk-600: #fefbe7;
+  --color-cornsilk-700: #fefced;
+  --color-cornsilk-800: #fffdf3;
+  --color-cornsilk-900: #fffef9;
+
+  --color-papaya-whip-100: #533e08;
+  --color-papaya-whip-200: #a57b10;
+  --color-papaya-whip-300: #eab227;
+  --color-papaya-whip-400: #f2d079;
+  --color-papaya-whip-500: #faedcd;
+  --color-papaya-whip-600: #fbf1d6;
+  --color-papaya-whip-700: #fcf4e0;
+  --color-papaya-whip-800: #fdf8eb;
+  --color-papaya-whip-900: #fefbf5;
+
+  --color-light-bronze-100: #32210f;
+  --color-light-bronze-200: #64411f;
+  --color-light-bronze-300: #96622e;
+  --color-light-bronze-400: #c58341;
+  --color-light-bronze-500: #d4a373;
+  --color-light-bronze-600: #dcb68f;
+  --color-light-bronze-700: #e5c8ab;
+  --color-light-bronze-800: #eedac7;
+  --color-light-bronze-900: #f6ede3;
+}
+
+/*
+ * The theme, from the palette above. A near-white beige canvas, white
+ * surfaces, deep tea-green text and a single sage accent; the menu is the
+ * darkest tea green with light text. Text contrast on white: foreground
+ * 13.1:1, muted-foreground (tea green 200) 6.2:1 (5.9:1 on the canvas), so
+ * even 11px secondary text clears WCAG AA; button text on sage 6.1:1; menu
+ * text 10.3:1, its icons and labels 6.3:1.
  */
 :root {
-  --background: oklch(0.982 0.003 264); /* #f7f8fa canvas */
-  --foreground: oklch(0.216 0.028 264); /* #151b2c */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.216 0.028 264);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.216 0.028 264);
-  --primary: oklch(0.511 0.215 276); /* #4f46e5 indigo */
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.962 0.006 264); /* #f0f2f6 */
-  --secondary-foreground: oklch(0.262 0.03 264);
-  --muted: oklch(0.967 0.005 264); /* #f2f4f7 */
-  --muted-foreground: oklch(0.49 0.03 262); /* #586275 */
-  --accent: oklch(0.955 0.008 270); /* hover surface */
-  --accent-foreground: oklch(0.216 0.028 264);
+  --background: #fbfbf4; /* beige 900 */
+  --foreground: #2d331a; /* tea green 100 */
+  --card: #ffffff;
+  --card-foreground: #2d331a;
+  --popover: #ffffff;
+  --popover-foreground: #2d331a;
+  --primary: #5b6635; /* tea green 200 */
+  --primary-foreground: #fffef9; /* cornsilk 900 */
+  --secondary: #f5f7ef; /* tea green 900 */
+  --secondary-foreground: #2d331a;
+  --muted: #f5f7ef;
+  --muted-foreground: #5b6635;
+  --accent: #ebeedf; /* tea green 800: hover surface */
+  --accent-foreground: #2d331a;
   --destructive: oklch(0.55 0.21 27);
-  --border: oklch(0.918 0.008 264); /* #e3e6ec */
-  --input: oklch(0.885 0.01 264); /* #d7dbe3, a touch firmer than borders */
-  --ring: oklch(0.585 0.2 277);
-  --chart-1: oklch(0.585 0.2 277);
-  --chart-2: oklch(0.63 0.14 165);
-  --chart-3: oklch(0.72 0.15 70);
-  --chart-4: oklch(0.63 0.2 20);
-  --chart-5: oklch(0.62 0.13 230);
+  --border: #e1e6cf; /* tea green 700 */
+  --input: #d6debe; /* tea green 600, a touch firmer than borders */
+  --ring: #88994f; /* tea green 300 */
+  --chart-1: #5b6635;
+  --chart-2: #c58341;
+  --chart-3: #b3c146;
+  --chart-4: #a57b10;
+  --chart-5: #88994f;
   --radius: 0.75rem;
-  --scrollbar-thumb: oklch(0.3 0.02 264 / 18%);
-  --scrollbar-thumb-hover: oklch(0.3 0.02 264 / 32%);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.262 0.03 264);
-  --sidebar-primary: oklch(0.511 0.215 276);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.962 0.02 277); /* #eef0fd, active nav */
-  --sidebar-accent-foreground: oklch(0.43 0.19 277);
-  --sidebar-border: oklch(0.918 0.008 264);
-  --sidebar-ring: oklch(0.585 0.2 277);
+  --scrollbar-thumb: rgb(45 51 26 / 18%);
+  --scrollbar-thumb-hover: rgb(45 51 26 / 32%);
+  /* The menu: dark. */
+  --sidebar: #2d331a; /* tea green 100 */
+  --sidebar-foreground: #e1e6cf; /* tea green 700 */
+  --sidebar-primary: #ccd5ae;
+  --sidebar-primary-foreground: #2d331a;
+  --sidebar-accent: #5b6635; /* active item */
+  --sidebar-accent-foreground: #fefae0; /* cornsilk */
+  --sidebar-border: rgb(225 230 207 / 14%);
+  --sidebar-ring: #acbb7b;
   /* Surfaces lift off the canvas with a hairline and the faintest shadow.
      Anything heavier looks like a 2014 dashboard. */
-  --elev-surface: 0 1px 2px 0 oklch(0.216 0.028 264 / 0.04),
-    0 1px 3px 0 oklch(0.216 0.028 264 / 0.04);
-  --elev-raised: 0 4px 6px -2px oklch(0.216 0.028 264 / 0.05),
-    0 12px 24px -6px oklch(0.216 0.028 264 / 0.1);
+  --elev-surface: 0 1px 2px 0 rgb(45 51 26 / 0.04),
+    0 1px 3px 0 rgb(45 51 26 / 0.04);
+  --elev-raised: 0 4px 6px -2px rgb(45 51 26 / 0.05),
+    0 12px 24px -6px rgb(45 51 26 / 0.1);
 }
 
 @layer base {

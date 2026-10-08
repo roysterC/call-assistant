@@ -1,13 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lock, User as UserIcon, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
+
+const ROLE_LABEL: Record<string, string> = {
+  superAdmin: "Super admin",
+  admin: "Admin (owner)",
+  member: "Member (staff)",
+};
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession();
@@ -50,13 +56,20 @@ export default function AccountSettingsPage() {
         setMessage({ type: "error", text: err.error || "Failed to change password" });
         return;
       }
+      // Changing the password signed out every session, this one included;
+      // sign back in with the new password so the user carries on.
+      const email = session?.user?.email;
+      const again = email
+        ? await signIn("credentials", { email, password: newPassword, redirect: false })
+        : null;
+      if (!again || again.error) {
+        window.location.href = "/login";
+        return;
+      }
       setMessage({ type: "success", text: "Password changed successfully" });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      // A stylist replacing a temporary password goes straight on to the
-      // diary; a full reload so the new state is read fresh everywhere.
-      if (me?.mustChangePassword) window.location.href = "/calendar";
     } finally {
       setSaving(false);
     }
@@ -66,15 +79,6 @@ export default function AccountSettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Account</h1>
 
-      {me?.mustChangePassword && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm">
-          <p className="font-medium">Choose your own password to get started</p>
-          <p className="text-muted-foreground mt-1">
-            You signed in with a temporary password. Enter it as your current
-            password below, then pick a new one only you know.
-          </p>
-        </div>
-      )}
 
       <Card>
         <CardHeader>
@@ -94,8 +98,8 @@ export default function AccountSettingsPage() {
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Role</label>
-            <p className="text-sm mt-1 capitalize">
-              {session?.user?.role || "member"}
+            <p className="text-sm mt-1">
+              {ROLE_LABEL[me?.role ?? session?.user?.role ?? "member"] ?? "Member"}
             </p>
           </div>
         </CardContent>
@@ -150,7 +154,7 @@ export default function AccountSettingsPage() {
               <p
                 className={`text-xs ${
                   message.type === "success"
-                    ? "text-emerald-700"
+                    ? "text-tea-green-200"
                     : "text-rose-600"
                 }`}
               >
