@@ -137,6 +137,20 @@ const CHECK_AVAILABILITY: VapiTool = {
             "the following two weeks, so no day is needed. Otherwise leave " +
             "it.",
         },
+        time: {
+          type: "string",
+          description:
+            "The one time they asked for, if they asked for one ('2pm', " +
+            "'14:00'). If it is free it is offered on its own; if not, the " +
+            "nearest times are.",
+        },
+        lookFurther: {
+          type: "boolean",
+          description:
+            "Send true to look a month ahead instead of two weeks, but only " +
+            "after the tool found nothing in two weeks and the caller said " +
+            "they could wait longer.",
+        },
         stylist: {
           type: "string",
           description: "Preferred stylist's name, if the caller named one",
@@ -636,14 +650,19 @@ it.
   never work it out yourself, and never offer a time the tool did not return.
 - Answer the question they actually asked. If they want the **soonest**
   appointment, send \`prefer: "earliest"\` and no day — the diary is searched
-  forward for you — then offer the one time it names. Reading out a morning,
-  an afternoon and an evening is not an answer to "when are you next free?".
-- If they name a day, check that day. When nothing is free the tool names the
-  next day that is — offer that rather than asking them to try another day.
-- The tool returns a day alongside every time. **Say the day as well as the
-  time** whenever it is not the day they asked for.
-- Otherwise offer at most two or three options. Reading a long list down the
-  phone is worse than offering three good ones.
+  forward for you. If they name a day, check that day; if they ask for a
+  particular time, send it as \`time\` as well.
+- **Offer exactly what the tool gives you.** The time they asked for, when it
+  is free, on its own. Otherwise two specific choices: *"I have Thursday at
+  10, or Friday at 2. Which works better?"* Never an open "what time would
+  suit you?", and never a longer list.
+- Each choice comes with its day: **say the day with each one**, so two times
+  on different days are never heard as the same day.
+- **Do not name the stylist** unless the caller asked for one: it is one more
+  thing to hear, and who it is with is said when the booking is read back.
+- When the tool finds nothing in the next two weeks, say so and ask whether
+  they could wait longer. If they could, check again with \`lookFurther\`,
+  which looks a month ahead; if not, take a message.
 ${opts.ownLine ? READ_BACK_STEPS : SUM_UP_STEPS}
 - Only once the tool confirms it worked may you say they are booked in. If it
   reports a clash, apologise and offer another time. If it fails any other way,

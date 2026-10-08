@@ -35,7 +35,9 @@ const salon = vi.hoisted(() => ({
   /** What the stand-in diary has free. Empty unless a test fills it. */
   free: [] as Array<{ start: string; end: string; stylistName: string }>,
   /** What the diary was asked, newest last. */
-  asked: [] as Array<{ clientType?: string }>,
+  asked: [] as Array<{ clientType?: string; searchDays?: number }>,
+  /** Whether the stand-in diary can be read days ahead at once. */
+  forwardSearch: false,
 }));
 const written = vi.hoisted(() => [] as Array<{ write: unknown; record: unknown }>);
 vi.mock("@/lib/booking", async (original) => ({
@@ -43,7 +45,9 @@ vi.mock("@/lib/booking", async (original) => ({
   getSalonConfig: async () => salon,
   getBookingProvider: async () => ({
     id: "native",
-    capabilities: { readAvailability: true, forwardSearch: false, createBooking: true },
+    get capabilities() {
+      return { readAvailability: true, forwardSearch: salon.forwardSearch, createBooking: true };
+    },
     getAvailability: async (q: { stylistName?: string; clientType?: string }) => {
       salon.asked.push(q);
       return salon.free.filter((f) => !q.stylistName || f.stylistName === q.stylistName);
@@ -85,6 +89,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   salon.free = [];
   salon.asked = [];
+  salon.forwardSearch = false;
   written.length = 0;
   db.lead.findUnique.mockImplementation(async ({ where }) =>
     where.organizationId_phone.phone === SARAH ? { id: "lead-sarah", name: "Sarah Friend", phone: SARAH } : null
@@ -304,6 +309,69 @@ describe("save_customer_details for someone else's number", () => {
     db.lead.upsert.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend" });
     await handleSaveCustomerDetails("org", { name: "Sarah Friend", phone: "07700 900715" });
     expect(db.lead.upsert.mock.calls[0][0].update.name).toBe("Sarah Friend");
+  });
+});
+
+describe("check_availability: what is offered", () => {
+  // Saturday morning; the salon's Tuesday (29th) and Saturday (3rd) ahead.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-26T10:00:00+01:00"));
+    salon.forwardSearch = true;
+  });
+  afterEach(() => vi.useRealTimers());
+  const slot = (iso: string, stylistName = "Jo") => ({ start: new Date(iso).toISOString(), end: "", stylistName });
+  type Answer = { available: boolean; exact?: boolean; options: Array<{ day: string; time: string; stylist?: string }>; message: string };
+  const ask = (p: Record<string, unknown>) =>
+    handleCheckAvailability("org", { service: "blow dry", ...p } as Parameters<typeof handleCheckAvailability>[1]) as Promise<Answer>;
+
+  it("offers the time they asked for alone when it is free, without a stylist's name", async () => {
+    salon.free = [slot("2026-09-29T10:00:00+01:00"), slot("2026-09-29T14:00:00+01:00", "Marcus")];
+    const r = await ask({ date: "Tuesday", time: "2pm" });
+    expect(r).toMatchObject({ available: true, exact: true });
+    expect(r.options).toHaveLength(1);
+    expect(r.options[0]).toMatchObject({ day: "Tuesday", time: "2pm" });
+    expect(r.options[0]).not.toHaveProperty("stylist");
+    expect(r.message).toMatch(/^2pm on Tuesday is free\. Offer just that one/);
+    expect(r.message).not.toMatch(/Marcus|Jo\b/);
+  });
+
+  it("offers two choices, each with its day, never an open question or a list", async () => {
+    salon.free = ["10:00", "11:00", "12:30", "14:00", "15:30"].map((t) => slot(`2026-09-29T${t}:00+01:00`));
+    const r = await ask({ date: "Tuesday" });
+    expect(r.options.map((o) => `${o.day} ${o.time}`)).toEqual(["Tuesday 10am", "Tuesday half past 12"]);
+    expect(r.message).toMatch(/Offer these two, each with its day, and nothing else: Tuesday at 10am, or at half past 12\./);
+    expect(r.message).toMatch(/Do not name a stylist/);
+    expect(r.message).not.toMatch(/what time would suit/);
+  });
+
+  it("names the stylist when the caller asked for one", async () => {
+    salon.free = [slot("2026-09-29T10:00:00+01:00"), slot("2026-09-29T14:00:00+01:00")];
+    const r = await ask({ date: "Tuesday", stylist: "Jo" });
+    expect(r.options[0]).toMatchObject({ stylist: "Jo" });
+    expect(r.message).not.toMatch(/Do not name a stylist/);
+  });
+
+  it("says why the day they named is out, then offers the next two, on their own days", async () => {
+    // Nothing Tuesday; Saturday the 3rd has two.
+    salon.free = [slot("2026-10-03T09:00:00+01:00"), slot("2026-10-03T13:00:00+01:00")];
+    const r = await ask({ date: "Tuesday" });
+    expect(r.available).toBe(false);
+    // The reason first (here, the stand-in salon has nobody on for it), then the two.
+    expect(r.message).toMatch(/^Nobody who does blow dry works Tuesday .* Offer these two, each with its day/);
+    expect(r.message).toMatch(/Saturday the 3rd at 9am, or at 1pm\./);
+  });
+
+  it("looks two weeks ahead, asks whether they can wait, and a month ahead only once they can", async () => {
+    salon.free = [];
+    const first = await ask({ date: "Tuesday" });
+    expect(salon.asked.at(-1)).toMatchObject({ searchDays: 14 });
+    expect(first.message).toMatch(/Nothing free for blow dry in the next two weeks\. Say so, and ask whether they could wait longer/);
+    expect(first.message).toMatch(/lookFurther true/);
+
+    const further = await ask({ date: "Tuesday", lookFurther: true });
+    expect(salon.asked.at(-1)).toMatchObject({ searchDays: 31 });
+    expect(further.message).toMatch(/Nothing free for blow dry in the next month\. Say so, and take a message/);
   });
 });
 
