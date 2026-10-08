@@ -11,7 +11,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { buildVoiceTools } from "@/lib/vapi-assistant";
-import { executeVapiFunction, isVapiFunctionName } from "@/lib/vapi-functions";
+import { executeVapiFunction, handleBookAppointment, isVapiFunctionName, normaliseParameters } from "@/lib/vapi-functions";
+import { ReadBackGate } from "./read-back";
 import { END_CALL_TOOL, ReceptionistEngine, type StreamingClient } from "./engine";
 import { buildSystem, greetingFor } from "./prompt";
 import { toClaudeTools, withCallerContext } from "./tools";
@@ -96,11 +97,27 @@ export async function startReceptionist(
   }
   const cfg = await getSalonConfig(organizationId);
   const caps = selectProvider(cfg).capabilities;
-  const tools = toClaudeTools(buildVoiceTools(caps));
+  const tools = toClaudeTools(buildVoiceTools(caps, { ownLine: true }));
   const allowed = new Set(tools.map((t) => t.name));
   const businessName = settings?.businessName ?? "";
 
-  const engine = new ReceptionistEngine({
+  // Bookings are read back before they are made: see read-back.ts.
+  const readBack = new ReadBackGate({
+    turn: () => engine.turns,
+    check: (input) =>
+      handleBookAppointment(
+        organizationId,
+        // Tidied as executeVapiFunction tidies the real booking's input.
+        normaliseParameters(withCallerContext("book_appointment", input, opts.callerNumber)) as Parameters<
+          typeof handleBookAppointment
+        >[1],
+        { dryRun: true }
+      ),
+    book: (input) =>
+      executeVapiFunction("book_appointment", organizationId, withCallerContext("book_appointment", input, opts.callerNumber)),
+  });
+
+  const engine: ReceptionistEngine = new ReceptionistEngine({
     client: opts.client ?? new Anthropic({ apiKey: key!.apiKey }),
     model: receptionistModel(),
     request: receptionistRequestOptions(receptionistModel()),
@@ -118,6 +135,8 @@ export async function startReceptionist(
     // Only the tools this salon was given. The model cannot name its way
     // into one it was not offered.
     execute: async (name, input) => {
+      if (name === "prepare_booking" && allowed.has(name)) return readBack.prepare(input);
+      if (name === "book_appointment" && allowed.has(name)) return readBack.book(input);
       if (!allowed.has(name) || !isVapiFunctionName(name)) {
         return { error: `There is no tool called ${name}.` };
       }

@@ -401,6 +401,47 @@ describe("book_appointment", () => {
     expect(r.stylist).toBe("Jo");
   });
 
+  it("checked only, for the read-back: says what would be booked, and writes and texts nothing", async () => {
+    const r = await handleBookAppointment(
+      "org",
+      {
+        date: "Tuesday",
+        time: "2026-09-29T13:15:00+01:00",
+        service: "blow dry",
+        customerPhone: "",
+        customerName: "Olivia Hart",
+        callerNumber: OLIVIA,
+      },
+      { dryRun: true }
+    );
+    expect(r).toMatchObject({
+      success: true,
+      ready: true,
+      service: "Blow dry",
+      // Who check_availability offered it with, worked out as the booking would.
+      stylist: "Jo",
+      startsAt: "2026-09-29T13:15:00+01:00",
+      when: "Tuesday 29 September at quarter past 1",
+      clientName: "Olivia Hart",
+      phone: OLIVIA,
+      usedCallerId: true,
+      patchTestRequired: false,
+    });
+    expect(written).toHaveLength(0);
+    expect(db.lead.create).not.toHaveBeenCalled();
+    expect(db.lead.update).not.toHaveBeenCalled();
+    expect(texts.send).not.toHaveBeenCalled();
+  });
+
+  it("checked only, still refuses what the booking would refuse", async () => {
+    const r = await handleBookAppointment(
+      "org",
+      { time: quarterPastOne, service: "root tint", stylist: "Jo", customerPhone: "07700 900714", customerName: "Grace Hill" },
+      { dryRun: true }
+    );
+    expect(r).toMatchObject({ success: false, needsClientType: true });
+  });
+
   it("on caller ID, says the text is on its way to this phone, without asking whether the number is right", async () => {
     texts.send.mockResolvedValueOnce({ ok: true, configured: true } as never);
     const r = (await handleBookAppointment("org", {

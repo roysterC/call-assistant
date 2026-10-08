@@ -1144,15 +1144,17 @@ async function checkAvailability(
             ? `, then ${options[1].time}. Offer the first and mention the ` +
               "second only if they hesitate."
             : ". Offer it.") +
-          " Say the day as well as the time. Then call book_appointment with " +
-          "the exact startsAt for whichever they take."
+          // Which tool comes next is the prompt's to say: on our own line it
+          // is prepare_booking, so the booking is read back first.
+          " Say the day as well as the time. Then use the exact startsAt for " +
+          "whichever they take."
         : (movedOn
             ? `Nothing on the day they asked for, but ${dayPhrase} has: `
             : "Offer these times: ") +
           `${options
             .map((o) => `${o.time} with ${o.stylist}`)
-            .join(", ")}. When the caller picks one, call book_appointment ` +
-          "with the exact startsAt value for that option.",
+            .join(", ")}. When the caller picks one, use the exact startsAt ` +
+          "value for that option.",
   };
 }
 
@@ -1171,7 +1173,13 @@ export async function handleBookAppointment(
     clientType?: string;
     newClient?: boolean;
     notes?: string;
-  }
+  },
+  /**
+   * Check only: every rule a booking is held to, and nothing written. Gives
+   * back exactly what would be booked, for the receptionist to read back
+   * before it is (src/lib/receptionist/read-back.ts).
+   */
+  opts: { dryRun?: boolean } = {}
 ) {
   const { time, customerPhone, customerName, notes } = params;
 
@@ -1407,6 +1415,29 @@ export async function handleBookAppointment(
   });
   if (slotProblem) {
     return { success: false, today, notAvailable: true, message: slotProblem };
+  }
+
+  if (opts.dryRun) {
+    return {
+      success: true,
+      ready: true,
+      service: service.name,
+      stylist: stylist.name,
+      startsAt: zonedIsoString(startsAt, cfg.timeZone),
+      // Weekday and date, always: what is read back is checked against a
+      // calendar, and "Thursday" alone can be this week or next.
+      when: `${new Intl.DateTimeFormat("en-GB", {
+        timeZone: cfg.timeZone,
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(startsAt)} at ${spokenTime(startsAt.toISOString(), cfg.timeZone)}`,
+      clientName,
+      phone,
+      usedCallerId: resolvedPhone.source === "callerId",
+      patchTestRequired: service.requiresPatchTest && patchType !== "returning",
+      ...(onFile ? { patchTestOnRecord: onFile } : {}),
+    };
   }
 
   // One number, one client record, but not always one person: a mum books
@@ -2466,7 +2497,7 @@ const DAY_NAMES_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
  * as "not given". Anything else is left for the handler's own checks.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normaliseParameters(parameters: Record<string, any> | null | undefined): Record<string, any> {
+export function normaliseParameters(parameters: Record<string, any> | null | undefined): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const out: Record<string, any> = {};
   for (const [key, value] of Object.entries(parameters ?? {})) {
