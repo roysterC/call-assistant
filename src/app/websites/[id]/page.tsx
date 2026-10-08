@@ -14,6 +14,7 @@ import { readableTextOn } from "@/lib/contrast";
 import { planMayHideBranding } from "@/lib/branding";
 import { PageHeader } from "@/components/ui/page-header";
 import { plural } from "@/lib/plural";
+import { currentModelName } from "@/lib/chat-models";
 
 interface Site {
   id: string;
@@ -714,7 +715,7 @@ export default function WebsiteEditPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <select
-              value={site.chatModel || ""}
+              value={currentModelName(site.chatModel) || ""}
               onChange={(e) =>
                 setSite({ ...site, chatModel: e.target.value || null })
               }
@@ -723,8 +724,8 @@ export default function WebsiteEditPage() {
               <option value="">
                 Plan default — best the organisation&apos;s plan allows
               </option>
-              <option value="claude-haiku-4-5">
-                Haiku 4.5 — cheaper, weaker instruction-following
+              <option value="claude-haiku-5-5">
+                Haiku 5.5 — cheapest
               </option>
               <option value="claude-sonnet-5">
                 Sonnet 5 — ~2.5x cost, does not invent statistics
