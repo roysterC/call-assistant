@@ -323,8 +323,21 @@ export default function CalendarPage() {
           ((s.workingDays?.length ?? 0) === 0 ||
             (s.workingDays ?? []).includes(weekday)),
         bookable: !usesGoogle || Boolean(s.googleCalendarId),
-      })),
-    [stylists, open, weekday, usesGoogle]
+      })).concat(
+        // Bookings belong to a stylist by name. One removed from the team, or
+        // renamed, keeps them, and they are real clients still due in: give
+        // that name a column on the days it has bookings, rather than leave
+        // them invisible behind a dot on the month. Re-adding the same name
+        // in Settings puts them back under the stylist.
+        [
+          ...new Map(
+            appointments
+              .filter((a) => !stylists.some((s) => s.name.toLowerCase() === a.stylistName.toLowerCase()))
+              .map((a) => [a.stylistName.toLowerCase(), a.stylistName])
+          ).values(),
+        ].map((name) => ({ name, worksToday: false, bookable: false, former: true }))
+      ),
+    [stylists, open, weekday, usesGoogle, appointments]
   );
 
   // A phone shows one stylist at a time: five columns at phone width are

@@ -87,6 +87,12 @@ export interface CalendarStylist {
   name: string;
   worksToday: boolean;
   bookable: boolean;
+  /**
+   * No longer on the team, but has bookings this day. Shown so they are never
+   * hidden: the desk moves them to someone else from here. Nothing new can be
+   * booked into the column.
+   */
+  former?: boolean;
 }
 
 interface DayGridProps {
@@ -161,12 +167,19 @@ export function DayGrid({
               className="flex-1 min-w-0 px-2 py-2 text-center border-l border-border"
             >
               <div className="text-sm font-semibold truncate">{s.name}</div>
-              <div className="text-[11px] text-muted-foreground truncate">
-                {!s.bookable
-                  ? "no calendar"
-                  : s.worksToday
-                    ? "working"
-                    : "not in"}
+              <div
+                className={cn(
+                  "text-[11px] truncate",
+                  s.former ? "font-medium text-papaya-whip-100" : "text-muted-foreground"
+                )}
+              >
+                {s.former
+                  ? "not on the team"
+                  : !s.bookable
+                    ? "no calendar"
+                    : s.worksToday
+                      ? "working"
+                      : "not in"}
               </div>
             </div>
           ))}
@@ -396,11 +409,14 @@ function StylistColumn({
           key={l.minutes}
           className={cn(
             "absolute inset-x-0 border-t pointer-events-none",
+            // Every quarter-hour visible, the hour plainest. The quarters
+            // were drawn at a quarter of the border colour, which on white
+            // is effectively nothing.
             l.major
-              ? "border-border"
+              ? "border-tea-green-500"
               : l.half
-                ? "border-border/50"
-                : "border-border/25"
+                ? "border-tea-green-600"
+                : "border-tea-green-700"
           )}
           style={{ top: `${l.topPct}%` }}
         />
