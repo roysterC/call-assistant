@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, CircleAlert } from "lucide-react";
@@ -7,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { Stylist, SalonService } from "@/lib/salon-config";
 import { openWeekdays, type DayHours } from "@/lib/business-hours";
 import { ServicePicker } from "@/components/settings/service-picker";
+import { apiFetch } from "@/lib/api-fetch";
 
 /**
  * The team, and what makes each of them bookable.
@@ -52,6 +54,34 @@ export function StylistsEditor({
   const openDays = openWeekdays(businessHours);
   const constrained = openDays.length > 0;
   const isOpen = (day: number) => !constrained || openDays.includes(day);
+
+  // Removing someone with bookings still to come asks first. The bookings are
+  // not deleted: they stay in the diary under the name, in a column of their
+  // own, and come back under the stylist if the same name is added again.
+  const [confirmRemove, setConfirmRemove] = useState<{ index: number; upcoming: number } | null>(null);
+  const [checking, setChecking] = useState<number | null>(null);
+
+  function remove(index: number) {
+    onChange(value.filter((_, j) => j !== index));
+    setConfirmRemove(null);
+  }
+
+  async function askToRemove(index: number) {
+    const name = value[index].name.trim();
+    if (!name) return remove(index);
+    setChecking(index);
+    try {
+      const res = await apiFetch(`/api/appointments?status=booked&scope=upcoming&stylist=${encodeURIComponent(name)}`);
+      const upcoming = res.ok ? ((await res.json()).appointments ?? []).length : 0;
+      if (upcoming === 0) remove(index);
+      else setConfirmRemove({ index, upcoming });
+    } catch {
+      // Could not check: ask anyway rather than remove without warning.
+      setConfirmRemove({ index, upcoming: -1 });
+    } finally {
+      setChecking(null);
+    }
+  }
 
   function update(index: number, patch: Partial<Stylist>) {
     const next = [...value];
@@ -99,12 +129,35 @@ export function StylistsEditor({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => onChange(value.filter((_, j) => j !== i))}
+                onClick={() => void askToRemove(i)}
+                disabled={checking === i}
                 aria-label={`Remove ${stylist.name || "stylist"}`}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
+
+            {confirmRemove?.index === i && (
+              <div
+                role="alert"
+                className="flex flex-wrap items-center gap-2 rounded-md border border-papaya-whip-400 bg-papaya-whip-700 px-3 py-2 text-sm text-papaya-whip-100"
+              >
+                <CircleAlert className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  {confirmRemove.upcoming > 0
+                    ? `${stylist.name} has ${confirmRemove.upcoming >= 200 ? "200 or more" : confirmRemove.upcoming} booking${confirmRemove.upcoming === 1 ? "" : "s"} still to come.`
+                    : `Couldn't check ${stylist.name}'s bookings.`}{" "}
+                  They stay in the diary under {stylist.name}&apos;s name, to move to someone else, and come
+                  back if you add {stylist.name} again.
+                </span>
+                <Button type="button" size="sm" variant="outline" onClick={() => remove(i)}>
+                  Remove anyway
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setConfirmRemove(null)}>
+                  Keep
+                </Button>
+              </div>
+            )}
 
             {usesGoogle && (
               <div>

@@ -38,6 +38,10 @@ export async function GET(req: NextRequest) {
       organizationId: ctx.organizationId,
     };
     if (status !== "all") where.status = status;
+    // One stylist's, by name as stored on the booking (Settings asks before
+    // removing someone who still has bookings coming up).
+    const stylist = searchParams.get("stylist")?.trim();
+    if (stylist) where.stylistName = { equals: stylist, mode: "insensitive" };
 
     // An explicit window wins over the scope shortcut: the day view asks for
     // one day and wants everything in it, including what has already been and
