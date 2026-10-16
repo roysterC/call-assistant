@@ -47,6 +47,25 @@ async function resolveSender(organizationId: string): Promise<string | null> {
   return process.env.TWILIO_DEFAULT_SENDER || null;
 }
 
+/**
+ * Typographic punctuation swapped for its plain equivalent.
+ *
+ * A text containing even one character outside the GSM-7 set (a curly
+ * apostrophe, a long dash) is sent as UCS-2, which fits 70 characters to a
+ * segment instead of 160: a typical confirmation goes from one billed segment
+ * to three. Salon names, service names and owners' own messages are typed by
+ * people, and phones and word processors put these characters in on their
+ * own, so they are straightened here, on the way out, whatever wrote them.
+ */
+export function plainPunctuation(text: string): string {
+  return text
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u2033]/g, '"')
+    .replace(/[\u2013\u2014\u2212]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/[\u00A0\u2007\u202F]/g, " ");
+}
+
 export async function sendSms(
   organizationId: string,
   to: string,
@@ -89,7 +108,7 @@ export async function sendSms(
     const params = new URLSearchParams({
       To: recipient.e164,
       From: sender,
-      Body: body,
+      Body: plainPunctuation(body),
     });
 
     const res = await fetch(`${TWILIO_API}/Accounts/${accountSid}/Messages.json`, {
@@ -141,7 +160,7 @@ export interface AppointmentMessageInput {
   bookingNumber?: number | null;
   /**
    * Set when the text goes to the person a client is reached through (a
-   * parent), and `clientName` is then theirs: "Hi Claire — Amy is booked in".
+   * parent), and `clientName` is then theirs: "Hi Claire, Amy is booked in".
    */
   forName?: string | null;
 }
@@ -177,7 +196,7 @@ function signOff(contactPhone: string | null, businessName: string): string {
 }
 
 export function confirmationBody(i: AppointmentMessageInput): string {
-  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
+  const greeting = i.clientName ? `Hi ${i.clientName}, ` : "";
   return (
     `${greeting}${subject(i).is} booked in ${i.whenText} for ${withArticle(i.serviceName)} ` +
     `with ${i.stylistName}. ${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
@@ -185,7 +204,7 @@ export function confirmationBody(i: AppointmentMessageInput): string {
 }
 
 export function reminderBody(i: AppointmentMessageInput): string {
-  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
+  const greeting = i.clientName ? `Hi ${i.clientName}, ` : "";
   return (
     `${greeting}a reminder ${subject(i).is} booked in ${i.whenText} for ` +
     `${withArticle(i.serviceName)} with ${i.stylistName}. ` +
@@ -194,7 +213,7 @@ export function reminderBody(i: AppointmentMessageInput): string {
 }
 
 export function cancellationBody(i: AppointmentMessageInput): string {
-  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
+  const greeting = i.clientName ? `Hi ${i.clientName}, ` : "";
   return (
     `${greeting}${subject(i).whose} appointment ${i.whenText} for ${withArticle(i.serviceName)} ` +
     `has been cancelled. ${signOff(i.contactPhone, i.businessName)}`
@@ -204,7 +223,7 @@ export function cancellationBody(i: AppointmentMessageInput): string {
 export function rescheduleBody(
   i: AppointmentMessageInput & { previousWhenText: string }
 ): string {
-  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
+  const greeting = i.clientName ? `Hi ${i.clientName}, ` : "";
   return (
     `${greeting}${subject(i).whose} ${i.serviceName.toLowerCase()} has moved from ` +
     `${i.previousWhenText} to ${i.whenText} with ${i.stylistName}. ` +

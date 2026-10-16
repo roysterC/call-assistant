@@ -563,7 +563,7 @@ describe("book_appointment", () => {
     expect(written[0].write).toMatchObject({ clientName: "Amy Burns" });
     expect(r.message).toMatch(/for Amy Burns/);
     // The text goes to her mum, and greets her mum.
-    expect(texts.send).toHaveBeenCalledWith("org", CLAIRE, expect.stringMatching(/^Hi Claire Burns — Amy is booked in/));
+    expect(texts.send).toHaveBeenCalledWith("org", CLAIRE, expect.stringMatching(/^Hi Claire Burns, Amy is booked in/));
   });
 
   it("books her on the same record next time, and her mum on her own", async () => {
@@ -814,6 +814,6 @@ describe("a number and the clients reached through it", () => {
   it("texts the mum, greeting her, when the daughter's booking is cancelled", async () => {
     const r = await handleCancelAppointment("org", { callerNumber: CLAIRE, appointmentId: "appt-amy" });
     expect(r).toMatchObject({ success: true });
-    expect(texts.send).toHaveBeenCalledWith("org", CLAIRE, expect.stringMatching(/^Hi Claire Burns — Amy's appointment/));
+    expect(texts.send).toHaveBeenCalledWith("org", CLAIRE, expect.stringMatching(/^Hi Claire Burns, Amy's appointment/));
   });
 });

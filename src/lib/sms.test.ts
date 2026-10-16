@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cancellationBody, confirmationBody, reminderBody, rescheduleBody } from "./sms";
+import { cancellationBody, confirmationBody, plainPunctuation, reminderBody, rescheduleBody } from "./sms";
 import { describeAppointmentWhen } from "./business-hours";
 
 const TZ = "Europe/London";
@@ -60,7 +60,7 @@ describe("message bodies", () => {
 
   it("greets the parent and names the child when it goes to the number she is reached through", () => {
     const parent = { ...base, clientName: "Claire", forName: "Amy" };
-    expect(confirmationBody(parent)).toMatch(/^Hi Claire — Amy is booked in Thursday at 2pm for a cut and finish/);
+    expect(confirmationBody(parent)).toMatch(/^Hi Claire, Amy is booked in Thursday at 2pm for a cut and finish/);
     expect(reminderBody(parent)).toContain("a reminder Amy is booked in");
     expect(cancellationBody(parent)).toContain("Amy's appointment Thursday at 2pm");
     expect(rescheduleBody({ ...parent, previousWhenText: "Wednesday at 2pm" })).toContain("Amy's cut and finish has moved");
@@ -138,5 +138,36 @@ describe("service names in message bodies", () => {
       serviceName: "Full head highlights",
     });
     expect(b.length).toBeLessThanOrEqual(160);
+  });
+});
+
+// GSM-7's basic character set. A text using only these is billed at 160
+// characters a segment; one character outside it drops that to 70.
+const GSM7 = new Set(
+  "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+);
+const outsideGsm7 = (text: string) => [...text].filter((c) => !GSM7.has(c));
+
+describe("texts stay in the cheaper character set", () => {
+  const moved = { ...base, previousWhenText: "Tuesday at 10am", bookingNumber: 2148 };
+  it.each([
+    ["confirmation", confirmationBody({ ...base, bookingNumber: 2148 })],
+    ["reminder", reminderBody({ ...base, bookingNumber: 2148 })],
+    ["cancellation", cancellationBody(base)],
+    ["move", rescheduleBody(moved)],
+    ["text for a parent", confirmationBody({ ...base, clientName: "Claire", forName: "Amy" })],
+  ])("the %s uses only GSM-7 characters", (_name, body) => {
+    expect(outsideGsm7(body)).toEqual([]);
+  });
+
+  it("straightens punctuation that people and phones type in", () => {
+    const typed = "Jess\u2019s Salon \u2014 \u201Cfull head\u201D colour\u2026 see you\u00A0then";
+    const plain = plainPunctuation(typed);
+    expect(plain).toBe(`Jess's Salon - "full head" colour... see you then`);
+    expect(outsideGsm7(plain)).toEqual([]);
+  });
+
+  it("leaves letters GSM-7 already has alone", () => {
+    expect(plainPunctuation("Café Renée, £45")).toBe("Café Renée, £45");
   });
 });

@@ -135,7 +135,7 @@ export interface Textable {
  * Where a text about `client`'s booking goes, and whom it greets.
  *
  * Their own number when they have one. Otherwise the number they are reached
- * through, greeting its owner and naming them: "Hi Claire — Amy is booked
+ * through, greeting its owner and naming them: "Hi Claire, Amy is booked
  * in…". Null when there is nowhere to send it.
  */
 export function textRecipient(
