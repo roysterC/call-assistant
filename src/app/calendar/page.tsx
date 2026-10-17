@@ -378,10 +378,10 @@ export default function CalendarPage() {
       </div>
 
       <div className="flex items-center gap-2 pt-4 pb-3 shrink-0 flex-wrap">
-        <Button variant="outline" size="sm" onClick={() => jump(shiftDate(selected, -1))}>
+        <Button variant="outline" size="sm" aria-label="Previous day" onClick={() => jump(shiftDate(selected, -1))}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" onClick={() => jump(shiftDate(selected, 1))}>
+        <Button variant="outline" size="sm" aria-label="Next day" onClick={() => jump(shiftDate(selected, 1))}>
           <ChevronRight className="h-4 w-4" />
         </Button>
         <Button
