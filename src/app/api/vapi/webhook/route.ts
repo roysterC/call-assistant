@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resolveOrgFromVapiPayload } from "@/lib/vapi-functions";
+import { resolveOrgFromVapiPayload } from "@/lib/receptionist/actions";
 import {
   verifyVapiRequest,
   describeAuthHeaders,

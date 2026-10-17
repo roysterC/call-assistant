@@ -56,7 +56,7 @@ vi.mock("@/lib/booking", async (original) => ({
 }));
 
 import { matchService, servicesLike } from "./salon-config";
-import { handleBookAppointment, handleCheckAvailability } from "./vapi-functions";
+import { handleBookAppointment, handleCheckAvailability } from "./receptionist/actions";
 
 const names = (spoken: string) => servicesLike(spoken, services).map((s) => s.name);
 

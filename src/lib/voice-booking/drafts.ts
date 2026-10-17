@@ -48,7 +48,7 @@ import { namesMatch } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
 import { matchStylist, resolveBookedService, servicesLike, type SalonService, type Stylist } from "@/lib/salon-config";
 import type { TenantContext } from "@/lib/tenant";
-import { phoneSlotProblem, stylistServiceProblem } from "@/lib/vapi-functions";
+import { phoneSlotProblem, stylistServiceProblem } from "@/lib/receptionist/actions";
 import { spokenPatchTest } from "@/lib/patch-test";
 
 /** Who is asking, as far as drafting cares. */

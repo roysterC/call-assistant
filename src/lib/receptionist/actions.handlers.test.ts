@@ -79,7 +79,7 @@ import {
   parseBookingNumber,
   saysNotBooked,
   thirdPartyRefusal,
-} from "./vapi-functions";
+} from "./actions";
 
 const SARAH = "+447700900715";
 const OLIVIA = "+447700900714";
@@ -754,7 +754,7 @@ describe("book_appointment", () => {
   });
 
   it("starts a refused booking with NOT booked, through the tool router", async () => {
-    const { executeVapiFunction } = await import("./vapi-functions");
+    const { executeVapiFunction } = await import("./actions");
     const r = (await executeVapiFunction("book_appointment", "org", {
       time: "2026-09-29T15:00:00+01:00",
       service: "blow dry",

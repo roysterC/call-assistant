@@ -11,7 +11,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { buildVoiceTools } from "@/lib/vapi-assistant";
-import { executeVapiFunction, handleBookAppointment, isVapiFunctionName, normaliseParameters } from "@/lib/vapi-functions";
+import { executeVapiFunction, handleBookAppointment, isVapiFunctionName, normaliseParameters } from "@/lib/receptionist/actions";
 import { ReadBackGate } from "./read-back";
 import { END_CALL_TOOL, ReceptionistEngine, type StreamingClient } from "./engine";
 import { buildSystem, greetingFor } from "./prompt";

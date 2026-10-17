@@ -55,11 +55,17 @@ import { clientForBooking, findClientOnNumber, hasBeenBefore, peopleOnNumber, te
 import { spokenPatchTest } from "@/lib/patch-test";
 
 /**
- * The Vapi tool handlers.
+ * What the receptionist can do: check availability, book, find, move and
+ * cancel appointments, take a message, book a call-back, save a caller's
+ * details. Each action checks the salon's rules itself (hours, who does
+ * what, the skin test, no double-booking), whoever asks.
  *
- * Shared by both entry points: the envelope route, where Vapi names the
- * function in the body, and the path route, where an "API Request" tool posts
- * bare parameters and the name comes from the URL.
+ * Callers: our own phone line and the lab (receptionist/session.ts), the
+ * personal assistant (voice-booking/), and the two Vapi routes that remain
+ * for salons not yet moved off Vapi. That history is why the names below
+ * still say "Vapi": the envelope route, where Vapi names the function in the
+ * body, and the path route, where an "API Request" tool posts bare
+ * parameters and the name comes from the URL.
  */
 
 /**

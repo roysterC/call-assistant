@@ -291,7 +291,7 @@ prompt unchanged.
 
 The receptionist never transfers a call. When a caller asks for a person, or
 wants something it cannot do or answer, it takes a message (`take_message`
-in `src/lib/vapi-functions.ts`): their name, number (caller ID unless they
+in `src/lib/receptionist/actions.ts`): their name, number (caller ID unless they
 give another) and what it is about, for a stylist if they named one. It
 lands on the Callbacks page, listed by when the caller rang (waiting ones
 oldest first). There is no due time, and the caller is never promised one,

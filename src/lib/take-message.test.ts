@@ -25,7 +25,7 @@ vi.mock("@/lib/booking", async (original) => ({
   }),
 }));
 
-import { handleTakeMessage, mergeMessage } from "./vapi-functions";
+import { handleTakeMessage, mergeMessage } from "./receptionist/actions";
 import { buildVoiceTools } from "./vapi-assistant";
 
 beforeEach(() => {

@@ -11,7 +11,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 import { getSalonConfig } from "@/lib/booking";
-import { executeVapiFunction } from "@/lib/vapi-functions";
+import { executeVapiFunction } from "@/lib/receptionist/actions";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
 import { upcomingDays } from "@/lib/receptionist/prompt";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";

@@ -13,7 +13,7 @@ import {
   callerNumberFromVapiPayload,
   executeVapiFunction,
   resolveOrgFromVapiPayload,
-} from "@/lib/vapi-functions";
+} from "@/lib/receptionist/actions";
 
 
 // Vapi calls this endpoint when the AI assistant invokes a tool/function
