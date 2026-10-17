@@ -50,7 +50,11 @@ export const BACKUP_MAX_AGE_HOURS = 26;
 
 export async function checkBackup(now = Date.now()): Promise<Check & { ageHours?: number }> {
   try {
-    const [info, text] = await Promise.all([stat(BACKUP_STATUS_FILE), readFile(BACKUP_STATUS_FILE, "utf8")]);
+    // A path on the box, not part of the app: the bundler must not trace it.
+    const [info, text] = await Promise.all([
+      stat(/*turbopackIgnore: true*/ BACKUP_STATUS_FILE),
+      readFile(/*turbopackIgnore: true*/ BACKUP_STATUS_FILE, "utf8"),
+    ]);
     const at = Date.parse(text.trim()) || info.mtimeMs;
     const ageHours = Math.round(((now - at) / 3_600_000) * 10) / 10;
     return { ok: ageHours <= BACKUP_MAX_AGE_HOURS, ageHours };
