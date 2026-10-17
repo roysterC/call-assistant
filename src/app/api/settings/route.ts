@@ -244,7 +244,9 @@ export async function PUT(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ settings });
+    // The same masking as GET: an owner saving their hours must not get the
+    // salon's keys back in the response.
+    return NextResponse.json({ settings: ctx.isSuperAdmin ? settings : withoutSecrets(settings) });
   } catch (error) {
     console.error("[SETTINGS API] PUT error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
