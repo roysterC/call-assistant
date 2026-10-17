@@ -119,6 +119,16 @@ export async function POST(req: NextRequest) {
       where: { sessionId },
     });
 
+    // A session belongs to the site it started on. Without this, someone
+    // holding another site's session id could post into that salon's
+    // conversation, and the bot would read its history back to them.
+    if (conversation && conversation.siteId !== siteId) {
+      return new Response(
+        JSON.stringify({ error: "Conversation not found" }),
+        { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+      );
+    }
+
     if (!conversation) {
       conversation = await prisma.websiteConversation.create({
         data: {
