@@ -176,6 +176,16 @@ model OrganizationSettings {
   facebookSystemPrompt    String?
   facebookPageId          String?
   facebookPageAccessToken String?
+  // The salon's own Meta app, which carries its WhatsApp, Instagram and
+  // Messenger. Meta signs every webhook with the app's secret, and the
+  // subscribe handshake echoes the verify token typed into the app's webhook
+  // settings. Per salon, so no salon's messages can be forged with another's
+  // keys (src/lib/meta-credentials.ts).
+  metaAppSecret           String?
+  metaVerifyToken         String?
+  // WhatsApp Cloud API token for sending; the number it sends from is the
+  // PhoneNumber row the customer wrote to.
+  whatsappAccessToken     String?
   updatedAt               DateTime     @updatedAt
 
   @@map("ca_organization_settings")

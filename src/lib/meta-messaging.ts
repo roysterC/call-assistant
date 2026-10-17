@@ -14,12 +14,11 @@
  * `/admin/organizations/<id>`. There is no global env access token; each
  * org brings its own.
  *
- * Signature verification uses `META_APP_SECRET` env var, HMAC-SHA256 over
- * the raw body, header `x-hub-signature-256` prefixed with `sha256=`.
- * Prod-fail-closed: missing secret in prod → reject all webhooks.
+ * Signatures are checked against each salon's own Meta app secret before
+ * anything here runs (src/lib/meta-credentials.ts); processMetaWebhook only
+ * acts on entries for the salons that check proved.
  */
 
-import { createHmac } from "crypto";
 import { prisma } from "@/lib/prisma";
 import {
   buildChatContext,
@@ -28,44 +27,7 @@ import {
 } from "@/lib/claude";
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v21.0";
-const APP_SECRET = process.env.META_APP_SECRET;
-
 export type SocialChannel = "instagram" | "facebook";
-
-if (!APP_SECRET) {
-  if (process.env.NODE_ENV === "production") {
-    console.error(
-      "[META] META_APP_SECRET is not set — ALL incoming Meta webhooks will be rejected."
-    );
-  } else {
-    console.warn(
-      "[META] META_APP_SECRET not set — dev-only bypass active. Unsigned webhooks will be accepted."
-    );
-  }
-}
-
-/**
- * HMAC-SHA256 signature verification for Meta webhook callbacks.
- * Mirrors WhatsApp's pattern but uses a dedicated secret so the two
- * subscriptions can be configured independently.
- */
-export function verifyMetaSignature(
-  rawBody: string,
-  signatureHeader: string | null
-): boolean {
-  if (!APP_SECRET) {
-    // Production: missing secret = cannot verify = reject.
-    // Dev: allow so local curl-simulate works.
-    return process.env.NODE_ENV !== "production";
-  }
-  if (!signatureHeader) return false;
-
-  const expected = signatureHeader.replace("sha256=", "");
-  const computed = createHmac("sha256", APP_SECRET)
-    .update(rawBody)
-    .digest("hex");
-  return expected === computed;
-}
 
 // ─────────────────────────────────────────────────────────────
 // Webhook payload types (trimmed to what we actually use)
@@ -292,7 +254,7 @@ async function sendText(
  * Entry point for the webhook route. Dispatches by `body.object`.
  * Fire-and-forget from the caller's perspective (returns Promise<void>).
  */
-export async function processMetaWebhook(body: MetaWebhookBody): Promise<void> {
+export async function processMetaWebhook(body: MetaWebhookBody, verified: Set<string>): Promise<void> {
   const channel: SocialChannel | null =
     body.object === "instagram"
       ? "instagram"
@@ -311,6 +273,10 @@ export async function processMetaWebhook(body: MetaWebhookBody): Promise<void> {
       console.log(
         `[META ${channel}] No org mapping for entry.id=${entry.id} (or feature disabled)`
       );
+      continue;
+    }
+    if (!verified.has(ctx.organizationId)) {
+      console.warn(`[META ${channel}] entry.id=${entry.id} not signed by its salon's app; ignoring`);
       continue;
     }
 

@@ -58,6 +58,10 @@ const WRITABLE_FIELDS = [
   "facebookSystemPrompt",
   "facebookPageId",
   "facebookPageAccessToken",
+  // The salon's own Meta app (meta-credentials.ts).
+  "metaAppSecret",
+  "metaVerifyToken",
+  "whatsappAccessToken",
   "startPage",
 ] as const;
 
@@ -108,13 +112,23 @@ const SUPER_ADMIN_ONLY_FIELDS = [
   "facebookSystemPrompt",
   "facebookPageId",
   "facebookPageAccessToken",
+  "metaAppSecret",
+  "metaVerifyToken",
+  "whatsappAccessToken",
 ];
 
 /**
  * The salon's keys and tokens are set by a super-admin and read only by the
  * server. Anyone else is told whether one is set, never what it is.
  */
-const SECRET_FIELDS = ["calComApiKey", "instagramAccessToken", "facebookPageAccessToken"] as const;
+const SECRET_FIELDS = [
+  "calComApiKey",
+  "instagramAccessToken",
+  "facebookPageAccessToken",
+  "metaAppSecret",
+  "metaVerifyToken",
+  "whatsappAccessToken",
+] as const;
 
 function withoutSecrets<T extends Record<string, unknown>>(settings: T): T {
   const out: Record<string, unknown> = { ...settings };

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { processMetaWebhook, type MetaWebhookBody } from "@/lib/meta-messaging";
 import {
-  verifyMetaSignature,
-  processMetaWebhook,
-  type MetaWebhookBody,
-} from "@/lib/meta-messaging";
+  claimedOrganizations,
+  isKnownVerifyToken,
+  verifiedOrganizations,
+} from "@/lib/meta-credentials";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 
 /**
@@ -12,12 +13,10 @@ import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
  * Meta allows a single webhook URL to subscribe to multiple products. The
  * `body.object` field (`"instagram"` or `"page"`) tells us which channel
  * the event belongs to; everything else is dispatched inside
- * `processMetaWebhook`. WhatsApp uses its own endpoint because it already
- * exists and has its own secret (`WHATSAPP_APP_SECRET`).
+ * `processMetaWebhook`. WhatsApp uses its own endpoint.
  *
- * Env vars:
- *   - META_VERIFY_TOKEN — shared secret for the GET subscribe handshake
- *   - META_APP_SECRET   — HMAC-SHA256 signing key (see meta-messaging.ts)
+ * Each salon's Meta app signs with its own secret and handshakes with its
+ * own verify token, both set in Admin (see meta-credentials.ts).
  */
 
 // GET — Meta subscribe handshake
@@ -27,7 +26,7 @@ export async function GET(request: Request) {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
+  if (mode === "subscribe" && (await isKnownVerifyToken("messenger", token))) {
     console.log("[META WEBHOOK] Verification successful");
     return new Response(challenge, { status: 200 });
   }
@@ -41,8 +40,23 @@ export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
-  if (!verifyMetaSignature(rawBody, signature)) {
-    console.warn("[META WEBHOOK] Invalid signature");
+  let body: MetaWebhookBody;
+  try {
+    body = JSON.parse(rawBody) as MetaWebhookBody;
+  } catch (err) {
+    console.warn("[META WEBHOOK] Malformed JSON body:", err);
+    return new Response("Bad Request", { status: 400 });
+  }
+
+  // Checked with the secret of the salon each account or Page belongs to.
+  // One no salon has is ignored rather than refused, so Meta does not retry.
+  const claimed = await claimedOrganizations("messenger", body);
+  if (!claimed.length) {
+    return NextResponse.json({ status: "ignored" }, { status: 200 });
+  }
+  const verified = await verifiedOrganizations("messenger", rawBody, signature, claimed);
+  if (!verified.size) {
+    console.warn("[META WEBHOOK] Invalid signature for", claimed.join(", "));
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -65,16 +79,8 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: MetaWebhookBody;
-  try {
-    body = JSON.parse(rawBody) as MetaWebhookBody;
-  } catch (err) {
-    console.warn("[META WEBHOOK] Malformed JSON body:", err);
-    return new Response("Bad Request", { status: 400 });
-  }
-
   // Fire-and-forget; return 200 immediately so Meta doesn't retry.
-  processMetaWebhook(body).catch((err) =>
+  processMetaWebhook(body, verified).catch((err) =>
     console.error("[META WEBHOOK] Processing error:", err)
   );
 
