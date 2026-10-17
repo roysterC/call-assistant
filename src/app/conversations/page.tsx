@@ -17,6 +17,7 @@ import { MessageBubble } from "@/components/conversations/message-bubble";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useDialogs } from "@/components/providers/dialogs-provider";
 import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
 
 type Channel = "whatsapp" | "website" | "instagram" | "facebook";
@@ -157,6 +158,7 @@ type ChannelFlags = {
 };
 
 export default function ConversationsPage() {
+  const { confirm, notify } = useDialogs();
   // Resetting the bot's persona follows a change to its prompt: the owner's.
   const role = useMe()?.role;
   const isOwner = role === "admin" || role === "superAdmin";
@@ -295,12 +297,12 @@ export default function ConversationsPage() {
         await refetchActive();
       } catch (err) {
         console.error("Failed to change handoff state:", err);
-        alert("Failed to change handoff state");
+        notify("Couldn't switch who is answering. Try again.");
       } finally {
         setSwitchingHandoff(false);
       }
     },
-    [selectedId, selectedChannel, switchingHandoff, refetchActive]
+    [selectedId, selectedChannel, switchingHandoff, refetchActive, notify]
   );
 
   const sendReply = useCallback(
@@ -323,12 +325,12 @@ export default function ConversationsPage() {
         await refetchActive();
       } catch (err) {
         console.error("Failed to send reply:", err);
-        alert("Failed to send reply");
+        notify("Your reply didn't send. Try again.");
       } finally {
         setReplying(false);
       }
     },
-    [reply, selectedId, selectedChannel, replying, refetchActive]
+    [reply, selectedId, selectedChannel, replying, refetchActive, notify]
   );
 
   // Poll every 15s for new messages on the list and on the active
@@ -416,13 +418,12 @@ export default function ConversationsPage() {
 
   async function resetPersona() {
     if (!activeConversation) return;
-    if (
-      !confirm(
-        "Reset the AI persona on this conversation? Future replies will ignore earlier messages, so the bot will start fresh with the current system prompt. The customer's history stays visible in this view."
-      )
-    ) {
-      return;
-    }
+    const yes = await confirm({
+      title: "Start the bot afresh on this conversation?",
+      body: "Its next replies ignore earlier messages and follow the current instructions. The customer's history stays visible here.",
+      confirmLabel: "Start afresh",
+    });
+    if (!yes) return;
     const res = await apiFetch(
       `/api/conversations/${activeConversation.id}/persona-reset?channel=${activeConversation.channel}`,
       { method: "PATCH" }
@@ -433,7 +434,7 @@ export default function ConversationsPage() {
         prev ? { ...prev, personaResetAt: data.personaResetAt } : null
       );
     } else {
-      alert("Failed to reset persona. Please try again.");
+      notify("Couldn't restart the bot on this conversation. Try again.");
     }
   }
 

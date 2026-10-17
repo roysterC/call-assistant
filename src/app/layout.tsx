@@ -4,6 +4,7 @@ import "./globals.css";
 import { MainWrapper } from "@/components/dashboard/main-wrapper";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { MeProvider } from "@/components/providers/me-provider";
+import { DialogsProvider } from "@/components/providers/dialogs-provider";
 
 // The fonts ship with the app (the @fontsource-variable packages, OFL) rather
 // than coming from Google Fonts. next/font/google downloads them during every
@@ -62,7 +63,9 @@ export default function RootLayout({
       <body className="h-full bg-background text-foreground overflow-hidden">
         <SessionProvider>
           <MeProvider>
-            <MainWrapper>{children}</MainWrapper>
+            <DialogsProvider>
+              <MainWrapper>{children}</MainWrapper>
+            </DialogsProvider>
           </MeProvider>
         </SessionProvider>
       </body>
