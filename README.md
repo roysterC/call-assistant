@@ -190,7 +190,24 @@ systemctl start call-assistant-reminders               # send now
 ```
 
 Before sending for real, `?dryRun=1` lists who would get one, and
-`?date=YYYY-MM-DD` targets another day.
+`?date=YYYY-MM-DD` targets another day. A booking confirmed or moved in the
+24 hours before the run gets no reminder: the confirmation is still fresh.
+
+### Texts and what they cost
+
+Twilio bills per segment. A text in plain characters (GSM-7) fits 160
+characters in one segment; one character outside that set, such as a long
+dash, a curly apostrophe or an emoji, sends the whole text as UCS-2 at 70 a
+segment. So:
+
+- `sendSms` runs every text through `toGsm()` (`src/lib/sms-encoding.ts`)
+  first, and logs how many segments it went as.
+- The confirmation, reminder, move and cancellation wordings
+  (`src/lib/sms.ts`) are written to fit one segment. When a long service name
+  or date would tip one into two, the clipped wording ("Ref 1042. To change,
+  call ...") takes over.
+- A text the assistant writes is refused past two segments, and its card says
+  when it will be billed as two.
 
 ### The phone line (our own receptionist, not Vapi)
 
