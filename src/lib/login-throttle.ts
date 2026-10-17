@@ -47,17 +47,6 @@ export class LoginThrottle {
   }
 }
 
-/**
- * The client's IP as nginx reports it. X-Real-IP if set; otherwise the last
- * X-Forwarded-For entry, the one nginx appended — earlier entries come from
- * the client and can say anything.
- */
-export function clientIp(headers: Headers): string | null {
-  const real = headers.get("x-real-ip")?.trim();
-  if (real) return real;
-  const forwarded = headers.get("x-forwarded-for");
-  const last = forwarded?.split(",").pop()?.trim();
-  return last || null;
-}
+export { clientIp } from "@/lib/client-ip";
 
 export const loginThrottle = new LoginThrottle();
