@@ -44,6 +44,7 @@ import {
   sendSms,
   type AppointmentMessageInput,
 } from "@/lib/sms";
+import { smsSize, toGsm } from "@/lib/sms-encoding";
 import { namesMatch } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
 import { matchStylist, resolveBookedService, servicesLike, type SalonService, type Stylist } from "@/lib/salon-config";
@@ -113,7 +114,10 @@ export interface TextDraft extends DraftBase {
   kind: "text";
   leadId: string;
   to: string;
+  /** Already in plain characters (sms-encoding.ts), so it is exactly what goes. */
   body: string;
+  /** What it will be billed as; the card says so when it is more than one. */
+  segments: number;
 }
 
 export type Draft = BookDraft | MoveDraft | CancelDraft | NoteDraft | TextDraft;
@@ -545,9 +549,12 @@ export async function proposeNote(asker: Asker, req: { clientId?: string; note?:
  * A message from the salon's number is the salon speaking.
  */
 export async function proposeText(asker: Asker, req: { clientId?: string; message?: string }): Promise<Proposal> {
-  const body = req.message?.replace(/\s+/g, " ").trim();
+  const body = toGsm(req.message?.replace(/\s+/g, " ").trim() ?? "");
   if (!body) return { ok: false, message: "What should the text say?" };
-  if (body.length > 480) return { ok: false, message: "That is too long for a text; say it shorter." };
+  // Each segment is billed as a text. Two is the most a salon's note to a
+  // client needs; one is the aim.
+  const { segments } = smsSize(body);
+  if (segments > 2) return { ok: false, message: "That is too long for a text; say it in a sentence or two." };
   const lead = req.clientId
     ? await prisma.lead.findFirst({ where: { id: req.clientId, organizationId: asker.organizationId } })
     : null;
@@ -556,7 +563,7 @@ export async function proposeText(asker: Asker, req: { clientId?: string; messag
   if (!plan.ok) return plan;
   return {
     ok: true,
-    draft: { id: randomUUID(), kind: "text", leadId: lead.id, clientName: lead.name ?? "Client", to: plan.plan.to, body },
+    draft: { id: randomUUID(), kind: "text", leadId: lead.id, clientName: lead.name ?? "Client", to: plan.plan.to, body, segments },
   };
 }
 

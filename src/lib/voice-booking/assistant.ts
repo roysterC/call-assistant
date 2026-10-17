@@ -109,7 +109,8 @@ const TOOLS: Anthropic.Tool[] = [
     name: "propose_text",
     description:
       "Show a text message to a client, word for word, for the person to send. For 'running late', 'a gap has " +
-      "opened', a reminder. Short, friendly, signed with the salon's name. clientId from find_client. For a " +
+      "opened', a reminder. Short, friendly, signed with the salon's name; under 160 characters with no emoji, " +
+      "so it goes as one text. clientId from find_client. For a " +
       "booking, move or cancel, use textClient on that proposal instead.",
     input_schema: {
       type: "object",
@@ -204,7 +205,8 @@ Doing things (every one of these only puts a card on screen):
 - "And text her": set textClient on that proposal.
 - A note: propose_note. A text of its own (running late, a gap has opened):
   propose_text, written in full, short and friendly, signed with the salon's
-  name.
+  name. Keep it under 160 characters and leave out emoji: a longer one is
+  billed as two texts.
 - You cannot save, send or change anything yourself. A card goes on screen
   and the person says yes or taps Save. Never say it is done.
 - If a proposal is refused, say why in a few words and, for a time that is
