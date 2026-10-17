@@ -1,0 +1,17 @@
+# Sends tomorrow's appointment reminder texts, once. Started by
+# call-assistant-reminders.timer; the deploy installs and enables both.
+#
+# Run by hand:   systemctl start call-assistant-reminders
+# Last run:      journalctl -u call-assistant-reminders -n 20
+[Unit]
+Description=Call assistant: day-before appointment reminders
+After=call-assistant.service
+Wants=call-assistant.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/home/deploy/call-assistant
+EnvironmentFile=-/home/deploy/call-assistant/.env
+EnvironmentFile=-/home/deploy/call-assistant/.env.local
+ExecStart=/bin/bash /home/deploy/call-assistant/scripts/send-reminders.sh

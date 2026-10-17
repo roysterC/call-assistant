@@ -170,6 +170,28 @@ Locally, `VOICE_FAKES=1 npx tsx src/voice-server/index.ts` runs it with a
 stand-in model, recogniser and voice, so the audio path can be tried with no
 provider accounts.
 
+### Day-before reminders
+
+Clients booked for tomorrow get a reminder text at 10am UK time, with a
+second pass at 1pm in case the box was down at 10. The timer
+`call-assistant-reminders.timer` runs `scripts/send-reminders.sh`, which posts
+to `/api/cron/appointment-reminders` on the box. Each booking is stamped
+before its text is tried, so no client is reminded twice. The deploy installs
+and enables both units (`deploy/call-assistant-reminders.*`).
+
+It needs `CRON_SECRET` in `/home/deploy/call-assistant/.env` (from
+`openssl rand -hex 32`) and Twilio for the texts. The deploy prints a warning
+if either is missing.
+
+```bash
+systemctl list-timers call-assistant-reminders.timer   # when it runs next
+journalctl -u call-assistant-reminders -n 20           # what the last run sent
+systemctl start call-assistant-reminders               # send now
+```
+
+Before sending for real, `?dryRun=1` lists who would get one, and
+`?date=YYYY-MM-DD` targets another day.
+
 ### The phone line (our own receptionist, not Vapi)
 
 A call to the salon's Twilio number is answered by our own receptionist:

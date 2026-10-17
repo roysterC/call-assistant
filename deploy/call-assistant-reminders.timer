@@ -1,0 +1,15 @@
+# Day-before reminders at 10am salon time, with a second pass at 1pm in case
+# the box was down at 10. The second pass sends nothing twice: a booking is
+# stamped the moment its reminder is attempted.
+#
+# Not Persistent: catching up after downtime could text clients at 3am.
+[Unit]
+Description=Call assistant: day-before appointment reminders, daily
+
+[Timer]
+OnCalendar=*-*-* 10:00:00 Europe/London
+OnCalendar=*-*-* 13:00:00 Europe/London
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

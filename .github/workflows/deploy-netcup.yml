@@ -205,4 +205,28 @@ jobs:
               fi
             fi
 
+            # Day-before reminder texts: a timer that asks the CRM to send
+            # them (deploy/call-assistant-reminders.*). Copied in on every
+            # deploy so a change to the schedule ships like any other code.
+            # Never fails the deploy: the CRM is already live by this point.
+            echo "==> Installing the reminder timer"
+            if cp "$APP_DIR/deploy/call-assistant-reminders.service" "$APP_DIR/deploy/call-assistant-reminders.timer" /etc/systemd/system/ \
+              && systemctl daemon-reload \
+              && systemctl enable --now call-assistant-reminders.timer; then
+              echo "    next run: $(systemctl show -p NextElapseUSecRealtime --value call-assistant-reminders.timer)"
+            else
+              echo "WARNING: the reminder timer could not be installed; no reminder texts will go" >&2
+            fi
+            # Says so if the box cannot send them, rather than leaving it to
+            # the first morning nobody gets a text.
+            reminders=$(curl -fsS -m 10 http://127.0.0.1:3000/api/cron/appointment-reminders 2>/dev/null || true)
+            case "$reminders" in
+              *'"cronSecretSet":true'*) ;;
+              *) echo "WARNING: CRON_SECRET is not set in $APP_DIR/.env; the reminder timer will be refused" >&2 ;;
+            esac
+            case "$reminders" in
+              *'"smsConfigured":true'*) ;;
+              *) echo "WARNING: Twilio is not configured; reminders cannot be texted" >&2 ;;
+            esac
+
             echo "==> Deploy complete: $(systemctl show -p ActiveState --value "$SERVICE")"
