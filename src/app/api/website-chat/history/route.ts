@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { corsHeaders, checkCORS } from "@/lib/website-chat";
+import { corsHeaders, checkCORS, isValidSessionId } from "@/lib/website-chat";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const siteId = searchParams.get("siteId");
     const sessionId = searchParams.get("sessionId");
 
-    if (!siteId || !sessionId) {
+    if (!siteId || !isValidSessionId(sessionId)) {
       return NextResponse.json(
         { error: "siteId and sessionId required" },
         { status: 400, headers }
