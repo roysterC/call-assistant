@@ -166,7 +166,7 @@ export function Sidebar({
     }
     // Full reload is intentional: every fetched API route reads
     // `?asOrg` from the URL, and hard-navigating is the simplest way to
-    // ensure server components, middleware, and apiFetch all agree on the
+    // ensure server components, the proxy, and apiFetch all agree on the
     // new scope. This is not a closed-over variable mutation.
     // eslint-disable-next-line react-hooks/immutability
     window.location.href = `${pathname}?${params.toString()}`;

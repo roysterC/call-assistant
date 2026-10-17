@@ -6,10 +6,8 @@ import { devBypassEnabled } from "@/lib/dev-bypass";
 const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"] as const;
 
 /**
- * Edge-runtime middleware.
- *
- * Cannot import the full NextAuth config here because the Prisma adapter
- * uses Node-only modules. It checks the session cookie is genuine and in
+ * The proxy in front of every page and API route (Next 16's name for
+ * middleware). It checks the session cookie is genuine and in
  * date — signed with AUTH_SECRET, not expired — and leaves who the user is
  * and what they may do to route handlers via requireTenant(), which reads
  * the database.
@@ -18,7 +16,7 @@ const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"
  * the page shell rendered and every API call behind it failed, so the CRM
  * looked empty and broken rather than asking the user to sign in.
  */
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   // Dev-only bypass for local preview with no real session. Never in a
   // production build, whatever the environment says.
   if (devBypassEnabled()) {
