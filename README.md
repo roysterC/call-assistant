@@ -209,6 +209,66 @@ segment. So:
 - A text the assistant writes is refused past two segments, and its card says
   when it will be billed as two.
 
+### Backups
+
+Every night at 3:15am UK time, `call-assistant-backup.timer` runs
+`scripts/backup-db.sh`, which:
+
+1. dumps the database (`pg_dump`);
+2. encrypts it with `BACKUP_PASSPHRASE` (gpg, AES-256);
+3. checks it decrypts into a dump `pg_restore` can read;
+4. uploads it to S3-compatible storage with rclone;
+5. stamps `/home/deploy/backups/last-success`.
+
+`/api/health/backups` turns red when that stamp is more than 26 hours old.
+The box keeps 7 days of copies, the bucket 30. The deploy installs the timer
+and warns about anything missing.
+
+One-time setup:
+
+1. **Bucket.** Create a private bucket (Cloudflare R2 or Backblaze B2; either
+   costs pennies at this size). Make an access key for that bucket only, with
+   read and write but **no delete**. Then add a lifecycle rule that deletes
+   objects after 30 days. With no delete rights, someone who takes over the
+   box cannot wipe the backups.
+2. **Tools on netcup**, as root:
+   `apt-get install -y rclone`. `pg_dump` and `gpg` are normally there already;
+   the deploy says if not. `pg_dump` must be the same major version as the
+   database, or newer.
+3. **Settings** in `/home/deploy/call-assistant/.env`. The passphrase comes
+   from `openssl rand -base64 32`. **Also keep it in a password manager**:
+   every backup needs it, and losing the box loses this file.
+
+   ```bash
+   BACKUP_PASSPHRASE=...
+   BACKUP_REMOTE=offsite:<bucket>/call-assistant
+   BACKUP_KEEP_REMOTE_DAYS=0            # the bucket's lifecycle rule prunes
+   RCLONE_CONFIG_OFFSITE_TYPE=s3
+   RCLONE_CONFIG_OFFSITE_PROVIDER=Cloudflare   # or Other for Backblaze B2
+   RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID=...
+   RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY=...
+   RCLONE_CONFIG_OFFSITE_ENDPOINT=https://<account>.r2.cloudflarestorage.com
+   RCLONE_CONFIG_OFFSITE_NO_CHECK_BUCKET=true
+   ```
+
+4. **First run:** `systemctl start call-assistant-backup`, then
+   `journalctl -u call-assistant-backup -n 30` and
+   `curl https://89-58-45-110.nip.io/api/health/backups`.
+
+**Restore drill** (do it once now, then every few months). It restores the
+newest backup into a scratch database and prints row counts to compare with
+the live ones:
+
+```bash
+sudo -u postgres createdb -O <db user> restore_test
+sudo -u deploy -H bash -c 'cd /home/deploy/call-assistant && set -a && . ./.env && set +a \
+  && scripts/restore-db.sh latest "postgresql://<db user>:<password>@localhost:5432/restore_test"'
+sudo -u postgres dropdb restore_test
+```
+
+Restoring over the live database is refused unless `--replace-live` is
+passed. Stop `call-assistant.service` before doing that for real.
+
 ### The phone line (our own receptionist, not Vapi)
 
 A call to the salon's Twilio number is answered by our own receptionist:

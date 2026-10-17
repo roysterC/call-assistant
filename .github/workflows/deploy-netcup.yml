@@ -229,4 +229,29 @@ jobs:
               *) echo "WARNING: Twilio is not configured; reminders cannot be texted" >&2 ;;
             esac
 
+            # Nightly encrypted database backup, sent off-site
+            # (deploy/call-assistant-backup.*, scripts/backup-db.sh). Installed
+            # the same way, and never fails the deploy; it says what is
+            # missing instead. Settings are checked by name only, never shown.
+            echo "==> Installing the backup timer"
+            if cp "$APP_DIR/deploy/call-assistant-backup.service" "$APP_DIR/deploy/call-assistant-backup.timer" /etc/systemd/system/ \
+              && systemctl daemon-reload \
+              && systemctl enable --now call-assistant-backup.timer; then
+              echo "    next run: $(systemctl show -p NextElapseUSecRealtime --value call-assistant-backup.timer)"
+            else
+              echo "WARNING: the backup timer could not be installed; the database is not being backed up" >&2
+            fi
+            for tool in pg_dump pg_restore gpg rclone; do
+              command -v "$tool" >/dev/null 2>&1 || echo "WARNING: $tool is not installed; backups will fail (README: \"Backups\")" >&2
+            done
+            for setting in BACKUP_PASSPHRASE BACKUP_REMOTE; do
+              as_deploy "grep -qsE '^${setting}=.+' .env .env.local" \
+                || echo "WARNING: $setting is not set in $APP_DIR/.env; backups will fail (README: \"Backups\")" >&2
+            done
+            backup=$(curl -fsS -m 10 http://127.0.0.1:3000/api/health/backups 2>/dev/null || true)
+            case "$backup" in
+              *'"status":"ok"'*) echo "    last off-site backup: fine" ;;
+              *) echo "WARNING: no off-site backup in the last 26 hours" >&2 ;;
+            esac
+
             echo "==> Deploy complete: $(systemctl show -p ActiveState --value "$SERVICE")"

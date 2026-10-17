@@ -1,0 +1,18 @@
+# Nightly encrypted database backup, sent off-site. Started by
+# call-assistant-backup.timer; the deploy installs and enables both.
+#
+# Run by hand:   systemctl start call-assistant-backup
+# Last run:      journalctl -u call-assistant-backup -n 30
+[Unit]
+Description=Call assistant: nightly database backup
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/home/deploy/call-assistant
+EnvironmentFile=-/home/deploy/call-assistant/.env
+EnvironmentFile=-/home/deploy/call-assistant/.env.local
+ExecStart=/bin/bash /home/deploy/call-assistant/scripts/backup-db.sh
+# Stay out of the way of the CRM and live calls.
+Nice=10
+IOSchedulingClass=idle
