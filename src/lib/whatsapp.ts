@@ -1,22 +1,30 @@
-import { createHmac } from "crypto";
+/**
+ * WhatsApp Cloud API: sending and read receipts. Each salon sends from its
+ * own number with its own token (whatsappSender in meta-credentials.ts);
+ * webhook signatures are checked there too.
+ */
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v21.0";
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
-const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!;
-const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
+
+/** The salon's number (Meta's phone number id) and its token. */
+export interface WhatsAppSender {
+  phoneNumberId: string;
+  accessToken: string;
+}
 
 export async function sendTextMessage(
+  sender: WhatsAppSender,
   to: string,
   body: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const truncatedBody =
     body.length > 4096 ? body.slice(0, 4093) + "..." : body;
 
-  const url = `${GRAPH_API_BASE}/${PHONE_NUMBER_ID}/messages`;
+  const url = `${GRAPH_API_BASE}/${sender.phoneNumberId}/messages`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${ACCESS_TOKEN}`,
+      Authorization: `Bearer ${sender.accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -38,12 +46,12 @@ export async function sendTextMessage(
   return { success: true, messageId: data.messages?.[0]?.id };
 }
 
-export async function markAsRead(messageId: string): Promise<void> {
-  const url = `${GRAPH_API_BASE}/${PHONE_NUMBER_ID}/messages`;
+export async function markAsRead(sender: WhatsAppSender, messageId: string): Promise<void> {
+  const url = `${GRAPH_API_BASE}/${sender.phoneNumberId}/messages`;
   await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${ACCESS_TOKEN}`,
+      Authorization: `Bearer ${sender.accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -52,20 +60,6 @@ export async function markAsRead(messageId: string): Promise<void> {
       message_id: messageId,
     }),
   }).catch((err) => console.error("[WHATSAPP] Mark-as-read failed:", err));
-}
-
-export function verifySignature(
-  rawBody: string,
-  signatureHeader: string | null
-): boolean {
-  if (!APP_SECRET) return true;
-  if (!signatureHeader) return false;
-
-  const expectedSig = signatureHeader.replace("sha256=", "");
-  const computedSig = createHmac("sha256", APP_SECRET)
-    .update(rawBody)
-    .digest("hex");
-  return expectedSig === computedSig;
 }
 
 export function waIdToPhone(waId: string): string {

@@ -74,6 +74,9 @@ interface Org {
     facebookSystemPrompt: string | null;
     facebookPageId: string | null;
     facebookPageAccessToken: string | null;
+    metaAppSecret: string | null;
+    metaVerifyToken: string | null;
+    whatsappAccessToken: string | null;
   } | null;
   users: Array<{
     id: string;
@@ -294,6 +297,9 @@ export default function OrganizationDetailPage() {
               facebookSystemPrompt: org.settings.facebookSystemPrompt,
               facebookPageId: org.settings.facebookPageId,
               facebookPageAccessToken: org.settings.facebookPageAccessToken,
+              metaAppSecret: org.settings.metaAppSecret,
+              metaVerifyToken: org.settings.metaVerifyToken,
+              whatsappAccessToken: org.settings.whatsappAccessToken,
               calComApiKey: org.settings.calComApiKey,
               calComEventTypeId: org.settings.calComEventTypeId,
             }),
@@ -783,6 +789,68 @@ export default function OrganizationDetailPage() {
                 enabled={org.settings.voiceEnabled}
                 onToggle={(v) => updateFeature("voiceEnabled", v)}
               />
+            </div>
+
+            {/* The salon's own Meta app: signs WhatsApp, Instagram and Messenger webhooks */}
+            <div className="border-t border-border pt-5">
+              <label className="text-sm font-medium">This salon&apos;s Meta app</label>
+              <p className="text-xs text-muted-foreground mt-1">
+                The app that carries the salon&apos;s WhatsApp, Instagram and Messenger. Meta signs
+                every message it sends us with the app secret (App settings → Basic), and the verify
+                token is whatever you type into the app&apos;s webhook settings. Webhook URLs:{" "}
+                <code className="text-[10px]">/api/whatsapp/webhook</code> and{" "}
+                <code className="text-[10px]">/api/meta/webhook</code>.
+              </p>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium">App secret</label>
+                  <Input
+                    type="password"
+                    autoComplete="off"
+                    placeholder="32 hex characters"
+                    value={org.settings.metaAppSecret || ""}
+                    onChange={(e) => updateFeature("metaAppSecret", e.target.value || null)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Webhook verify token</label>
+                  <Input
+                    type="password"
+                    autoComplete="off"
+                    placeholder="Any long random string"
+                    value={org.settings.metaVerifyToken || ""}
+                    onChange={(e) => updateFeature("metaVerifyToken", e.target.value || null)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              {!org.settings.metaAppSecret &&
+                (org.settings.whatsappEnabled || org.settings.instagramEnabled || org.settings.facebookEnabled) && (
+                  <p className="text-xs text-papaya-whip-100 mt-2">
+                    No app secret yet: this salon&apos;s messages are being checked with the shared
+                    key from the server&apos;s settings, which is being retired.
+                  </p>
+                )}
+            </div>
+
+            <div className="border-t border-border pt-5">
+              <label className="text-sm font-medium">WhatsApp (Cloud API)</label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Replies go from the number the customer wrote to (add it under Phone numbers with
+                its Phone Number ID), using this salon&apos;s access token.
+              </p>
+              <div className="mt-3 md:max-w-[50%] md:pr-1.5">
+                <label className="text-xs font-medium">Access token</label>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  placeholder="EAA..."
+                  value={org.settings.whatsappAccessToken || ""}
+                  onChange={(e) => updateFeature("whatsappAccessToken", e.target.value || null)}
+                  className="mt-1"
+                />
+              </div>
             </div>
 
             <div className="border-t border-border pt-5">

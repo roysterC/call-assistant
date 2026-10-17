@@ -304,6 +304,30 @@ A chat bot's hand-written prompt keeps working; the facts are added after it.
 A business with no services and no FAQ (the agency's own site) gets its
 prompt unchanged.
 
+### WhatsApp, Instagram and Messenger keys
+
+Each salon brings its own Meta app, and its keys are kept with the salon:
+Admin → the organisation → "This salon's Meta app" (app secret and webhook
+verify token) and "WhatsApp (Cloud API)" (access token). Instagram and
+Messenger tokens sit beside their own settings. Only a super-admin can set or
+see them.
+
+Both webhooks (`/api/whatsapp/webhook`, `/api/meta/webhook`) work out which
+salon a delivery is for from the number, account or Page it names, check the
+signature with that salon's app secret, and act only on what that salon's key
+signed (`src/lib/meta-credentials.ts`). WhatsApp replies go from the number
+the customer wrote to, with the salon's token.
+
+The old shared keys in `.env` (`WHATSAPP_APP_SECRET`, `WHATSAPP_ACCESS_TOKEN`,
+`WHATSAPP_VERIFY_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`) still work as
+a fallback for a salon with no key of its own, and each use is logged. To
+retire them, give every salon its own keys, check nothing still falls back,
+then empty them:
+
+```bash
+journalctl -u call-assistant --since "1 week ago" | grep "of its own"
+```
+
 ### Messages and callbacks
 
 The receptionist never transfers a call. When a caller asks for a person, or

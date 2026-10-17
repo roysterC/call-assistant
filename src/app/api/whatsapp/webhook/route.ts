@@ -3,9 +3,15 @@ import { prisma } from "@/lib/prisma";
 import {
   sendTextMessage,
   markAsRead,
-  verifySignature,
   waIdToPhone,
+  type WhatsAppSender,
 } from "@/lib/whatsapp";
+import {
+  claimedOrganizations,
+  isKnownVerifyToken,
+  verifiedOrganizations,
+  whatsappSender,
+} from "@/lib/meta-credentials";
 import {
   buildChatContext,
   buildSystemPrompt,
@@ -20,7 +26,7 @@ export async function GET(request: Request) {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+  if (mode === "subscribe" && (await isKnownVerifyToken("whatsapp", token))) {
     console.log("[WHATSAPP WEBHOOK] Verification successful");
     return new Response(challenge, { status: 200 });
   }
@@ -34,21 +40,33 @@ export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
-  if (!verifySignature(rawBody, signature)) {
-    console.warn("[WHATSAPP WEBHOOK] Invalid signature");
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return new Response("Bad Request", { status: 400 });
+  }
+
+  // Checked with the secret of the salon each number belongs to. A number
+  // no salon has is ignored rather than refused, so Meta does not retry it.
+  const claimed = await claimedOrganizations("whatsapp", body);
+  if (!claimed.length) {
+    return NextResponse.json({ status: "ignored" }, { status: 200 });
+  }
+  const verified = await verifiedOrganizations("whatsapp", rawBody, signature, claimed);
+  if (!verified.size) {
+    console.warn("[WHATSAPP WEBHOOK] Invalid signature for", claimed.join(", "));
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const body = JSON.parse(rawBody);
-
-  processWebhook(body).catch((err) =>
+  processWebhook(body, verified).catch((err) =>
     console.error("[WHATSAPP WEBHOOK] Processing error:", err)
   );
 
   return NextResponse.json({ status: "ok" }, { status: 200 });
 }
 
-async function processWebhook(body: Record<string, unknown>) {
+async function processWebhook(body: Record<string, unknown>, verified: Set<string>) {
   const entry = (body.entry as Array<Record<string, unknown>>)?.[0];
   if (!entry) return;
 
@@ -63,8 +81,7 @@ async function processWebhook(body: Record<string, unknown>) {
 
   // Route to the right org via the WhatsApp phone number ID
   const metadata = value.metadata as Record<string, unknown> | undefined;
-  const phoneNumberId =
-    (metadata?.phone_number_id as string) || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const phoneNumberId = metadata?.phone_number_id as string | undefined;
 
   if (!phoneNumberId) {
     console.warn("[WHATSAPP WEBHOOK] No phone_number_id in payload");
@@ -85,6 +102,10 @@ async function processWebhook(body: Record<string, unknown>) {
   }
 
   const organizationId = phoneRecord.organizationId;
+  if (!verified.has(organizationId)) {
+    console.warn("[WHATSAPP WEBHOOK] Not signed by this salon's app, ignoring:", organizationId);
+    return;
+  }
 
   // Feature gate: org must have WhatsApp enabled
   const orgSettings = await prisma.organizationSettings.findUnique({
@@ -103,9 +124,16 @@ async function processWebhook(body: Record<string, unknown>) {
   const contactProfile = contacts?.[0]?.profile as Record<string, unknown>;
   const contactName = (contactProfile?.name as string) || null;
 
+  // Without a token the message is still kept for the inbox; only the
+  // bot's reply, which could not be sent, is skipped.
+  const sender = await whatsappSender(organizationId, phoneNumberId);
+  if (!sender) {
+    console.error("[WHATSAPP WEBHOOK] No WhatsApp token for this salon; storing without replying:", organizationId);
+  }
+
   for (const message of messages) {
     try {
-      await processMessage(message, contactName, organizationId);
+      await processMessage(message, contactName, organizationId, sender);
     } catch (err) {
       console.error("[WHATSAPP WEBHOOK] Error processing message:", err);
     }
@@ -115,7 +143,8 @@ async function processWebhook(body: Record<string, unknown>) {
 async function processMessage(
   message: Record<string, unknown>,
   contactName: string | null,
-  organizationId: string
+  organizationId: string,
+  sender: WhatsAppSender | null
 ) {
   const waId = message.from as string;
   const waMessageId = message.id as string;
@@ -147,7 +176,9 @@ async function processMessage(
   }
 
   if (messageType !== "text") {
+    if (!sender) return;
     await sendTextMessage(
+      sender,
       waId,
       "Thanks for your message! I can currently only process text messages. Please send your question as text."
     );
@@ -210,6 +241,14 @@ async function processMessage(
     },
   });
 
+  if (!sender) {
+    await prisma.whatsAppConversation.update({
+      where: { id: conversation.id },
+      data: { lastMessageAt: new Date(), isRead: false },
+    });
+    return;
+  }
+
   // Honour per-conversation persona reset: the admin can flip
   // personaResetAt to NOW() after changing the org's system prompt, so the
   // AI ignores history that referenced the old persona. Customer-facing
@@ -242,7 +281,7 @@ async function processMessage(
       : undefined,
   });
 
-  const sendResult = await sendTextMessage(waId, aiResponse);
+  const sendResult = await sendTextMessage(sender, waId, aiResponse);
 
   await prisma.whatsAppMessage.create({
     data: {
@@ -259,5 +298,5 @@ async function processMessage(
     data: { lastMessageAt: new Date(), isRead: false },
   });
 
-  markAsRead(waMessageId);
+  markAsRead(sender, waMessageId);
 }
