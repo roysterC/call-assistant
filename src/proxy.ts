@@ -36,6 +36,8 @@ export async function proxy(req: NextRequest) {
     // The server's own timer, which has no session; each job checks
     // CRON_SECRET itself.
     "/api/cron",
+    // The uptime monitor's checks.
+    "/api/health",
     "/api/auth",
     "/embed",
     "/login",
