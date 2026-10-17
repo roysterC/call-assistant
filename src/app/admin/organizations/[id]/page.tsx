@@ -47,6 +47,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { plural } from "@/lib/plural";
 import { VapiSyncCard } from "@/components/admin/vapi-sync-card";
+import { useDialogs } from "@/components/providers/dialogs-provider";
+
 
 interface Org {
   id: string;
@@ -94,6 +96,7 @@ interface Org {
 export default function OrganizationDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { confirm, notify } = useDialogs();
   const [org, setOrg] = useState<Org | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -183,7 +186,7 @@ export default function OrganizationDetailPage() {
   async function createWebsite() {
     if (!org) return;
     if (!websiteForm.siteId || !websiteForm.name || !websiteForm.systemPrompt) {
-      alert("Site ID, display name and system prompt are required");
+      notify("Site ID, display name and system prompt are required");
       return;
     }
     setCreatingSite(true);
@@ -206,7 +209,7 @@ export default function OrganizationDetailPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error || "Failed to create website");
+        notify(err.error || "Failed to create website");
         return;
       }
       setWebsiteDialog(false);
@@ -226,10 +229,16 @@ export default function OrganizationDetailPage() {
 
   async function deleteWebsite(id: string, name: string) {
     if (!org) return;
-    if (!confirm(`Delete website "${name}"? This cannot be undone.`)) return;
+    const yes = await confirm({
+      title: `Delete the website "${name}"?`,
+      body: "Its chat stops working at once, and this cannot be undone.",
+      confirmLabel: "Delete website",
+      destructive: true,
+    });
+    if (!yes) return;
     const res = await fetch(`/api/websites/${id}`, { method: "DELETE" });
     if (!res.ok) {
-      alert("Failed to delete website");
+      notify("Failed to delete website");
       return;
     }
     await loadWebsites(org.id);
@@ -295,7 +304,7 @@ export default function OrganizationDetailPage() {
       if (!orgRes.ok || (settingsRes && !settingsRes.ok)) {
         const which = !orgRes.ok ? orgRes : settingsRes!;
         const err = await which.json().catch(() => ({}));
-        alert(err.error || "Failed to save");
+        notify(err.error || "Failed to save");
         return;
       }
       await load();
@@ -313,7 +322,7 @@ export default function OrganizationDetailPage() {
     });
     if (!res.ok) {
       const err = await res.json();
-      alert(err.error || "Failed to add");
+      notify(err.error || "Failed to add");
       return;
     }
     setPhoneDialog(false);
@@ -329,18 +338,24 @@ export default function OrganizationDetailPage() {
 
   async function deletePhone(phoneId: string) {
     if (!org) return;
-    if (!confirm("Remove this phone number?")) return;
-    await fetch(
+    const yes = await confirm({
+      title: "Remove this phone number?",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!yes) return;
+    const res = await fetch(
       `/api/admin/organizations/${org.id}/phone-numbers/${phoneId}`,
       { method: "DELETE" }
     );
+    if (!res.ok) notify("Couldn't remove that number. Try again.");
     await load();
   }
 
   async function addUser() {
     if (!org) return;
     if (!userForm.password || userForm.password.length < 8) {
-      alert("Password must be at least 8 characters");
+      notify("Password must be at least 8 characters");
       return;
     }
     const res = await fetch(`/api/admin/organizations/${org.id}/users`, {
@@ -350,7 +365,7 @@ export default function OrganizationDetailPage() {
     });
     if (!res.ok) {
       const err = await res.json();
-      alert(err.error || "Failed to add");
+      notify(err.error || "Failed to add");
       return;
     }
     // Show the password confirmation so the admin can share it
@@ -375,7 +390,7 @@ export default function OrganizationDetailPage() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || "Failed to change that login");
+      notify(err.error || "Failed to change that login");
       return false;
     }
     await load();
@@ -385,7 +400,7 @@ export default function OrganizationDetailPage() {
   async function saveNewPassword() {
     if (!resetFor) return;
     if (resetPassword.length < 8) {
-      alert("Password must be at least 8 characters");
+      notify("Password must be at least 8 characters");
       return;
     }
     if (!(await changeUser(resetFor.id, { password: resetPassword }))) return;
@@ -396,17 +411,17 @@ export default function OrganizationDetailPage() {
 
   async function removeUser(u: { id: string; email: string }) {
     if (!org) return;
-    if (
-      !confirm(
-        `Remove ${u.email}? They are signed out at once and can't sign in again. The salon's bookings, clients and calls are kept.`
-      )
-    ) {
-      return;
-    }
+    const yes = await confirm({
+      title: `Remove ${u.email}?`,
+      body: "They are signed out at once and can't sign in again. The salon's bookings, clients and calls are kept.",
+      confirmLabel: "Remove login",
+      destructive: true,
+    });
+    if (!yes) return;
     const res = await fetch(`/api/admin/organizations/${org.id}/users/${u.id}`, { method: "DELETE" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || "Failed to remove that login");
+      notify(err.error || "Failed to remove that login");
       return;
     }
     await load();
@@ -429,9 +444,18 @@ export default function OrganizationDetailPage() {
 
   async function deleteOrg() {
     if (!org) return;
-    if (!confirm(`Delete "${org.name}" and all its data? This cannot be undone.`))
+    const yes = await confirm({
+      title: `Delete "${org.name}" and all its data?`,
+      body: "Every booking, client, call and login goes with it. This cannot be undone.",
+      confirmLabel: "Delete organisation",
+      destructive: true,
+    });
+    if (!yes) return;
+    const res = await fetch(`/api/admin/organizations/${org.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      notify("Couldn't delete the organisation. Try again.");
       return;
-    await fetch(`/api/admin/organizations/${org.id}`, { method: "DELETE" });
+    }
     router.push("/admin/organizations");
   }
 

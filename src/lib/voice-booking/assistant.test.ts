@@ -38,7 +38,7 @@ vi.mock("./drafts", () => ({
   proposeNote: vi.fn(),
   proposeText: vi.fn(),
 }));
-vi.mock("@/lib/vapi-functions", () => ({ executeVapiFunction: vi.fn() }));
+vi.mock("@/lib/receptionist/actions", () => ({ executeVapiFunction: vi.fn() }));
 vi.mock("./knowledge", () => ({ daySchedule: vi.fn(), clientHistory: vi.fn(), phoneMessages: vi.fn(), takings: vi.fn() }));
 vi.mock("@/lib/receptionist/session", () => ({
   receptionistApiKey: async () => null,

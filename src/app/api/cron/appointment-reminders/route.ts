@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  const confirmedBefore = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const summary: Array<Record<string, unknown>> = [];
   let sent = 0;
   let failed = 0;
@@ -89,6 +90,9 @@ export async function POST(req: NextRequest) {
         status: "booked",
         reminderSentAt: null,
         startsAt: { gte: from, lt: to },
+        // Booked or moved in the last day: the confirmation is still fresh,
+        // and a second text about the same booking is paid for twice.
+        OR: [{ confirmationSentAt: null }, { confirmationSentAt: { lt: confirmedBefore } }],
       },
       include: { lead: { include: { contactLead: { select: { name: true, phone: true } } } } },
     });

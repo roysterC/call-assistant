@@ -17,11 +17,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { normalisePhone } from "@/lib/phone";
+import { smsSize, toGsm } from "@/lib/sms-encoding";
 
 const TWILIO_API = "https://api.twilio.com/2010-04-01";
 
 export type SmsResult =
-  | { ok: true; sid: string; sender: string }
+  | { ok: true; sid: string; sender: string; segments: number }
   | { ok: false; reason: string; configured: boolean };
 
 export function smsConfigured(): boolean {
@@ -85,11 +86,17 @@ export async function sendSms(
     };
   }
 
+  // Plain characters only, where there is a plain equivalent: one curly
+  // apostrophe or long dash would bill the whole text at 70 characters a
+  // segment instead of 160. See sms-encoding.ts.
+  const text = toGsm(body);
+  const size = smsSize(text);
+
   try {
     const params = new URLSearchParams({
       To: recipient.e164,
       From: sender,
-      Body: body,
+      Body: text,
     });
 
     const res = await fetch(`${TWILIO_API}/Accounts/${accountSid}/Messages.json`, {
@@ -109,7 +116,10 @@ export async function sendSms(
       return { ok: false, configured: true, reason };
     }
 
-    return { ok: true, sid: data.sid, sender };
+    console.log(
+      `[SMS] sent ${data.sid}: ${size.segments} segment${size.segments === 1 ? "" : "s"} (${size.encoding}, ${size.length} chars)`
+    );
+    return { ok: true, sid: data.sid, sender, segments: size.segments };
   } catch (err) {
     const reason = err instanceof Error ? err.message : "SMS request failed";
     console.error("[SMS] send threw:", reason);
@@ -151,8 +161,24 @@ function subject(i: AppointmentMessageInput): { is: string; whose: string } {
   return i.forName ? { is: `${i.forName} is`, whose: `${i.forName}'s` } : { is: "you're", whose: "your" };
 }
 
-function bookingRef(n: number | null | undefined): string {
-  return n ? `Booking no. ${n}. ` : "";
+/**
+ * The first wording that goes as one segment, or else the last (the
+ * tightest). Each text tries the friendlier wording first and only falls back
+ * to the clipped one when a long service name or date would tip it into a
+ * second segment, which doubles what it costs.
+ */
+function oneSegment(...wordings: string[]): string {
+  return wordings.find((w) => smsSize(toGsm(w)).segments === 1) ?? wordings[wordings.length - 1];
+}
+
+function greeting(i: AppointmentMessageInput): string {
+  return i.clientName ? `Hi ${i.clientName}, ` : "";
+}
+
+/** "Booking no. 1042. " or, when room is short, "Ref 1042. ". */
+function bookingRef(n: number | null | undefined, short = false): string {
+  if (!n) return "";
+  return short ? `Ref ${n}. ` : `Booking no. ${n}. `;
 }
 
 /**
@@ -170,44 +196,48 @@ function withArticle(serviceName: string): string {
   return `${/^[aeiou]/.test(name) ? "an" : "a"} ${name}`;
 }
 
-function signOff(contactPhone: string | null, businessName: string): string {
-  return contactPhone
-    ? `Call us on ${contactPhone} if that doesn't suit. ${businessName}`
-    : `${businessName}`;
+/** How to change it, then who it is from. The sender is one-way, so the number matters. */
+function signOff(i: AppointmentMessageInput, short = false): string {
+  if (!i.contactPhone) return i.businessName;
+  return short
+    ? `To change, call ${i.contactPhone}. ${i.businessName}`
+    : `Call us on ${i.contactPhone} if that doesn't suit. ${i.businessName}`;
 }
 
 export function confirmationBody(i: AppointmentMessageInput): string {
-  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
-  return (
-    `${greeting}${subject(i).is} booked in ${i.whenText} for ${withArticle(i.serviceName)} ` +
-    `with ${i.stylistName}. ${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
-  );
+  const say = (short: boolean) =>
+    `${greeting(i)}${subject(i).is} booked in ${i.whenText} for ${withArticle(i.serviceName)} ` +
+    `with ${i.stylistName}. ${bookingRef(i.bookingNumber, short)}${signOff(i, short)}`;
+  return oneSegment(say(false), say(true));
 }
 
 export function reminderBody(i: AppointmentMessageInput): string {
-  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
-  return (
-    `${greeting}a reminder ${subject(i).is} booked in ${i.whenText} for ` +
+  const say = (short: boolean) =>
+    `${greeting(i)}${short ? "reminder:" : "a reminder"} ${subject(i).is} booked in ${i.whenText} for ` +
     `${withArticle(i.serviceName)} with ${i.stylistName}. ` +
-    `${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
-  );
+    `${bookingRef(i.bookingNumber, short)}${signOff(i, short)}`;
+  return oneSegment(say(false), say(true));
 }
 
 export function cancellationBody(i: AppointmentMessageInput): string {
-  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
-  return (
-    `${greeting}${subject(i).whose} appointment ${i.whenText} for ${withArticle(i.serviceName)} ` +
-    `has been cancelled. ${signOff(i.contactPhone, i.businessName)}`
-  );
+  const rebook = (short: boolean) =>
+    !i.contactPhone
+      ? i.businessName
+      : short
+        ? `To rebook, call ${i.contactPhone}. ${i.businessName}`
+        : `Call us on ${i.contactPhone} to rebook. ${i.businessName}`;
+  const say = (short: boolean) =>
+    `${greeting(i)}${subject(i).whose} appointment ${i.whenText} for ${withArticle(i.serviceName)} ` +
+    `has been cancelled. ${rebook(short)}`;
+  return oneSegment(say(false), say(true));
 }
 
 export function rescheduleBody(
   i: AppointmentMessageInput & { previousWhenText: string }
 ): string {
-  const greeting = i.clientName ? `Hi ${i.clientName} — ` : "";
-  return (
-    `${greeting}${subject(i).whose} ${i.serviceName.toLowerCase()} has moved from ` +
+  const say = (short: boolean) =>
+    `${greeting(i)}${subject(i).whose} ${i.serviceName.toLowerCase()} has moved from ` +
     `${i.previousWhenText} to ${i.whenText} with ${i.stylistName}. ` +
-    `${bookingRef(i.bookingNumber)}${signOff(i.contactPhone, i.businessName)}`
-  );
+    `${bookingRef(i.bookingNumber, short)}${signOff(i, short)}`;
+  return oneSegment(say(false), say(true));
 }

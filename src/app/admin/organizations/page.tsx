@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useDialogs } from "@/components/providers/dialogs-provider";
 import { useRouter } from "next/navigation";
 import {
   DataTable,
@@ -43,6 +44,7 @@ interface Organization {
 }
 
 export default function OrganizationsPage() {
+  const { notify } = useDialogs();
   const router = useRouter();
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +78,7 @@ export default function OrganizationsPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error || "Failed to create");
+        notify(err.error || "Couldn't create the organisation. Try again.");
         return;
       }
       setDialogOpen(false);

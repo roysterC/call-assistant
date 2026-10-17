@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkCORS, corsHeaders, isValidEmail } from "@/lib/website-chat";
+import { checkCORS, corsHeaders, isValidEmail, isValidSessionId } from "@/lib/website-chat";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 import { upsertWebsiteLead } from "@/lib/website-lead";
 
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { siteId, sessionId, name, email, phone, notes } = body;
 
-    if (!siteId || !sessionId || !email) {
+    if (!siteId || !isValidSessionId(sessionId) || !email) {
       return NextResponse.json(
         { error: "siteId, sessionId, email required" },
         { status: 400, headers }

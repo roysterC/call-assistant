@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callerNumberFromVapiPayload } from "./vapi-functions";
+import { callerNumberFromVapiPayload } from "./actions";
 
 /**
  * The payload shape varies by event and by which tool format the assistant is
@@ -81,7 +81,7 @@ describe("callerNumberFromVapiPayload", () => {
 
 // --- Phone bookings only go where the diary would offer --------------------
 
-import { phoneSlotProblem } from "./vapi-functions";
+import { phoneSlotProblem } from "./actions";
 import type { SalonConfig } from "@/lib/booking";
 import type { BookingProvider } from "@/lib/booking/types";
 

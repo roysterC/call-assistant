@@ -16,6 +16,8 @@
  * the last 15 minutes.
  */
 
+import { clientIp } from "@/lib/client-ip";
+
 export interface RateLimitResult {
   allowed: boolean;
   retryAfterMs?: number;
@@ -102,15 +104,11 @@ export function rateLimit(
 }
 
 /**
- * Best-effort client IP extraction for rate-limit keying. Not for
- * security-sensitive use — headers are trusted because Caddy sets them.
+ * The client's address for rate-limit keys (see client-ip.ts). Requests the
+ * proxy says nothing about share one "unknown" key.
  */
 export function clientIpFromHeaders(headers: Headers): string {
-  return (
-    headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headers.get("x-real-ip") ||
-    "unknown"
-  );
+  return clientIp(headers) ?? "unknown";
 }
 
 // Test-only escape hatch; not exported from the public barrel (src/lib).

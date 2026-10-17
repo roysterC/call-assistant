@@ -4,7 +4,6 @@ import {
   MAX_FAILURES_PER_EMAIL,
   MAX_FAILURES_PER_IP,
   WINDOW_MS,
-  clientIp,
 } from "./login-throttle";
 
 function clock(start = 0) {
@@ -53,19 +52,5 @@ describe("LoginThrottle", () => {
     th.succeed("a@x.com");
     for (let i = 0; i < MAX_FAILURES_PER_EMAIL - 1; i++) th.fail("a@x.com", null);
     expect(th.allowed("a@x.com", null)).toBe(true);
-  });
-});
-
-describe("clientIp", () => {
-  it("prefers X-Real-IP", () => {
-    expect(clientIp(new Headers({ "x-real-ip": "9.9.9.9", "x-forwarded-for": "1.1.1.1" }))).toBe("9.9.9.9");
-  });
-
-  it("takes the entry nginx appended, not one the client wrote", () => {
-    expect(clientIp(new Headers({ "x-forwarded-for": "6.6.6.6, 9.9.9.9" }))).toBe("9.9.9.9");
-  });
-
-  it("is null when the proxy says nothing", () => {
-    expect(clientIp(new Headers())).toBeNull();
   });
 });

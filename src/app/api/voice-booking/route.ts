@@ -178,7 +178,7 @@ async function view(session: VoiceBookingSession) {
   const d = session.pending;
   if (!d) return null;
   if (d.kind === "note") return { id: d.id, kind: d.kind, clientName: d.clientName, note: d.note };
-  if (d.kind === "text") return { id: d.id, kind: d.kind, clientName: d.clientName, to: d.to, body: d.body };
+  if (d.kind === "text") return { id: d.id, kind: d.kind, clientName: d.clientName, to: d.to, body: d.body, segments: d.segments };
   const tz = await timeZone(session);
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });
   const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" });

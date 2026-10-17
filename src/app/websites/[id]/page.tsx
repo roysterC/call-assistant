@@ -15,6 +15,7 @@ import { planMayHideBranding } from "@/lib/branding";
 import { PageHeader } from "@/components/ui/page-header";
 import { plural } from "@/lib/plural";
 import { currentModelName } from "@/lib/chat-models";
+import { useDialogs } from "@/components/providers/dialogs-provider";
 
 interface Site {
   id: string;
@@ -47,6 +48,7 @@ interface Site {
 }
 
 export default function WebsiteEditPage() {
+  const { confirm, notify } = useDialogs();
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
@@ -127,7 +129,7 @@ export default function WebsiteEditPage() {
       }
     } catch (err) {
       console.error("Save error:", err);
-      alert(err instanceof Error ? err.message : "Failed to save");
+      notify(err instanceof Error ? err.message : "Couldn't save. Try again.");
     } finally {
       setSaving(false);
     }
@@ -135,9 +137,18 @@ export default function WebsiteEditPage() {
 
   async function deleteSite() {
     if (!site) return;
-    if (!confirm(`Delete website "${site.name}"? This cannot be undone.`))
+    const yes = await confirm({
+      title: `Delete the website "${site.name}"?`,
+      body: "Its chat stops working at once, and this cannot be undone.",
+      confirmLabel: "Delete website",
+      destructive: true,
+    });
+    if (!yes) return;
+    const res = await apiFetch(`/api/websites/${site.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      notify("Couldn't delete the website. Try again.");
       return;
-    await apiFetch(`/api/websites/${site.id}`, { method: "DELETE" });
+    }
     router.push("/websites");
   }
 

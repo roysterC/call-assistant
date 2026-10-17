@@ -35,6 +35,9 @@ export async function middleware(req: NextRequest) {
     // Twilio's "a call comes in" webhook; it proves itself with a signature.
     "/api/twilio",
     "/api/meta",
+    // The server's own timer, which has no session; each job checks
+    // CRON_SECRET itself.
+    "/api/cron",
     "/api/auth",
     "/embed",
     "/login",

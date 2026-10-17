@@ -47,6 +47,8 @@ export interface VoiceDraft {
   note?: string;
   to?: string;
   body?: string;
+  /** How many texts the body will be billed as. */
+  segments?: number;
 }
 
 /** Tells any open diary that it has changed, so it reloads (and can show the day). */
@@ -490,6 +492,11 @@ export function Assistant() {
                   <>
                     <p className="text-xs text-muted-foreground">To {draft.to}</p>
                     <p className="mt-1.5 rounded-lg bg-card border border-border px-3 py-2 text-sm">{draft.body}</p>
+                    {(draft.segments ?? 1) > 1 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Long enough to be billed as {draft.segments} texts.
+                      </p>
+                    )}
                   </>
                 )}
                 {draft.service && <p className="text-sm">{draft.service}</p>}

@@ -11,8 +11,11 @@ import {
   corsHeaders,
   parseLeadMarker,
   isValidEmail,
+  isValidSessionId,
+  dailyReplyCap,
+  OVER_CAP_REPLY,
 } from "@/lib/website-chat";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 import { upsertWebsiteLead } from "@/lib/website-lead";
 
 export async function OPTIONS(req: NextRequest) {
@@ -33,6 +36,13 @@ export async function POST(req: NextRequest) {
     if (!siteId || !sessionId || !message) {
       return new Response(
         JSON.stringify({ error: "siteId, sessionId, message required" }),
+        { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!isValidSessionId(sessionId)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid sessionId" }),
         { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
       );
     }
@@ -80,8 +90,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Rate limit by sessionId
-    const rl = rateLimit("website-chat-message", sessionId);
+    // Rate limit by sessionId, and by address: the session id is the
+    // visitor's own to choose, so a fresh one per message would otherwise
+    // never be limited. About one message every ten seconds from one
+    // address, after a burst of fifteen; a person typing never gets near it.
+    const bySession = rateLimit("website-chat-message", sessionId);
+    const byAddress = rateLimit("website-chat-message-ip", clientIpFromHeaders(req.headers), {
+      tokens: 15,
+      refillPerSecond: 0.1,
+    });
+    const rl = bySession.allowed ? byAddress : bySession;
     if (!rl.allowed) {
       return new Response(
         JSON.stringify({ error: "rate_limited", retryAfterMs: rl.retryAfterMs }),
@@ -139,6 +157,26 @@ export async function POST(req: NextRequest) {
           headers: { ...headers, "Content-Type": "application/json" },
         }
       );
+    }
+
+    // The day's ceiling on the model for this website. The visitor's message
+    // is already stored and the inbox shows it; past the cap only the model
+    // is skipped, and the visitor is told someone will reply.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const repliesToday = await prisma.websiteMessage.count({
+      where: {
+        role: "assistant",
+        createdAt: { gte: since },
+        conversation: { siteId, lastMessageAt: { gte: since } },
+      },
+    });
+    if (repliesToday >= dailyReplyCap()) {
+      console.warn(`[WEBSITE CHAT] ${siteId} reached its daily cap of ${dailyReplyCap()} bot replies`);
+      await prisma.websiteConversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date(), isRead: false },
+      });
+      return streamReply(OVER_CAP_REPLY, headers);
     }
 
     // Load conversation history. Honour per-conversation persona reset
@@ -237,32 +275,7 @@ export async function POST(req: NextRequest) {
       data: { lastMessageAt: new Date(), isRead: false },
     });
 
-    // Stream the response as SSE
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        // Chunk the text into small pieces for a "streaming" feel
-        const chunkSize = 20;
-        for (let i = 0; i < cleanText.length; i += chunkSize) {
-          const chunk = cleanText.slice(i, i + chunkSize);
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`)
-          );
-          await new Promise((r) => setTimeout(r, 20));
-        }
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        ...headers,
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
+    return streamReply(cleanText, headers);
   } catch (error) {
     console.error("[WEBSITE CHAT MESSAGE] error:", error);
     return new Response(
@@ -270,4 +283,30 @@ export async function POST(req: NextRequest) {
       { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
     );
   }
+}
+
+/** The reply as server-sent events, in small pieces for a typing feel. */
+function streamReply(text: string, headers: Record<string, string>): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const chunkSize = 20;
+      for (let i = 0; i < text.length; i += chunkSize) {
+        const chunk = text.slice(i, i + chunkSize);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunk })}\n\n`));
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      ...headers,
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }

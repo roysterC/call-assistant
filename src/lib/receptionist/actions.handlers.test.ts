@@ -79,7 +79,7 @@ import {
   parseBookingNumber,
   saysNotBooked,
   thirdPartyRefusal,
-} from "./vapi-functions";
+} from "./actions";
 
 const SARAH = "+447700900715";
 const OLIVIA = "+447700900714";
@@ -563,7 +563,7 @@ describe("book_appointment", () => {
     expect(written[0].write).toMatchObject({ clientName: "Amy Burns" });
     expect(r.message).toMatch(/for Amy Burns/);
     // The text goes to her mum, and greets her mum.
-    expect(texts.send).toHaveBeenCalledWith("org", CLAIRE, expect.stringMatching(/^Hi Claire Burns — Amy is booked in/));
+    expect(texts.send).toHaveBeenCalledWith("org", CLAIRE, expect.stringMatching(/^Hi Claire Burns, Amy is booked in/));
   });
 
   it("books her on the same record next time, and her mum on her own", async () => {
@@ -754,7 +754,7 @@ describe("book_appointment", () => {
   });
 
   it("starts a refused booking with NOT booked, through the tool router", async () => {
-    const { executeVapiFunction } = await import("./vapi-functions");
+    const { executeVapiFunction } = await import("./actions");
     const r = (await executeVapiFunction("book_appointment", "org", {
       time: "2026-09-29T15:00:00+01:00",
       service: "blow dry",
@@ -814,6 +814,6 @@ describe("a number and the clients reached through it", () => {
   it("texts the mum, greeting her, when the daughter's booking is cancelled", async () => {
     const r = await handleCancelAppointment("org", { callerNumber: CLAIRE, appointmentId: "appt-amy" });
     expect(r).toMatchObject({ success: true });
-    expect(texts.send).toHaveBeenCalledWith("org", CLAIRE, expect.stringMatching(/^Hi Claire Burns — Amy's appointment/));
+    expect(texts.send).toHaveBeenCalledWith("org", CLAIRE, expect.stringMatching(/^Hi Claire Burns, Amy's appointment/));
   });
 });

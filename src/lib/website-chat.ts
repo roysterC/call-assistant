@@ -65,6 +65,33 @@ export function isValidEmail(email: string): boolean {
 }
 
 /**
+ * The widget makes its session id with crypto.randomUUID(). Anything else —
+ * a megabyte of text, an object — is not our widget, and is refused before
+ * it becomes a rate-limit key or a database row.
+ */
+export function isValidSessionId(sessionId: unknown): sessionId is string {
+  return typeof sessionId === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(sessionId);
+}
+
+/**
+ * How many bot replies one website may get through the model in a day.
+ * Above it, visitors' messages still reach the inbox; only the model is
+ * skipped. The site id is public in its embed code, so without a ceiling a
+ * script could spend without limit. Generous for a salon: 300 replies is
+ * around fifty conversations. WEBSITE_CHAT_DAILY_REPLY_CAP overrides it.
+ */
+export const DEFAULT_DAILY_REPLY_CAP = 300;
+
+export function dailyReplyCap(raw = process.env.WEBSITE_CHAT_DAILY_REPLY_CAP): number {
+  const n = Number(raw);
+  return raw?.trim() && Number.isInteger(n) && n >= 0 ? n : DEFAULT_DAILY_REPLY_CAP;
+}
+
+/** The reply a visitor gets once the day's cap is spent. */
+export const OVER_CAP_REPLY =
+  "Thanks for your message. We're a little busy right now, so one of the team will reply here as soon as they can.";
+
+/**
  * Whether a widget CTA destination is safe for the host page to navigate to.
  *
  * This one is load-bearing. The value is stored config that widget.js assigns

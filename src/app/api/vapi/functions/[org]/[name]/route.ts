@@ -5,7 +5,7 @@ import {
   describeAuthHeaders,
 } from "@/lib/vapi-signature";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
-import { executeVapiFunction, isVapiFunctionName } from "@/lib/vapi-functions";
+import { executeVapiFunction, isVapiFunctionName } from "@/lib/receptionist/actions";
 
 /**
  * Entry point for Vapi "API Request" tools.
