@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cancellationBody, confirmationBody, reminderBody, rescheduleBody } from "./sms";
 import { describeAppointmentWhen } from "./business-hours";
+import { smsSize } from "./sms-encoding";
 
 const TZ = "Europe/London";
 const base = {
@@ -41,11 +42,28 @@ describe("message bodies", () => {
   });
 
   it("stays inside a single SMS segment for a typical booking", () => {
-    // 160 GSM-7 characters. Longer messages are billed and delivered as
-    // several parts, which looks broken on some handsets.
-    expect(confirmationBody(base).length).toBeLessThanOrEqual(160);
-    expect(reminderBody(base).length).toBeLessThanOrEqual(160);
-    expect(confirmationBody({ ...base, bookingNumber: 1043 }).length).toBeLessThanOrEqual(160);
+    // One GSM-7 segment: 160 plain characters. Counting characters alone is
+    // not enough. These texts once had a long dash after the name, which made
+    // every one UCS-2 (70 a segment) and billed it as three.
+    const oneSegment = (body: string) => expect(smsSize(body)).toMatchObject({ encoding: "GSM-7", segments: 1 });
+    oneSegment(confirmationBody(base));
+    oneSegment(reminderBody(base));
+    oneSegment(confirmationBody({ ...base, bookingNumber: 1043 }));
+    oneSegment(reminderBody({ ...base, bookingNumber: 1043, whenText: "tomorrow at 2:30pm" }));
+    oneSegment(cancellationBody(base));
+    oneSegment(rescheduleBody({ ...base, bookingNumber: 1043, previousWhenText: "Wednesday at 2pm" }));
+  });
+
+  it("keeps the friendlier wording when it fits, and clips it only when it would not", () => {
+    expect(confirmationBody({ ...base, bookingNumber: 1043 })).toContain("if that doesn't suit");
+    const long = confirmationBody({
+      ...base,
+      bookingNumber: 1043,
+      serviceName: "Olaplex treatment with blow dry",
+      whenText: "Thursday 23 October at 2:30pm",
+    });
+    expect(long).toContain("Ref 1043. To change, call 01234 567890.");
+    expect(smsSize(long).segments).toBe(1);
   });
 
   it("gives the booking number, which is enough to change the booking by phone", () => {
@@ -60,7 +78,7 @@ describe("message bodies", () => {
 
   it("greets the parent and names the child when it goes to the number she is reached through", () => {
     const parent = { ...base, clientName: "Claire", forName: "Amy" };
-    expect(confirmationBody(parent)).toMatch(/^Hi Claire — Amy is booked in Thursday at 2pm for a cut and finish/);
+    expect(confirmationBody(parent)).toMatch(/^Hi Claire, Amy is booked in Thursday at 2pm for a cut and finish/);
     expect(reminderBody(parent)).toContain("a reminder Amy is booked in");
     expect(cancellationBody(parent)).toContain("Amy's appointment Thursday at 2pm");
     expect(rescheduleBody({ ...parent, previousWhenText: "Wednesday at 2pm" })).toContain("Amy's cut and finish has moved");
@@ -137,6 +155,6 @@ describe("service names in message bodies", () => {
       clientName: "Christopher",
       serviceName: "Full head highlights",
     });
-    expect(b.length).toBeLessThanOrEqual(160);
+    expect(smsSize(b)).toMatchObject({ encoding: "GSM-7", segments: 1 });
   });
 });
