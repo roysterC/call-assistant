@@ -38,6 +38,9 @@ export async function proxy(req: NextRequest) {
     "/api/cron",
     // The uptime monitor's checks.
     "/api/health",
+    // Browser error reports on their way to Sentry, including the login
+    // page's own (src/app/api/monitoring).
+    "/api/monitoring",
     "/api/auth",
     "/embed",
     "/login",

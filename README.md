@@ -209,6 +209,46 @@ segment. So:
 - A text the assistant writes is refused past two segments, and its card says
   when it will be billed as two.
 
+### Monitoring
+
+**Uptime.** Two public checks for an uptime monitor (Better Stack,
+UptimeRobot or similar; their free tiers are enough). Have each one text or
+email you:
+
+| Check | URL | Red when |
+|---|---|---|
+| The CRM | `https://89-58-45-110.nip.io/api/health` | the app, its database or the voice server is not answering |
+| Backups | `https://89-58-45-110.nip.io/api/health/backups` | no off-site backup in 26 hours |
+
+Poll the first every minute or few, the second every hour or so.
+
+**Errors.** With Sentry set up, crashes and anything logged with
+`console.error` are reported from:
+
+- the CRM's server;
+- the browser (through `/api/monitoring`, so the content security policy and
+  ad blockers let them through);
+- the voice server.
+
+Reports are scrubbed of phone numbers, emails, cookies, request bodies and
+query strings first (`src/lib/sentry-scrub.ts`). Without a DSN it all does
+nothing.
+
+1. Create a free Sentry account and a Next.js project. Copy its DSN.
+2. Add to `/home/deploy/call-assistant/.env`:
+
+   ```bash
+   SENTRY_DSN=https://...ingest.sentry.io/...
+   NEXT_PUBLIC_SENTRY_DSN=https://...ingest.sentry.io/...   # same value; read at build
+   # Optional, for readable stack traces (an auth token with project:releases):
+   SENTRY_ORG=...
+   SENTRY_PROJECT=...
+   SENTRY_AUTH_TOKEN=...
+   ```
+
+3. Deploy (or rebuild and restart), then restart the voice server:
+   `systemctl restart call-assistant-voice`.
+
 ### Backups
 
 Every night at 3:15am UK time, `call-assistant-backup.timer` runs
