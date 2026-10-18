@@ -13,7 +13,7 @@
  * the bypass branches are dead code.
  */
 
-/** Server side: middleware, requireTenant, requireSuperAdmin. */
+/** Server side: the proxy, requireTenant, requireSuperAdmin. */
 export function devBypassEnabled(): boolean {
   return process.env.NODE_ENV !== "production" && process.env.DEV_BYPASS_AUTH === "1";
 }

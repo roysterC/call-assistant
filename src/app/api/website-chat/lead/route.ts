@@ -74,7 +74,8 @@ export async function POST(req: NextRequest) {
       where: { sessionId },
     });
 
-    if (!conversation) {
+    // Only this site's own conversation: see the message route.
+    if (!conversation || conversation.siteId !== siteId) {
       return NextResponse.json(
         { error: "Conversation not found" },
         { status: 404, headers }

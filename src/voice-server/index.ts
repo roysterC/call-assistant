@@ -20,8 +20,10 @@
  */
 
 import { config as loadEnv } from "dotenv";
+import { initSentry } from "./sentry";
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
+initSentry();
 
 import http from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
