@@ -34,6 +34,13 @@ export interface NavPage {
   ownerOnly?: boolean;
   /** Kikai's own super-admins only: a tool for us, not for the salon. */
   superAdminOnly?: boolean;
+  /**
+   * Shown to super-admins whatever the organisation's features say. Leads,
+   * because our own organisation has the receptionist switched on (which
+   * hides Leads for a salon) and still needs the prospects the in-person
+   * funnel (/meet) brings in.
+   */
+  superAdminAlways?: boolean;
 }
 
 export const DASHBOARD = "/dashboard";
@@ -55,7 +62,7 @@ export const NAV_PAGES: NavPage[] = [
   { href: "/insights", label: "Insights", requires: ["voice", "chatbot"], ownerOnly: true },
   // A salon's people are its clients, with their bookings and patch tests;
   // Leads stays for an organisation without the diary (chat, WhatsApp).
-  { href: "/leads", label: "Leads", hiddenWhen: "voice" },
+  { href: "/leads", label: "Leads", hiddenWhen: "voice", superAdminAlways: true },
   { href: DIARY, label: "Diary", requires: "voice" },
   { href: "/clients", label: "Clients", requires: "voice" },
   { href: "/sales", label: "Sales", requires: "voice" },
@@ -95,6 +102,12 @@ export function isNavVisible(page: NavPage, flags: FeatureFlags | null): boolean
   if (!page.requires) return true;
   const reqs = Array.isArray(page.requires) ? page.requires : [page.requires];
   return reqs.some((r) => flags[`${r}Enabled` as keyof FeatureFlags]);
+}
+
+/** Whether the menu lists the page for this login in this organisation. */
+export function isNavShown(page: NavPage, flags: FeatureFlags | null, role: string | null | undefined): boolean {
+  if (page.superAdminAlways && role === "superAdmin") return true;
+  return isNavVisible(page, flags) && isNavAllowed(page, role);
 }
 
 /**

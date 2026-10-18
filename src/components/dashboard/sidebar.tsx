@@ -38,8 +38,7 @@ import { useMe } from "@/components/providers/me-provider";
 import {
   DASHBOARD,
   NAV_PAGES,
-  isNavAllowed,
-  isNavVisible,
+  isNavShown,
   orderForStartPage,
   type FeatureFlags,
 } from "@/lib/navigation";
@@ -255,10 +254,7 @@ export function Sidebar({
           Menu
         </p>
         {orderForStartPage(navItems, startPage)
-          .filter(
-            (item) =>
-              isNavVisible(item, features) && isNavAllowed(item, role)
-          )
+          .filter((item) => isNavShown(item, features, role))
           .map((item) => {
             const isActive = pathname === item.href;
             const badge = item.href === "/callbacks" && pending > 0 ? pending : 0;

@@ -16,25 +16,20 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useCollapsedNav();
   // A red dot on the phone's menu button when callbacks are waiting, since
   // the counter itself is inside the closed drawer.
+  // Embed, login, the in-person funnel and the public legal pages: no
+  // sidebar, no padding, no chrome. The legal pages must render standalone so
+  // Meta's app-review crawler (and end users) see them without logged-in UI.
   const chromeless = [
     "/embed",
     "/login",
+    "/meet",
     "/privacy-policy",
     "/terms-of-service",
     "/data-deletion",
   ].some((p) => pathname?.startsWith(p));
   const pending = usePendingCallbacks(!chromeless);
 
-  // Embed, login, and public legal pages: no sidebar, no padding, no chrome.
-  // The legal pages must render standalone so Meta's app-review crawler
-  // (and search engines / end users) see the content without logged-in UI.
-  if (
-    pathname?.startsWith("/embed") ||
-    pathname?.startsWith("/login") ||
-    pathname?.startsWith("/privacy-policy") ||
-    pathname?.startsWith("/terms-of-service") ||
-    pathname?.startsWith("/data-deletion")
-  ) {
+  if (chromeless) {
     return <>{children}</>;
   }
 

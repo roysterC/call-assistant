@@ -5,6 +5,7 @@ import {
   NAV_PAGES,
   isNavAllowed,
   isNavVisible,
+  isNavShown,
   isStartPageChoice,
   orderForStartPage,
   resolveStartPage,
@@ -32,6 +33,13 @@ describe("isNavVisible", () => {
 describe("a salon's people", () => {
   const leads = NAV_PAGES.find((p) => p.href === "/leads")!;
   const clients = NAV_PAGES.find((p) => p.href === "/clients")!;
+
+  it("still show Leads to us, for the prospects met in person", () => {
+    expect(isNavShown(leads, salon, "superAdmin")).toBe(true);
+    expect(isNavShown(leads, salon, "admin")).toBe(false);
+    expect(isNavShown(leads, salon, "member")).toBe(false);
+    expect(isNavShown(leads, chatOnly, "member")).toBe(true);
+  });
 
   it("are its Clients, not Leads, once it has the diary", () => {
     expect(isNavVisible(clients, salon)).toBe(true);

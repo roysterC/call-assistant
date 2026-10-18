@@ -44,6 +44,10 @@ export async function proxy(req: NextRequest) {
     "/api/auth",
     "/embed",
     "/login",
+    // The in-person lead funnel and where it sends; no login by design.
+    "/meet",
+    "/api/funnel",
+    "/robots.txt",
     "/widget.js",
     "/test-widget.html",
     "/favicon",

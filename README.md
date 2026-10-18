@@ -428,6 +428,32 @@ then empty them:
 journalctl -u call-assistant --since "1 week ago" | grep "of its own"
 ```
 
+### The in-person lead funnel
+
+`/meet` is a one-question-a-screen form for meeting salon owners face to
+face. Open it on a phone or tablet, or print it as a QR code. Nothing links
+to it, and search engines are told to stay away (`noindex`, and `robots.txt`
+disallows everything but the legal pages).
+
+It asks, in order:
+
+1. Do you already use a booking system? If yes, which one (one tap, or skip).
+2. Business name.
+3. Owner's name.
+4. Phone.
+5. Email.
+
+Each lead lands on our own organisation's Leads page (`LEAD_FUNNEL_ORG_SLUG`,
+default `doai`) as "In person". The issue line reads "Already uses Phorest" or
+"No booking system yet". Someone already on file by email is updated rather
+than duplicated. Super-admins always see Leads in the menu, even with the
+receptionist switched on.
+
+The thank-you screen clears itself after 20 seconds, so a shared tablet never
+shows the last person's details for long. The endpoint (`/api/funnel`) is
+public, so it checks every answer again, ignores bots that fill a hidden
+field, and limits how many one connection can send.
+
 ### Messages and callbacks
 
 The receptionist never transfers a call. When a caller asks for a person, or
