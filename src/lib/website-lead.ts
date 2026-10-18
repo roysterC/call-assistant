@@ -22,6 +22,8 @@ export async function upsertWebsiteLead(opts: {
   /** Replaces any existing summary — it is what they want *now*. */
   issue?: string | null;
   notes?: string | null;
+  /** Where a new lead came from; an existing one keeps its own. */
+  source?: string;
 }): Promise<{ id: string }> {
   const { organizationId } = opts;
   // Lower-cased so "Sam@x.co.uk" and "sam@x.co.uk" are one person. Without
@@ -82,7 +84,7 @@ export async function upsertWebsiteLead(opts: {
       company,
       issue,
       notes,
-      source: "website",
+      source: opts.source ?? "website",
     },
     select: { id: true },
   });

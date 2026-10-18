@@ -9,11 +9,11 @@ import {
   TableToolbar,
   type ColumnDef,
 } from "@/components/ui/data-table";
-import { Users } from "lucide-react";
+import { Handshake, Users } from "lucide-react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api-fetch";
 import { plural } from "@/lib/plural";
-import { CHANNEL_META, type Channel } from "@/lib/channels";
+import { CHANNEL_META, type Channel, type ChannelMeta } from "@/lib/channels";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -66,6 +66,13 @@ function sourceToChannel(source: string): Channel {
   }
 }
 
+/** Met face to face, through the funnel at /meet: not a messaging channel. */
+const IN_PERSON: ChannelMeta = { icon: Handshake, bg: "bg-light-bronze-300", label: "In person" };
+
+function sourceMeta(source: string): ChannelMeta {
+  return source === "in_person" ? IN_PERSON : CHANNEL_META[sourceToChannel(source)];
+}
+
 /**
  * Best display name for a lead — prefer Lead.name, fall back to per-channel
  * contact records, then to "Unknown".
@@ -102,7 +109,7 @@ function displayIdentifier(lead: Lead): string {
     return "Messenger user";
   }
 
-  if (channel === "website") {
+  if (channel === "website" || lead.source === "in_person") {
     // Email is this channel's identity now, so it is almost always present.
     return lead.email || lead.phone || "—";
   }
@@ -172,9 +179,9 @@ export default function LeadsPage() {
     {
       id: "channel",
       header: "Channel",
-      accessorFn: (lead) => CHANNEL_META[sourceToChannel(lead.source)].label,
+      accessorFn: (lead) => sourceMeta(lead.source).label,
       cell: ({ row: { original: lead } }) => {
-        const meta = CHANNEL_META[sourceToChannel(lead.source)];
+        const meta = sourceMeta(lead.source);
         const ChannelIcon = meta.icon;
         return (
           <span className="flex items-center gap-1.5">
