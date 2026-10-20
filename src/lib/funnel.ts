@@ -87,6 +87,20 @@ export function checkAnswers(
   };
 }
 
+/**
+ * The Calendly page for a 30-minute discovery call, offered once their
+ * details are in (DISCOVERY_CALL_URL). Only a calendly.com address over
+ * https: the page frames it, and the security policy allows that host alone.
+ */
+export function discoveryCallUrl(raw = process.env.DISCOVERY_CALL_URL): string | null {
+  try {
+    const url = new URL((raw ?? "").trim());
+    return url.protocol === "https:" && url.hostname === "calendly.com" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The line the Leads page shows for them: where they stand today. */
 export function systemSummary(a: Pick<FunnelAnswers, "hasSystem" | "system">): string {
   if (!a.hasSystem) return "No booking system yet";
