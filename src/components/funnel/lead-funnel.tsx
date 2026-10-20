@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarCheck, Check, Loader2 } from "lucide-react";
 import { BrandMark } from "@/components/dashboard/sidebar";
 import { cn } from "@/lib/utils";
 import {
@@ -44,6 +44,12 @@ function stepsFor(hasSystem: boolean | null): Step[] {
 
 /** Seconds the thank-you screen stays before clearing for the next person. */
 const RESET_AFTER = 20;
+
+/** Minutes the booking screen waits, untouched, before moving on by itself. */
+const CALL_IDLE_MINUTES = 5;
+
+/** After the questions: the offer of a call, then thanks. */
+type Stage = "questions" | "call" | "done";
 
 interface TextStep {
   question: string;
@@ -89,17 +95,25 @@ const TEXT_STEPS: Record<"businessName" | "ownerName" | "phone" | "email", TextS
   },
 };
 
-export function LeadFunnel() {
+/**
+ * @param bookingUrl  The Calendly page for a 30-minute discovery call
+ *   (DISCOVERY_CALL_URL). Without one, the funnel ends at the thank-you.
+ */
+export function LeadFunnel({ bookingUrl }: { bookingUrl?: string | null }) {
   const [answers, setAnswers] = useState<Answers>(EMPTY);
   const [step, setStep] = useState<Step>("hasSystem");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [done, setDone] = useState(false);
+  const [stage, setStage] = useState<Stage>("questions");
+  const [booked, setBooked] = useState(false);
   const [honeypot, setHoneypot] = useState("");
 
+  const done = stage === "done";
   const steps = stepsFor(answers.hasSystem);
-  const index = steps.indexOf(step);
-  const progress = done ? 1 : index / steps.length;
+  // The booking screen counts as the last step.
+  const total = steps.length + (bookingUrl ? 1 : 0);
+  const index = stage === "call" ? steps.length : steps.indexOf(step);
+  const progress = done ? 1 : index / total;
 
   const go = (to: Step) => {
     setError(null);
@@ -115,7 +129,8 @@ export function LeadFunnel() {
   const reset = () => {
     setAnswers(EMPTY);
     setHoneypot("");
-    setDone(false);
+    setBooked(false);
+    setStage("questions");
     go("hasSystem");
   };
 
@@ -134,7 +149,7 @@ export function LeadFunnel() {
         setError(data.error || "Something went wrong. Try again.");
         return;
       }
-      setDone(true);
+      setStage(bookingUrl ? "call" : "done");
     } catch {
       setError("No connection. Check the internet and try again.");
     } finally {
@@ -168,7 +183,7 @@ export function LeadFunnel() {
           </div>
           {!done && (
             <span className="text-sm tabular-nums text-muted-foreground" aria-live="polite">
-              {index + 1} of {steps.length}
+              {index + 1} of {total}
             </span>
           )}
         </div>
@@ -188,8 +203,17 @@ export function LeadFunnel() {
             className="absolute -left-[9999px] h-px w-px opacity-0"
           />
 
-          {done ? (
-            <Done name={answers.ownerName} email={answers.email} onReset={reset} />
+          {stage === "done" ? (
+            <Done name={answers.ownerName} email={answers.email} booked={booked} onReset={reset} />
+          ) : stage === "call" && bookingUrl ? (
+            <BookCall
+              number={index + 1}
+              url={bookingUrl}
+              name={answers.ownerName}
+              email={answers.email}
+              onBooked={() => setBooked(true)}
+              onFinish={() => setStage("done")}
+            />
           ) : (
             <div key={step} className="animate-in fade-in slide-in-from-bottom-4 duration-300">
               {step === "hasSystem" && (
@@ -499,7 +523,110 @@ function TextQuestion({
   );
 }
 
-function Done({ name, email, onReset }: { name: string; email: string; onReset: () => void }) {
+/** Calendly's own page, with their name and email already filled in. */
+export function calendlyEmbedUrl(base: string, who: { name: string; email: string }, host: string): string {
+  const url = new URL(base);
+  url.searchParams.set("name", who.name.trim());
+  url.searchParams.set("email", who.email.trim());
+  url.searchParams.set("embed_type", "Inline");
+  url.searchParams.set("embed_domain", host);
+  url.searchParams.set("hide_gdpr_banner", "1");
+  url.searchParams.set("utm_source", "in-person-funnel");
+  return url.toString();
+}
+
+function BookCall({
+  number,
+  url,
+  name,
+  email,
+  onBooked,
+  onFinish,
+}: {
+  number: number;
+  url: string;
+  name: string;
+  email: string;
+  onBooked: () => void;
+  onFinish: () => void;
+}) {
+  const [src] = useState(() => calendlyEmbedUrl(url, { name, email }, window.location.host));
+  const [booked, setBooked] = useState(false);
+
+  // Calendly tells the page when a time is booked; then this screen is done.
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (!/^https:\/\/([a-z0-9-]+\.)?calendly\.com$/.test(e.origin)) return;
+      const data = e.data as { event?: string } | null;
+      if (data?.event === "calendly.event_scheduled") {
+        setBooked(true);
+        onBooked();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [onBooked]);
+
+  // A tablet left on this screen moves on by itself, so the next person
+  // never finds someone else's name filled in.
+  useEffect(() => {
+    const t = setTimeout(onFinish, (booked ? 0.25 : CALL_IDLE_MINUTES) * 60_000);
+    return () => clearTimeout(t);
+  }, [booked, onFinish]);
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <Eyebrow number={number} />
+      <h1 className="font-heading text-2xl font-semibold leading-tight sm:text-4xl">
+        Book a 30-minute discovery call?
+      </h1>
+      <p className="mt-3 text-base text-muted-foreground sm:text-lg">
+        Your details are saved. Pick a time that suits you, and we&apos;ll show you how it would work for your salon.
+      </p>
+      <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card">
+        <iframe
+          src={src}
+          title="Book a 30-minute discovery call"
+          className="block h-[680px] w-full sm:h-[720px]"
+        />
+      </div>
+      <div className="mt-6 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onFinish}
+          className={cn(
+            "inline-flex h-12 items-center gap-2 rounded-xl px-5 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+            booked
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "border-2 border-border bg-card hover:border-primary/60"
+          )}
+        >
+          {booked ? (
+            <>
+              Done <Check className="h-4 w-4" />
+            </>
+          ) : (
+            <>
+              Not now <ArrowRight className="h-4 w-4" />
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Done({
+  name,
+  email,
+  booked,
+  onReset,
+}: {
+  name: string;
+  email: string;
+  booked: boolean;
+  onReset: () => void;
+}) {
   const [left, setLeft] = useState(RESET_AFTER);
   useEffect(() => {
     const t = setInterval(() => setLeft((s) => s - 1), 1000);
@@ -518,9 +645,19 @@ function Done({ name, email, onReset }: { name: string; email: string; onReset: 
       <h1 className="font-heading text-3xl font-semibold leading-tight sm:text-4xl">
         Thanks{first ? `, ${first}` : ""}.
       </h1>
-      <p className="mt-3 text-lg text-muted-foreground">
-        We&apos;ll be in touch{email ? <> at <span className="text-foreground">{email.trim()}</span></> : null}.
-      </p>
+      {booked ? (
+        <p className="mt-3 flex items-start gap-2 text-lg text-muted-foreground">
+          <CalendarCheck className="mt-1 h-5 w-5 shrink-0 text-primary" />
+          <span>
+            Your discovery call is booked. The invite is on its way
+            {email ? <> to <span className="text-foreground">{email.trim()}</span></> : null}.
+          </span>
+        </p>
+      ) : (
+        <p className="mt-3 text-lg text-muted-foreground">
+          We&apos;ll be in touch{email ? <> at <span className="text-foreground">{email.trim()}</span></> : null}.
+        </p>
+      )}
       <button
         type="button"
         onClick={onReset}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkAnswers, checkEmail, checkPhone, systemSummary } from "./funnel";
+import { checkAnswers, checkEmail, checkPhone, discoveryCallUrl, systemSummary } from "./funnel";
+import { calendlyEmbedUrl } from "@/components/funnel/lead-funnel";
 
 const good = {
   hasSystem: true,
@@ -60,5 +61,30 @@ describe("systemSummary", () => {
     expect(systemSummary({ hasSystem: false })).toBe("No booking system yet");
     expect(systemSummary({ hasSystem: true, system: "Phorest" })).toBe("Already uses Phorest");
     expect(systemSummary({ hasSystem: true, system: null })).toBe("Already uses a booking system");
+  });
+});
+
+describe("the discovery call", () => {
+  it("takes only a Calendly page over https", () => {
+    expect(discoveryCallUrl("https://calendly.com/kikai/30min")).toBe("https://calendly.com/kikai/30min");
+    expect(discoveryCallUrl(" https://calendly.com/kikai/30min ")).toBe("https://calendly.com/kikai/30min");
+    expect(discoveryCallUrl("http://calendly.com/kikai/30min")).toBeNull();
+    expect(discoveryCallUrl("https://evil.example/calendly.com")).toBeNull();
+    expect(discoveryCallUrl("https://notcalendly.com/x")).toBeNull();
+    // The security policy frames calendly.com itself, nothing under it.
+    expect(discoveryCallUrl("https://x.calendly.com/kikai")).toBeNull();
+    expect(discoveryCallUrl("")).toBeNull();
+    expect(discoveryCallUrl(undefined)).toBeNull();
+  });
+
+  it("opens Calendly with their name and email already filled in", () => {
+    const url = new URL(
+      calendlyEmbedUrl("https://calendly.com/kikai/30min", { name: " Jo Bloggs ", email: "jo@shogo.co.uk" }, "crm.example")
+    );
+    expect(url.origin + url.pathname).toBe("https://calendly.com/kikai/30min");
+    expect(url.searchParams.get("name")).toBe("Jo Bloggs");
+    expect(url.searchParams.get("email")).toBe("jo@shogo.co.uk");
+    expect(url.searchParams.get("embed_domain")).toBe("crm.example");
+    expect(url.searchParams.get("hide_gdpr_banner")).toBe("1");
   });
 });

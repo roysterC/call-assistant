@@ -443,6 +443,15 @@ It asks, in order:
 4. Phone.
 5. Email.
 
+Once those are saved, it offers a 30-minute discovery call. That is your
+Calendly page, shown in the page with their name and email already filled
+in. "Not now" moves on; a booking shows on the thank-you screen, and Calendly
+sends the invite. Set the page in `.env` as
+`DISCOVERY_CALL_URL=https://calendly.com/<you>/<event>`. It must be a
+calendly.com link, and it is read on each visit, so a restart is enough. With
+none set, the funnel ends at the thank-you screen. Left untouched, the
+booking screen moves on by itself after five minutes.
+
 Each lead lands on our own organisation's Leads page (`LEAD_FUNNEL_ORG_SLUG`,
 default `doai`) as "In person". The issue line reads "Already uses Phorest" or
 "No booking system yet". Someone already on file by email is updated rather
