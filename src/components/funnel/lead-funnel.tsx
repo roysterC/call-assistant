@@ -10,7 +10,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CalendarCheck, Check, Loader2 } from "lucide-react";
-import { BrandMark } from "@/components/dashboard/sidebar";
 import { cn } from "@/lib/utils";
 import {
   KNOWN_SYSTEMS,
@@ -178,10 +177,9 @@ export function LeadFunnel({ booking }: { booking?: ConsultationBooking | null }
           />
         </div>
         <div className="mx-auto flex max-w-2xl items-center justify-between px-5 py-4 sm:px-8">
-          <div className="flex items-center gap-2.5">
-            <BrandMark size="sm" />
-            <span className="font-heading font-semibold tracking-tight">Kikai</span>
-          </div>
+          {/* Our logo (public/brand), as the website draws it: the K and KIKAI in navy. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- a fixed SVG; nothing for next/image to optimise */}
+          <img src="/brand/kikai-logo.svg" alt="Kikai" width={470} height={144} className="h-7 w-auto sm:h-8" />
           {!done && (
             <span className="text-sm tabular-nums text-muted-foreground" aria-live="polite">
               {index + 1} of {total}
