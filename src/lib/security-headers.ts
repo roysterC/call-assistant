@@ -47,8 +47,9 @@ export function contentSecurityPolicy(frameAncestors: string, o: HeaderOptions =
     "media-src": ["'self'", "blob:"],
     "worker-src": ["'self'", "blob:"],
     // The website editor previews the widget, which is this site's own page;
-    // the in-person funnel (/meet) shows Calendly to book a discovery call.
-    "frame-src": ["'self'", "https://calendly.com"],
+    // the in-person funnel (/meet) shows a Calendly or Google Calendar
+    // booking page for a free consultation.
+    "frame-src": ["'self'", "https://calendly.com", "https://calendar.google.com"],
     "frame-ancestors": [frameAncestors],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],

@@ -443,14 +443,27 @@ It asks, in order:
 4. Phone.
 5. Email.
 
-Once those are saved, it offers a 30-minute discovery call. That is your
-Calendly page, shown in the page with their name and email already filled
-in. "Not now" moves on; a booking shows on the thank-you screen, and Calendly
-sends the invite. Set the page in `.env` as
-`DISCOVERY_CALL_URL=https://calendly.com/<you>/<event>`. It must be a
-calendly.com link, and it is read on each visit, so a restart is enough. With
-none set, the funnel ends at the thank-you screen. Left untouched, the
-booking screen moves on by itself after five minutes.
+Once those are saved, it offers a free 30-minute consultation on your booking
+page, shown inside the funnel. Set it in `.env` as `CONSULTATION_URL`
+(`DISCOVERY_CALL_URL`, its first name, still works). It is read on each visit,
+so a restart is enough. With none set, the funnel ends at the thank-you
+screen.
+
+- **Calendly**: `https://calendly.com/<you>/<event>`. Their name and email are
+  filled in, and a booking is noticed by itself: the button becomes Done and
+  the thank-you says it is booked.
+- **Google Calendar** (appointment schedules): in Google Calendar, open the
+  booking page, choose Share, then "Website embed", and copy the `src`
+  address. It looks like
+  `https://calendar.google.com/calendar/appointments/schedules/...`. A short
+  `calendar.app.google/...` link also works: the server follows it to the
+  full one. Google fills nothing in and does not say when a time is booked,
+  so they type their details again, and the screen offers "I've booked it"
+  beside "Not now".
+
+Only those two hosts are accepted, because the security policy frames them
+and nothing else. Left untouched, the booking screen moves on by itself after
+five minutes.
 
 Each lead lands on our own organisation's Leads page (`LEAD_FUNNEL_ORG_SLUG`,
 default `doai`) as "In person". The issue line reads "Already uses Phorest" or

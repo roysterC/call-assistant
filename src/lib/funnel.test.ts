@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { checkAnswers, checkEmail, checkPhone, discoveryCallUrl, systemSummary } from "./funnel";
+import { describe, expect, it, vi } from "vitest";
+import { checkAnswers, checkEmail, checkPhone, consultationBooking, isGoogleShortLink, systemSummary } from "./funnel";
+import { consultationBookingFromEnv, followGoogleShortLink } from "./consultation-link";
 import { calendlyEmbedUrl } from "@/components/funnel/lead-funnel";
 
 const good = {
@@ -64,17 +65,41 @@ describe("systemSummary", () => {
   });
 });
 
-describe("the discovery call", () => {
-  it("takes only a Calendly page over https", () => {
-    expect(discoveryCallUrl("https://calendly.com/kikai/30min")).toBe("https://calendly.com/kikai/30min");
-    expect(discoveryCallUrl(" https://calendly.com/kikai/30min ")).toBe("https://calendly.com/kikai/30min");
-    expect(discoveryCallUrl("http://calendly.com/kikai/30min")).toBeNull();
-    expect(discoveryCallUrl("https://evil.example/calendly.com")).toBeNull();
-    expect(discoveryCallUrl("https://notcalendly.com/x")).toBeNull();
+describe("the free consultation's booking page", () => {
+  it("takes a Calendly page over https, and nothing like one", () => {
+    expect(consultationBooking("https://calendly.com/kikai/30min")).toEqual({
+      kind: "calendly",
+      url: "https://calendly.com/kikai/30min",
+    });
+    expect(consultationBooking(" https://calendly.com/kikai/30min ")?.url).toBe("https://calendly.com/kikai/30min");
+    expect(consultationBooking("http://calendly.com/kikai/30min")).toBeNull();
+    expect(consultationBooking("https://evil.example/calendly.com")).toBeNull();
+    expect(consultationBooking("https://notcalendly.com/x")).toBeNull();
     // The security policy frames calendly.com itself, nothing under it.
-    expect(discoveryCallUrl("https://x.calendly.com/kikai")).toBeNull();
-    expect(discoveryCallUrl("")).toBeNull();
-    expect(discoveryCallUrl(undefined)).toBeNull();
+    expect(consultationBooking("https://x.calendly.com/kikai")).toBeNull();
+    expect(consultationBooking("")).toBeNull();
+    expect(consultationBooking(undefined)).toBeNull();
+  });
+
+  it("takes a Google Calendar booking page, in Google's embeddable form", () => {
+    const embed = "https://calendar.google.com/calendar/appointments/schedules/AcZssZ1abc_DEF-2?gv=true";
+    expect(consultationBooking("https://calendar.google.com/calendar/appointments/schedules/AcZssZ1abc_DEF-2")).toEqual({
+      kind: "google",
+      url: embed,
+    });
+    expect(
+      consultationBooking("https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ1abc_DEF-2?pli=1")?.url
+    ).toBe(embed);
+    // Some other Google Calendar page is not a booking page.
+    expect(consultationBooking("https://calendar.google.com/calendar/u/0/r")).toBeNull();
+    expect(consultationBooking("https://calendar.google.evil.com/calendar/appointments/schedules/x")).toBeNull();
+  });
+
+  it("knows a Google short link when it sees one", () => {
+    expect(isGoogleShortLink("https://calendar.app.google/AbC123")).toBe(true);
+    expect(isGoogleShortLink("https://calendly.com/kikai")).toBe(false);
+    // Short links cannot be framed, so they are never taken as they are.
+    expect(consultationBooking("https://calendar.app.google/AbC123")).toBeNull();
   });
 
   it("opens Calendly with their name and email already filled in", () => {
@@ -86,5 +111,44 @@ describe("the discovery call", () => {
     expect(url.searchParams.get("email")).toBe("jo@shogo.co.uk");
     expect(url.searchParams.get("embed_domain")).toBe("crm.example");
     expect(url.searchParams.get("hide_gdpr_banner")).toBe("1");
+  });
+});
+
+describe("following a Google short link", () => {
+  const page = "https://calendar.google.com/calendar/appointments/schedules/AcZssZ9xyz";
+  const reply = (url: string, body = "") => (async () => ({ url, text: async () => body })) as unknown as typeof fetch;
+
+  it("lands on the booking page a redirect leads to", async () => {
+    expect(await followGoogleShortLink("https://calendar.app.google/a", reply(page))).toEqual({
+      kind: "google",
+      url: `${page}?gv=true`,
+    });
+  });
+
+  it("reads the booking page from the link's own page when there is no redirect", async () => {
+    const html = `<html><a href="${page}?pli=1">Open</a></html>`;
+    expect((await followGoogleShortLink("https://calendar.app.google/a", reply("https://calendar.app.google/a", html)))?.url).toBe(
+      `${page}?gv=true`
+    );
+  });
+
+  it("gives up quietly when the link leads nowhere useful", async () => {
+    expect(await followGoogleShortLink("https://calendar.app.google/a", reply("https://calendar.app.google/a", "Not found"))).toBeNull();
+    const failing = (async () => {
+      throw new Error("offline");
+    }) as unknown as typeof fetch;
+    expect(await followGoogleShortLink("https://calendar.app.google/a", failing)).toBeNull();
+  });
+
+  it("reads CONSULTATION_URL, and DISCOVERY_CALL_URL, its first name, when that is all there is", async () => {
+    vi.stubEnv("CONSULTATION_URL", "");
+    vi.stubEnv("DISCOVERY_CALL_URL", "https://calendly.com/kikai/old");
+    expect((await consultationBookingFromEnv())?.url).toBe("https://calendly.com/kikai/old");
+    vi.stubEnv("CONSULTATION_URL", "https://calendly.com/kikai/new");
+    expect((await consultationBookingFromEnv())?.url).toBe("https://calendly.com/kikai/new");
+    vi.stubEnv("CONSULTATION_URL", "");
+    vi.stubEnv("DISCOVERY_CALL_URL", "");
+    expect(await consultationBookingFromEnv()).toBeNull();
+    vi.unstubAllEnvs();
   });
 });

@@ -19,6 +19,7 @@ import {
   checkOwnerName,
   checkPhone,
   type Checked,
+  type ConsultationBooking,
   type FunnelField,
 } from "@/lib/funnel";
 
@@ -96,10 +97,10 @@ const TEXT_STEPS: Record<"businessName" | "ownerName" | "phone" | "email", TextS
 };
 
 /**
- * @param bookingUrl  The Calendly page for a 30-minute discovery call
- *   (DISCOVERY_CALL_URL). Without one, the funnel ends at the thank-you.
+ * @param booking  Where they book a free consultation (CONSULTATION_URL):
+ *   Calendly or Google Calendar. Without one, the funnel ends at the thanks.
  */
-export function LeadFunnel({ bookingUrl }: { bookingUrl?: string | null }) {
+export function LeadFunnel({ booking }: { booking?: ConsultationBooking | null }) {
   const [answers, setAnswers] = useState<Answers>(EMPTY);
   const [step, setStep] = useState<Step>("hasSystem");
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +112,7 @@ export function LeadFunnel({ bookingUrl }: { bookingUrl?: string | null }) {
   const done = stage === "done";
   const steps = stepsFor(answers.hasSystem);
   // The booking screen counts as the last step.
-  const total = steps.length + (bookingUrl ? 1 : 0);
+  const total = steps.length + (booking ? 1 : 0);
   const index = stage === "call" ? steps.length : steps.indexOf(step);
   const progress = done ? 1 : index / total;
 
@@ -149,7 +150,7 @@ export function LeadFunnel({ bookingUrl }: { bookingUrl?: string | null }) {
         setError(data.error || "Something went wrong. Try again.");
         return;
       }
-      setStage(bookingUrl ? "call" : "done");
+      setStage(booking ? "call" : "done");
     } catch {
       setError("No connection. Check the internet and try again.");
     } finally {
@@ -205,10 +206,10 @@ export function LeadFunnel({ bookingUrl }: { bookingUrl?: string | null }) {
 
           {stage === "done" ? (
             <Done name={answers.ownerName} email={answers.email} booked={booked} onReset={reset} />
-          ) : stage === "call" && bookingUrl ? (
+          ) : stage === "call" && booking ? (
             <BookCall
               number={index + 1}
-              url={bookingUrl}
+              booking={booking}
               name={answers.ownerName}
               email={answers.email}
               onBooked={() => setBooked(true)}
@@ -537,24 +538,34 @@ export function calendlyEmbedUrl(base: string, who: { name: string; email: strin
 
 function BookCall({
   number,
-  url,
+  booking,
   name,
   email,
   onBooked,
   onFinish,
 }: {
   number: number;
-  url: string;
+  booking: ConsultationBooking;
   name: string;
   email: string;
   onBooked: () => void;
   onFinish: () => void;
 }) {
-  const [src] = useState(() => calendlyEmbedUrl(url, { name, email }, window.location.host));
+  const calendly = booking.kind === "calendly";
+  // Google's booking page takes nothing in from the link; Calendly's does.
+  const [src] = useState(() =>
+    calendly ? calendlyEmbedUrl(booking.url, { name, email }, window.location.host) : booking.url
+  );
   const [booked, setBooked] = useState(false);
+  const markBooked = () => {
+    setBooked(true);
+    onBooked();
+  };
 
   // Calendly tells the page when a time is booked; then this screen is done.
+  // Google says nothing, so there the person taps "I've booked it".
   useEffect(() => {
+    if (!calendly) return;
     const onMessage = (e: MessageEvent) => {
       if (!/^https:\/\/([a-z0-9-]+\.)?calendly\.com$/.test(e.origin)) return;
       const data = e.data as { event?: string } | null;
@@ -565,7 +576,7 @@ function BookCall({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [onBooked]);
+  }, [calendly, onBooked]);
 
   // A tablet left on this screen moves on by itself, so the next person
   // never finds someone else's name filled in.
@@ -578,19 +589,32 @@ function BookCall({
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
       <Eyebrow number={number} />
       <h1 className="font-heading text-2xl font-semibold leading-tight sm:text-4xl">
-        Book a 30-minute discovery call?
+        Book a free consultation?
       </h1>
       <p className="mt-3 text-base text-muted-foreground sm:text-lg">
-        Your details are saved. Pick a time that suits you, and we&apos;ll show you how it would work for your salon.
+        Your details are saved. Pick a 30-minute slot that suits you, and we&apos;ll show you how it would work for
+        your salon.
       </p>
       <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card">
         <iframe
           src={src}
-          title="Book a 30-minute discovery call"
+          title="Book a free consultation"
           className="block h-[680px] w-full sm:h-[720px]"
         />
       </div>
-      <div className="mt-6 flex items-center gap-3">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        {!calendly && !booked && (
+          <button
+            type="button"
+            onClick={() => {
+              markBooked();
+              onFinish();
+            }}
+            className="inline-flex h-12 items-center gap-2 rounded-xl bg-primary px-5 font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            I&apos;ve booked it <Check className="h-4 w-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={onFinish}
@@ -649,7 +673,7 @@ function Done({
         <p className="mt-3 flex items-start gap-2 text-lg text-muted-foreground">
           <CalendarCheck className="mt-1 h-5 w-5 shrink-0 text-primary" />
           <span>
-            Your discovery call is booked. The invite is on its way
+            Your free consultation is booked. The invite is on its way
             {email ? <> to <span className="text-foreground">{email.trim()}</span></> : null}.
           </span>
         </p>
