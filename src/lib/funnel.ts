@@ -88,16 +88,49 @@ export function checkAnswers(
 }
 
 /**
- * The Calendly page for a 30-minute discovery call, offered once their
- * details are in (DISCOVERY_CALL_URL). Only a calendly.com address over
- * https: the page frames it, and the security policy allows that host alone.
+ * Where they book a free consultation, offered once their details are in:
+ * a Calendly page, or a Google Calendar booking page. Only these two hosts,
+ * over https: the page frames the link, and the security policy allows
+ * exactly these.
+ *
+ * - Calendly: shown with their name and email filled in, and it tells the
+ *   page when a time is booked.
+ * - Google Calendar: the booking page's own link
+ *   (calendar.google.com/calendar/appointments/schedules/...), set to
+ *   Google's embeddable form. Google fills nothing in and says nothing back.
+ *   A short calendar.app.google link cannot be framed; the server turns it
+ *   into the full one first (consultation-link.ts).
  */
-export function discoveryCallUrl(raw = process.env.DISCOVERY_CALL_URL): string | null {
+export type ConsultationBooking = { kind: "calendly" | "google"; url: string };
+
+export function consultationBooking(raw: string | null | undefined): ConsultationBooking | null {
+  let url: URL;
   try {
-    const url = new URL((raw ?? "").trim());
-    return url.protocol === "https:" && url.hostname === "calendly.com" ? url.toString() : null;
+    url = new URL((raw ?? "").trim());
   } catch {
     return null;
+  }
+  if (url.protocol !== "https:") return null;
+  if (url.hostname === "calendly.com") return { kind: "calendly", url: url.toString() };
+  if (url.hostname === "calendar.google.com") {
+    // ".../calendar/u/0/appointments/schedules/<id>" and the like.
+    const id = url.pathname.match(/\/appointments\/schedules\/([A-Za-z0-9_-]+)/)?.[1];
+    if (!id) return null;
+    return {
+      kind: "google",
+      url: `https://calendar.google.com/calendar/appointments/schedules/${id}?gv=true`,
+    };
+  }
+  return null;
+}
+
+/** Google's short share link, which has to be turned into the full one before it can be shown. */
+export function isGoogleShortLink(raw: string | null | undefined): boolean {
+  try {
+    const url = new URL((raw ?? "").trim());
+    return url.protocol === "https:" && url.hostname === "calendar.app.google";
+  } catch {
+    return false;
   }
 }
 

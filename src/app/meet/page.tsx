@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { LeadFunnel } from "@/components/funnel/lead-funnel";
-import { discoveryCallUrl } from "@/lib/funnel";
+import { consultationBookingFromEnv } from "@/lib/consultation-link";
 
 /**
  * The in-person lead funnel. Deliberately linked from nowhere: it is opened
@@ -15,6 +15,6 @@ export const metadata: Metadata = {
 // The booking link is read on each visit, so changing it needs no rebuild.
 export const dynamic = "force-dynamic";
 
-export default function MeetPage() {
-  return <LeadFunnel bookingUrl={discoveryCallUrl()} />;
+export default async function MeetPage() {
+  return <LeadFunnel booking={await consultationBookingFromEnv()} />;
 }
