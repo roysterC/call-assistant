@@ -54,4 +54,10 @@ describe("contentSecurityPolicy", () => {
     expect(contentSecurityPolicy("'none'")).not.toContain("'unsafe-eval'");
     expect(contentSecurityPolicy("'none'")).toContain("object-src 'none'");
   });
+
+  it("lets the microphone's audio worklet load from a blob: URL", () => {
+    // Worklets are checked against script-src; without this the assistant
+    // cannot listen.
+    expect(contentSecurityPolicy("'none'")).toMatch(/script-src [^;]*blob:/);
+  });
 });
