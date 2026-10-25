@@ -38,7 +38,10 @@ export function contentSecurityPolicy(frameAncestors: string, o: HeaderOptions =
   const connect = ["'self'", originOf(o.voiceUrl), ...(o.connectOrigins ?? [])].filter(Boolean);
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
-    "script-src": ["'self'", "'unsafe-inline'", ...(o.dev ? ["'unsafe-eval'"] : [])],
+    // blob: for the microphone: the assistant and the receptionist lab load
+    // their audio worklet from a blob: URL, and a worklet is a script, not a
+    // worker, so worker-src does not cover it.
+    "script-src": ["'self'", "'unsafe-inline'", "blob:", ...(o.dev ? ["'unsafe-eval'"] : [])],
     "style-src": ["'self'", "'unsafe-inline'"],
     // Instagram and Messenger profile pictures, and chat widget logos.
     "img-src": ["'self'", "data:", "blob:", "https:"],
