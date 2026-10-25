@@ -237,6 +237,19 @@ describe("salonDayRange", () => {
     expect(to).toBe("2026-09-18T23:00:00.000Z");
   });
 
+  it("runs midnight to midnight on the days the clocks change", () => {
+    // 25 hours as they go back, so a late booking is not left off the diary.
+    expect(salonDayRange("2026-10-25", TZ)).toEqual({
+      from: "2026-10-24T23:00:00.000Z",
+      to: "2026-10-26T00:00:00.000Z",
+    });
+    // 23 as they go forward, so Monday's first hour is not drawn on Sunday.
+    expect(salonDayRange("2026-03-29", TZ)).toEqual({
+      from: "2026-03-29T00:00:00.000Z",
+      to: "2026-03-29T23:00:00.000Z",
+    });
+  });
+
   it("bounds a GMT day at UTC midnight, because they coincide", () => {
     const { from } = salonDayRange("2026-12-18", TZ);
     expect(from).toBe("2026-12-18T00:00:00.000Z");

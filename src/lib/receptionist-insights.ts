@@ -9,7 +9,7 @@
  * salon's own, in its time zone.
  */
 
-import { isOpenAt, zonedDateString, zonedParts, type BusinessHours } from "@/lib/business-hours";
+import { addCalendarDays, isOpenAt, zonedDateString, zonedParts, type BusinessHours } from "@/lib/business-hours";
 
 export interface InsightCall {
   createdAt: Date;
@@ -68,9 +68,8 @@ export function summariseReceptionist(input: {
   now: Date;
 }): ReceptionistInsights {
   const { calls, bookings, hours, timeZone, now } = input;
-  const start = new Date(now.getTime() - (input.days - 1) * 24 * 60 * 60 * 1000);
-  const from = zonedDateString(start, timeZone);
   const to = zonedDateString(now, timeZone);
+  const from = addCalendarDays(to, -(input.days - 1));
 
   const daily = new Map(datesBetween(from, to).map((day) => [day, { day, calls: 0, bookings: 0 }]));
   const hourly = Array.from({ length: 24 }, (_, hour) => ({ hour, calls: 0 }));

@@ -176,6 +176,18 @@ export function addCalendarDays(date: string, days: number): string {
   return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
 }
 
+/**
+ * A salon day from its midnight to the next. Not always 24 hours: the day
+ * the clocks go back has 25, the day they go forward 23.
+ */
+export function zonedDayBounds(date: string, timeZone: string): { start: Date; end: Date } {
+  const midnight = (d: string) => {
+    const { year, month, day } = parseDateOnly(d);
+    return zonedWallTimeToUtc(year, month, day, 0, 0, timeZone);
+  };
+  return { start: midnight(date), end: midnight(addCalendarDays(date, 1)) };
+}
+
 // -------------------------------------------------------------------------
 // Parsing / validation
 // -------------------------------------------------------------------------
@@ -333,9 +345,9 @@ export function nextOpenMorning(
 ): Date | null {
   if (hours.length === 0) return null;
 
+  const firstDay = zonedDateString(from, timeZone);
   for (let offset = 0; offset < 14; offset++) {
-    const probe = new Date(from.getTime() + offset * 24 * 60 * 60 * 1000);
-    const win = openWindowFor(hours, timeZone, zonedDateString(probe, timeZone));
+    const win = openWindowFor(hours, timeZone, addCalendarDays(firstDay, offset));
     if (!win) continue;
     if (win.start >= from) return win.start;
     // Opening time already passed; if the salon is still open, "next" is now.
@@ -404,8 +416,9 @@ export function resolveSpokenDate(
   // Already a calendar date.
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
 
-  const addDays = (n: number) =>
-    zonedDateString(new Date(now.getTime() + n * 24 * 60 * 60 * 1000), timeZone);
+  // On the calendar: the night the clocks change, 24 hours on can still be
+  // today, or already the day after tomorrow.
+  const addDays = (n: number) => addCalendarDays(zonedDateString(now, timeZone), n);
   const today = zonedParts(now, timeZone);
 
   // "Tuesday morning", "tomorrow first thing": the day is what matters here;
@@ -471,8 +484,8 @@ export function resolveSpokenPastDate(
   // Counted on the calendar, not in 24-hour steps: the night the clocks go
   // back, 24 hours before midnight is still today.
   const today = zonedParts(now, timeZone);
-  const back = (n: number) => new Date(Date.UTC(today.year, today.month - 1, today.day - n)).toISOString().slice(0, 10);
-  const todayText = back(0);
+  const todayText = zonedDateString(now, timeZone);
+  const back = (n: number) => addCalendarDays(todayText, -n);
 
   if (text === "today" || text === "this morning" || text === "earlier today") return back(0);
   if (text === "yesterday") return back(1);
@@ -618,10 +631,7 @@ export function describeAppointmentWhen(
 ): string {
   const target = zonedDateString(at, timeZone);
   const today = zonedDateString(now, timeZone);
-  const tomorrow = zonedDateString(
-    new Date(now.getTime() + 24 * 60 * 60 * 1000),
-    timeZone
-  );
+  const tomorrow = addCalendarDays(today, 1);
 
   const { hour, minute } = zonedParts(at, timeZone);
   const h12 = hour % 12 === 0 ? 12 : hour % 12;

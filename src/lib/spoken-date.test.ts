@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { resolveSpokenDate, resolveSpokenPastDate, zonedIsoString, zonedParts } from "./business-hours";
+import {
+  describeAppointmentWhen,
+  resolveSpokenDate,
+  resolveSpokenPastDate,
+  zonedDayBounds,
+  zonedIsoString,
+  zonedParts,
+} from "./business-hours";
 
 const TZ = "Europe/London";
 // A Sunday, so every weekday name resolves within the following week.
@@ -154,5 +161,38 @@ describe("zonedIsoString", () => {
     const at = new Date("2026-10-06T12:15:00.000Z");
     expect(new Date(zonedIsoString(at, "Europe/London")).toISOString()).toBe(at.toISOString());
     expect(new Date(zonedIsoString(at, "America/St_Johns")).toISOString()).toBe(at.toISOString());
+  });
+});
+
+describe("the nights the clocks change", () => {
+  // 12:30am BST on Sunday 25 October 2026; the clocks go back at 2am.
+  const autumn = new Date("2026-10-24T23:30:00Z");
+  // 12:30am GMT on Sunday 29 March 2026; the clocks go forward at 1am.
+  const spring = new Date("2026-03-29T00:30:00Z");
+  // 11:30pm GMT on 25 October, the first evening of winter time.
+  const autumnLate = new Date("2026-10-25T23:30:00Z");
+
+  it("still knows which day tomorrow is", () => {
+    expect(resolveSpokenDate("today", TZ, autumn)).toBe("2026-10-25");
+    expect(resolveSpokenDate("tomorrow", TZ, autumn)).toBe("2026-10-26");
+    expect(resolveSpokenDate("Monday", TZ, autumn)).toBe("2026-10-26");
+    expect(resolveSpokenDate("tomorrow", TZ, autumnLate)).toBe("2026-10-26");
+    expect(resolveSpokenDate("today", TZ, spring)).toBe("2026-03-29");
+    expect(resolveSpokenDate("tomorrow", TZ, spring)).toBe("2026-03-30");
+    expect(resolveSpokenDate("in a week", TZ, spring)).toBe("2026-04-05");
+  });
+
+  it("says tomorrow in a text about tomorrow", () => {
+    expect(describeAppointmentWhen(new Date("2026-10-26T10:00:00Z"), TZ, autumn)).toBe("tomorrow at 10am");
+    expect(describeAppointmentWhen(new Date("2026-03-30T09:00:00Z"), TZ, spring)).toBe("tomorrow at 10am");
+  });
+
+  it("gives the day its 25 or 23 hours", () => {
+    const back = zonedDayBounds("2026-10-25", TZ);
+    expect(back.start.toISOString()).toBe("2026-10-24T23:00:00.000Z");
+    expect(back.end.toISOString()).toBe("2026-10-26T00:00:00.000Z");
+    const forward = zonedDayBounds("2026-03-29", TZ);
+    expect(forward.start.toISOString()).toBe("2026-03-29T00:00:00.000Z");
+    expect(forward.end.toISOString()).toBe("2026-03-29T23:00:00.000Z");
   });
 });
