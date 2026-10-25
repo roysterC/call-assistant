@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveSpokenDate, zonedIsoString, zonedParts } from "./business-hours";
+import { resolveSpokenDate, resolveSpokenPastDate, zonedIsoString, zonedParts } from "./business-hours";
 
 const TZ = "Europe/London";
 // A Sunday, so every weekday name resolves within the following week.
@@ -106,6 +106,41 @@ describe("resolveSpokenDate: what British callers actually say", () => {
 
 // --- Times handed to the model, in the salon's own clock ---------------------
 
+
+describe("resolveSpokenPastDate: a day already gone, for a patch test", () => {
+  it("looks back, not forward", () => {
+    expect(resolveSpokenPastDate("today", TZ, SUNDAY)).toBe("2026-09-13");
+    expect(resolveSpokenPastDate("yesterday", TZ, SUNDAY)).toBe("2026-09-12");
+    expect(resolveSpokenPastDate("three days ago", TZ, SUNDAY)).toBe("2026-09-10");
+    expect(resolveSpokenPastDate("a week ago", TZ, SUNDAY)).toBe("2026-09-06");
+  });
+
+  it("counts days on the calendar across the clocks going back", () => {
+    // 11:30pm on 25 October 2026, the first night of GMT: 24 hours earlier
+    // was 12:30am on the 25th, in summer time.
+    const lateOnChangeDay = new Date("2026-10-25T23:30:00Z");
+    expect(resolveSpokenPastDate("today", TZ, lateOnChangeDay)).toBe("2026-10-25");
+    expect(resolveSpokenPastDate("yesterday", TZ, lateOnChangeDay)).toBe("2026-10-24");
+    expect(resolveSpokenPastDate("a week ago", TZ, lateOnChangeDay)).toBe("2026-10-18");
+  });
+
+  it("takes a weekday as the last one before today", () => {
+    expect(resolveSpokenPastDate("Thursday", TZ, SUNDAY)).toBe("2026-09-10");
+    expect(resolveSpokenPastDate("last Thursday", TZ, SUNDAY)).toBe("2026-09-10");
+    expect(resolveSpokenPastDate("on Friday", TZ, SUNDAY)).toBe("2026-09-11");
+    // Sunday said on a Sunday: a week ago; today would have been "today".
+    expect(resolveSpokenPastDate("Sunday", TZ, SUNDAY)).toBe("2026-09-06");
+  });
+
+  it("takes a date that has passed, and nothing still to come", () => {
+    expect(resolveSpokenPastDate("2026-09-01", TZ, SUNDAY)).toBe("2026-09-01");
+    expect(resolveSpokenPastDate("the 3rd of September", TZ, SUNDAY)).toBe("2026-09-03");
+    expect(resolveSpokenPastDate("tomorrow", TZ, SUNDAY)).toBeNull();
+    expect(resolveSpokenPastDate("2026-09-20", TZ, SUNDAY)).toBeNull();
+    expect(resolveSpokenPastDate("whenever", TZ, SUNDAY)).toBeNull();
+    expect(resolveSpokenPastDate("", TZ, SUNDAY)).toBeNull();
+  });
+});
 
 describe("zonedIsoString", () => {
   it("gives the time as the caller heard it, with the offset, in summer and winter", () => {

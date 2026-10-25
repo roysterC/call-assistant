@@ -19,7 +19,20 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarCheck, Loader2, MessageSquareText, Mic, MicOff, NotebookPen, Send, Sparkles, Volume2, VolumeX, X } from "lucide-react";
+import {
+  CalendarCheck,
+  Loader2,
+  MessageSquareText,
+  Mic,
+  MicOff,
+  NotebookPen,
+  Send,
+  Sparkles,
+  UserPen,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +42,7 @@ import { CAPTURE_WORKLET, MIC_RATE } from "@/components/receptionist/capture-wor
 
 export interface VoiceDraft {
   id: string;
-  kind: "book" | "move" | "cancel" | "note" | "text";
+  kind: "book" | "move" | "cancel" | "note" | "text" | "details";
   clientName: string;
   // Bookings, moves and cancellations.
   service?: string;
@@ -49,6 +62,8 @@ export interface VoiceDraft {
   body?: string;
   /** How many texts the body will be billed as. */
   segments?: number;
+  // A change to the client's details, old beside new.
+  changes?: { label: string; from: string | null; to: string }[];
 }
 
 /** Tells any open diary that it has changed, so it reloads (and can show the day). */
@@ -71,8 +86,16 @@ const KIND_LABEL = {
   cancel: "Cancel booking",
   note: "Add a note",
   text: "Send a text",
+  details: "Update details",
 } as const;
-const SAVE_LABEL = { book: "Save", move: "Save", cancel: "Cancel booking", note: "Add note", text: "Send text" } as const;
+const SAVE_LABEL = {
+  book: "Save",
+  move: "Save",
+  cancel: "Cancel booking",
+  note: "Add note",
+  text: "Send text",
+  details: "Update",
+} as const;
 
 const SPEAK_KEY = "kikai.assistant.speak";
 
@@ -476,6 +499,8 @@ export function Assistant() {
                     <NotebookPen className="h-3.5 w-3.5" />
                   ) : draft.kind === "text" ? (
                     <MessageSquareText className="h-3.5 w-3.5" />
+                  ) : draft.kind === "details" ? (
+                    <UserPen className="h-3.5 w-3.5" />
                   ) : (
                     <CalendarCheck className="h-3.5 w-3.5" />
                   )}
@@ -498,6 +523,19 @@ export function Assistant() {
                       </p>
                     )}
                   </>
+                )}
+                {draft.changes && (
+                  <dl className="mt-1 space-y-1 text-sm">
+                    {draft.changes.map((c) => (
+                      <div key={c.label}>
+                        <dt className="text-xs text-muted-foreground">{c.label}</dt>
+                        <dd>
+                          {c.from && <span className="mr-2 text-muted-foreground line-through">{c.from}</span>}
+                          <span className="font-medium break-all">{c.to}</span>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
                 )}
                 {draft.service && <p className="text-sm">{draft.service}</p>}
                 {draft.from && (

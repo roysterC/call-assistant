@@ -353,8 +353,12 @@ page. Staff talk to it (or type) at the desk or on their phone:
   (the same figures as the Sales report, `src/lib/takings.ts`).
 - **Things to do** become a card, and nothing happens until "yes" or a tap:
   book, move or cancel (with "and text her" for the client's text), add a
-  note to a client's page, or send a client a text (owners only). "Yes. And
-  how much did we take last week?" saves the card, then answers.
+  note to a client's page, send a client a text (owners only), or change a
+  client's name, number, email or patch test date ("Sarah's new number
+  is…", "Jo had her patch test today"), with the old value struck through
+  beside the new. A number or email another client already has is refused,
+  as on the client's page. "Yes. And how much did we take last week?" saves
+  the card, then answers.
 
 How it is built:
 

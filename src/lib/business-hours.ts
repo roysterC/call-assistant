@@ -449,6 +449,48 @@ export function resolveSpokenDate(
 }
 
 /**
+ * A day already gone, as said at the desk: "today", "yesterday", "three days
+ * ago", "a week ago", "Monday" or "last Monday" (the most recent one before
+ * today), or a calendar date that has already passed. For something that
+ * happened, such as a patch test; `resolveSpokenDate` looks forward, for
+ * bookings. Null when it cannot be placed, or would be in the future.
+ */
+export function resolveSpokenPastDate(
+  input: string | undefined,
+  timeZone: string,
+  now: Date = new Date()
+): string | null {
+  const text = (input ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[,!?.]/g, " ")
+    .replace(/^(on|it was)\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return null;
+  // Counted on the calendar, not in 24-hour steps: the night the clocks go
+  // back, 24 hours before midnight is still today.
+  const today = zonedParts(now, timeZone);
+  const back = (n: number) => new Date(Date.UTC(today.year, today.month - 1, today.day - n)).toISOString().slice(0, 10);
+  const todayText = back(0);
+
+  if (text === "today" || text === "this morning" || text === "earlier today") return back(0);
+  if (text === "yesterday") return back(1);
+  const ago = /^(a|an|one|two|three|four|five|six|\d{1,2}) (day|days|week|weeks) ago$/.exec(text);
+  if (ago) {
+    const n = COUNT_WORDS[ago[1]] ?? Number(ago[1]);
+    return back(ago[2].startsWith("week") ? n * 7 : n);
+  }
+  const weekday = WEEKDAY_NAMES[text.replace(/^last\s+/, "")];
+  if (weekday !== undefined) {
+    const delta = (today.weekday - weekday + 7) % 7;
+    return back(delta === 0 ? 7 : delta);
+  }
+  const resolved = resolveSpokenDate(text, timeZone, now);
+  return resolved && resolved <= todayText ? resolved : null;
+}
+
+/**
  * Days from today to the next such weekday, strictly after today. Someone
  * ringing an after-hours line and saying "Thursday" on a Thursday evening
  * means the following week; if they meant today they would have said so.

@@ -19,6 +19,7 @@ import {
   findClients,
   proposeBooking,
   proposeCancel,
+  proposeDetails,
   proposeMove,
   proposeNote,
   proposeText,
@@ -119,6 +120,26 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "propose_client_details",
+    description:
+      "Show a change to a client's details on screen, for the person to save: their name, mobile number, email, " +
+      "or the day of a patch test they have had. Give only what changes. clientId from find_client.",
+    input_schema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string" },
+        name: { type: "string", description: "The whole new name, first and last, as it should read" },
+        phone: { type: "string", description: "The new number, digits as said" },
+        email: { type: "string" },
+        patchTestDate: {
+          type: "string",
+          description: "The day of the test in the words used ('today', 'yesterday', 'last Tuesday'), or as YYYY-MM-DD",
+        },
+      },
+      required: ["clientId"],
+    },
+  },
+  {
     name: "propose_booking",
     description:
       "Show a new booking on screen for the person to save. Nothing is saved. Give clientId from find_client " +
@@ -203,6 +224,11 @@ Doing things (every one of these only puts a card on screen):
 - Move or cancel: find_client, find_bookings, then propose_move or
   propose_cancel. Pick the booking described; ask only if you cannot tell.
 - "And text her": set textClient on that proposal.
+- Their details: find_client, then propose_client_details with only what
+  changes. "Sarah's new number is…", "her email is…", "she's married, it's
+  Sarah Smith now", "Jo had her patch test today". Spell an email back if
+  any part of it is unclear. Removing a number or email is done on the
+  client's page.
 - A note: propose_note. A text of its own (running late, a gap has opened):
   propose_text, written in full, short and friendly, signed with the salon's
   name. Keep it under 160 characters and leave out emoji: a longer one is
@@ -316,6 +342,16 @@ export async function startVoiceBooking(
           return propose(await proposeNote(asker, { clientId: str(i.clientId), note: str(i.note) }));
         case "propose_text":
           return propose(await proposeText(asker, { clientId: str(i.clientId), message: str(i.message) }));
+        case "propose_client_details":
+          return propose(
+            await proposeDetails(asker, {
+              clientId: str(i.clientId),
+              name: str(i.name),
+              phone: str(i.phone),
+              email: str(i.email),
+              patchTestDate: str(i.patchTestDate),
+            })
+          );
         case "propose_booking":
           return propose(
             await proposeBooking(asker, {
@@ -364,6 +400,10 @@ export function describeDraft(d: Draft, timeZone: string): string {
     new Date(iso).toLocaleString("en-GB", { timeZone, weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit", hour12: true });
   if (d.kind === "note") return `Add to ${d.clientName}'s notes: "${d.note}"`;
   if (d.kind === "text") return `Text ${d.clientName}: "${d.body}"`;
+  if (d.kind === "details") {
+    const label = { name: "name", phone: "number", email: "email", patchTest: "patch test" } as const;
+    return `Update ${d.clientName}: ${d.changes.map((c) => `${label[c.field]} to ${c.to}`).join(", ")}`;
+  }
   const texting = d.text ? `, and text ${d.text.forName ? d.text.greet ?? "them" : d.clientName}` : "";
   if (d.kind === "book") return `${d.clientName}, ${d.service}, ${when(d.startsAt)} with ${d.stylist}${d.patchTestRequired ? " (skin test needed)" : ""}${texting}`;
   if (d.kind === "move") return `${d.clientName}'s ${d.service}, moving to ${when(d.startsAt)} with ${d.stylist}${texting}`;

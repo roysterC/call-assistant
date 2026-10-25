@@ -16,12 +16,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
-import { normalisePhone } from "@/lib/phone";
 import { getSalonConfig } from "@/lib/booking";
 import { parsePatchTestDate, patchTestDay } from "@/lib/patch-test";
 import { joinName } from "@/lib/client-name";
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { checkClientEmail, checkClientPhone } from "@/lib/client-details";
 
 /** A trimmed string, "" as nothing; undefined when the field was not sent. */
 function field(value: unknown): string | null | undefined {
@@ -142,23 +140,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const email = field(body.email);
     if (email !== undefined) {
-      const lower = email?.toLowerCase() ?? null;
-      if (lower && !EMAIL.test(lower)) {
-        return NextResponse.json({ error: "That email address does not look right." }, { status: 400 });
-      }
-      if (lower) {
-        const taken = await prisma.lead.findFirst({
-          where: { organizationId: ctx.organizationId, email: lower, id: { not: id } },
-          select: { name: true },
-        });
-        if (taken) {
-          return NextResponse.json(
-            { error: `${taken.name ?? "Another client"} already has that email.` },
-            { status: 409 }
-          );
-        }
-      }
-      data.email = lower;
+      const checked = await checkClientEmail(ctx.organizationId, id, email);
+      if (!checked.ok) return NextResponse.json({ error: checked.message }, { status: checked.status });
+      data.email = checked.value;
     }
 
     // Taking a number away. Not while someone else books through it (a child
@@ -191,24 +175,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (typeof body.phone === "string" && body.phone.trim()) {
-      const parsed = normalisePhone(body.phone);
-      if (!parsed.ok) {
-        return NextResponse.json(
-          { error: `That number does not look right: ${parsed.reason}` },
-          { status: 400 }
-        );
-      }
-      const taken = await prisma.lead.findFirst({
-        where: { organizationId: ctx.organizationId, phone: parsed.e164, id: { not: id } },
-        select: { name: true },
-      });
-      if (taken) {
-        return NextResponse.json(
-          { error: `${taken.name ?? "Another client"} already has that number.` },
-          { status: 409 }
-        );
-      }
-      data.phone = parsed.e164;
+      const checked = await checkClientPhone(ctx.organizationId, id, body.phone);
+      if (!checked.ok) return NextResponse.json({ error: checked.message }, { status: checked.status });
+      data.phone = checked.value;
     }
 
     if (body.unlink === true && client.contactLeadId) {

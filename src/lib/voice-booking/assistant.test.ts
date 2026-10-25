@@ -37,6 +37,7 @@ vi.mock("./drafts", () => ({
   proposeCancel: vi.fn(),
   proposeNote: vi.fn(),
   proposeText: vi.fn(),
+  proposeDetails: vi.fn(),
 }));
 vi.mock("@/lib/receptionist/actions", () => ({ executeVapiFunction: vi.fn() }));
 vi.mock("./knowledge", () => ({ daySchedule: vi.fn(), clientHistory: vi.fn(), phoneMessages: vi.fn(), takings: vi.fn() }));
