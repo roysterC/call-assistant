@@ -383,6 +383,37 @@ How it is built:
   manifest). A phone that wants a touch before it uses the microphone gets one
   big "Tap to talk" instead.
 
+### Languages (English and Vietnamese)
+
+Each person chooses the language the CRM is shown in: Account → Language,
+or the English / Tiếng Việt switch on the login page (saved to their account
+when they sign in). It is per person, so an owner can work in English while
+their stylists use Vietnamese, and it follows them to any device.
+
+Translated so far: what staff use every day. That covers the menu, sign-in,
+Account, the Diary and every dialog opened from it, Clients, Callbacks, the
+Dashboard, the booking pop-ups, and the assistant's panel. Still English:
+Settings, Sales, Insights, Conversations, Websites, Call History, Admin, and
+messages that come from the server (an error saying why a booking was
+refused, for example). Anything clients see is unchanged (texts, the phone
+receptionist, the chat widget), and the personal assistant still listens and
+answers in English; its panel says so in Vietnamese.
+
+How it is built: `src/lib/i18n/`. Every message is a line in
+`messages/*.ts` with the English and the Vietnamese side by side, so a
+reviewer sees what each Vietnamese line is for. A missing translation fails
+the type check, and `i18n.test.ts` checks that both sides fill the same
+`{placeholders}` and that nothing was left in English by mistake. Screens use
+`useT()` (`src/components/providers/language-provider.tsx`) for `t(key)` and
+for the `locale` that dates and numbers are formatted in; Vietnamese uses the
+24-hour clock. The choice is kept on `User.language` and in the `kikai-lang`
+cookie, which the root layout reads so the page is rendered in the right
+language from the start.
+
+The Vietnamese was written for this, not by a native speaker: have one read
+it over in `messages/` before relying on it, especially the salon words
+(thợ for stylist, thử dị ứng for patch test, chặn giờ for blocked time).
+
 ### Booking alerts
 
 When the receptionist books someone in (on the phone, or in the receptionist

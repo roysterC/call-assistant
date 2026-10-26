@@ -31,6 +31,8 @@ import { apiFetch } from "@/lib/api-fetch";
 import { cn } from "@/lib/utils";
 import type { TimeBlockForm } from "@/lib/time-blocks";
 import { Field } from "./client-picker";
+import { useT } from "@/components/providers/language-provider";
+import type { MessageKey } from "@/lib/i18n";
 
 export type BlockDialogState =
   | { mode: "new"; initial: TimeBlockForm }
@@ -52,16 +54,18 @@ interface Affected {
 }
 
 const EVERYONE = "__everyone__";
-const LABELS = ["Lunch", "Holiday", "Training", "Personal"];
+// Quick labels, written in the language of whoever picks one: the label is
+// what everyone then sees on the block.
+const LABELS: MessageKey[] = ["block.lunch", "block.holiday", "block.training", "block.personal"];
 // Monday first, as a salon's week reads.
-const DAYS: Array<[number, string]> = [
-  [1, "Mon"],
-  [2, "Tue"],
-  [3, "Wed"],
-  [4, "Thu"],
-  [5, "Fri"],
-  [6, "Sat"],
-  [0, "Sun"],
+const DAYS: Array<[number, MessageKey]> = [
+  [1, "weekday.mon"],
+  [2, "weekday.tue"],
+  [3, "weekday.wed"],
+  [4, "weekday.thu"],
+  [5, "weekday.fri"],
+  [6, "weekday.sat"],
+  [0, "weekday.sun"],
 ];
 
 interface BlockTimeDialogProps {
@@ -72,9 +76,9 @@ interface BlockTimeDialogProps {
   onSaved: () => void;
 }
 
-function prettyDay(date: string): string {
+function prettyDay(date: string, locale: string): string {
   const [y, m, d] = date.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -95,6 +99,7 @@ export function BlockTimeDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { t, locale } = useT();
 
   useEffect(() => {
     setForm(state ? state.initial : null);
@@ -152,13 +157,13 @@ export function BlockTimeDialog({
       const res = await apiFetch(url, init);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "That did not save.");
+        setError(data.error || t("block.didNotSave"));
         return;
       }
       onSaved();
       onClose();
     } catch {
-      setError("Could not reach the server.");
+      setError(t("common.noServer"));
     } finally {
       setBusy(null);
     }
@@ -172,7 +177,7 @@ export function BlockTimeDialog({
     });
 
   const time = (at: string) =>
-    new Date(at).toLocaleString("en-GB", {
+    new Date(at).toLocaleString(locale, {
       weekday: "short",
       day: "numeric",
       month: "short",
@@ -186,11 +191,8 @@ export function BlockTimeDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className={`sm:max-w-lg ${PHONE_FULL_SCREEN}`}>
         <DialogHeader>
-          <DialogTitle>{state.mode === "edit" ? "Blocked time" : "Block time"}</DialogTitle>
-          <p className="text-xs text-muted-foreground">
-            Nobody can book this time by phone. At the desk you&apos;ll get a
-            warning but can still book it.
-          </p>
+          <DialogTitle>{state.mode === "edit" ? t("block.titleEdit") : t("block.titleNew")}</DialogTitle>
+          <p className="text-xs text-muted-foreground">{t("block.intro")}</p>
         </DialogHeader>
 
         <form
@@ -201,7 +203,7 @@ export function BlockTimeDialog({
           }}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Who" id="block-who">
+            <Field label={t("block.who")} id="block-who">
               <Select
                 value={form.stylistName ?? EVERYONE}
                 onValueChange={(v) =>
@@ -212,7 +214,7 @@ export function BlockTimeDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={EVERYONE}>Everyone (salon closed)</SelectItem>
+                  <SelectItem value={EVERYONE}>{t("block.everyone")}</SelectItem>
                   {stylists.map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}
@@ -221,32 +223,35 @@ export function BlockTimeDialog({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Label" id="block-label">
+            <Field label={t("block.label")} id="block-label">
               <Input
                 id="block-label"
                 value={form.label}
                 onChange={(e) => set({ label: e.target.value })}
-                placeholder="Lunch"
+                placeholder={t("block.lunch")}
                 maxLength={60}
               />
             </Field>
           </div>
           <div className="flex flex-wrap gap-1.5 -mt-2">
-            {LABELS.map((l) => (
-              <button
-                key={l}
-                type="button"
-                onClick={() => set({ label: l, ...(l === "Holiday" ? { allDay: true } : {}) })}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-xs",
-                  form.label === l
-                    ? "border-foreground text-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {l}
-              </button>
-            ))}
+            {LABELS.map((key) => {
+              const l = t(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => set({ label: l, ...(key === "block.holiday" ? { allDay: true } : {}) })}
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-xs",
+                    form.label === l
+                      ? "border-foreground text-foreground"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {l}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -263,7 +268,7 @@ export function BlockTimeDialog({
                     form.repeat === r ? "bg-muted text-foreground" : "text-muted-foreground"
                   )}
                 >
-                  {r === "none" ? "Doesn't repeat" : "Every week"}
+                  {r === "none" ? t("block.noRepeat") : t("block.weekly")}
                 </button>
               ))}
             </div>
@@ -274,13 +279,13 @@ export function BlockTimeDialog({
                 onChange={(e) => set({ allDay: e.target.checked })}
                 className="h-4 w-4 accent-foreground"
               />
-              All day
+              {t("block.allDay")}
             </label>
           </div>
 
           {weekly && (
             <div className="grid gap-1.5">
-              <span className="text-xs text-muted-foreground">On</span>
+              <span className="text-xs text-muted-foreground">{t("block.on")}</span>
               <div className="flex flex-wrap gap-1">
                 {DAYS.map(([d, name]) => {
                   const on = form.weekdays.includes(d);
@@ -303,7 +308,7 @@ export function BlockTimeDialog({
                           : "border-border text-muted-foreground"
                       )}
                     >
-                      {name}
+                      {t(name)}
                     </button>
                   );
                 })}
@@ -312,7 +317,7 @@ export function BlockTimeDialog({
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label={weekly ? "Starting" : "From"} id="block-start-date">
+            <Field label={weekly ? t("block.starting") : t("block.from")} id="block-start-date">
               <Input
                 id="block-start-date"
                 type="date"
@@ -327,7 +332,7 @@ export function BlockTimeDialog({
               />
             </Field>
             {weekly ? (
-              <Field label="Until (optional)" id="block-until">
+              <Field label={t("block.until")} id="block-until">
                 <Input
                   id="block-until"
                   type="date"
@@ -337,7 +342,7 @@ export function BlockTimeDialog({
                 />
               </Field>
             ) : (
-              <Field label="To" id="block-end-date">
+              <Field label={t("block.to")} id="block-end-date">
                 <Input
                   id="block-end-date"
                   type="date"
@@ -350,7 +355,7 @@ export function BlockTimeDialog({
             )}
             {!form.allDay && (
               <>
-                <Field label="Start time" id="block-start-time">
+                <Field label={t("block.startTime")} id="block-start-time">
                   <Input
                     id="block-start-time"
                     type="time"
@@ -360,7 +365,7 @@ export function BlockTimeDialog({
                     required
                   />
                 </Field>
-                <Field label="End time" id="block-end-time">
+                <Field label={t("block.endTime")} id="block-end-time">
                   <Input
                     id="block-end-time"
                     type="time"
@@ -381,13 +386,17 @@ export function BlockTimeDialog({
               <p className="flex gap-2 text-papaya-whip-100 mb-1.5">
                 <TriangleAlert className="h-4 w-4 shrink-0" />
                 {affected.length === 1
-                  ? "1 booking falls in this time. It stays booked; move it if you need to."
-                  : `${affected.length} bookings fall in this time. They stay booked; move them if you need to.`}
+                  ? t("block.affectedOne")
+                  : t("block.affectedMany", { n: affected.length })}
               </p>
               <ul className="grid gap-0.5 pl-6 text-muted-foreground max-h-32 overflow-y-auto">
                 {affected.map((a) => (
                   <li key={a.id} className="tabular-nums">
-                    {time(a.startsAt)} · {a.clientName ?? "Client"} with {a.stylistName}
+                    {t("block.affectedRow", {
+                      when: time(a.startsAt),
+                      client: a.clientName ?? t("grid.client"),
+                      stylist: a.stylistName,
+                    })}
                     {a.bookingNumber !== null && ` · #${a.bookingNumber}`}
                   </li>
                 ))}
@@ -408,7 +417,7 @@ export function BlockTimeDialog({
                     disabled={Boolean(busy)}
                     onClick={() => send("delete", endpoint, { method: "DELETE" })}
                   >
-                    {weekly ? "Delete every week" : "Delete it"}
+                    {weekly ? t("block.deleteWeekly") : t("block.deleteIt")}
                   </Button>
                 ) : (
                   <Button
@@ -418,7 +427,7 @@ export function BlockTimeDialog({
                     disabled={Boolean(busy)}
                     onClick={() => setConfirmDelete(true)}
                   >
-                    Delete
+                    {t("common.delete")}
                   </Button>
                 )}
                 {state.initial.repeat === "weekly" && (
@@ -435,17 +444,17 @@ export function BlockTimeDialog({
                       })
                     }
                   >
-                    Skip {prettyDay(state.occurrenceDate)} only
+                    {t("block.skipOnly", { day: prettyDay(state.occurrenceDate, locale) })}
                   </Button>
                 )}
               </div>
             ) : (
               <Button type="button" variant="ghost" onClick={onClose} disabled={Boolean(busy)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
             )}
             <Button type="submit" disabled={Boolean(busy) || !form.label.trim()}>
-              {busy === "save" ? "Saving…" : "Save"}
+              {busy === "save" ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </form>

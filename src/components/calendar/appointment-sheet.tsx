@@ -32,6 +32,8 @@ import { APPOINTMENT_STATUS } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 import { toneFor, type ServiceTone } from "@/lib/service-colours";
 import type { CalendarAppointment } from "./day-grid";
+import { useT } from "@/components/providers/language-provider";
+import type { MessageKey } from "@/lib/i18n";
 
 interface AppointmentSheetProps {
   appointment: CalendarAppointment | null;
@@ -55,11 +57,18 @@ function clockRange(startsAt: string, endsAt: string, timeZone: string): string 
   return `${fmt.format(new Date(startsAt))} – ${fmt.format(new Date(endsAt))}`;
 }
 
-const ACTIONS: Array<{ status: string; label: string }> = [
-  { status: "completed", label: "Done" },
-  { status: "no_show", label: "No show" },
-  { status: "cancelled", label: "Cancel" },
+const ACTIONS: Array<{ status: string; label: MessageKey }> = [
+  { status: "completed", label: "sheet.done" },
+  { status: "no_show", label: "sheet.noShow" },
+  { status: "cancelled", label: "sheet.cancel" },
 ];
+
+const STATUS_KEY: Record<string, MessageKey> = {
+  booked: "status.booked",
+  completed: "status.completed",
+  cancelled: "status.cancelled",
+  no_show: "status.no_show",
+};
 
 export function AppointmentSheet({
   appointment,
@@ -73,6 +82,7 @@ export function AppointmentSheet({
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
+  const { t } = useT();
 
   // Start from whatever is already recorded, then the price list. Reset per
   // appointment so last client's figure never rides along into this one.
@@ -103,13 +113,13 @@ export function AppointmentSheet({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || "Could not update that booking.");
+        setError(data.error || t("sheet.couldNotUpdate"));
         return;
       }
       onChanged();
       onClose();
     } catch {
-      setError("Could not reach the server.");
+      setError(t("common.noServer"));
     } finally {
       setSaving(null);
     }
@@ -122,7 +132,7 @@ export function AppointmentSheet({
     <Dialog open={Boolean(a)} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className={`sm:max-w-md ${PHONE_SHEET}`}>
         <DialogHeader>
-          <DialogTitle>{a?.lead.name ?? "Client"}</DialogTitle>
+          <DialogTitle>{a?.lead.name ?? t("grid.client")}</DialogTitle>
         </DialogHeader>
 
         {a && (
@@ -131,28 +141,28 @@ export function AppointmentSheet({
               <span
                 className={cn("rounded-md border px-2 py-0.5 text-xs", tone?.className)}
               >
-                {tone?.label ?? a.status}
+                {STATUS_KEY[a.status] ? t(STATUS_KEY[a.status]) : (tone?.label ?? a.status)}
               </span>
               <span className="text-muted-foreground text-xs">
-                booked {a.source === "voice" ? "by phone" : "at the desk"}
+                {a.source === "voice" ? t("sheet.bookedByPhone") : t("sheet.bookedAtDesk")}
               </span>
               {a.bookingNumber !== null && (
                 <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                  Booking #{a.bookingNumber}
+                  {t("sheet.bookingNumber", { n: a.bookingNumber })}
                 </span>
               )}
             </div>
 
             <dl className="grid grid-cols-[6rem_1fr] gap-y-2">
-              <dt className="text-muted-foreground text-xs pt-0.5">When</dt>
+              <dt className="text-muted-foreground text-xs pt-0.5">{t("sheet.when")}</dt>
               <dd className="tabular-nums">
                 {clockRange(a.startsAt, a.endsAt, timeZone)}{" "}
                 <span className="text-muted-foreground">
-                  ({a.durationMinutes} min)
+                  {t("sheet.minutes", { n: a.durationMinutes })}
                 </span>
               </dd>
 
-              <dt className="text-muted-foreground text-xs pt-0.5">Service</dt>
+              <dt className="text-muted-foreground text-xs pt-0.5">{t("sheet.service")}</dt>
               <dd className="flex items-center gap-2">
                 <span
                   className="h-2.5 w-2.5 rounded-sm shrink-0 border"
@@ -165,12 +175,12 @@ export function AppointmentSheet({
                 {a.serviceText}
               </dd>
 
-              <dt className="text-muted-foreground text-xs pt-0.5">Stylist</dt>
+              <dt className="text-muted-foreground text-xs pt-0.5">{t("sheet.stylist")}</dt>
               <dd>{a.stylistName}</dd>
 
               {a.lead.phone && (
                 <>
-                  <dt className="text-muted-foreground text-xs pt-0.5">Phone</dt>
+                  <dt className="text-muted-foreground text-xs pt-0.5">{t("sheet.phone")}</dt>
                   <dd>
                     <a
                       href={`tel:${a.lead.phone}`}
@@ -189,7 +199,7 @@ export function AppointmentSheet({
                 htmlFor="appointment-amount"
                 className="text-muted-foreground text-xs"
               >
-                Taken
+                {t("sheet.taken")}
               </label>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground text-sm">£</span>
@@ -203,20 +213,19 @@ export function AppointmentSheet({
                 />
                 {a.amountMinor === null && listPriceMinor != null && (
                   <span className="text-xs text-muted-foreground">
-                    list {formatMoney(listPriceMinor)}
+                    {t("sheet.listPrice", { price: formatMoney(listPriceMinor) })}
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Saved when you mark it done. This is the figure the sales
-                report counts.
+                {t("sheet.takenHint")}
               </p>
             </div>
 
             {a.patchTestRequired && (
               <p className="flex gap-2 text-xs text-papaya-whip-100">
                 <TriangleAlert className="h-4 w-4 shrink-0" />
-                Needs a skin patch test 48 hours before the colour.
+                {t("sheet.patchTest")}
               </p>
             )}
 
@@ -227,7 +236,7 @@ export function AppointmentSheet({
         <DialogFooter className="gap-2 sm:justify-between">
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose} disabled={Boolean(saving)}>
-              Close
+              {t("common.close")}
             </Button>
             {a && a.status !== "cancelled" && (
               <Button
@@ -237,7 +246,7 @@ export function AppointmentSheet({
                 onClick={onEdit}
                 disabled={Boolean(saving)}
               >
-                Edit
+                {t("common.edit")}
               </Button>
             )}
           </div>
@@ -254,7 +263,7 @@ export function AppointmentSheet({
                 onClick={() => setStatus(x.status)}
                 disabled={Boolean(saving)}
               >
-                {saving === x.status ? "…" : x.label}
+                {saving === x.status ? "…" : t(x.label)}
               </Button>
             ))}
           </div>

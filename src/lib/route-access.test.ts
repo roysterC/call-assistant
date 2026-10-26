@@ -35,7 +35,7 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   // The owner's question of the receptionist: is it earning its keep?
   "insights/receptionist": { GET: "owner" },
   leads: { GET: "members" },
-  me: { GET: "members" },
+  me: { GET: "members", PUT: "members" },
   "phone-numbers": { GET: "members" },
   // Booking alerts on this person's own phone or computer.
   push: { DELETE: "members", GET: "members", POST: "members" },

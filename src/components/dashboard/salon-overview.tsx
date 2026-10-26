@@ -17,7 +17,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, PersonCell, Pill, SubText, type ColumnDef } from "@/components/ui/data-table";
 import { apiFetch } from "@/lib/api-fetch";
 import { formatMoney } from "@/lib/money";
-import { plural } from "@/lib/plural";
+import { useT } from "@/components/providers/language-provider";
+import { DATE_FNS_LOCALE } from "@/lib/i18n";
 import { appointmentStatus, OUTCOME_STYLE, PATCH_TEST_BADGE, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 
@@ -94,8 +95,14 @@ function Section({
   );
 }
 
+const CALL_OUTCOMES = ["booked", "rescheduled", "cancelled", "message", "enquiry", "hung_up"] as const;
+const APPOINTMENT_STATUSES = ["booked", "completed", "cancelled", "no_show"] as const;
+const isOneOf = <T extends string>(list: readonly T[], v: string): v is T => (list as readonly string[]).includes(v);
+
 export function SalonOverview() {
   const router = useRouter();
+  const { t, lang, locale } = useT();
+  const dateLocale = DATE_FNS_LOCALE[lang];
   const [data, setData] = useState<Overview | null>(null);
   const [callbacks, setCallbacks] = useState<Callback[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,80 +128,87 @@ export function SalonOverview() {
 
   // The salon's clock, not the browser's: the diary is kept in the salon's time.
   const time = useMemo(() => {
-    const f = new Intl.DateTimeFormat("en-GB", {
+    const f = new Intl.DateTimeFormat(locale, {
       timeZone: data?.timeZone,
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
     return (iso: string) => f.format(new Date(iso));
-  }, [data?.timeZone]);
+  }, [data?.timeZone, locale]);
 
   const appointmentColumns = useMemo<ColumnDef<Appointment>[]>(
     () => [
       {
         id: "time",
-        header: "Time",
+        header: t("dash.time"),
         enableSorting: false,
         meta: { className: "whitespace-nowrap tabular-nums" },
         cell: ({ row: { original: a } }) => (
           <>
             {time(a.startsAt)}
-            <SubText>until {time(a.endsAt)}</SubText>
+            <SubText>{t("dash.until", { time: time(a.endsAt) })}</SubText>
           </>
         ),
       },
       {
         id: "client",
-        header: "Client",
+        header: t("dash.client"),
         enableSorting: false,
         cell: ({ row: { original: a } }) => <PersonCell name={a.lead.name} detail={a.serviceText} />,
       },
       {
         id: "stylist",
-        header: "Stylist",
+        header: t("dash.stylist"),
         enableSorting: false,
         meta: { className: "hidden whitespace-nowrap sm:table-cell", headerClassName: "hidden sm:table-cell" },
         accessorKey: "stylistName",
       },
       {
         id: "status",
-        header: "Status",
+        header: t("dash.status"),
         enableSorting: false,
         cell: ({ row: { original: a } }) => {
           const st = appointmentStatus(a.status);
           return (
             <span className="flex flex-wrap gap-1">
-              <span className={cn(STATUS_BADGE, st.className)}>{st.label}</span>
-              {a.patchTestRequired && <span className={cn(STATUS_BADGE, PATCH_TEST_BADGE)}>Patch test</span>}
+              <span className={cn(STATUS_BADGE, st.className)}>
+                {isOneOf(APPOINTMENT_STATUSES, a.status) ? t(`status.${a.status}`) : st.label}
+              </span>
+              {a.patchTestRequired && <span className={cn(STATUS_BADGE, PATCH_TEST_BADGE)}>{t("dash.patchTest")}</span>}
             </span>
           );
         },
       },
       {
         id: "source",
-        header: "Booked by",
+        header: t("dash.bookedBy"),
         enableSorting: false,
         meta: { className: "hidden whitespace-nowrap md:table-cell", headerClassName: "hidden md:table-cell" },
         cell: ({ row: { original: a } }) =>
-          a.source === "voice" ? <Pill>Receptionist</Pill> : <span className="text-muted-foreground">The desk</span>,
+          a.source === "voice" ? (
+            <Pill>{t("dash.receptionist")}</Pill>
+          ) : (
+            <span className="text-muted-foreground">{t("dash.desk")}</span>
+          ),
       },
     ],
-    [time]
+    [time, t]
   );
 
   const callColumns = useMemo<ColumnDef<RecentCall>[]>(
     () => [
       {
         id: "caller",
-        header: "Caller",
+        header: t("dash.caller"),
         enableSorting: false,
         cell: ({ row: { original: c } }) => (
-          <PersonCell name={c.lead?.name || "Unknown caller"} detail={c.phoneNumber} />
+          <PersonCell name={c.lead?.name || t("dash.unknownCaller")} detail={c.phoneNumber} />
         ),
       },
       {
         id: "outcome",
-        header: "Outcome",
+        header: t("dash.outcome"),
         enableSorting: false,
         cell: ({ row: { original: c } }) =>
           c.outcomes.length ? (
@@ -203,7 +217,7 @@ export function SalonOverview() {
                 const style = OUTCOME_STYLE[o] ?? { label: o, className: "" };
                 return (
                   <span key={o} className={cn(STATUS_BADGE, style.className)}>
-                    {style.label}
+                    {isOneOf(CALL_OUTCOMES, o) ? t(`outcome.${o}`) : style.label}
                   </span>
                 );
               })}
@@ -214,45 +228,46 @@ export function SalonOverview() {
       },
       {
         id: "when",
-        header: "When",
+        header: t("dash.when"),
         enableSorting: false,
         meta: { className: "hidden whitespace-nowrap text-muted-foreground sm:table-cell", headerClassName: "hidden sm:table-cell" },
-        cell: ({ row: { original: c } }) => formatDistanceToNowStrict(new Date(c.createdAt), { addSuffix: true }),
+        cell: ({ row: { original: c } }) =>
+          formatDistanceToNowStrict(new Date(c.createdAt), { addSuffix: true, locale: dateLocale }),
       },
     ],
-    []
+    [t, dateLocale]
   );
 
   const callbackColumns = useMemo<ColumnDef<Callback>[]>(
     () => [
       {
         id: "customer",
-        header: "Customer",
+        header: t("dash.customer"),
         enableSorting: false,
         cell: ({ row: { original: cb } }) => (
-          <PersonCell name={cb.lead.name || "Unknown"} detail={cb.notes || cb.lead.phone} />
+          <PersonCell name={cb.lead.name || t("dash.unknown")} detail={cb.notes || cb.lead.phone} />
         ),
       },
       {
         id: "called",
-        header: "Called",
+        header: t("dash.called"),
         enableSorting: false,
         meta: { className: "hidden whitespace-nowrap text-muted-foreground sm:table-cell", headerClassName: "hidden sm:table-cell" },
         cell: ({ row: { original: cb } }) => (
           <>
-            {format(new Date(cb.createdAt), "d MMM, HH:mm")}
-            {cb.assignedTo && <SubText>For {cb.assignedTo}</SubText>}
+            {format(new Date(cb.createdAt), "d MMM, HH:mm", { locale: dateLocale })}
+            {cb.assignedTo && <SubText>{t("dash.for", { name: cb.assignedTo })}</SubText>}
           </>
         ),
       },
     ],
-    []
+    [t, dateLocale]
   );
 
   if (failed) {
     return (
       <p role="alert" className="text-sm text-red-600">
-        The dashboard couldn&apos;t be loaded. Refresh to try again.
+        {t("dash.loadFailed")}
       </p>
     );
   }
@@ -263,10 +278,10 @@ export function SalonOverview() {
   const todaySubtitle = !data
     ? ""
     : appointments.length === 0
-      ? "Nothing booked today"
+      ? t("dash.nothingToday")
       : next
-        ? `Next at ${time(next.startsAt)}${next.lead.name ? ` · ${next.lead.name}` : ""}`
-        : "No more today";
+        ? `${t("dash.nextAt", { time: time(next.startsAt) })}${next.lead.name ? ` · ${next.lead.name}` : ""}`
+        : t("dash.noMoreToday");
 
   const pending = data?.callbacks.pending ?? 0;
 
@@ -274,36 +289,42 @@ export function SalonOverview() {
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
         <StatCard
-          title="Today's appointments"
+          title={t("dash.todaysAppointments")}
           value={loading ? "–" : appointments.length}
           subtitle={todaySubtitle}
           icon={CalendarDays}
           href="/calendar"
         />
         <StatCard
-          title="Taken this week"
+          title={t("dash.takenThisWeek")}
           value={loading ? "–" : formatMoney(data?.takings.takenMinor ?? 0)}
-          subtitle={data ? `${formatMoney(data.takings.expectedMinor)} still in the diary` : ""}
+          subtitle={data ? t("dash.stillInDiary", { amount: formatMoney(data.takings.expectedMinor) }) : ""}
           icon={Coins}
           href="/sales"
         />
         <StatCard
-          title="Booked by the receptionist"
+          title={t("dash.bookedByReceptionist")}
           value={loading ? "–" : (data?.bookings.byAssistant ?? 0)}
-          subtitle={data ? `of ${plural(data.bookings.thisMonth, "booking")} made this month` : ""}
+          subtitle={
+            data
+              ? t(data.bookings.thisMonth === 1 ? "dash.ofBookingsOne" : "dash.ofBookingsMany", { n: data.bookings.thisMonth })
+              : ""
+          }
           icon={Sparkles}
           accent={(data?.bookings.byAssistant ?? 0) > 0}
         />
         <StatCard
-          title="Callbacks waiting"
+          title={t("dash.callbacksWaiting")}
           value={loading ? "–" : pending}
           subtitle={
             !data
               ? ""
               : pending === 0
-                ? "All caught up"
+                ? t("dash.allCaughtUp")
                 : data.callbacks.oldestAt
-                  ? `Oldest ${formatDistanceToNowStrict(new Date(data.callbacks.oldestAt), { addSuffix: true })}`
+                  ? t("dash.oldest", {
+                      ago: formatDistanceToNowStrict(new Date(data.callbacks.oldestAt), { addSuffix: true, locale: dateLocale }),
+                    })
                   : ""
           }
           icon={CalendarClock}
@@ -312,21 +333,21 @@ export function SalonOverview() {
         />
       </div>
 
-      <Section id="dash-today" title="Today" icon={CalendarDays} href="/calendar" linkLabel="Open the diary">
+      <Section id="dash-today" title={t("dash.today")} icon={CalendarDays} href="/calendar" linkLabel={t("dash.openDiary")}>
         <DataTable
           columns={appointmentColumns}
           data={appointments}
           getRowId={(a) => a.id}
           onRowClick={() => router.push("/calendar")}
-          rowLabel={(a) => `${time(a.startsAt)} ${a.lead.name ?? "appointment"} in the diary`}
+          rowLabel={(a) => t("dash.rowInDiary", { time: time(a.startsAt), name: a.lead.name ?? t("dash.appointment") })}
           loading={loading}
           pageSize={10}
-          noun="appointments"
+          noun={t("dash.appointmentsNoun")}
           empty={
             <EmptyState
               icon={CalendarDays}
-              title="Nothing in the diary today"
-              hint="Bookings for today, from the receptionist or the desk, appear here."
+              title={t("dash.nothingInDiary")}
+              hint={t("dash.nothingInDiaryHint")}
             />
           }
         />
@@ -336,24 +357,28 @@ export function SalonOverview() {
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
         <Section
           id="dash-calls"
-          title="Recent calls"
+          title={t("dash.recentCalls")}
           icon={PhoneIncoming}
           href="/calls"
-          linkLabel={data ? `${plural(data.calls.today, "call")} today` : "Call History"}
+          linkLabel={
+            data
+              ? t(data.calls.today === 1 ? "dash.callsTodayOne" : "dash.callsTodayMany", { n: data.calls.today })
+              : t("dash.callHistory")
+          }
         >
           <DataTable
             columns={callColumns}
             data={data?.calls.recent ?? []}
             getRowId={(c) => c.id}
             onRowClick={() => router.push("/calls")}
-            rowLabel={(c) => `${c.lead?.name || c.phoneNumber} in Call History`}
+            rowLabel={(c) => t("dash.rowInCalls", { name: c.lead?.name || c.phoneNumber })}
             loading={loading}
-            noun="calls"
+            noun={t("dash.callsNoun")}
             empty={
               <EmptyState
                 icon={Phone}
-                title="No calls yet"
-                hint="Calls appear here as soon as your receptionist starts answering."
+                title={t("dash.noCalls")}
+                hint={t("dash.noCallsHint")}
               />
             }
           />
@@ -361,20 +386,20 @@ export function SalonOverview() {
 
         <Section
           id="dash-callbacks"
-          title="Callbacks waiting"
+          title={t("dash.callbacksWaiting")}
           icon={CalendarClock}
           href="/callbacks"
-          linkLabel={pending > callbacks.length ? `All ${pending}` : "Callbacks"}
+          linkLabel={pending > callbacks.length ? t("dash.allN", { n: pending }) : t("dash.callbacks")}
         >
           <DataTable
             columns={callbackColumns}
             data={callbacks}
             getRowId={(cb) => cb.id}
             onRowClick={() => router.push("/callbacks")}
-            rowLabel={(cb) => `${cb.lead.name || "callback"} in Callbacks`}
+            rowLabel={(cb) => t("dash.rowInCallbacks", { name: cb.lead.name || t("dash.callback") })}
             loading={loading}
-            noun="callbacks"
-            empty={<EmptyState icon={CalendarClock} title="All caught up" hint="Nobody is waiting for a call back." />}
+            noun={t("dash.callbacksNoun")}
+            empty={<EmptyState icon={CalendarClock} title={t("dash.allCaughtUp")} hint={t("dash.nobodyWaiting")} />}
           />
         </Section>
       </div>

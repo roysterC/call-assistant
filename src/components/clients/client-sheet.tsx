@@ -16,6 +16,10 @@ import { apiFetch } from "@/lib/api-fetch";
 import { formatMoney } from "@/lib/money";
 import { appointmentStatus, PATCH_TEST_BADGE, SMS_STATUS, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/providers/language-provider";
+import { INTL_LOCALE, clockTime, type Lang } from "@/lib/i18n";
+
+const STATUS_KEYS = ["booked", "completed", "cancelled", "no_show"] as const;
 
 interface ClientDetail {
   id: string;
@@ -44,20 +48,17 @@ interface Booking {
   confirmationError: string | null;
 }
 
-/** "Tue 14 Oct 2026, 2:30pm" in the salon's clock. */
-function when(iso: string, timeZone: string): string {
+/** "Tue 14 Oct 2026, 2:30pm" in the salon's clock (24-hour in Vietnamese). */
+function when(iso: string, timeZone: string, lang: Lang): string {
   const d = new Date(iso);
-  const day = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone });
-  const time = d
-    .toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone })
-    .replace(" ", "")
-    .replace(":00", "");
-  return `${day}, ${time}`;
+  const day = d.toLocaleDateString(INTL_LOCALE[lang], { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone });
+  const time = clockTime(d, lang, timeZone);
+  return `${day}, ${lang === "en" ? time.replace(":00", "") : time}`;
 }
 
 /** A stored "YYYY-MM-DD" as "30 September 2026". */
-function longDay(day: string): string {
-  return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", {
+function longDay(day: string, locale: string): string {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString(locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -92,6 +93,7 @@ export function ClientSheet({
   const [editing, setEditing] = useState(false);
   const [details, setDetails] = useState({ firstName: "", lastName: "", phone: "", email: "" });
   const [saved, setSaved] = useState<string | null>(null);
+  const { t, lang, locale } = useT();
 
   useEffect(() => {
     if (!clientId) return;
@@ -111,11 +113,11 @@ export function ClientSheet({
         setNotes(d.client.notes ?? "");
         setTestDay(d.client.patchTestAt ?? todayLocal());
       })
-      .catch(() => live && setError("This client couldn't be loaded."));
+      .catch(() => live && setError(t("client.loadFailed")));
     return () => {
       live = false;
     };
-  }, [clientId]);
+  }, [clientId, t]);
 
   function startEditing() {
     if (!client) return;
@@ -158,7 +160,7 @@ export function ClientSheet({
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(d.error || "That didn't save. Try again.");
+        setError(d.error || t("client.saveFailed"));
         return;
       }
       setClient({
@@ -175,7 +177,7 @@ export function ClientSheet({
       // Notes being typed are kept when something else is saved.
       if (kind === "notes") setNotes(d.client.notes ?? "");
       if (kind === "details") setEditing(false);
-      setSaved(kind === "notes" ? "Notes saved." : kind === "test" ? "Patch test saved." : "Details saved.");
+      setSaved(kind === "notes" ? t("client.notesSaved") : kind === "test" ? t("client.testSaved") : t("client.detailsSaved"));
       onChanged();
     } finally {
       setSaving(null);
@@ -196,7 +198,7 @@ export function ClientSheet({
     <Sheet open={clientId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto gap-0">
         <SheetHeader className="border-b pr-12">
-          <SheetTitle className="text-lg">{client?.name ?? (error ? "Client" : "Loading…")}</SheetTitle>
+          <SheetTitle className="text-lg">{client?.name ?? (error ? t("client.client") : t("common.loading"))}</SheetTitle>
           {client && editing && (
             <form
               className="mt-2 grid grid-cols-2 gap-2"
@@ -207,7 +209,7 @@ export function ClientSheet({
             >
               <DetailField
                 id="client-first-name"
-                label="First name"
+                label={t("client.firstName")}
                 value={details.firstName}
                 onChange={(v) => setDetails({ ...details, firstName: v })}
                 autoComplete="given-name"
@@ -215,23 +217,27 @@ export function ClientSheet({
               />
               <DetailField
                 id="client-last-name"
-                label="Last name"
+                label={t("client.lastName")}
                 value={details.lastName}
                 onChange={(v) => setDetails({ ...details, lastName: v })}
                 autoComplete="family-name"
               />
               <DetailField
                 id="client-phone"
-                label="Mobile"
+                label={t("client.mobile")}
                 type="tel"
                 value={details.phone}
                 onChange={(v) => setDetails({ ...details, phone: v })}
                 autoComplete="tel"
-                placeholder={client.contactLead ? `Through ${client.contactLead.name ?? "another client"}` : undefined}
+                placeholder={
+                  client.contactLead
+                    ? t("client.through", { name: client.contactLead.name ?? t("client.anotherClient") })
+                    : undefined
+                }
               />
               <DetailField
                 id="client-email"
-                label="Email"
+                label={t("client.email")}
                 type="email"
                 value={details.email}
                 onChange={(v) => setDetails({ ...details, email: v })}
@@ -239,10 +245,10 @@ export function ClientSheet({
               />
               <div className="col-span-2 flex gap-2 pt-1">
                 <Button type="submit" size="sm" disabled={saving !== null || !details.firstName.trim()}>
-                  {saving === "details" ? "Saving…" : "Save details"}
+                  {saving === "details" ? t("common.saving") : t("client.saveDetails")}
                 </Button>
                 <Button type="button" size="sm" variant="ghost" disabled={saving !== null} onClick={() => setEditing(false)}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
               </div>
             </form>
@@ -257,8 +263,12 @@ export function ClientSheet({
               ) : client.contactLead ? (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-3.5 w-3.5" />
-                  Through {client.contactLead.name ?? "another client"}
-                  {client.contactLead.phone ? ` on ${client.contactLead.phone}` : ""}
+                  {client.contactLead.phone
+                    ? t("client.throughOn", {
+                        name: client.contactLead.name ?? t("client.anotherClient"),
+                        phone: client.contactLead.phone,
+                      })
+                    : t("client.through", { name: client.contactLead.name ?? t("client.anotherClient") })}
                 </p>
               ) : null}
               {client.email && (
@@ -269,12 +279,12 @@ export function ClientSheet({
               )}
               {client.dependents.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Also books for {client.dependents.map((d) => d.name ?? "someone").join(", ")}
+                  {t("client.alsoBooksFor", { names: client.dependents.map((d) => d.name ?? t("client.someone")).join(", ") })}
                 </p>
               )}
               <Button size="xs" variant="outline" className="mt-1.5" onClick={startEditing}>
                 <Pencil />
-                Edit details
+                {t("client.editDetails")}
               </Button>
             </div>
           )}
@@ -296,28 +306,30 @@ export function ClientSheet({
             {/* Patch test */}
             <section aria-labelledby="patch-test-heading" className="space-y-2">
               <h3 id="patch-test-heading" className="text-sm font-semibold">
-                Patch test
+                {t("client.patchTest")}
               </h3>
               <p className="text-sm">
                 {client.patchTestAt ? (
-                  <>Last done on <strong>{longDay(client.patchTestAt)}</strong>.</>
+                  t("client.lastDone", { day: longDay(client.patchTestAt, locale) })
                 ) : (
-                  <span className="text-muted-foreground">None on record.</span>
+                  <span className="text-muted-foreground">{t("client.noneOnRecord")}</span>
                 )}
               </p>
               {testNeededFor && (
                 <p className={cn("flex items-start gap-2 rounded-md border px-3 py-2 text-xs", PATCH_TEST_BADGE)}>
                   <TriangleAlert className="h-4 w-4 shrink-0" />
                   <span>
-                    Their {testNeededFor.serviceText} on {when(testNeededFor.startsAt, timeZone)} was booked as
-                    needing a patch test first.
+                    {t("client.testNeededFor", {
+                      service: testNeededFor.serviceText,
+                      when: when(testNeededFor.startsAt, timeZone, lang),
+                    })}
                   </span>
                 </p>
               )}
               <div className="flex flex-wrap items-end gap-2">
                 <div>
                   <label htmlFor="patch-test-day" className="block text-xs text-muted-foreground">
-                    Test done on
+                    {t("client.testDoneOn")}
                   </label>
                   <Input
                     id="patch-test-day"
@@ -333,7 +345,7 @@ export function ClientSheet({
                   disabled={!testDay || saving !== null || testDay === client.patchTestAt}
                   onClick={() => save("test", { patchTestAt: testDay })}
                 >
-                  {saving === "test" ? "Saving…" : "Record test"}
+                  {saving === "test" ? t("common.saving") : t("client.recordTest")}
                 </Button>
                 {client.patchTestAt && (
                   <Button
@@ -342,7 +354,7 @@ export function ClientSheet({
                     disabled={saving !== null}
                     onClick={() => save("test", { patchTestAt: null })}
                   >
-                    Clear
+                    {t("client.clear")}
                   </Button>
                 )}
               </div>
@@ -351,35 +363,35 @@ export function ClientSheet({
             {/* Notes */}
             <section aria-labelledby="notes-heading" className="space-y-2">
               <h3 id="notes-heading" className="text-sm font-semibold">
-                Notes
+                {t("client.notes")}
               </h3>
               <Textarea
                 aria-labelledby="notes-heading"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={5}
-                placeholder="Colour formula, allergies, preferences…"
+                placeholder={t("client.notesPlaceholder")}
               />
               <Button
                 size="sm"
                 disabled={!notesChanged || saving !== null}
                 onClick={() => save("notes", { notes })}
               >
-                {saving === "notes" ? "Saving…" : "Save notes"}
+                {saving === "notes" ? t("common.saving") : t("client.saveNotes")}
               </Button>
             </section>
 
             {/* Bookings */}
             <section aria-labelledby="bookings-heading" className="space-y-3">
               <h3 id="bookings-heading" className="text-sm font-semibold">
-                Bookings
+                {t("client.bookings")}
               </h3>
               {bookings.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No bookings yet.</p>
+                <p className="text-sm text-muted-foreground">{t("client.noBookings")}</p>
               ) : (
                 <>
-                  <BookingList title="Coming up" bookings={upcoming} timeZone={timeZone} testOnRecord={Boolean(client.patchTestAt)} />
-                  <BookingList title="History" bookings={past} timeZone={timeZone} testOnRecord={Boolean(client.patchTestAt)} />
+                  <BookingList title={t("client.comingUp")} bookings={upcoming} timeZone={timeZone} testOnRecord={Boolean(client.patchTestAt)} />
+                  <BookingList title={t("client.history")} bookings={past} timeZone={timeZone} testOnRecord={Boolean(client.patchTestAt)} />
                 </>
               )}
             </section>
@@ -440,6 +452,7 @@ function BookingList({
   /** A test is recorded on the client, so a booking's flag is answered. */
   testOnRecord: boolean;
 }) {
+  const { t, lang } = useT();
   if (bookings.length === 0) return null;
   return (
     <div>
@@ -452,8 +465,10 @@ function BookingList({
           return (
             <li key={b.id} className="space-y-1 px-3 py-2 text-sm">
               <div className="flex items-start justify-between gap-2">
-                <span className="font-medium">{when(b.startsAt, timeZone)}</span>
-                <span className={cn(STATUS_BADGE, status.className)}>{status.label}</span>
+                <span className="font-medium">{when(b.startsAt, timeZone, lang)}</span>
+                <span className={cn(STATUS_BADGE, status.className)}>
+                  {(STATUS_KEYS as readonly string[]).includes(b.status) ? t(`status.${b.status as (typeof STATUS_KEYS)[number]}`) : status.label}
+                </span>
               </div>
               <p className="text-muted-foreground">
                 {b.serviceText} · {b.stylistName}
@@ -462,11 +477,11 @@ function BookingList({
               {(needsTest || textFailed) && (
                 <div className="flex flex-wrap gap-1.5">
                   {needsTest && (
-                    <span className={cn(STATUS_BADGE, PATCH_TEST_BADGE)}>Patch test needed</span>
+                    <span className={cn(STATUS_BADGE, PATCH_TEST_BADGE)}>{t("client.testNeeded")}</span>
                   )}
                   {textFailed && (
                     <span className={cn(STATUS_BADGE, SMS_STATUS.failed.className)}>
-                      Confirmation text didn&apos;t send
+                      {t("client.textFailed")}
                     </span>
                   )}
                 </div>

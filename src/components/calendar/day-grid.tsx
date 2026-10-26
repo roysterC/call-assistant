@@ -32,6 +32,7 @@ import {
   type PlacedBlock,
 } from "@/lib/calendar-layout";
 import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
+import { useT } from "@/components/providers/language-provider";
 
 export interface CalendarAppointment {
   id: string;
@@ -151,6 +152,7 @@ export function DayGrid({
 }: DayGridProps) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [dropAt, setDropAt] = useState<{ stylistName: string; row: number } | null>(null);
+  const { t, lang } = useT();
   const marks = hourMarks();
   const lines = quarterMarks();
   const shaded = closedBands(open);
@@ -176,12 +178,12 @@ export function DayGrid({
                 )}
               >
                 {s.former
-                  ? "not on the team"
+                  ? t("grid.notOnTeam")
                   : !s.bookable
-                    ? "no calendar"
+                    ? t("grid.noCalendar")
                     : s.worksToday
-                      ? "working"
-                      : "not in"}
+                      ? t("grid.working")
+                      : t("grid.notIn")}
               </div>
             </div>
           ))}
@@ -200,7 +202,8 @@ export function DayGrid({
                 className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
                 style={{ top: `${m.topPct}%` }}
               >
-                {m.label}
+                {/* The 24-hour clock in Vietnamese: "14:00", not "2pm". */}
+                {lang === "vi" ? `${m.hour}:00` : m.label}
               </div>
             ))}
           </div>
@@ -300,6 +303,7 @@ function StylistColumn({
   onDragEnd: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { t } = useT();
   const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
 
   // How much of the column has already been and gone. Booking into it would
@@ -437,7 +441,7 @@ function StylistColumn({
               e.stopPropagation();
               onOpenBlock(b);
             }}
-            title={b.stylistName === null ? `${b.label} (everyone)` : b.label}
+            title={b.stylistName === null ? t("grid.everyone", { label: b.label }) : b.label}
             className="absolute inset-x-0 overflow-hidden border-y border-border/60 px-1.5 py-1 text-left text-[11px] leading-tight text-muted-foreground hover:text-foreground focus-visible:ring-2"
             style={{ top: `${g.topPct}%`, height: `${g.heightPct}%`, ...UNAVAILABLE_BG }}
           >
@@ -494,7 +498,7 @@ function StylistColumn({
               e.stopPropagation();
               onOpenAppointment(a);
             }}
-            title={`${a.unseen ? "New booking: " : ""}${a.lead.name ?? "Client"} — ${a.serviceText}`}
+            title={`${a.unseen ? t("grid.newBooking") : ""}${a.lead.name ?? t("grid.client")} — ${a.serviceText}`}
             className={cn(
               "absolute rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
               "text-[11px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
@@ -524,14 +528,14 @@ function StylistColumn({
                   className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-white"
                   style={{ background: NEW_BOOKING.chip }}
                 >
-                  New
+                  {t("grid.new")}
                 </span>
               )}
-              <span className="truncate">{a.lead.name ?? "Client"}</span>
+              <span className="truncate">{a.lead.name ?? t("grid.client")}</span>
             </span>
             <span className="block truncate text-foreground/70">{a.serviceText}</span>
             {a.patchTestRequired && (
-              <span className="block truncate font-medium text-papaya-whip-100">patch test</span>
+              <span className="block truncate font-medium text-papaya-whip-100">{t("grid.patchTest")}</span>
             )}
           </button>
         );

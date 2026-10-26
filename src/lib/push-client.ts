@@ -8,6 +8,7 @@
 
 import { signOut } from "next-auth/react";
 import { apiFetch } from "@/lib/api-fetch";
+import type { MessageKey } from "@/lib/i18n";
 
 export type PushState =
   /** This browser cannot do push at all. */
@@ -66,20 +67,17 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /** Ask, subscribe and tell the server. Must run from a tap: browsers only ask then. */
-export async function turnPushOn(): Promise<{ ok: true } | { ok: false; message: string }> {
+/** Why alerts could not be turned on, as a message in the reader's language. */
+export async function turnPushOn(): Promise<{ ok: true } | { ok: false; message: MessageKey }> {
   const state = await pushState();
-  if (state === "needs-home-screen") {
-    return { ok: false, message: "On an iPhone or iPad, add the diary to your home screen first, then turn alerts on from there." };
-  }
-  if (state === "unsupported") return { ok: false, message: "This browser cannot show alerts." };
+  if (state === "needs-home-screen") return { ok: false, message: "push.errHomeScreen" };
+  if (state === "unsupported") return { ok: false, message: "push.errUnsupported" };
   const keyRes = await apiFetch("/api/push");
   const { publicKey } = (await keyRes.json().catch(() => ({}))) as { publicKey?: string | null };
-  if (!publicKey) return { ok: false, message: "Alerts are not set up on the server yet." };
+  if (!publicKey) return { ok: false, message: "push.errNotSetUp" };
 
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") {
-    return { ok: false, message: "Alerts were not allowed. They can be allowed in the browser's settings for this site." };
-  }
+  if (permission !== "granted") return { ok: false, message: "push.errNotAllowed" };
   const reg = await navigator.serviceWorker.register(SW_URL, { scope: "/" });
   await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
@@ -95,15 +93,13 @@ export async function turnPushOn(): Promise<{ ok: true } | { ok: false; message:
     reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), SUBSCRIBE_TIMEOUT_MS)),
   ]);
-  if (!sub) {
-    return { ok: false, message: "This browser's alert service did not answer. Check the connection and try again." };
-  }
+  if (!sub) return { ok: false, message: "push.errNoAnswer" };
   const res = await apiFetch("/api/push", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ subscription: sub.toJSON() }),
   });
-  return res.ok ? { ok: true } : { ok: false, message: "Could not save this device. Try again." };
+  return res.ok ? { ok: true } : { ok: false, message: "push.errNotSaved" };
 }
 
 /** Stop alerts on this device, and tell the server to forget it. */

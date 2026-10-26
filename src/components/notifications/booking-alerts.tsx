@@ -18,25 +18,26 @@ import { apiFetch } from "@/lib/api-fetch";
 import { onServiceWorkerMessage } from "@/lib/push-client";
 import { NEW_BOOKING } from "@/lib/service-colours";
 import { hideNotice, noticesChanged, useBookingNotices, type BookingNotice } from "@/lib/use-booking-notices";
+import { useT } from "@/components/providers/language-provider";
+import { INTL_LOCALE, clockTime, type Lang, type Translate } from "@/lib/i18n";
 
 /** Asks an open diary to show a booking: `detail` is { date, id }. */
 export const OPEN_BOOKING = "kikai:open-booking";
 
-function when(iso: string, timeZone: string): string {
+function when(iso: string, timeZone: string, lang: Lang): string {
   const at = new Date(iso);
-  const day = at.toLocaleDateString("en-GB", { timeZone, weekday: "short", day: "numeric", month: "short" });
-  const time = at.toLocaleTimeString("en-GB", { timeZone, hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "");
-  return `${day}, ${time}`;
+  const day = at.toLocaleDateString(INTL_LOCALE[lang], { timeZone, weekday: "short", day: "numeric", month: "short" });
+  return `${day}, ${clockTime(at, lang, timeZone)}`;
 }
 
-function ago(iso: string): string {
+function ago(iso: string, t: Translate): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1) return t("alerts.justNow");
+  if (mins < 60) return t("alerts.minAgo", { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  if (hours < 24) return t(hours === 1 ? "alerts.hourAgo" : "alerts.hoursAgo", { n: hours });
   const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
+  return t(days === 1 ? "alerts.dayAgo" : "alerts.daysAgo", { n: days });
 }
 
 function dateIn(iso: string, timeZone: string): string {
@@ -45,6 +46,7 @@ function dateIn(iso: string, timeZone: string): string {
 
 export function BookingAlerts() {
   const { notices, total, timeZone } = useBookingNotices(true);
+  const { t, lang } = useT();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -101,7 +103,7 @@ export function BookingAlerts() {
 
   return (
     <section
-      aria-label="New bookings"
+      aria-label={t("alerts.region")}
       aria-live="polite"
       className="fixed z-50 inset-x-2 top-16 md:inset-x-auto md:top-4 md:right-4 md:w-[360px] flex flex-col gap-2"
       data-testid="booking-alerts"
@@ -120,20 +122,20 @@ export function BookingAlerts() {
             <CalendarPlus className="mt-0.5 h-4 w-4 shrink-0" style={{ color: NEW_BOOKING.border }} aria-hidden />
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                New booking · {ago(n.createdAt)}
+                {t("alerts.newBooking", { ago: ago(n.createdAt, t) })}
               </p>
               <p className="mt-0.5 font-semibold truncate">{n.clientName}</p>
               <p className="text-sm truncate">{n.serviceText}</p>
               <p className="text-sm text-muted-foreground">
-                {when(n.startsAt, timeZone)} with {n.stylistName}
+                {t("alerts.withStylist", { when: when(n.startsAt, timeZone, lang), stylist: n.stylistName })}
                 {n.bookingNumber ? ` · #${n.bookingNumber}` : ""}
               </p>
-              {n.status === "cancelled" && <p className="mt-1 text-xs font-medium text-rose-600">Since cancelled</p>}
+              {n.status === "cancelled" && <p className="mt-1 text-xs font-medium text-rose-600">{t("alerts.sinceCancelled")}</p>}
             </div>
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={`Close the alert about ${n.clientName}`}
+              aria-label={t("alerts.closeAbout", { name: n.clientName })}
               onClick={() => void close(n.id)}
             >
               <X className="h-4 w-4" />
@@ -141,19 +143,21 @@ export function BookingAlerts() {
           </div>
           <div className="mt-2.5 flex gap-2 pl-6">
             <Button size="sm" onClick={() => void view(n)}>
-              View booking
+              {t("alerts.view")}
             </Button>
             <Button size="sm" variant="outline" onClick={() => void close(n.id)}>
-              Close
+              {t("alerts.close")}
             </Button>
           </div>
         </article>
       ))}
       {total > 1 && (
         <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-raised">
-          <span className="text-muted-foreground">{total} new bookings{more > 0 ? `, ${notices.length} shown` : ""}</span>
+          <span className="text-muted-foreground">
+            {more > 0 ? t("alerts.countShown", { n: total, shown: notices.length }) : t("alerts.count", { n: total })}
+          </span>
           <Button size="sm" variant="ghost" onClick={() => void close("all")}>
-            Close all
+            {t("alerts.closeAll")}
           </Button>
         </div>
       )}

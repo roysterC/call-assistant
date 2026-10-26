@@ -195,7 +195,7 @@ async function view(session: VoiceBookingSession) {
       id: d.id,
       kind: d.kind,
       clientName: d.clientName,
-      changes: d.changes.map((c) => ({ label: label[c.field], from: c.from, to: c.to })),
+      changes: d.changes.map((c) => ({ field: c.field, label: label[c.field], from: c.from, to: c.to })),
     };
   }
   const tz = await timeZone(session);

@@ -17,6 +17,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/providers/language-provider";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,7 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
   const [asking, setAsking] = useState<ConfirmOptions | null>(null);
   const answer = useRef<((yes: boolean) => void) | null>(null);
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const { t } = useT();
 
   const settle = useCallback((yes: boolean) => {
     answer.current?.(yes);
@@ -85,10 +87,10 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => settle(false)}>
-              {asking?.cancelLabel ?? "Cancel"}
+              {asking?.cancelLabel ?? t("common.cancel")}
             </Button>
             <Button variant={asking?.destructive ? "destructive" : "default"} onClick={() => settle(true)}>
-              {asking?.confirmLabel ?? "OK"}
+              {asking?.confirmLabel ?? t("common.ok")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -107,7 +109,7 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
             <span className="flex-1">{notice.message}</span>
             <button
               type="button"
-              aria-label="Dismiss"
+              aria-label={t("common.dismiss")}
               onClick={() => setNotice(null)}
               className="-mr-1 rounded p-0.5 opacity-70 hover:opacity-100"
             >

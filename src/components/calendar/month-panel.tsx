@@ -11,12 +11,19 @@
 import { useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/providers/language-provider";
+import type { Lang } from "@/lib/i18n";
 
-const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"];
-const MONTH_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
+// Monday first. Vietnamese numbers its weekdays: Thứ Hai (T2) is Monday,
+// Chủ Nhật (CN) Sunday.
+const DAY_INITIALS: Record<Lang, string[]> = {
+  en: ["M", "T", "W", "T", "F", "S", "S"],
+  vi: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
+};
+const MONTH_SHORT: Record<Lang, string[]> = {
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  vi: Array.from({ length: 12 }, (_, i) => `Thg ${i + 1}`),
+};
 
 /** Parse "YYYY-MM-DD" into its parts without letting the host zone shift it. */
 function parts(date: string) {
@@ -61,6 +68,7 @@ export function MonthPanel({
   onSelect,
   busyDates,
 }: MonthPanelProps) {
+  const { t, lang } = useT();
   const grid = useMemo(() => {
     const blanks = leadingBlanks(viewYear, viewMonth);
     const total = daysInMonth(viewYear, viewMonth);
@@ -85,18 +93,18 @@ export function MonthPanel({
           <button
             type="button"
             onClick={() => step(-1)}
-            aria-label="Previous month"
+            aria-label={t("month.prevMonth")}
             className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="text-sm font-semibold tabular-nums">
-            {MONTH_SHORT[viewMonth - 1]} {viewYear}
+            {MONTH_SHORT[lang][viewMonth - 1]} {viewYear}
           </span>
           <button
             type="button"
             onClick={() => step(1)}
-            aria-label="Next month"
+            aria-label={t("month.nextMonth")}
             className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
           >
             <ChevronRight className="h-4 w-4" />
@@ -104,7 +112,7 @@ export function MonthPanel({
         </div>
 
         <div className="grid grid-cols-7 gap-px text-center">
-          {DAY_INITIALS.map((d, i) => (
+          {DAY_INITIALS[lang].map((d, i) => (
             <div
               key={i}
               className="text-[10px] uppercase tracking-wide text-muted-foreground py-1"
@@ -150,7 +158,7 @@ export function MonthPanel({
           <button
             type="button"
             onClick={() => onViewChange(viewYear - 1, viewMonth)}
-            aria-label="Previous year"
+            aria-label={t("month.prevYear")}
             className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -159,7 +167,7 @@ export function MonthPanel({
           <button
             type="button"
             onClick={() => onViewChange(viewYear + 1, viewMonth)}
-            aria-label="Next year"
+            aria-label={t("month.nextYear")}
             className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
           >
             <ChevronRight className="h-4 w-4" />
@@ -167,7 +175,7 @@ export function MonthPanel({
         </div>
 
         <div className="grid grid-cols-3 gap-1">
-          {MONTH_SHORT.map((label, i) => {
+          {MONTH_SHORT[lang].map((label, i) => {
             const m = i + 1;
             const isViewing = m === viewMonth;
             const holdsSelection = sel.year === viewYear && sel.month === m;

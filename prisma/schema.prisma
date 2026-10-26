@@ -65,6 +65,10 @@ model User {
   diaryScope         String             @default("salon") @ignore
   canSeeTakings      Boolean            @default(true) @ignore
   mustChangePassword Boolean            @default(false)
+  /// The language this person reads the CRM in ("en", "vi"), chosen in
+  /// Account or on the login page. Null until they choose: the device's
+  /// choice (the kikai-lang cookie) stands until then.
+  language           String?
   /// Copied into the login cookie at sign-in. Raising it (a password changed
   /// or reset) ends every session signed in before, on their next request.
   sessionVersion     Int                @default(0)

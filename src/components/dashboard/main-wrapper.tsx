@@ -7,6 +7,7 @@ import { BrandMark, Sidebar } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
 import { BookingAlerts } from "@/components/notifications/booking-alerts";
 import { usePendingCallbacks } from "@/lib/use-pending-callbacks";
+import { useT } from "@/components/providers/language-provider";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -29,6 +30,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
     "/data-deletion",
   ].some((p) => pathname?.startsWith(p));
   const pending = usePendingCallbacks(!chromeless);
+  const { t } = useT();
 
   if (chromeless) {
     return <>{children}</>;
@@ -51,7 +53,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
       <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <button
           onClick={() => setNavOpen(true)}
-          aria-label="Open navigation"
+          aria-label={t("nav.open")}
           aria-expanded={navOpen}
           className="relative h-9 w-9 -ml-1.5 rounded-md flex items-center justify-center text-tea-green-400 hover:text-cornsilk-500 hover:bg-white/10 transition-colors"
         >
@@ -59,7 +61,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
           {pending > 0 && (
             <>
               <span aria-hidden className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2 ring-sidebar" />
-              <span className="sr-only">{pending} callbacks waiting</span>
+              <span className="sr-only">{t("nav.callbacksWaiting", { n: pending })}</span>
             </>
           )}
         </button>
