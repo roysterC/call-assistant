@@ -179,35 +179,39 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "w-64 bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border shrink-0",
+        // A panel floating on the page, inset from its edges, with round
+        // corners: on a phone as the drawer, from md up beside the content.
+        "bg-sidebar text-sidebar-foreground flex flex-col shrink-0 rounded-[28px] shadow-raised",
         // Off-canvas below md, static beside the content from md up. It used to
         // be neither: a permanent 256px column that took two thirds of a phone
         // screen and left the conversation list a sliver — which is also why
         // the conversations page's own mobile layout never got to run.
-        "fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transition-transform duration-200 md:static md:max-w-none md:translate-x-0 md:transition-[width]",
-        collapsed ? "md:w-16" : "md:w-64",
-        open ? "translate-x-0" : "-translate-x-full",
-        "overflow-y-auto overflow-x-hidden md:min-h-screen"
+        "fixed inset-y-2 left-2 z-50 w-72 max-w-[85vw] transition-transform duration-200 md:static md:m-3 md:mr-0 md:max-w-none md:translate-x-0 md:transition-[width]",
+        collapsed ? "md:w-[76px]" : "md:w-64",
+        open ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]",
+        // The menu scrolls on its own between the logo and the account, so
+        // those two never leave the panel on a short screen.
+        "overflow-hidden"
       )}
     >
       {/*
         Every icon keeps one left edge whether the menu is open or folded, so
-        nothing moves when it is toggled; the 64px rail is sized to centre them
-        there (logo 14px + 36px, menu icons 8 + 15px + 18px, avatar 8 + 8px +
+        nothing moves when it is toggled; the 76px rail centres them all on
+        38px (logo 20 + 36px, menu icons 10 + 18 + 20px, avatar 10 + 12 +
         32px). Centring them instead tied their position to the width, which
         animates, so they slid across and back on every fold. Vertically the
         same: what the rail hides keeps its space, and the fold button has its
         own row rather than stacking under the logo.
       */}
-      <div className="px-3.5 pt-6 pb-5">
+      <div className="shrink-0 px-5 pt-6 pb-5">
         <div className="flex h-10 items-center gap-3">
           <BrandMark />
           <div className={cn("min-w-0 flex-1", wide)}>
             {/* Held blank, at full height, until the name and role are known. */}
-            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate text-cornsilk-500">
+            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate text-white">
               {orgName ?? <span className="invisible">{t("nav.loading")}</span>}
             </h1>
-            <p className="text-xs text-tea-green-400 mt-0.5">
+            <p className="text-xs text-sidebar-muted mt-0.5">
               {role ? (
                 isSuperAdmin && asOrg ? t("nav.viewingAsSuperAdmin") : t("nav.aiCrm")
               ) : (
@@ -221,14 +225,14 @@ export function Sidebar({
         {isSuperAdmin && orgs.length > 0 && (
           // Its full width even on the rail, where it is invisible: squeezed into
           // 36px its text wrapped and the box grew, pushing the menu down.
-          <div className={cn("mt-3 w-full whitespace-nowrap md:w-[228px]", keep)}>
+          <div className={cn("mt-4 w-full whitespace-nowrap md:w-[216px]", keep)}>
             <DropdownMenu>
-              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-sidebar-foreground bg-white/5 hover:bg-white/10 border border-sidebar-border">
+              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs text-sidebar-foreground bg-white/5 hover:bg-white/10 hover:text-white transition-colors">
                 <span className="flex items-center gap-1.5">
                   <Building2 className="w-3 h-3" />
                   {t("nav.switchOrg")}
                 </span>
-                <span className="text-tea-green-400 truncate">
+                <span className="text-sidebar-muted truncate">
                   {activeOrg?.slug || "—"}
                 </span>
               </DropdownMenuTrigger>
@@ -251,8 +255,8 @@ export function Sidebar({
         )}
       </div>
 
-      <nav className="flex-1 px-2 pb-3 space-y-0.5">
-        <p className={cn("px-[15px] pb-2 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap text-tea-green-400", keep)}>
+      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 pb-3 space-y-1 [scrollbar-width:thin]">
+        <p className={cn("px-[18px] pb-2 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap text-sidebar-muted", keep)}>
           {t("nav.menu")}
         </p>
         {orderForStartPage(navItems, startPage)
@@ -272,28 +276,33 @@ export function Sidebar({
                   badge ? t("nav.waiting", { label, n: badge }) : collapsed ? label : undefined
                 }
                 className={cn(
-                  "group relative flex h-9 items-center gap-3 px-[15px] rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
+                  "group relative flex h-11 items-center gap-3 px-[18px] rounded-[14px] text-sm font-medium whitespace-nowrap transition-colors",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground hover:text-cornsilk-500 hover:bg-white/8"
+                    : "text-sidebar-foreground hover:text-white hover:bg-white/5"
                 )}
               >
-                <item.icon
-                  className={cn(
-                    "w-[18px] h-[18px]",
-                    isActive
-                      ? "text-tea-green-700"
-                      : "text-tea-green-400 group-hover:text-tea-green-700"
+                <span className="relative shrink-0">
+                  <item.icon className="w-5 h-5" strokeWidth={1.75} />
+                  {/* Something waiting: a red dot on the icon on the folded rail;
+                      the open menu shows the count instead. */}
+                  {badge > 0 && (
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-sidebar",
+                        collapsed ? "hidden md:block" : "hidden"
+                      )}
+                    />
                   )}
-                />
+                </span>
                 <span className={wide}>{label}</span>
                 {badge > 0 && (
                   <span
                     aria-hidden
                     className={cn(
-                      "ml-auto min-w-5 h-5 px-1.5 rounded-full bg-light-bronze-500 text-light-bronze-100 text-[11px] font-bold leading-5 text-center tabular-nums",
-                      // On the folded rail, a smaller counter on the icon's corner.
-                      collapsed && "md:absolute md:top-0.5 md:right-2 md:ml-0 md:min-w-4 md:h-4 md:px-1 md:text-[10px] md:leading-4"
+                      "ml-auto min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold leading-5 text-center tabular-nums",
+                      wide
                     )}
                   >
                     {badge > 99 ? "99+" : badge}
@@ -310,13 +319,13 @@ export function Sidebar({
             title={collapsed ? t("nav.admin") : undefined}
             aria-label={collapsed ? t("nav.admin") : undefined}
             className={cn(
-              "flex h-9 items-center gap-3 px-[15px] rounded-lg text-sm font-medium whitespace-nowrap transition-colors mt-4",
+              "flex h-11 items-center gap-3 px-[18px] rounded-[14px] text-sm font-medium whitespace-nowrap transition-colors mt-4",
               pathname?.startsWith("/admin")
-                ? "bg-light-bronze-200 text-cornsilk-500"
-                : "text-sidebar-foreground hover:text-light-bronze-700 hover:bg-white/8"
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-sidebar-foreground hover:text-white hover:bg-white/5"
             )}
           >
-            <Shield className="w-[18px] h-[18px]" />
+            <Shield className="w-5 h-5 shrink-0" strokeWidth={1.75} />
             <span className={wide}>{t("nav.admin")}</span>
           </Link>
         )}
@@ -324,18 +333,18 @@ export function Sidebar({
 
       {/* Folding sits on its own row, its icon in line with the menu's. */}
       {onToggleCollapsed && (
-        <div className="hidden px-2 pb-2 md:block">
+        <div className="hidden shrink-0 border-t border-sidebar-border px-2.5 py-2.5 md:block">
           <button
             type="button"
             onClick={onToggleCollapsed}
             aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
             title={collapsed ? t("nav.expand") : t("nav.collapse")}
-            className="group flex h-9 w-full items-center gap-3 whitespace-nowrap rounded-lg px-[15px] text-sm font-medium text-tea-green-400 transition-colors hover:bg-white/8 hover:text-cornsilk-500"
+            className="flex h-11 w-full items-center gap-3 whitespace-nowrap rounded-[14px] px-[18px] text-sm font-medium text-sidebar-foreground transition-colors hover:bg-white/5 hover:text-white"
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-[18px] w-[18px] text-tea-green-400 group-hover:text-tea-green-700" />
+              <PanelLeftOpen className="h-5 w-5 shrink-0" strokeWidth={1.75} />
             ) : (
-              <PanelLeftClose className="h-[18px] w-[18px] text-tea-green-400 group-hover:text-tea-green-700" />
+              <PanelLeftClose className="h-5 w-5 shrink-0" strokeWidth={1.75} />
             )}
             <span className={wide}>{t("nav.collapse")}</span>
           </button>
@@ -343,21 +352,23 @@ export function Sidebar({
       )}
 
       {/* User menu */}
-      <div className="px-2 py-3 border-t border-sidebar-border">
+      {/* On a phone, where there is no fold button, the line sits here instead. */}
+      <div className="shrink-0 px-2.5 pt-1 pb-3 max-md:border-t max-md:border-sidebar-border max-md:pt-3">
         {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger
               title={collapsed ? user.name || user.email || undefined : undefined}
               className={cn(
-                "w-full flex h-[52px] items-center gap-2.5 px-2 rounded-lg hover:bg-white/8"
+                "w-full flex h-[52px] items-center gap-2.5 px-3 rounded-[14px] transition-colors hover:bg-white/5"
               )}
             >
-              <div className="w-8 h-8 shrink-0 rounded-full bg-tea-green-200 text-cornsilk-500 flex items-center justify-center text-xs font-semibold">
+              {/* A warm gradient disc with their initial, as the design has it. */}
+              <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-[#f7b267] to-[#e8566c] text-white flex items-center justify-center text-xs font-semibold">
                 {(user.name || user.email || "?")[0].toUpperCase()}
               </div>
               <div className={cn("flex-1 min-w-0 text-left", wide)}>
-                <p className="text-sm font-medium truncate text-cornsilk-500">{user.name || user.email}</p>
-                <p className="text-[11px] text-tea-green-400 truncate">
+                <p className="text-sm font-medium truncate text-white">{user.name || user.email}</p>
+                <p className="text-[11px] text-sidebar-muted truncate">
                   {user.email}
                 </p>
               </div>
@@ -380,8 +391,8 @@ export function Sidebar({
           </DropdownMenu>
         ) : (
           <div className="flex items-center gap-2 px-3 py-2">
-            <div className="w-2 h-2 bg-tea-green-400 rounded-full" />
-            <span className={cn("text-xs text-tea-green-400", wide)}>{t("nav.notSignedIn")}</span>
+            <div className="w-2 h-2 bg-white/40 rounded-full" />
+            <span className={cn("text-xs text-sidebar-muted", wide)}>{t("nav.notSignedIn")}</span>
           </div>
         )}
       </div>

@@ -55,24 +55,24 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
           onClick={() => setNavOpen(true)}
           aria-label={t("nav.open")}
           aria-expanded={navOpen}
-          className="relative h-9 w-9 -ml-1.5 rounded-md flex items-center justify-center text-tea-green-400 hover:text-cornsilk-500 hover:bg-white/10 transition-colors"
+          className="relative h-9 w-9 -ml-1.5 rounded-xl flex items-center justify-center text-sidebar-foreground hover:text-white hover:bg-white/10 transition-colors"
         >
           <Menu className="w-5 h-5" />
           {pending > 0 && (
             <>
-              <span aria-hidden className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2 ring-sidebar" />
+              <span aria-hidden className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-sidebar" />
               <span className="sr-only">{t("nav.callbacksWaiting", { n: pending })}</span>
             </>
           )}
         </button>
         <BrandMark size="sm" alt="" />
-        <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate text-cornsilk-500">Kikai</span>
+        <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate text-white">Kikai</span>
       </header>
 
       <div className="flex flex-1 min-h-0 w-full">
         {navOpen && (
           <div
-            className="fixed inset-0 z-40 bg-tea-green-100/30 backdrop-blur-[2px] md:hidden"
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] md:hidden"
             onClick={() => setNavOpen(false)}
             aria-hidden
           />
@@ -107,7 +107,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
 function SidebarFallback({ collapsed }: { collapsed: boolean }) {
   return (
     <aside
-      className={`hidden md:block ${collapsed ? "w-16" : "w-64"} bg-sidebar border-r border-sidebar-border shrink-0`}
+      className={`hidden md:block m-3 mr-0 rounded-[28px] ${collapsed ? "w-[76px]" : "w-64"} bg-sidebar shrink-0`}
       aria-hidden
     />
   );

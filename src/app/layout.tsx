@@ -73,7 +73,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   // The colour of the phone's own bars around the app, matched to the page.
-  themeColor: "#2d331a",
+  themeColor: "#131315",
 };
 
 export default async function RootLayout({
