@@ -151,18 +151,16 @@
   --radius: 0.75rem;
   --scrollbar-thumb: rgb(45 51 26 / 18%);
   --scrollbar-thumb-hover: rgb(45 51 26 / 32%);
-  /* The menu: a near-black panel floating on the page, white type at
-     reduced strength, the current page a faint lighter tile. Neutral rather
-     than green, so the service colours and the page stay the only colour. */
-  --sidebar: #131315;
-  --sidebar-foreground: rgb(255 255 255 / 62%);
-  --sidebar-primary: #ffffff;
-  --sidebar-primary-foreground: #131315;
-  --sidebar-accent: rgb(255 255 255 / 9%); /* the current page */
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-muted: rgb(255 255 255 / 38%); /* headings, second lines */
-  --sidebar-border: rgb(255 255 255 / 8%);
-  --sidebar-ring: rgb(255 255 255 / 40%);
+  /* The menu: dark. */
+  --sidebar: #2d331a; /* tea green 100 */
+  --sidebar-foreground: #e1e6cf; /* tea green 700 */
+  --sidebar-primary: #ccd5ae;
+  --sidebar-primary-foreground: #2d331a;
+  --sidebar-accent: #5b6635; /* active item */
+  --sidebar-accent-foreground: #fefae0; /* cornsilk */
+  --sidebar-muted: #acbb7b; /* tea green 400: headings, second lines */
+  --sidebar-border: rgb(225 230 207 / 14%);
+  --sidebar-ring: #acbb7b;
   /* Surfaces lift off the canvas with a hairline and the faintest shadow.
      Anything heavier looks like a 2014 dashboard. */
   --elev-surface: 0 1px 2px 0 rgb(45 51 26 / 0.04),

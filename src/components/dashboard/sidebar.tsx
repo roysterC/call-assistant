@@ -208,7 +208,7 @@ export function Sidebar({
           <BrandMark />
           <div className={cn("min-w-0 flex-1", wide)}>
             {/* Held blank, at full height, until the name and role are known. */}
-            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate text-white">
+            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate text-cornsilk-500">
               {orgName ?? <span className="invisible">{t("nav.loading")}</span>}
             </h1>
             <p className="text-xs text-sidebar-muted mt-0.5">
@@ -227,7 +227,7 @@ export function Sidebar({
           // 36px its text wrapped and the box grew, pushing the menu down.
           <div className={cn("mt-4 w-full whitespace-nowrap md:w-[216px]", keep)}>
             <DropdownMenu>
-              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs text-sidebar-foreground bg-white/5 hover:bg-white/10 hover:text-white transition-colors">
+              <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs text-sidebar-foreground bg-white/5 hover:bg-white/10 hover:text-cornsilk-500 transition-colors">
                 <span className="flex items-center gap-1.5">
                   <Building2 className="w-3 h-3" />
                   {t("nav.switchOrg")}
@@ -279,18 +279,24 @@ export function Sidebar({
                   "group relative flex h-11 items-center gap-3 px-[18px] rounded-[14px] text-sm font-medium whitespace-nowrap transition-colors",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground hover:text-white hover:bg-white/5"
+                    : "text-sidebar-foreground hover:text-cornsilk-500 hover:bg-white/8"
                 )}
               >
                 <span className="relative shrink-0">
-                  <item.icon className="w-5 h-5" strokeWidth={1.75} />
-                  {/* Something waiting: a red dot on the icon on the folded rail;
+                  <item.icon
+                    className={cn(
+                      "w-5 h-5",
+                      isActive ? "text-tea-green-700" : "text-tea-green-400 group-hover:text-tea-green-700"
+                    )}
+                    strokeWidth={1.75}
+                  />
+                  {/* Something waiting: a dot on the icon on the folded rail;
                       the open menu shows the count instead. */}
                   {badge > 0 && (
                     <span
                       aria-hidden
                       className={cn(
-                        "absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-sidebar",
+                        "absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2 ring-sidebar",
                         collapsed ? "hidden md:block" : "hidden"
                       )}
                     />
@@ -301,7 +307,7 @@ export function Sidebar({
                   <span
                     aria-hidden
                     className={cn(
-                      "ml-auto min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold leading-5 text-center tabular-nums",
+                      "ml-auto min-w-5 h-5 px-1.5 rounded-full bg-light-bronze-500 text-light-bronze-100 text-[11px] font-bold leading-5 text-center tabular-nums",
                       wide
                     )}
                   >
@@ -322,7 +328,7 @@ export function Sidebar({
               "flex h-11 items-center gap-3 px-[18px] rounded-[14px] text-sm font-medium whitespace-nowrap transition-colors mt-4",
               pathname?.startsWith("/admin")
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                : "text-sidebar-foreground hover:text-white hover:bg-white/5"
+                : "text-sidebar-foreground hover:text-cornsilk-500 hover:bg-white/8"
             )}
           >
             <Shield className="w-5 h-5 shrink-0" strokeWidth={1.75} />
@@ -339,12 +345,12 @@ export function Sidebar({
             onClick={onToggleCollapsed}
             aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
             title={collapsed ? t("nav.expand") : t("nav.collapse")}
-            className="flex h-11 w-full items-center gap-3 whitespace-nowrap rounded-[14px] px-[18px] text-sm font-medium text-sidebar-foreground transition-colors hover:bg-white/5 hover:text-white"
+            className="group flex h-11 w-full items-center gap-3 whitespace-nowrap rounded-[14px] px-[18px] text-sm font-medium text-tea-green-400 transition-colors hover:bg-white/8 hover:text-cornsilk-500"
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+              <PanelLeftOpen className="h-5 w-5 shrink-0 text-tea-green-400 group-hover:text-tea-green-700" strokeWidth={1.75} />
             ) : (
-              <PanelLeftClose className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+              <PanelLeftClose className="h-5 w-5 shrink-0 text-tea-green-400 group-hover:text-tea-green-700" strokeWidth={1.75} />
             )}
             <span className={wide}>{t("nav.collapse")}</span>
           </button>
@@ -359,15 +365,14 @@ export function Sidebar({
             <DropdownMenuTrigger
               title={collapsed ? user.name || user.email || undefined : undefined}
               className={cn(
-                "w-full flex h-[52px] items-center gap-2.5 px-3 rounded-[14px] transition-colors hover:bg-white/5"
+                "w-full flex h-[52px] items-center gap-2.5 px-3 rounded-[14px] transition-colors hover:bg-white/8"
               )}
             >
-              {/* A warm gradient disc with their initial, as the design has it. */}
-              <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-[#f7b267] to-[#e8566c] text-white flex items-center justify-center text-xs font-semibold">
+              <div className="w-8 h-8 shrink-0 rounded-full bg-tea-green-200 text-cornsilk-500 flex items-center justify-center text-xs font-semibold">
                 {(user.name || user.email || "?")[0].toUpperCase()}
               </div>
               <div className={cn("flex-1 min-w-0 text-left", wide)}>
-                <p className="text-sm font-medium truncate text-white">{user.name || user.email}</p>
+                <p className="text-sm font-medium truncate text-cornsilk-500">{user.name || user.email}</p>
                 <p className="text-[11px] text-sidebar-muted truncate">
                   {user.email}
                 </p>
@@ -391,7 +396,7 @@ export function Sidebar({
           </DropdownMenu>
         ) : (
           <div className="flex items-center gap-2 px-3 py-2">
-            <div className="w-2 h-2 bg-white/40 rounded-full" />
+            <div className="w-2 h-2 bg-tea-green-400 rounded-full" />
             <span className={cn("text-xs text-sidebar-muted", wide)}>{t("nav.notSignedIn")}</span>
           </div>
         )}
