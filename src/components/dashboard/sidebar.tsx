@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutOfDevice } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -369,7 +370,7 @@ export function Sidebar({
                 <Settings className="w-4 h-4 mr-2" />
                 Account settings
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+              <DropdownMenuItem onClick={() => void signOutOfDevice()}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign out
               </DropdownMenuItem>

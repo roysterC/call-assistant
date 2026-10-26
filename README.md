@@ -383,6 +383,42 @@ How it is built:
   manifest). A phone that wants a touch before it uses the microphone gets one
   big "Tap to talk" instead.
 
+### Booking alerts
+
+When the receptionist books someone in (on the phone, or in the receptionist
+lab), everyone with a login at that salon is told, three ways:
+
+- **A pop-up in the top corner** of the CRM, on whatever page is open, with
+  "View booking" and "Close". It stays until one of them is clicked, also
+  across reloads and the next day's sign-in. Several stack, newest first,
+  with "Close all". A phone shows the newest only.
+- **A colour in the diary.** The booking is magenta with a "New" tag until
+  that person opens it. Closing the pop-up leaves the colour; opening the
+  booking clears both. Each person has their own: one stylist opening it does
+  not clear it for the owner.
+- **A push notification** on each phone or computer someone turned alerts on
+  for (Account → "Booking alerts on this device", with "Send a test"). Tapping
+  it opens the diary on that booking. On an iPhone or iPad, alerts only come
+  to the diary added to the home screen (Safari → Share → Add to Home Screen),
+  then turned on from inside it. Signing out turns them off on that device.
+
+Bookings made at the desk or through the personal assistant raise none of
+these: whoever made them already knows.
+
+How it is built: `src/lib/booking-notices.ts` (one `BookingNotice` per person
+per booking, raised from the receptionist's `handleBookAppointment`),
+`src/lib/push.ts` and `public/sw.js` (Web Push; the service worker only shows
+alerts and caches nothing), `src/components/notifications/`.
+
+Push needs nothing signed up for. Messages are signed with the server's own
+key pair, `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`, which the deploy makes
+once and adds to `.env` (`scripts/ensure-push-keys.ts`); it also needs
+`AUTH_URL` to be the CRM's https address (or `VAPID_SUBJECT` set to a
+`mailto:` or https address). Keep the keys: new ones stop alerts on every
+device until each turns them on again. The voice server reads the same `.env`,
+so it needs a restart after the keys are first made, which the deploy does
+once no calls are in progress.
+
 ### What the bots know about the salon
 
 The phone receptionist and the chat bots (website, WhatsApp, Instagram,

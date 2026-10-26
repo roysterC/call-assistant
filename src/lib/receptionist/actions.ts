@@ -51,6 +51,7 @@ import {
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
 import { namesMatch, splitName } from "@/lib/client-name";
+import { noticeNewBooking } from "@/lib/booking-notices";
 import { clientForBooking, findClientOnNumber, hasBeenBefore, peopleOnNumber, textRecipient } from "@/lib/client-link";
 import { spokenPatchTest } from "@/lib/patch-test";
 
@@ -1472,6 +1473,22 @@ export async function handleBookAppointment(
   }
 
   const { appointment } = written;
+
+  // Tell the salon: a pop-up on their screens, the diary's "new" colour, and
+  // a push to the phones that asked for one. Not awaited: the caller is on
+  // the line waiting to hear they are booked in.
+  void noticeNewBooking(
+    organizationId,
+    {
+      id: appointment.id,
+      bookingNumber: appointment.bookingNumber,
+      clientName,
+      serviceText: service.name,
+      stylistName: stylist.name,
+      startsAt: appointment.startsAt,
+    },
+    cfg.timeZone
+  );
 
   // Confirmation text. Deliberately after the appointment is committed and
   // deliberately not awaited into the booking's success: the appointment is

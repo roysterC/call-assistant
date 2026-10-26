@@ -31,7 +31,7 @@ import {
   WINDOW_MINUTES,
   type PlacedBlock,
 } from "@/lib/calendar-layout";
-import { toneFor, type ServiceTone } from "@/lib/service-colours";
+import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
 
 export interface CalendarAppointment {
   id: string;
@@ -47,6 +47,8 @@ export interface CalendarAppointment {
   amountMinor: number | null;
   clientType: string;
   notes: string | null;
+  /** Booked by the receptionist and not yet opened by whoever is looking. */
+  unseen?: boolean;
   lead: {
     id: string;
     name: string | null;
@@ -461,7 +463,8 @@ function StylistColumn({
 
       {placed.map((b) => {
         const a = b.item;
-        const tone = toneFor(a.serviceText, tones);
+        // New from the receptionist: its own colour until it is opened.
+        const tone = a.unseen ? NEW_BOOKING : toneFor(a.serviceText, tones);
         // Only a booking still to come can be moved; judged by the same
         // "now" the grid greys the past with.
         const draggable =
@@ -491,7 +494,7 @@ function StylistColumn({
               e.stopPropagation();
               onOpenAppointment(a);
             }}
-            title={`${a.lead.name ?? "Client"} — ${a.serviceText}`}
+            title={`${a.unseen ? "New booking: " : ""}${a.lead.name ?? "Client"} — ${a.serviceText}`}
             className={cn(
               "absolute rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
               "text-[11px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
@@ -501,7 +504,8 @@ function StylistColumn({
               a.status === "completed" && "opacity-75",
               a.status === "no_show" && "border-dashed",
               b.clippedStart && "rounded-t-none",
-              b.clippedEnd && "rounded-b-none"
+              b.clippedEnd && "rounded-b-none",
+              a.unseen && "border-2 border-l-[3px]"
             )}
             style={{
               background: tone.fill,
@@ -514,8 +518,16 @@ function StylistColumn({
               width: `calc((100% - ${OVERBOOK_GUTTER_PX}px) / ${b.lanes} - 4px)`,
             }}
           >
-            <span className="block font-semibold truncate">
-              {a.lead.name ?? "Client"}
+            <span className="flex items-center gap-1 font-semibold min-w-0">
+              {a.unseen && (
+                <span
+                  className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-white"
+                  style={{ background: NEW_BOOKING.chip }}
+                >
+                  New
+                </span>
+              )}
+              <span className="truncate">{a.lead.name ?? "Client"}</span>
             </span>
             <span className="block truncate text-foreground/70">{a.serviceText}</span>
             {a.patchTestRequired && (

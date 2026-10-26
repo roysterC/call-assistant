@@ -13,6 +13,8 @@ import { Ban, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
+import { OPEN_BOOKING } from "@/components/notifications/booking-alerts";
+import { noticesChanged } from "@/lib/use-booking-notices";
 import { apiFetch } from "@/lib/api-fetch";
 import { MonthPanel } from "@/components/calendar/month-panel";
 import {
@@ -180,6 +182,10 @@ export default function CalendarPage() {
   const [slot, setSlot] = useState<BookingSlot | null>(null);
   const [openAppointment, setOpenAppointment] =
     useState<CalendarAppointment | null>(null);
+  // A booking asked for by a pop-up or an alert, opened once its day has
+  // loaded (loadedFor), so a day still on its way is not searched too soon.
+  const [wanted, setWanted] = useState<{ id: string; date: string } | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // Until settings arrive we know nothing about the team, and "no stylists
   // configured" would be a false statement rather than an empty one.
@@ -252,6 +258,7 @@ export default function CalendarPage() {
       setBlocks([]);
     } finally {
       setLoading(false);
+      setLoadedFor(selected);
     }
   }, [selected, timeZone]);
 
@@ -356,6 +363,53 @@ export default function CalendarPage() {
     const [y, m] = date.split("-").map(Number);
     setView({ year: y, month: m });
   };
+
+  // Opening a booking the receptionist took clears its "new" colour, for
+  // this person, and its pop-up if one is still showing.
+  const showAppointment = useCallback((a: CalendarAppointment) => {
+    setOpenAppointment(a);
+    if (!a.unseen) return;
+    setAppointments((list) => list.map((x) => (x.id === a.id ? { ...x, unseen: false } : x)));
+    void apiFetch("/api/booking-notices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "seen", appointmentId: a.id }),
+    })
+      .then(noticesChanged)
+      .catch(() => {});
+  }, []);
+
+  // /calendar?date=…&booking=… (an alert tapped on a phone, or a pop-up's
+  // "View booking" from another page): that day, with the booking open.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const date = params.get("date");
+    const id = params.get("booking");
+    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+    if (day) jump(day);
+    if (day && id) setWanted({ id, date: day });
+    if (date || id) window.history.replaceState(null, "", "/calendar");
+  }, []);
+
+  // A pop-up's "View booking" while the diary is already open.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const { date, id } = (e as CustomEvent<{ date: string; id: string }>).detail;
+      setWanted({ id, date });
+      // That day, fetched afresh: the booking may be newer than what is showing.
+      if (date !== selected) jump(date);
+      else loadDay();
+    };
+    window.addEventListener(OPEN_BOOKING, onOpen);
+    return () => window.removeEventListener(OPEN_BOOKING, onOpen);
+  });
+
+  useEffect(() => {
+    if (!wanted || loading || loadedFor !== wanted.date) return;
+    const a = appointments.find((x) => x.id === wanted.id);
+    setWanted(null);
+    if (a) showAppointment(a);
+  }, [wanted, loading, loadedFor, appointments, showAppointment]);
 
   // The assistant changed the diary: show that day, and reload.
   useEffect(() => {
@@ -476,7 +530,7 @@ export default function CalendarPage() {
             onPickSlot={(stylistName, time) =>
               setSlot({ stylistName, time, date: selected })
             }
-            onOpenAppointment={setOpenAppointment}
+            onOpenAppointment={showAppointment}
             onMoveAppointment={(appointment, stylistName, time) =>
               setPendingMove({ appointment, stylistName, time, date: selected })
             }

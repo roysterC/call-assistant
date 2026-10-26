@@ -8,9 +8,10 @@ import type { MetadataRoute } from "next";
  * Named for what it opens rather than for any one salon, because every salon
  * on the system is served from the same address and so shares this file.
  *
- * Deliberately no service worker: nothing is cached for offline use. A diary
- * shown from a cache would show yesterday's bookings as today's, and a
- * booking made offline would have nowhere to go.
+ * Deliberately nothing cached for offline use: a diary shown from a cache
+ * would show yesterday's bookings as today's, and a booking made offline
+ * would have nowhere to go. The one service worker (public/sw.js) only shows
+ * booking alerts; it handles no requests.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { BrandMark, Sidebar } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
+import { BookingAlerts } from "@/components/notifications/booking-alerts";
 import { usePendingCallbacks } from "@/lib/use-pending-callbacks";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
@@ -86,6 +87,8 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
 
         {/* The personal assistant: on every signed-in page. */}
         <Assistant />
+        {/* The receptionist's new bookings, until each is closed or opened. */}
+        <BookingAlerts />
 
         <main className="flex-1 overflow-auto min-w-0">
           {isFullWidth ? (

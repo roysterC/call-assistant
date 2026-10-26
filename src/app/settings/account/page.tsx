@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
+import { signOutOfDevice } from "@/lib/push-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lock, User as UserIcon, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
+import { DeviceAlertsCard } from "@/components/notifications/device-alerts-card";
 
 const ROLE_LABEL: Record<string, string> = {
   superAdmin: "Super admin",
@@ -105,6 +107,8 @@ export default function AccountSettingsPage() {
         </CardContent>
       </Card>
 
+      <DeviceAlertsCard />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -173,7 +177,7 @@ export default function AccountSettingsPage() {
         <CardContent className="pt-6">
           <Button
             variant="outline"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => void signOutOfDevice()}
           >
             <LogOut className="w-4 h-4 mr-2" />
             Sign out

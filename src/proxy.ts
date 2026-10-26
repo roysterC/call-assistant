@@ -55,6 +55,9 @@ export async function proxy(req: NextRequest) {
     // behind the login redirect they would get the login page instead and
     // the home-screen icon would never appear.
     "/manifest.webmanifest",
+    // The service worker behind booking alerts (public/sw.js): fetched by
+    // the browser itself, and holds nothing private.
+    "/sw.js",
     "/icons/",
     "/apple-icon",
     // Legal pages must be publicly accessible so Meta (app review),
