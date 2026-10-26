@@ -3,11 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { textRecipient } from "@/lib/client-link";
 import { timingSafeEqual, createHash } from "crypto";
 import {
+  addCalendarDays,
   describeAppointmentWhen,
   parseTimezone,
   zonedDateString,
-  zonedWallTimeToUtc,
-  parseDateOnly,
+  zonedDayBounds,
 } from "@/lib/business-hours";
 import { reminderBody, sendSms, smsConfigured } from "@/lib/sms";
 
@@ -77,12 +77,8 @@ export async function POST(req: NextRequest) {
 
     // "Tomorrow" is a local notion, and each organization may sit in its own
     // timezone, so the window is computed per org rather than once globally.
-    const targetDate =
-      explicitDate ??
-      zonedDateString(new Date(Date.now() + 24 * 60 * 60 * 1000), tz);
-    const { year, month, day } = parseDateOnly(targetDate);
-    const from = zonedWallTimeToUtc(year, month, day, 0, 0, tz);
-    const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
+    const targetDate = explicitDate ?? addCalendarDays(zonedDateString(new Date(), tz), 1);
+    const { start: from, end: to } = zonedDayBounds(targetDate, tz);
 
     const due = await prisma.appointment.findMany({
       where: {

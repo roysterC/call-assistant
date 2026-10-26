@@ -13,6 +13,9 @@ import { Ban, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
+import { OPEN_BOOKING } from "@/components/notifications/booking-alerts";
+import { noticesChanged } from "@/lib/use-booking-notices";
+import { useT } from "@/components/providers/language-provider";
 import { apiFetch } from "@/lib/api-fetch";
 import { MonthPanel } from "@/components/calendar/month-panel";
 import {
@@ -47,7 +50,6 @@ import {
   buildServiceTones,
   familiesInUse,
   FAMILY_HUE,
-  FAMILY_LABEL,
 } from "@/lib/service-colours";
 import {
   NewBookingDialog,
@@ -98,9 +100,9 @@ function hhmmToMin(v: string | undefined): number | null {
   return h * 60 + m;
 }
 
-function prettyDate(date: string): string {
+function prettyDate(date: string, locale: string): string {
   const [y, m, d] = date.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -151,6 +153,7 @@ function newBlockForm(
 }
 
 export default function CalendarPage() {
+  const { t, locale } = useT();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [selected, setSelected] = useState(() => dateIn(DEFAULT_TZ));
   const [view, setView] = useState(() => {
@@ -180,6 +183,10 @@ export default function CalendarPage() {
   const [slot, setSlot] = useState<BookingSlot | null>(null);
   const [openAppointment, setOpenAppointment] =
     useState<CalendarAppointment | null>(null);
+  // A booking asked for by a pop-up or an alert, opened once its day has
+  // loaded (loadedFor), so a day still on its way is not searched too soon.
+  const [wanted, setWanted] = useState<{ id: string; date: string } | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // Until settings arrive we know nothing about the team, and "no stylists
   // configured" would be a false statement rather than an empty one.
@@ -252,6 +259,7 @@ export default function CalendarPage() {
       setBlocks([]);
     } finally {
       setLoading(false);
+      setLoadedFor(selected);
     }
   }, [selected, timeZone]);
 
@@ -357,6 +365,53 @@ export default function CalendarPage() {
     setView({ year: y, month: m });
   };
 
+  // Opening a booking the receptionist took clears its "new" colour, for
+  // this person, and its pop-up if one is still showing.
+  const showAppointment = useCallback((a: CalendarAppointment) => {
+    setOpenAppointment(a);
+    if (!a.unseen) return;
+    setAppointments((list) => list.map((x) => (x.id === a.id ? { ...x, unseen: false } : x)));
+    void apiFetch("/api/booking-notices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "seen", appointmentId: a.id }),
+    })
+      .then(noticesChanged)
+      .catch(() => {});
+  }, []);
+
+  // /calendar?date=…&booking=… (an alert tapped on a phone, or a pop-up's
+  // "View booking" from another page): that day, with the booking open.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const date = params.get("date");
+    const id = params.get("booking");
+    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+    if (day) jump(day);
+    if (day && id) setWanted({ id, date: day });
+    if (date || id) window.history.replaceState(null, "", "/calendar");
+  }, []);
+
+  // A pop-up's "View booking" while the diary is already open.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const { date, id } = (e as CustomEvent<{ date: string; id: string }>).detail;
+      setWanted({ id, date });
+      // That day, fetched afresh: the booking may be newer than what is showing.
+      if (date !== selected) jump(date);
+      else loadDay();
+    };
+    window.addEventListener(OPEN_BOOKING, onOpen);
+    return () => window.removeEventListener(OPEN_BOOKING, onOpen);
+  });
+
+  useEffect(() => {
+    if (!wanted || loading || loadedFor !== wanted.date) return;
+    const a = appointments.find((x) => x.id === wanted.id);
+    setWanted(null);
+    if (a) showAppointment(a);
+  }, [wanted, loading, loadedFor, appointments, showAppointment]);
+
   // The assistant changed the diary: show that day, and reload.
   useEffect(() => {
     const onChanged = (e: Event) => {
@@ -373,15 +428,15 @@ export default function CalendarPage() {
     <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6">
       <div className="shrink-0">
         <PageHeader
-          title="Diary"
+          title={t("diary.title")}
         />
       </div>
 
       <div className="flex items-center gap-2 pt-4 pb-3 shrink-0 flex-wrap">
-        <Button variant="outline" size="sm" aria-label="Previous day" onClick={() => jump(shiftDate(selected, -1))}>
+        <Button variant="outline" size="sm" aria-label={t("diary.prevDay")} onClick={() => jump(shiftDate(selected, -1))}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm" aria-label="Next day" onClick={() => jump(shiftDate(selected, 1))}>
+        <Button variant="outline" size="sm" aria-label={t("diary.nextDay")} onClick={() => jump(shiftDate(selected, 1))}>
           <ChevronRight className="h-4 w-4" />
         </Button>
         <Button
@@ -390,7 +445,7 @@ export default function CalendarPage() {
           onClick={() => jump(today)}
           disabled={selected === today}
         >
-          Today
+          {t("diary.today")}
         </Button>
         <Button
           variant="outline"
@@ -400,7 +455,7 @@ export default function CalendarPage() {
           onClick={() => setShowMonth((v) => !v)}
         >
           <CalendarDays className="h-3.5 w-3.5" />
-          Month
+          {t("diary.month")}
         </Button>
         <Button
           variant="outline"
@@ -415,21 +470,21 @@ export default function CalendarPage() {
           disabled={stylists.length === 0}
         >
           <Ban className="h-3.5 w-3.5" />
-          Block time
+          {t("diary.blockTime")}
         </Button>
         <div className="ml-1 sm:ml-2 min-w-0">
-          <span className="font-heading text-base font-semibold">{prettyDate(selected)}</span>
+          <span className="font-heading text-base font-semibold">{prettyDate(selected, locale)}</span>
           {settingsLoaded && !open && (
-            <span className="ml-2 text-xs text-muted-foreground">closed</span>
+            <span className="ml-2 text-xs text-muted-foreground">{t("diary.closed")}</span>
           )}
           {loading && (
-            <span className="ml-2 text-xs text-muted-foreground">loading…</span>
+            <span className="ml-2 text-xs text-muted-foreground">{t("diary.loading")}</span>
           )}
         </div>
       </div>
 
       {isPhone && columns.length > 1 && (
-        <div className="shrink-0 -mx-4 px-4 pb-3 flex gap-2 overflow-x-auto" role="tablist" aria-label="Stylist">
+        <div className="shrink-0 -mx-4 px-4 pb-3 flex gap-2 overflow-x-auto" role="tablist" aria-label={t("diary.stylist")}>
           {columns.map((c) => {
             const on = c.name === phoneColumn?.name;
             return (
@@ -455,12 +510,12 @@ export default function CalendarPage() {
       <div className="flex gap-4 flex-1 min-h-0 overflow-hidden flex-col-reverse lg:flex-row">
         {!settingsLoaded ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground py-16">
-            Loading the diary…
+            {t("diary.loadingDiary")}
           </div>
         ) : columns.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground gap-2 py-16">
             <CalendarDays className="h-4 w-4" />
-            No stylists configured yet — add your team in Settings.
+            {t("diary.noStylists")}
           </div>
         ) : (
           <DayGrid
@@ -476,7 +531,7 @@ export default function CalendarPage() {
             onPickSlot={(stylistName, time) =>
               setSlot({ stylistName, time, date: selected })
             }
-            onOpenAppointment={setOpenAppointment}
+            onOpenAppointment={showAppointment}
             onMoveAppointment={(appointment, stylistName, time) =>
               setPendingMove({ appointment, stylistName, time, date: selected })
             }
@@ -500,7 +555,7 @@ export default function CalendarPage() {
           {legend.length > 0 && (
             <div className="hidden lg:block">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
-                Services
+                {t("diary.services")}
               </p>
               <ul className="grid gap-1.5">
                 {legend.map((f) => (
@@ -513,7 +568,7 @@ export default function CalendarPage() {
                       }}
                     />
                     <span className="text-muted-foreground truncate">
-                      {FAMILY_LABEL[f]}
+                      {t(`family.${f}`)}
                     </span>
                   </li>
                 ))}

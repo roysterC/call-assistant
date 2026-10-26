@@ -33,18 +33,19 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { callbackStatus, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/providers/language-provider";
+import { DATE_FNS_LOCALE, type MessageKey } from "@/lib/i18n";
 
-const OUTCOMES: Array<{ value: string; label: string }> = [
-  { value: "converted", label: "Converted" },
-  { value: "no_answer", label: "No answer" },
-  { value: "not_interested", label: "Not interested" },
-  { value: "follow_up", label: "Needs follow-up" },
-  { value: "other", label: "Other" },
-];
+const OUTCOMES = ["converted", "no_answer", "not_interested", "follow_up", "other"] as const;
+type Outcome = (typeof OUTCOMES)[number];
+const isOutcome = (v: string | null): v is Outcome => (OUTCOMES as readonly (string | null)[]).includes(v);
 
-const OUTCOME_LABEL: Record<string, string> = Object.fromEntries(
-  OUTCOMES.map((o) => [o.value, o.label])
-);
+const STATUSES = ["pending", "completed", "missed"] as const;
+const EMPTY: Record<string, { title: MessageKey; hint: MessageKey }> = {
+  pending: { title: "callbacks.noPending", hint: "callbacks.pendingHint" },
+  completed: { title: "callbacks.noCompleted", hint: "callbacks.completedHint" },
+  missed: { title: "callbacks.noMissed", hint: "callbacks.missedHint" },
+};
 
 interface Callback {
   id: string;
@@ -68,6 +69,8 @@ export default function CallbacksPage() {
   const [outcome, setOutcome] = useState<string>("converted");
   const [completionNotes, setCompletionNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const { t, lang } = useT();
+  const outcomeLabel = (o: string | null) => (isOutcome(o) ? t(`callbacks.outcome.${o}`) : (o ?? ""));
 
   const fetchCallbacks = useCallback(async () => {
     setLoading(true);
@@ -140,11 +143,11 @@ export default function CallbacksPage() {
   const columns: ColumnDef<Callback>[] = [
     {
       id: "customer",
-      header: "Customer",
+      header: t("callbacks.customer"),
       accessorFn: (cb) => cb.lead.name ?? "",
       cell: ({ row: { original: cb } }) => (
         <PersonCell
-          name={cb.lead.name || "Unknown"}
+          name={cb.lead.name || t("callbacks.unknown")}
           detail={[cb.lead.phone, cb.lead.company].filter(Boolean).join(" · ")}
         />
       ),
@@ -152,19 +155,19 @@ export default function CallbacksPage() {
     {
       // When the caller rang (there is no due time), and who it is for.
       id: "called",
-      header: "Called",
+      header: t("callbacks.called"),
       accessorFn: (cb) => cb.createdAt,
       meta: { className: "whitespace-nowrap text-muted-foreground" },
       cell: ({ row: { original: cb } }) => (
         <>
-          {format(new Date(cb.createdAt), "d MMM, HH:mm")}
-          {cb.assignedTo && <SubText>For {cb.assignedTo}</SubText>}
+          {format(new Date(cb.createdAt), "d MMM, HH:mm", { locale: DATE_FNS_LOCALE[lang] })}
+          {cb.assignedTo && <SubText>{t("callbacks.for", { name: cb.assignedTo })}</SubText>}
         </>
       ),
     },
     {
       id: "notes",
-      header: "Notes",
+      header: t("callbacks.notes"),
       enableSorting: false,
       cell: ({ row: { original: cb } }) =>
         cb.notes ? (
@@ -187,12 +190,12 @@ export default function CallbacksPage() {
       ? [
           {
             id: "outcome",
-            header: "Outcome",
-            accessorFn: (cb) => (cb.outcome ? OUTCOME_LABEL[cb.outcome] || cb.outcome : ""),
+            header: t("callbacks.outcome"),
+            accessorFn: (cb) => outcomeLabel(cb.outcome),
             cell: ({ row: { original: cb } }) =>
               cb.outcome ? (
                 <span className={cn(STATUS_BADGE, callbackStatus("completed").className)}>
-                  {OUTCOME_LABEL[cb.outcome] || cb.outcome}
+                  {outcomeLabel(cb.outcome)}
                 </span>
               ) : (
                 <span className="text-muted-foreground">—</span>
@@ -204,18 +207,18 @@ export default function CallbacksPage() {
       ? [
           {
             id: "actions",
-            header: () => <span className="sr-only">Actions</span>,
+            header: () => <span className="sr-only">{t("callbacks.actions")}</span>,
             enableSorting: false,
             meta: { align: "right" },
             cell: ({ row: { original: cb } }) => (
               <div className="flex justify-end gap-1">
-                <Button size="sm" variant="outline" onClick={() => openCompleteDialog(cb)} title="Mark complete with outcome">
+                <Button size="sm" variant="outline" onClick={() => openCompleteDialog(cb)} title={t("callbacks.completeTitle")}>
                   <Check className="mr-1 h-3 w-3" />
-                  Complete
+                  {t("callbacks.complete")}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => updateStatus(cb.id, "missed")} title="Mark missed">
+                <Button size="sm" variant="outline" onClick={() => updateStatus(cb.id, "missed")} title={t("callbacks.missedTitle")}>
                   <X className="mr-1 h-3 w-3" />
-                  Missed
+                  {t("callbacks.missed")}
                 </Button>
               </div>
             ),
@@ -227,17 +230,17 @@ export default function CallbacksPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Callbacks"
+        title={t("callbacks.title")}
       />
 
       <TableToolbar>
         <TableTabs
-          label="Show"
+          label={t("callbacks.show")}
           value={filter}
           onChange={setFilter}
-          items={["pending", "completed", "missed"].map((status) => ({
+          items={STATUSES.map((status) => ({
             value: status,
-            label: callbackStatus(status).label,
+            label: t(`callbacks.status.${status}`),
           }))}
         />
       </TableToolbar>
@@ -248,16 +251,12 @@ export default function CallbacksPage() {
         getRowId={(cb) => cb.id}
         loading={loading}
         pageSize={25}
-        noun="callbacks"
+        noun={t("callbacks.noun")}
         empty={
           <EmptyState
             icon={CalendarClock}
-            title={`No ${filter} callbacks`}
-            hint={
-              filter === "pending"
-                ? "When a caller asks for someone, the receptionist takes a message and it lands here."
-                : `Callbacks you mark as ${filter} will be listed here.`
-            }
+            title={t((EMPTY[filter] ?? EMPTY.pending).title)}
+            hint={t((EMPTY[filter] ?? EMPTY.pending).hint)}
           />
         }
       />
@@ -271,18 +270,18 @@ export default function CallbacksPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Mark callback complete</DialogTitle>
+            <DialogTitle>{t("callbacks.markComplete")}</DialogTitle>
           </DialogHeader>
           {completeTarget && (
             <div className="space-y-4">
               <div className="text-sm">
-                <span className="text-muted-foreground">Customer: </span>
+                <span className="text-muted-foreground">{t("callbacks.customerLabel")} </span>
                 <span className="font-medium">
                   {completeTarget.lead.name || completeTarget.lead.phone}
                 </span>
               </div>
               <div>
-                <label className="text-sm font-medium">Outcome</label>
+                <label className="text-sm font-medium">{t("callbacks.outcome")}</label>
                 <Select
                   value={outcome}
                   onValueChange={(v) => v && setOutcome(v)}
@@ -292,8 +291,8 @@ export default function CallbacksPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {OUTCOMES.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
+                      <SelectItem key={o} value={o}>
+                        {t(`callbacks.outcome.${o}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -301,14 +300,14 @@ export default function CallbacksPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">
-                  Completion notes{" "}
+                  {t("callbacks.completionNotes")}{" "}
                   <span className="text-xs text-muted-foreground font-normal">
-                    (optional)
+                    {t("callbacks.optional")}
                   </span>
                 </label>
                 <Textarea
                   className="mt-1"
-                  placeholder="What happened on the call?"
+                  placeholder={t("callbacks.notesPlaceholder")}
                   value={completionNotes}
                   onChange={(e) => setCompletionNotes(e.target.value)}
                   rows={4}
@@ -322,10 +321,10 @@ export default function CallbacksPage() {
               onClick={() => setCompleteTarget(null)}
               disabled={submitting}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={submitComplete} disabled={submitting}>
-              {submitting ? "Saving..." : "Save"}
+              {submitting ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

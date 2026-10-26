@@ -18,6 +18,8 @@ type Access = "members" | "owner";
 const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "appointments/[id]": { PATCH: "members" },
   appointments: { GET: "members", PATCH: "members", POST: "members" },
+  // Each person's own pop-ups and "new" colours.
+  "booking-notices": { GET: "members", POST: "members" },
   callbacks: { GET: "members", PATCH: "members" },
   calls: { GET: "members" },
   "clients/[id]": { GET: "members", PATCH: "members" },
@@ -33,8 +35,11 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   // The owner's question of the receptionist: is it earning its keep?
   "insights/receptionist": { GET: "owner" },
   leads: { GET: "members" },
-  me: { GET: "members" },
+  me: { GET: "members", PUT: "members" },
   "phone-numbers": { GET: "members" },
+  // Booking alerts on this person's own phone or computer.
+  push: { DELETE: "members", GET: "members", POST: "members" },
+  "push/test": { POST: "members" },
   // The lab is for super-admins; the route checks that after requireTenant,
   // in a helper both handlers share.
   "receptionist/lab": { helper: "owner" },

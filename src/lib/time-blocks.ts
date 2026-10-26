@@ -128,7 +128,8 @@ export function expandBlocks(
       b.endTime !== "24:00" && minutesOf(b.endTime) <= minutesOf(b.startTime);
     const skip = new Set(b.skipDates);
 
-    const firstDate = zonedDateString(new Date(from.getTime() - DAY_MS), timeZone);
+    // The day before, for a block that runs overnight into the range.
+    const firstDate = addCalendarDays(zonedDateString(from, timeZone), -1);
     const lastDate = zonedDateString(to, timeZone);
     for (let d = firstDate; d <= lastDate; d = addCalendarDays(d, 1)) {
       if (d < b.fromDate) continue;

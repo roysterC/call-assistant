@@ -7,7 +7,7 @@
  * rather than through the local Date accessors.
  */
 
-import { zonedParts } from "@/lib/business-hours";
+import { addCalendarDays, zonedParts } from "@/lib/business-hours";
 
 /** Fixed window for the grid. A salon trading 11-19 still wants to see the
  *  early delivery and the late tidy-up, and a fixed height stops the grid
@@ -247,8 +247,10 @@ export function salonDayRange(
   date: string,
   timeZone: string
 ): { from: string; to: string } {
+  // Midnight to midnight: 25 hours the day the clocks go back, 23 when they
+  // go forward.
   const start = wallTimeToUtc(date, "00:00", timeZone);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const end = wallTimeToUtc(addCalendarDays(date, 1), "00:00", timeZone);
   return { from: start.toISOString(), to: end.toISOString() };
 }
 

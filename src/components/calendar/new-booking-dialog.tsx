@@ -32,6 +32,7 @@ import { combineServices, type SalonService } from "@/lib/salon-config";
 import { ClientPicker, type ClientRow } from "./client-picker";
 import { BookingDetails, type BookingDraft } from "./booking-details";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
+import { useT } from "@/components/providers/language-provider";
 
 export interface BookingSlot {
   stylistName: string;
@@ -71,8 +72,8 @@ interface NewBookingDialogProps {
   onBlockInstead: (slot: BookingSlot) => void;
 }
 
-function describeWhen(date: string, time: string, timeZone: string): string {
-  return wallTimeToUtc(date, time, timeZone).toLocaleString("en-GB", {
+function describeWhen(date: string, time: string, timeZone: string, locale: string): string {
+  return wallTimeToUtc(date, time, timeZone).toLocaleString(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -97,6 +98,7 @@ export function NewBookingDialog({
   const [step, setStep] = useState<Step>({ kind: "client" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t, locale } = useT();
 
   // Back to the start for every slot, so the last booking's client never
   // rides along into the next one.
@@ -128,7 +130,7 @@ export function NewBookingDialog({
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "Could not save that booking.");
+        setError(data.error || t("new.couldNotSave"));
         return;
       }
       const picked = draft.serviceNames
@@ -138,8 +140,8 @@ export function NewBookingDialog({
         kind: "done",
         booked: {
           bookingNumber: data.appointment?.bookingNumber ?? null,
-          clientName: client?.name ?? (draft.walkInName.trim() || "Walk-in"),
-          whenText: describeWhen(draft.date, draft.time, timeZone),
+          clientName: client?.name ?? (draft.walkInName.trim() || t("form.walkIn")),
+          whenText: describeWhen(draft.date, draft.time, timeZone, locale),
           stylistName: draft.stylistName,
           serviceText: data.appointment?.serviceText ?? draft.serviceNames.join(" + "),
           priceMinor: picked.length ? combineServices(picked).priceMinor : null,
@@ -147,7 +149,7 @@ export function NewBookingDialog({
       });
       onBooked();
     } catch {
-      setError("Could not reach the server.");
+      setError(t("common.noServer"));
     } finally {
       setSaving(false);
     }
@@ -156,11 +158,11 @@ export function NewBookingDialog({
   const title =
     step.kind === "client"
       ? slot
-        ? `${slot.time} with ${slot.stylistName}: who is it for?`
-        : "New booking"
+        ? t("new.whoFor", { time: slot.time, stylist: slot.stylistName })
+        : t("new.title")
       : step.kind === "details"
-        ? "Booking details"
-        : "Booked";
+        ? t("new.details")
+        : t("new.booked");
 
   return (
     <Dialog open={Boolean(slot)} onOpenChange={(o) => !o && onClose()}>
@@ -171,10 +173,7 @@ export function NewBookingDialog({
           <DialogTitle>{title}</DialogTitle>
           {step.kind !== "done" && (
             <p className="text-xs text-muted-foreground">
-              Step {step.kind === "client" ? 1 : 2} of 2 ·{" "}
-              {step.kind === "client"
-                ? "Pick a client, or add a new one"
-                : "The booking number is given when you book"}
+              {step.kind === "client" ? t("new.stepClient") : t("new.stepDetails")}
             </p>
           )}
         </DialogHeader>
@@ -216,7 +215,7 @@ export function NewBookingDialog({
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-8 w-8 text-tea-green-200 shrink-0" />
               <div>
-                <div className="text-xs text-muted-foreground">Booking number</div>
+                <div className="text-xs text-muted-foreground">{t("new.bookingNumber")}</div>
                 <div className="text-2xl font-semibold tabular-nums">
                   {step.booked.bookingNumber !== null
                     ? `#${step.booked.bookingNumber}`
@@ -225,23 +224,23 @@ export function NewBookingDialog({
               </div>
             </div>
             <dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
-              <dt className="text-muted-foreground text-xs pt-0.5">Client</dt>
+              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.client")}</dt>
               <dd>{step.booked.clientName}</dd>
-              <dt className="text-muted-foreground text-xs pt-0.5">When</dt>
+              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.when")}</dt>
               <dd>{step.booked.whenText}</dd>
-              <dt className="text-muted-foreground text-xs pt-0.5">Stylist</dt>
+              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.stylist")}</dt>
               <dd>{step.booked.stylistName}</dd>
-              <dt className="text-muted-foreground text-xs pt-0.5">Services</dt>
+              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.services")}</dt>
               <dd>{step.booked.serviceText}</dd>
-              <dt className="text-muted-foreground text-xs pt-0.5">Cost</dt>
+              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.cost")}</dt>
               <dd className="tabular-nums">
                 {step.booked.priceMinor === null
-                  ? "Not priced"
+                  ? t("form.notPriced")
                   : formatMoney(step.booked.priceMinor)}
               </dd>
             </dl>
             <div className="flex justify-end">
-              <Button onClick={onClose}>Done</Button>
+              <Button onClick={onClose}>{t("new.done")}</Button>
             </div>
           </div>
         )}

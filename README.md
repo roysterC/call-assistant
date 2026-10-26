@@ -353,8 +353,12 @@ page. Staff talk to it (or type) at the desk or on their phone:
   (the same figures as the Sales report, `src/lib/takings.ts`).
 - **Things to do** become a card, and nothing happens until "yes" or a tap:
   book, move or cancel (with "and text her" for the client's text), add a
-  note to a client's page, or send a client a text (owners only). "Yes. And
-  how much did we take last week?" saves the card, then answers.
+  note to a client's page, send a client a text (owners only), or change a
+  client's name, number, email or patch test date ("Sarah's new number
+  is…", "Jo had her patch test today"), with the old value struck through
+  beside the new. A number or email another client already has is refused,
+  as on the client's page. "Yes. And how much did we take last week?" saves
+  the card, then answers.
 
 How it is built:
 
@@ -378,6 +382,73 @@ How it is built:
   Assistant routine, or the home-screen icon's long-press shortcut (in the
   manifest). A phone that wants a touch before it uses the microphone gets one
   big "Tap to talk" instead.
+
+### Languages (English and Vietnamese)
+
+Each person chooses the language the CRM is shown in: Account → Language,
+or the English / Tiếng Việt switch on the login page (saved to their account
+when they sign in). It is per person, so an owner can work in English while
+their stylists use Vietnamese, and it follows them to any device.
+
+Translated so far: what staff use every day. That covers the menu, sign-in,
+Account, the Diary and every dialog opened from it, Clients, Callbacks, the
+Dashboard, the booking pop-ups, and the assistant's panel. Still English:
+Settings, Sales, Insights, Conversations, Websites, Call History, Admin, and
+messages that come from the server (an error saying why a booking was
+refused, for example). Anything clients see is unchanged (texts, the phone
+receptionist, the chat widget), and the personal assistant still listens and
+answers in English; its panel says so in Vietnamese.
+
+How it is built: `src/lib/i18n/`. Every message is a line in
+`messages/*.ts` with the English and the Vietnamese side by side, so a
+reviewer sees what each Vietnamese line is for. A missing translation fails
+the type check, and `i18n.test.ts` checks that both sides fill the same
+`{placeholders}` and that nothing was left in English by mistake. Screens use
+`useT()` (`src/components/providers/language-provider.tsx`) for `t(key)` and
+for the `locale` that dates and numbers are formatted in; Vietnamese uses the
+24-hour clock. The choice is kept on `User.language` and in the `kikai-lang`
+cookie, which the root layout reads so the page is rendered in the right
+language from the start.
+
+The Vietnamese was written for this, not by a native speaker: have one read
+it over in `messages/` before relying on it, especially the salon words
+(thợ for stylist, thử dị ứng for patch test, chặn giờ for blocked time).
+
+### Booking alerts
+
+When the receptionist books someone in (on the phone, or in the receptionist
+lab), everyone with a login at that salon is told, three ways:
+
+- **A pop-up in the top corner** of the CRM, on whatever page is open, with
+  "View booking" and "Close". It stays until one of them is clicked, also
+  across reloads and the next day's sign-in. Several stack, newest first,
+  with "Close all". A phone shows the newest only.
+- **A colour in the diary.** The booking is magenta with a "New" tag until
+  that person opens it. Closing the pop-up leaves the colour; opening the
+  booking clears both. Each person has their own: one stylist opening it does
+  not clear it for the owner.
+- **A push notification** on each phone or computer someone turned alerts on
+  for (Account → "Booking alerts on this device", with "Send a test"). Tapping
+  it opens the diary on that booking. On an iPhone or iPad, alerts only come
+  to the diary added to the home screen (Safari → Share → Add to Home Screen),
+  then turned on from inside it. Signing out turns them off on that device.
+
+Bookings made at the desk or through the personal assistant raise none of
+these: whoever made them already knows.
+
+How it is built: `src/lib/booking-notices.ts` (one `BookingNotice` per person
+per booking, raised from the receptionist's `handleBookAppointment`),
+`src/lib/push.ts` and `public/sw.js` (Web Push; the service worker only shows
+alerts and caches nothing), `src/components/notifications/`.
+
+Push needs nothing signed up for. Messages are signed with the server's own
+key pair, `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`, which the deploy makes
+once and adds to `.env` (`scripts/ensure-push-keys.ts`); it also needs
+`AUTH_URL` to be the CRM's https address (or `VAPID_SUBJECT` set to a
+`mailto:` or https address). Keep the keys: new ones stop alerts on every
+device until each turns them on again. The voice server reads the same `.env`,
+so it needs a restart after the keys are first made, which the deploy does
+once no calls are in progress.
 
 ### What the bots know about the salon
 

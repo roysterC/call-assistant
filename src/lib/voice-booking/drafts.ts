@@ -2,9 +2,10 @@
  * Booking by voice: what the person at the desk asked for, as a card on the
  * screen, and nothing in the diary until they say yes.
  *
- * Everything the assistant can do ends here as a draft: a booking, a move or
- * a cancellation, checked against the same rules as the phone and shown to
- * the person who asked for it. Only `commitDraft` writes, and only the route
+ * Everything the assistant can do ends here as a draft: a booking, a move, a
+ * cancellation or a change to a client's details, checked against the same
+ * rules as the phone or the client's page and shown to the person who asked
+ * for it. Only `commitDraft` writes, and only the route
  * calls it, after a plain "yes" or a tap on Save. The model has no way to
  * reach it.
  *
@@ -32,6 +33,7 @@ import {
   parseDateOnly,
   parseSpokenTime,
   resolveSpokenDate,
+  resolveSpokenPastDate,
   zonedDateString,
   zonedParts,
   zonedWallTimeToUtc,
@@ -45,12 +47,13 @@ import {
   type AppointmentMessageInput,
 } from "@/lib/sms";
 import { smsSize, toGsm } from "@/lib/sms-encoding";
-import { namesMatch } from "@/lib/client-name";
-import { normalisePhone } from "@/lib/phone";
+import { namesMatch, splitName } from "@/lib/client-name";
+import { checkClientEmail, checkClientPhone } from "@/lib/client-details";
+import { normalisePhone, speakablePhone } from "@/lib/phone";
 import { matchStylist, resolveBookedService, servicesLike, type SalonService, type Stylist } from "@/lib/salon-config";
 import type { TenantContext } from "@/lib/tenant";
 import { phoneSlotProblem, stylistServiceProblem } from "@/lib/receptionist/actions";
-import { spokenPatchTest } from "@/lib/patch-test";
+import { parsePatchTestDate, spokenPatchTest } from "@/lib/patch-test";
 
 /** Who is asking, as far as drafting cares. */
 export type Asker = Pick<TenantContext, "organizationId" | "role">;
@@ -120,7 +123,24 @@ export interface TextDraft extends DraftBase {
   segments: number;
 }
 
-export type Draft = BookDraft | MoveDraft | CancelDraft | NoteDraft | TextDraft;
+/** What can change about a client by voice; the rest is for their page. */
+export type DetailField = "name" | "phone" | "email" | "patchTest";
+
+/** A change to a client's details, old beside new as the card shows them. */
+export interface DetailsDraft extends DraftBase {
+  kind: "details";
+  leadId: string;
+  changes: {
+    field: DetailField;
+    /** As the card and the assistant show it ("07700 900123", "6 October 2026"). */
+    from: string | null;
+    to: string;
+    /** As it is stored: +44 form, lower-cased email, "YYYY-MM-DD". */
+    value: string;
+  }[];
+}
+
+export type Draft = BookDraft | MoveDraft | CancelDraft | NoteDraft | TextDraft | DetailsDraft;
 
 export type Proposal = { ok: true; draft: Draft } | { ok: false; message: string; [k: string]: unknown };
 
@@ -427,6 +447,16 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
   };
 }
 
+/**
+ * A number as the card shows it: a mobile grouped as people write one, any
+ * other number left as it is, since landlines group by area code.
+ */
+function shownPhone(e164: string): string {
+  const r = normalisePhone(e164);
+  if (!r.ok) return e164;
+  return r.isMobile ? speakablePhone(e164) : r.national;
+}
+
 async function patchTestOnRecord(leadId: string): Promise<boolean> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { patchTestAt: true } });
   return Boolean(lead?.patchTestAt);
@@ -567,6 +597,90 @@ export async function proposeText(asker: Asker, req: { clientId?: string; messag
   };
 }
 
+export interface DetailsRequest {
+  clientId?: string;
+  /** The whole name, as it should read. */
+  name?: string;
+  phone?: string;
+  email?: string;
+  /** The day of a patch test they have had, in the words used. */
+  patchTestDate?: string;
+}
+
+/**
+ * A change to who a client is or how they are reached, under the same rules
+ * as their page: a number or email another client has is refused, and a
+ * patch test cannot be in the future. Only what differs from the record goes
+ * on the card. Taking a number or email away is left to the client's page.
+ */
+export async function proposeDetails(asker: Asker, req: DetailsRequest, now: Date = new Date()): Promise<Proposal> {
+  const lead = req.clientId
+    ? await prisma.lead.findFirst({
+        where: { id: req.clientId, organizationId: asker.organizationId },
+        select: { id: true, name: true, phone: true, email: true, patchTestAt: true },
+      })
+    : null;
+  if (!lead) return { ok: false, message: "Which client? Look them up first." };
+  const changes: DetailsDraft["changes"] = [];
+
+  const name = req.name?.replace(/\s+/g, " ").trim();
+  if (name) {
+    if (name.length < 2 || name.length > 120) return { ok: false, message: "What should their name be?" };
+    if (name !== lead.name) changes.push({ field: "name", from: lead.name, to: name, value: name });
+  }
+
+  if (req.phone?.trim()) {
+    const phone = await checkClientPhone(asker.organizationId, lead.id, req.phone);
+    if (!phone.ok) return { ok: false, message: phone.message };
+    if (phone.value !== lead.phone) {
+      changes.push({
+        field: "phone",
+        from: lead.phone ? shownPhone(lead.phone) : null,
+        to: shownPhone(phone.value),
+        value: phone.value,
+      });
+    }
+  }
+
+  if (req.email?.trim()) {
+    const email = await checkClientEmail(asker.organizationId, lead.id, req.email);
+    if (!email.ok) return { ok: false, message: email.message };
+    if (email.value && email.value !== lead.email) {
+      changes.push({ field: "email", from: lead.email, to: email.value, value: email.value });
+    }
+  }
+
+  if (req.patchTestDate?.trim()) {
+    const cfg = await getSalonConfig(asker.organizationId);
+    const day = resolveSpokenPastDate(req.patchTestDate, cfg.timeZone, now);
+    if (!day) {
+      return { ok: false, message: `Which day was the patch test? "${req.patchTestDate}" is not a day that has passed.` };
+    }
+    const parsed = parsePatchTestDate(day, now);
+    if (!parsed.ok) return { ok: false, message: parsed.error };
+    const at = parsed.value!;
+    if (at.getTime() !== lead.patchTestAt?.getTime()) {
+      changes.push({
+        field: "patchTest",
+        from: lead.patchTestAt ? spokenPatchTest(lead.patchTestAt) : null,
+        to: spokenPatchTest(at),
+        value: day,
+      });
+    }
+  }
+
+  if (changes.length === 0) {
+    const asked = name || req.phone?.trim() || req.email?.trim() || req.patchTestDate?.trim();
+    return {
+      ok: false,
+      message: asked
+        ? `That is already what ${lead.name ?? "the client"} has on file.`
+        : "What should change: their name, number, email or patch test?",
+    };
+  }
+  return { ok: true, draft: { id: randomUUID(), kind: "details", leadId: lead.id, clientName: lead.name ?? "Client", changes } };
+}
+
 // --- Saving --------------------------------------------------------------------------------
 
 export type Committed =
@@ -588,6 +702,7 @@ export type Committed =
  */
 export async function commitDraft(asker: Asker, draft: Draft): Promise<Committed> {
   if (draft.kind === "note") return commitNote(asker, draft);
+  if (draft.kind === "details") return commitDetails(asker, draft);
   if (draft.kind === "text") {
     const sent = await sendSms(asker.organizationId, draft.to, draft.body);
     return sent.ok
@@ -688,6 +803,48 @@ async function commitNote(asker: Asker, draft: NoteDraft): Promise<Committed> {
   const line = `${day}: ${draft.note}`;
   await prisma.lead.update({ where: { id: lead.id }, data: { notes: lead.notes?.trim() ? `${lead.notes.trim()}\n${line}` : line } });
   return { ok: true, kind: "note" };
+}
+
+/**
+ * Save a confirmed change of details. The number and email are checked
+ * again: someone at the desk may have given them to another client since
+ * the card went up.
+ */
+async function commitDetails(asker: Asker, draft: DetailsDraft): Promise<Committed> {
+  const lead = await prisma.lead.findFirst({
+    where: { id: draft.leadId, organizationId: asker.organizationId },
+    select: { id: true },
+  });
+  if (!lead) return { ok: false, message: "That client is no longer on the books." };
+  const data: { name?: string; firstName?: string | null; lastName?: string | null; phone?: string; email?: string; patchTestAt?: Date } = {};
+  for (const c of draft.changes) {
+    if (c.field === "name") Object.assign(data, { name: c.value, ...splitName(c.value) });
+    if (c.field === "phone") {
+      const phone = await checkClientPhone(asker.organizationId, lead.id, c.value);
+      if (!phone.ok) return { ok: false, message: `Not saved: ${phone.message}` };
+      data.phone = phone.value;
+    }
+    if (c.field === "email") {
+      const email = await checkClientEmail(asker.organizationId, lead.id, c.value);
+      if (!email.ok || !email.value) return { ok: false, message: `Not saved: ${email.ok ? "no email given." : email.message}` };
+      data.email = email.value;
+    }
+    if (c.field === "patchTest") {
+      const parsed = parsePatchTestDate(c.value);
+      if (!parsed.ok || !parsed.value) return { ok: false, message: `Not saved: ${parsed.ok ? "no date given." : parsed.error}` };
+      data.patchTestAt = parsed.value;
+    }
+  }
+  try {
+    await prisma.lead.update({ where: { id: lead.id }, data });
+  } catch (err) {
+    // Taken in the moment between the check and the save.
+    if ((err as { code?: string }).code === "P2002") {
+      return { ok: false, message: "Not saved: another client has just been given that number or email." };
+    }
+    throw err;
+  }
+  return { ok: true, kind: "details" };
 }
 
 /**

@@ -29,6 +29,7 @@ import { speakablePhone } from "@/lib/phone";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
 import { ClientLink, DuplicateFlag, Field, type ClientRow } from "./client-picker";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
+import { useT } from "@/components/providers/language-provider";
 
 export interface BookingDraft {
   date: string;
@@ -113,6 +114,7 @@ export function BookingDetails({
   const [notes, setNotes] = useState(initial.notes ?? "");
   const [walkInName, setWalkInName] = useState("");
   const [notifyClient, setNotifyClient] = useState(true);
+  const { t } = useT();
   const locked = Boolean(editing?.lockWhen);
   const whenChanged =
     date !== initial.date || time !== initial.time || stylistName !== initial.stylistName;
@@ -208,23 +210,23 @@ export function BookingDetails({
           {client ? (
             <>
               <div className="font-medium truncate">
-                {client.name ?? "Unnamed client"}
+                {client.name ?? t("form.unnamedClient")}
                 <DuplicateFlag client={client} className="ml-2" />
               </div>
               <div className="text-xs text-muted-foreground tabular-nums truncate">
                 {[client.phone && speakablePhone(client.phone), client.email]
                   .filter(Boolean)
-                  .join(" · ") || (client.contactLead ? "" : "No contact details")}
+                  .join(" · ") || (client.contactLead ? "" : t("form.noContact"))}
               </div>
               <ClientLink client={client} />
             </>
           ) : (
-            <Field label="Walk-in name (optional)" id="walkin-name">
+            <Field label={t("form.walkInName")} id="walkin-name">
               <Input
                 id="walkin-name"
                 value={walkInName}
                 onChange={(e) => setWalkInName(e.target.value)}
-                placeholder="Walk-in"
+                placeholder={t("form.walkIn")}
                 className="h-8"
               />
             </Field>
@@ -232,14 +234,16 @@ export function BookingDetails({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-            {isNew ? "New client" : `Returning · ${client!.visits} visit${client!.visits === 1 ? "" : "s"}`}
+            {isNew
+              ? t("form.newClient")
+              : t(client!.visits === 1 ? "form.returningOne" : "form.returningMany", { n: client!.visits })}
           </span>
           <button
             type="button"
             onClick={onBack}
             className="text-xs underline underline-offset-2 text-muted-foreground hover:text-foreground"
           >
-            Change
+            {t("form.change")}
           </button>
         </div>
       </div>
@@ -252,13 +256,12 @@ export function BookingDetails({
 
       {locked && (
         <p className="text-xs text-muted-foreground">
-          This booking is finished or in the past, so its time and stylist
-          stay as they were. Services, notes and client can still change.
+          {t("form.locked")}
         </p>
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Field label="Date" id="booking-date">
+        <Field label={t("form.date")} id="booking-date">
           <Input
             id="booking-date"
             type="date"
@@ -268,7 +271,7 @@ export function BookingDetails({
             required
           />
         </Field>
-        <Field label="Time" id="booking-time">
+        <Field label={t("form.time")} id="booking-time">
           <Input
             id="booking-time"
             type="time"
@@ -280,14 +283,14 @@ export function BookingDetails({
           />
         </Field>
         <div className="col-span-2 sm:col-span-1">
-          <Field label="Stylist" id="booking-stylist">
+          <Field label={t("form.stylist")} id="booking-stylist">
             <Select
               value={stylistName}
               onValueChange={(v) => setStylistName(v ?? "")}
               disabled={locked}
             >
               <SelectTrigger id="booking-stylist" className="w-full">
-                <SelectValue placeholder="Choose" />
+                <SelectValue placeholder={t("form.choose")} />
               </SelectTrigger>
               <SelectContent>
                 {stylists.map((s) => (
@@ -303,16 +306,16 @@ export function BookingDetails({
 
       <div className="grid gap-2">
         <div className="flex items-baseline justify-between text-xs text-muted-foreground">
-          <span>Services</span>
-          <span className="hidden sm:inline">Minutes · Price</span>
+          <span>{t("form.services")}</span>
+          <span className="hidden sm:inline">{t("form.minutesPrice")}</span>
         </div>
         {lines.map((name, i) => {
           const s = services.find((x) => x.name === name);
           return (
             <div key={i} className="flex items-center gap-2">
               <Select value={name} onValueChange={(v) => setLine(i, v ?? "")}>
-                <SelectTrigger className="flex-1 min-w-0" aria-label={`Service ${i + 1}`}>
-                  <SelectValue placeholder="Choose a service" />
+                <SelectTrigger className="flex-1 min-w-0" aria-label={t("form.serviceN", { n: i + 1 })}>
+                  <SelectValue placeholder={t("form.chooseService")} />
                 </SelectTrigger>
                 <SelectContent>
                   {services.map((opt) => (
@@ -325,8 +328,8 @@ export function BookingDetails({
               <span className="w-24 sm:w-28 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                 {s ? (
                   <>
-                    {s.durationMinutes} min ·{" "}
-                    {s.priceMinor === null ? "no price" : formatMoney(s.priceMinor)}
+                    {t("form.minShort", { n: s.durationMinutes })} ·{" "}
+                    {s.priceMinor === null ? t("form.noPrice") : formatMoney(s.priceMinor)}
                   </>
                 ) : null}
               </span>
@@ -334,7 +337,7 @@ export function BookingDetails({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Remove service"
+                aria-label={t("form.removeService")}
                 disabled={lines.length === 1}
                 onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
               >
@@ -352,13 +355,13 @@ export function BookingDetails({
             onClick={() => setLines((ls) => [...ls, ""])}
           >
             <Plus className="h-3.5 w-3.5" />
-            Add service
+            {t("form.addService")}
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 rounded-md bg-muted/40 px-3 py-3">
-        <Field label="Total time (minutes)" id="booking-minutes">
+        <Field label={t("form.totalMinutes")} id="booking-minutes">
           <Input
             id="booking-minutes"
             inputMode="numeric"
@@ -370,51 +373,54 @@ export function BookingDetails({
           />
           {endTime && (
             <span className="text-[11px] text-muted-foreground tabular-nums">
-              {time} to {endTime}
+              {t("form.timeRange", { from: time, to: endTime })}
             </span>
           )}
         </Field>
         <div className="grid gap-1.5 content-start">
-          <span className="text-xs text-muted-foreground">Total cost</span>
+          <span className="text-xs text-muted-foreground">{t("form.totalCost")}</span>
           <span className="text-xl font-semibold tabular-nums">
             {!combined
               ? "—"
               : combined.priceMinor === null
-                ? "Not priced"
+                ? t("form.notPriced")
                 : formatMoney(combined.priceMinor)}
           </span>
           {combined && combined.priceMinor === null && (
             <span className="text-[11px] text-muted-foreground">
-              A service here has no price set.
+              {t("form.noPriceSet")}
             </span>
           )}
         </div>
       </div>
 
-      <Field label="Notes" id="booking-notes">
+      <Field label={t("form.notes")} id="booking-notes">
         <Textarea id="booking-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
       </Field>
 
       {patchTest && (
         <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
-          New client having colour: needs a skin patch test 48 hours before.
+          {t("form.patchTest")}
         </p>
       )}
       {blocked && (
         <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
           {blocked.stylistName === null
-            ? `The salon is blocked for ${blocked.label}.`
-            : `${blocked.stylistName} is blocked for ${blocked.label}.`}{" "}
-          You can still book it.
+            ? t("form.salonBlocked", { label: blocked.label })
+            : t("form.stylistBlocked", { name: blocked.stylistName, label: blocked.label })}{" "}
+          {t("form.canStillBook")}
         </p>
       )}
       {clash && (
         <p className="flex gap-2 text-xs text-papaya-whip-100">
           <TriangleAlert className="h-4 w-4 shrink-0" />
-          Overlaps {clash.lead.name ?? "another booking"} ({clash.serviceText}) with{" "}
-          {clash.stylistName}. You can still book it.
+          {t("form.overlaps", {
+            client: clash.lead.name ?? t("form.anotherBooking"),
+            service: clash.serviceText,
+            stylist: clash.stylistName,
+          })}
         </p>
       )}
       {editing && whenChanged && client?.phone && (
@@ -425,7 +431,7 @@ export function BookingDetails({
             onChange={(e) => setNotifyClient(e.target.checked)}
             className="h-4 w-4 accent-foreground"
           />
-          Text the client about the change
+          {t("form.textClient")}
         </label>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
@@ -437,10 +443,10 @@ export function BookingDetails({
           onClick={editing && onCancel ? onCancel : onBack}
           disabled={saving}
         >
-          {editing ? "Cancel" : "Back"}
+          {editing ? t("common.cancel") : t("common.back")}
         </Button>
         <Button type="submit" disabled={!canBook || saving}>
-          {editing ? (saving ? "Saving…" : "Save changes") : saving ? "Booking…" : "Book"}
+          {editing ? (saving ? t("common.saving") : t("form.saveChanges")) : saving ? t("form.booking") : t("form.book")}
         </Button>
       </div>
     </form>

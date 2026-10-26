@@ -5,6 +5,7 @@
  *
  * It understands a few shapes: "Name, service, day at time [with stylist]
  * [and text her]", "make that <time>", "add a note for <name>: <note>",
+ * "change <name>'s number|email|name to <value>", "<name> had a patch test <day>",
  * "how much did we take this week", "what's my day". It calls the real tools,
  * so the cards, the rules, the answers and the saves are the real ones; only
  * the reading of the sentence is faked.
@@ -26,6 +27,7 @@ export function fakeBookingModel(): StreamingClient {
   let asked: Asked | null = null;
   let clientId: string | undefined;
   let noteText: string | null = null;
+  let details: Record<string, string> | null = null;
   let n = 0;
 
   const reply = (content: Anthropic.ContentBlock[]): Anthropic.Message =>
@@ -72,7 +74,10 @@ export function fakeBookingModel(): StreamingClient {
           if (data.clients) {
             const exact = data.clients.find((c: { exactMatch: boolean }) => c.exactMatch);
             clientId = exact?.clientId;
-            if (noteText !== null) {
+            if (details) {
+              message = exact ? tool("propose_client_details", { clientId, ...details }) : say("I can't find that client.");
+              details = null;
+            } else if (noteText !== null) {
               message = exact ? tool("propose_note", { clientId, note: noteText }) : say("I can't find that client.");
               noteText = null;
             } else {
@@ -97,12 +102,21 @@ export function fakeBookingModel(): StreamingClient {
             text.trim().replace(/,?\s+and text (?:her|him|them)\.?$/i, "")
           );
           const note = /^add a note for (.+?):\s*(.+)$/i.exec(text.trim());
+          const change2 = /^change (.+?)'s (number|phone|email|name) to (.+?)\.?$/i.exec(text.trim());
+          const patch = /^(.+?) had (?:a|her|his|their) patch test (.+?)\.?$/i.exec(text.trim());
           const money = /how much did we take (this|last) (day|week|month|year)/i.exec(text);
           const dayAsk = /what'?s (?:my|the) (?:day|afternoon|morning)|who'?s in (today|tomorrow)/i.exec(text);
           if (money) {
             message = tool("takings", { period: money[2].toLowerCase(), offset: money[1].toLowerCase() === "last" ? -1 : 0 });
           } else if (dayAsk) {
             message = tool("day_schedule", { date: dayAsk[1] ?? "today" });
+          } else if (change2) {
+            const field = change2[2].toLowerCase() === "number" ? "phone" : change2[2].toLowerCase();
+            details = { [field]: change2[3] };
+            message = tool("find_client", { name: change2[1] });
+          } else if (patch) {
+            details = { patchTestDate: patch[2] };
+            message = tool("find_client", { name: patch[1] });
           } else if (note) {
             noteText = note[2];
             message = tool("find_client", { name: note[1] });

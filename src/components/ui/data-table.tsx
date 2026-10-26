@@ -31,6 +31,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/providers/language-provider";
 
 declare module "@tanstack/react-table" {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -106,6 +107,7 @@ export function DataTable<T>({
   scrollClassName,
   className,
 }: DataTableProps<T>) {
+  const { t, locale } = useT();
   const [ownSorting, setOwnSorting] = useState<SortingState>(initialSorting);
   const [shown, setShown] = useState(pageSize ?? Infinity);
   const sorting = controlledSorting ?? ownSorting;
@@ -193,7 +195,7 @@ export function DataTable<T>({
                 })}
                 {onRowClick && (
                   <th scope="col" className="w-10">
-                    <span className="sr-only">Open</span>
+                    <span className="sr-only">{t("table.open")}</span>
                   </th>
                 )}
               </tr>
@@ -233,7 +235,7 @@ export function DataTable<T>({
                         : undefined
                     }
                     tabIndex={open ? 0 : undefined}
-                    aria-label={open && rowLabel ? `Open ${rowLabel(row.original)}` : undefined}
+                    aria-label={open && rowLabel ? t("table.openRow", { name: rowLabel(row.original) }) : undefined}
                     className={cn(
                       "border-b border-border/40 transition-colors last:border-0",
                       open
@@ -298,9 +300,11 @@ export function DataTable<T>({
       {showFooter && (
         <div className="flex items-center justify-between gap-3 border-t border-border/60 px-5 py-3 text-sm text-muted-foreground">
           <span>
-            Showing {Math.min(server ? data.length : visible.length, all).toLocaleString()} of{" "}
-            {all.toLocaleString()}
-            {noun ? ` ${noun}` : ""}
+            {t(noun ? "table.showingNoun" : "table.showing", {
+              shown: Math.min(server ? data.length : visible.length, all).toLocaleString(locale),
+              total: all.toLocaleString(locale),
+              noun: noun ?? "",
+            })}
           </span>
           {canShowMore && (
             <button
@@ -309,7 +313,7 @@ export function DataTable<T>({
               onClick={() => (server ? onShowMore?.() : setShown((n) => n + (pageSize ?? 0)))}
               className="h-8 rounded-lg border border-border bg-card px-3.5 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
             >
-              {loadingMore ? "Loading…" : "Show more"}
+              {loadingMore ? t("common.loading") : t("table.showMore")}
             </button>
           )}
         </div>
@@ -361,8 +365,9 @@ export function PersonCell({
   /** A small flag after the name ("Possible duplicate"). */
   badge?: React.ReactNode;
 }) {
+  const { t } = useT();
   const known = Boolean(name?.trim());
-  const shown = name?.trim() || "Unknown";
+  const shown = name?.trim() || t("table.unknown");
   return (
     <div className="flex min-w-0 items-center gap-3">
       {photoUrl ? (
@@ -453,7 +458,7 @@ export function TableTabs<V extends string>({
 export function TableSearch({
   value,
   onChange,
-  placeholder = "Search",
+  placeholder,
   label,
   className,
 }: {
@@ -463,6 +468,7 @@ export function TableSearch({
   label: string;
   className?: string;
 }) {
+  const { t } = useT();
   return (
     <label className={cn("relative block w-full sm:w-[300px]", className)}>
       <span className="sr-only">{label}</span>
@@ -471,7 +477,7 @@ export function TableSearch({
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t("common.search")}
         className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
       />
     </label>

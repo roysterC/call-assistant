@@ -19,17 +19,31 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { CalendarCheck, Loader2, MessageSquareText, Mic, MicOff, NotebookPen, Send, Sparkles, Volume2, VolumeX, X } from "lucide-react";
+import {
+  CalendarCheck,
+  Loader2,
+  MessageSquareText,
+  Mic,
+  MicOff,
+  NotebookPen,
+  Send,
+  Sparkles,
+  UserPen,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-fetch";
 import { cn } from "@/lib/utils";
 import { CAPTURE_WORKLET, MIC_RATE } from "@/components/receptionist/capture-worklet";
+import { useT } from "@/components/providers/language-provider";
 
 export interface VoiceDraft {
   id: string;
-  kind: "book" | "move" | "cancel" | "note" | "text";
+  kind: "book" | "move" | "cancel" | "note" | "text" | "details";
   clientName: string;
   // Bookings, moves and cancellations.
   service?: string;
@@ -49,6 +63,8 @@ export interface VoiceDraft {
   body?: string;
   /** How many texts the body will be billed as. */
   segments?: number;
+  // A change to the client's details, old beside new.
+  changes?: { field: "name" | "phone" | "email" | "patchTest"; label: string; from: string | null; to: string }[];
 }
 
 /** Tells any open diary that it has changed, so it reloads (and can show the day). */
@@ -66,17 +82,26 @@ interface Reply {
 }
 
 const KIND_LABEL = {
-  book: "New booking",
-  move: "Move booking",
-  cancel: "Cancel booking",
-  note: "Add a note",
-  text: "Send a text",
+  book: "assistant.kind.book",
+  move: "assistant.kind.move",
+  cancel: "assistant.kind.cancel",
+  note: "assistant.kind.note",
+  text: "assistant.kind.text",
+  details: "assistant.kind.details",
 } as const;
-const SAVE_LABEL = { book: "Save", move: "Save", cancel: "Cancel booking", note: "Add note", text: "Send text" } as const;
+const SAVE_LABEL = {
+  book: "assistant.save.book",
+  move: "assistant.save.move",
+  cancel: "assistant.save.cancel",
+  note: "assistant.save.note",
+  text: "assistant.save.text",
+  details: "assistant.save.details",
+} as const;
 
 const SPEAK_KEY = "kikai.assistant.speak";
 
 export function Assistant() {
+  const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -240,7 +265,7 @@ export function Assistant() {
       const data = (await res.json()) as Reply;
       if (data.sessionId) session.current = data.sessionId;
       if (!res.ok) {
-        setError(data.error ?? "That didn't work.");
+        setError(data.error ?? t("assistant.errFailed"));
         return;
       }
       if (data.reply) {
@@ -253,7 +278,7 @@ export function Assistant() {
         window.dispatchEvent(new CustomEvent(DIARY_CHANGED, { detail: { date: saving.date } }));
       }
     } catch {
-      setError("Could not reach the server.");
+      setError(t("assistant.errServer"));
     } finally {
       setBusy(false);
     }
@@ -266,7 +291,7 @@ export function Assistant() {
     try {
       const res = await apiFetch("/api/voice-booking/token", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Voice isn't available.");
+      if (!res.ok) throw new Error(data.error || t("assistant.errNoVoice"));
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -280,7 +305,7 @@ export function Assistant() {
       if (ac.state === "suspended") {
         await Promise.race([ac.resume().catch(() => {}), new Promise((r) => setTimeout(r, 600))]);
         if (ac.state === "suspended") {
-          if (!opts.unprompted) throw new Error("The browser would not start the microphone. Tap the microphone to try again.");
+          if (!opts.unprompted) throw new Error(t("assistant.errMicStart"));
           teardownAudio();
           setConnecting(false);
           setNeedsTap(true);
@@ -326,10 +351,10 @@ export function Assistant() {
     } catch (err) {
       setError(
         err instanceof DOMException && err.name === "NotAllowedError"
-          ? "The browser wasn't allowed to use the microphone. You can type instead."
+          ? t("assistant.errMicDenied")
           : err instanceof Error
             ? err.message
-            : "Couldn't start listening."
+            : t("assistant.errListen")
       );
       setConnecting(false);
       teardownAudio();
@@ -381,8 +406,8 @@ export function Assistant() {
         <button
           type="button"
           onClick={openAndListen}
-          aria-label="Ask your assistant"
-          title="Ask your assistant"
+          aria-label={t("assistant.open")}
+          title={t("assistant.open")}
           className="fixed z-30 right-4 bottom-4 sm:right-6 sm:bottom-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-raised flex items-center justify-center hover:brightness-110 active:scale-95 transition"
         >
           <Mic className="h-6 w-6" />
@@ -392,12 +417,12 @@ export function Assistant() {
       {open && (
         <div
           role="dialog"
-          aria-label="Your assistant"
+          aria-label={t("assistant.panel")}
           className="fixed z-40 inset-x-2 bottom-2 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[400px] max-h-[75vh] flex flex-col rounded-xl border border-border bg-card shadow-raised"
         >
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span className="font-heading text-sm font-semibold">Your assistant</span>
+            <span className="font-heading text-sm font-semibold">{t("assistant.panel")}</span>
             <span
               className={cn(
                 "ml-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
@@ -406,19 +431,19 @@ export function Assistant() {
               aria-live="polite"
             >
               <span className={cn("h-1.5 w-1.5 rounded-full", listening ? "bg-tea-green-300 animate-pulse" : "bg-tea-green-500")} />
-              {connecting ? "Starting…" : listening ? "Listening" : "Not listening"}
+              {connecting ? t("assistant.starting") : listening ? t("assistant.listening") : t("assistant.notListening")}
             </span>
             <Button
               variant="ghost"
               size="icon-sm"
               className="ml-auto"
-              aria-label={speakReplies ? "Stop reading replies aloud" : "Read replies aloud"}
+              aria-label={speakReplies ? t("assistant.stopReading") : t("assistant.readAloud")}
               aria-pressed={speakReplies}
               onClick={toggleSpeak}
             >
               {speakReplies ? <Volume2 /> : <VolumeX />}
             </Button>
-            <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={close}>
+            <Button variant="ghost" size="icon-sm" aria-label={t("common.close")} onClick={close}>
               <X />
             </Button>
           </div>
@@ -434,13 +459,14 @@ export function Assistant() {
                 className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 py-8 text-primary"
               >
                 <Mic className="h-10 w-10" />
-                <span className="font-heading text-base font-semibold">Tap to talk</span>
-                <span className="text-xs text-muted-foreground">Your browser needs a tap before it will listen.</span>
+                <span className="font-heading text-base font-semibold">{t("assistant.tapToTalk")}</span>
+                <span className="text-xs text-muted-foreground">{t("assistant.needsTap")}</span>
               </button>
             )}
             {lines.length === 0 && !heard && !needsTap && (
               <div className="space-y-1.5 text-sm text-muted-foreground">
-                <p>Ask it anything, or tell it what to do:</p>
+                {/* It understands English only so far: the examples stay English. */}
+                <p>{lang === "vi" ? t("assistant.englishOnly") : t("assistant.intro")}</p>
                 <p>
                   <em>&ldquo;What&rsquo;s my afternoon looking like?&rdquo;</em>
                   <br />
@@ -448,7 +474,7 @@ export function Assistant() {
                   <br />
                   <em>&ldquo;When was Tom last in?&rdquo;</em> <em>&ldquo;How much did we take this week?&rdquo;</em>
                 </p>
-                <p>Nothing is booked, changed or sent until you say yes.</p>
+                <p>{t("assistant.nothingUntilYes")}</p>
               </div>
             )}
             {lines.map((l, i) =>
@@ -465,7 +491,7 @@ export function Assistant() {
             {heard && <p className="ml-8 rounded-lg border border-dashed border-primary/30 px-3 py-2 text-sm italic text-muted-foreground">{heard}</p>}
             {busy && (
               <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Thinking…
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("assistant.thinking")}
               </p>
             )}
 
@@ -476,28 +502,43 @@ export function Assistant() {
                     <NotebookPen className="h-3.5 w-3.5" />
                   ) : draft.kind === "text" ? (
                     <MessageSquareText className="h-3.5 w-3.5" />
+                  ) : draft.kind === "details" ? (
+                    <UserPen className="h-3.5 w-3.5" />
                   ) : (
                     <CalendarCheck className="h-3.5 w-3.5" />
                   )}
-                  {KIND_LABEL[draft.kind]}
+                  {t(KIND_LABEL[draft.kind])}
                 </p>
                 <p className="font-medium">
                   {draft.clientName}
                   {draft.newClient && (
-                    <span className="ml-2 rounded bg-papaya-whip-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-papaya-whip-100">New client</span>
+                    <span className="ml-2 rounded bg-papaya-whip-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-papaya-whip-100">{t("assistant.newClient")}</span>
                   )}
                 </p>
                 {draft.kind === "note" && <p className="mt-1 text-sm italic">&ldquo;{draft.note}&rdquo;</p>}
                 {draft.kind === "text" && (
                   <>
-                    <p className="text-xs text-muted-foreground">To {draft.to}</p>
+                    <p className="text-xs text-muted-foreground">{t("assistant.to", { number: draft.to ?? "" })}</p>
                     <p className="mt-1.5 rounded-lg bg-card border border-border px-3 py-2 text-sm">{draft.body}</p>
                     {(draft.segments ?? 1) > 1 && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Long enough to be billed as {draft.segments} texts.
+                        {t("assistant.segments", { n: draft.segments ?? 2 })}
                       </p>
                     )}
                   </>
+                )}
+                {draft.changes && (
+                  <dl className="mt-1 space-y-1 text-sm">
+                    {draft.changes.map((c) => (
+                      <div key={c.field}>
+                        <dt className="text-xs text-muted-foreground">{t(`assistant.field.${c.field}`)}</dt>
+                        <dd>
+                          {c.from && <span className="mr-2 text-muted-foreground line-through">{c.from}</span>}
+                          <span className="font-medium break-all">{c.to}</span>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
                 )}
                 {draft.service && <p className="text-sm">{draft.service}</p>}
                 {draft.from && (
@@ -511,12 +552,12 @@ export function Assistant() {
                   </p>
                 )}
                 {draft.phone && <p className="text-xs text-muted-foreground">{draft.phone}</p>}
-                {draft.skinTest && <p className="mt-1 text-xs font-medium text-papaya-whip-100">Skin test needed 48 hours before</p>}
+                {draft.skinTest && <p className="mt-1 text-xs font-medium text-papaya-whip-100">{t("assistant.skinTestNeeded")}</p>}
                 {draft.notes && <p className="mt-1 text-xs text-muted-foreground">{draft.notes}</p>}
                 {draft.textTo && (
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                     <MessageSquareText className="h-3 w-3" />
-                    Texts {draft.textTo.name ?? "them"} on {draft.textTo.number}
+                    {t("assistant.textsOn", { name: draft.textTo.name ?? t("assistant.them"), number: draft.textTo.number })}
                   </p>
                 )}
                 <div className="mt-3 flex gap-2">
@@ -528,7 +569,7 @@ export function Assistant() {
                       void send("", "save");
                     }}
                   >
-                    {SAVE_LABEL[draft.kind]}
+                    {t(SAVE_LABEL[draft.kind])}
                   </Button>
                   <Button
                     size="sm"
@@ -539,17 +580,14 @@ export function Assistant() {
                       void send("", "discard");
                     }}
                   >
-                    Not this
+                    {t("assistant.notThis")}
                   </Button>
-                  <span className="ml-auto self-center text-[11px] text-muted-foreground">or say &ldquo;yes&rdquo;</span>
+                  <span className="ml-auto self-center text-[11px] text-muted-foreground">{t("assistant.orSayYes")}</span>
                 </div>
               </div>
             )}
             {silent && speakReplies && (
-              <p className="text-xs text-muted-foreground">
-                This device didn&apos;t read that reply aloud. Check its volume and that it isn&apos;t on silent; the
-                microphone is still listening.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("assistant.silent")}</p>
             )}
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div ref={endRef} />
@@ -560,17 +598,17 @@ export function Assistant() {
             onSubmit={(e) => {
               e.preventDefault();
               unlockSpeech();
-              const t = typed.trim();
-              if (!t || busy) return;
+              const said = typed.trim();
+              if (!said || busy) return;
               setTyped("");
-              void send(t);
+              void send(said);
             }}
           >
             <Button
               type="button"
               size="icon-sm"
               variant={listening ? "default" : "outline"}
-              aria-label={listening ? "Stop listening" : "Start listening"}
+              aria-label={listening ? t("assistant.stopListening") : t("assistant.startListening")}
               onClick={() => {
                 stopSpeaking();
                 unlockSpeech();
@@ -583,11 +621,11 @@ export function Assistant() {
             <Input
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
-              placeholder="Or type it…"
-              aria-label="Type to your assistant"
+              placeholder={t("assistant.typePlaceholder")}
+              aria-label={t("assistant.typeLabel")}
               className="h-8"
             />
-            <Button type="submit" size="icon-sm" variant="ghost" aria-label="Send" disabled={!typed.trim() || busy}>
+            <Button type="submit" size="icon-sm" variant="ghost" aria-label={t("assistant.send")} disabled={!typed.trim() || busy}>
               <Send />
             </Button>
           </form>

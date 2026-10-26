@@ -19,6 +19,8 @@ export interface Me {
   role: string;
   name: string | null;
   email: string | null;
+  /** Their chosen language ("en", "vi"), or null if they have not chosen. */
+  language: string | null;
 }
 
 const MeContext = createContext<Me | null>(null);

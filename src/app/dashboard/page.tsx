@@ -7,7 +7,8 @@ import { Users, Clock, MessageSquare, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { plural } from "@/lib/plural";
+import { useT } from "@/components/providers/language-provider";
+import { DATE_FNS_LOCALE, type MessageKey } from "@/lib/i18n";
 import { CHART_GRID, CHART_SERIES, CHART_TICK, CHART_TOOLTIP } from "@/lib/chart-theme";
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
@@ -50,6 +51,8 @@ export default function DashboardPage() {
   const [features, setFeatures] = useState<Features | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const { t, lang } = useT();
+  const pick = (n: number, one: MessageKey, many: MessageKey) => t(n === 1 ? one : many, { n });
   // Who is looking decides whether the chatbot's figures are fetched, so the
   // page waits for the role before loading anything.
   const role = useMe()?.role ?? null;
@@ -126,7 +129,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dashboard"
+        title={t("dash.title")}
       />
 
       {/*
@@ -139,8 +142,8 @@ export default function DashboardPage() {
           <CardContent className="p-0">
             <EmptyState
               icon={Sparkles}
-              title="Nothing switched on yet"
-              hint="Your account is set up but no channels are active. Your account manager at Kikai enables these."
+              title={t("dash.nothingOn")}
+              hint={t("dash.nothingOnHint")}
             />
           </CardContent>
         </Card>
@@ -151,8 +154,8 @@ export default function DashboardPage() {
           <CardContent className="p-0">
             <EmptyState
               icon={Sparkles}
-              title="Your chats are in Conversations"
-              hint="The chatbot's figures are on the owner's dashboard."
+              title={t("dash.chatsInConversations")}
+              hint={t("dash.chatsOwnerHint")}
             />
           </CardContent>
         </Card>
@@ -168,24 +171,24 @@ export default function DashboardPage() {
       {showChat && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <StatCard
-            title="Conversations"
+            title={t("dash.conversations")}
             value={chat?.conversations ?? 0}
-            subtitle="last 30 days"
+            subtitle={t("dash.last30")}
             icon={MessageSquare}
           />
           {!showVoice && (
             <StatCard
-              title="Leads captured"
+              title={t("dash.leadsCaptured")}
               value={stats?.totalLeads || 0}
-              subtitle={`${plural(stats?.newLeads || 0, "new lead")} this week`}
+              subtitle={pick(stats?.newLeads || 0, "dash.newLeadsOne", "dash.newLeadsMany")}
               icon={Users}
               trend={(stats?.newLeads || 0) > 0 ? "up" : "neutral"}
             />
           )}
           <StatCard
-            title="Chats to leads"
+            title={t("dash.chatsToLeads")}
             value={`${chat?.conversionRate ?? 0}%`}
-            subtitle={`${plural(chat?.leads ?? 0, "lead")} from chat`}
+            subtitle={pick(chat?.leads ?? 0, "dash.leadsFromChatOne", "dash.leadsFromChatMany")}
             icon={Users}
             accent={(chat?.conversionRate ?? 0) > 0}
           />
@@ -194,9 +197,9 @@ export default function DashboardPage() {
             nobody was there to take them.
           */}
           <StatCard
-            title="Outside working hours"
+            title={t("dash.outsideHours")}
             value={`${chat?.outOfHoursRate ?? 0}%`}
-            subtitle={`${plural(chat?.outOfHours ?? 0, "conversation")} out of hours`}
+            subtitle={pick(chat?.outOfHours ?? 0, "dash.outOfHoursOne", "dash.outOfHoursMany")}
             icon={Clock}
             accent={(chat?.outOfHoursRate ?? 0) > 0}
           />
@@ -208,9 +211,9 @@ export default function DashboardPage() {
         <Card className="gap-0">
           <CardHeader className="border-b pb-3">
             <CardTitle className="text-sm font-medium">
-              Website chats
+              {t("dash.websiteChats")}
               <span className="text-muted-foreground font-normal ml-2">
-                last 30 days
+                {t("dash.last30")}
               </span>
             </CardTitle>
           </CardHeader>
@@ -231,7 +234,7 @@ export default function DashboardPage() {
                       dataKey="day"
                       tickFormatter={(d) => {
                         try {
-                          return format(new Date(d), "d MMM");
+                          return format(new Date(d), "d MMM", { locale: DATE_FNS_LOCALE[lang] });
                         } catch {
                           return d;
                         }
@@ -256,7 +259,7 @@ export default function DashboardPage() {
                       stroke={CHART_SERIES[0]}
                       strokeWidth={2}
                       dot={chatDaily.length === 1}
-                      name="Conversations"
+                      name={t("dash.conversations")}
                     />
                     <Line
                       isAnimationActive={false}
@@ -265,7 +268,7 @@ export default function DashboardPage() {
                       stroke={CHART_SERIES[1]}
                       strokeWidth={2}
                       dot={chatDaily.length === 1}
-                      name="Leads"
+                      name={t("dash.leads")}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -273,16 +276,16 @@ export default function DashboardPage() {
             ) : (
               <EmptyState
                 icon={MessageSquare}
-                title="No chats yet"
-                hint="Conversations appear here once the widget is live on your site."
+                title={t("dash.noChats")}
+                hint={t("dash.noChatsHint")}
                 className="h-52 py-0"
               />
             )}
             {chatDaily.length > 0 && (
               <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-3">
                 {[
-                  { label: "Conversations", colour: CHART_SERIES[0] },
-                  { label: "Leads", colour: CHART_SERIES[1] },
+                  { label: t("dash.conversations"), colour: CHART_SERIES[0] },
+                  { label: t("dash.leads"), colour: CHART_SERIES[1] },
                 ].map((s) => (
                   <li
                     key={s.label}

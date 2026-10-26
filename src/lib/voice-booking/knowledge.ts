@@ -12,6 +12,7 @@ import {
   resolveSpokenDate,
   zonedDateString,
   zonedParts,
+  zonedDayBounds,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
 import { describePeriod, resolvePeriod, shiftPeriod, type PeriodKind } from "@/lib/sales-period";
@@ -35,8 +36,7 @@ export async function daySchedule(asker: Asker, input: { date?: string; stylist?
   const date = input.date ? resolveSpokenDateOrToday(input.date, tz) : zonedDateString(new Date(), tz);
   if (!date) return { error: `"${input.date}" is not a day I can place.` };
   const d = parseDateOnly(date);
-  const dayStart = zonedWallTimeToUtc(d.year, d.month, d.day, 0, 0, tz);
-  const dayEnd = new Date(dayStart.getTime() + 24 * 3600_000);
+  const { start: dayStart, end: dayEnd } = zonedDayBounds(date, tz);
   const weekday = zonedParts(new Date(dayStart.getTime() + 12 * 3600_000), tz).weekday;
   const hours = hoursForWeekday(cfg.hours, weekday);
   const label = new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });

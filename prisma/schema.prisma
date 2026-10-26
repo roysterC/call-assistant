@@ -48,31 +48,37 @@ model Organization {
 }
 
 model User {
-  id                 String        @id @default(cuid())
-  email              String        @unique
+  id                 String             @id @default(cuid())
+  email              String             @unique
   name               String?
   emailVerified      DateTime?
   image              String?
   passwordHash       String?
-  role               String        @default("member") // member, admin, superAdmin
+  role               String             @default("member") // member, admin, superAdmin
   organizationId     String?
   // Withdrawn: stylist logins (role "stylist") were removed. @ignore keeps
   // these out of the Prisma client, so nothing loads them, while the columns
   // stay until they are dropped by hand on the box; the deploy refuses to
   // drop columns itself (see README, schema-change policy). Delete these
   // lines once the columns are gone.
-  stylistName        String?       @ignore
-  diaryScope         String        @default("salon") @ignore
-  canSeeTakings      Boolean       @default(true) @ignore
-  mustChangePassword Boolean       @default(false)
+  stylistName        String?            @ignore
+  diaryScope         String             @default("salon") @ignore
+  canSeeTakings      Boolean            @default(true) @ignore
+  mustChangePassword Boolean            @default(false)
+  /// The language this person reads the CRM in ("en", "vi"), chosen in
+  /// Account or on the login page. Null until they choose: the device's
+  /// choice (the kikai-lang cookie) stands until then.
+  language           String?
   /// Copied into the login cookie at sign-in. Raising it (a password changed
   /// or reset) ends every session signed in before, on their next request.
-  sessionVersion     Int           @default(0)
-  organization       Organization? @relation(fields: [organizationId], references: [id])
+  sessionVersion     Int                @default(0)
+  organization       Organization?      @relation(fields: [organizationId], references: [id])
   accounts           Account[]
   sessions           Session[]
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  bookingNotices     BookingNotice[]
+  pushSubscriptions  PushSubscription[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   @@map("ca_users")
 }
@@ -399,6 +405,8 @@ model Appointment {
   reminderSentAt     DateTime?
   reminderError      String?
 
+  notices BookingNotice[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -407,6 +415,44 @@ model Appointment {
   @@index([organizationId, status])
   @@index([leadId])
   @@map("ca_appointments")
+}
+
+// A booking the receptionist took, for one person at the salon: a pop-up on
+// their screen until they close it or open the booking, and its own colour in
+// the diary until they open it (src/lib/booking-notices.ts). One row per
+// person, because each has their own screen and their own idea of "seen".
+model BookingNotice {
+  id             String      @id @default(cuid())
+  organizationId String
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointmentId  String
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+  // The pop-up was closed, or the booking opened.
+  dismissedAt    DateTime?
+  // The booking was opened.
+  seenAt         DateTime?
+
+  @@unique([userId, appointmentId])
+  @@index([userId, dismissedAt])
+  @@map("ca_booking_notices")
+}
+
+// A phone or computer that asked for push notifications, as the browser's
+// push service describes it. Removed when the service says it has gone.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("ca_push_subscriptions")
 }
 
 // ─────────────────────────────────────────────────────────────

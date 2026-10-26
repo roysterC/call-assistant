@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { unseenBookingIds } from "@/lib/booking-notices";
 import { clientForBooking } from "@/lib/client-link";
 import {
   requireTenant,
@@ -80,8 +81,11 @@ export async function GET(req: NextRequest) {
       orderBy: { startsAt: scope === "past" ? "desc" : "asc" },
       take: 200,
     });
+    // Booked by the receptionist and not yet opened by this person: the diary
+    // gives them their own colour until they are.
+    const unseen = await unseenBookingIds(ctx.userId, appointments.map((a) => a.id));
 
-    return NextResponse.json({ appointments });
+    return NextResponse.json({ appointments: appointments.map((a) => ({ ...a, unseen: unseen.has(a.id) })) });
   } catch (error) {
     console.error("[APPOINTMENTS API] GET error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

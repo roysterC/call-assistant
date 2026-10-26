@@ -157,8 +157,18 @@ function discard(session: VoiceBookingSession) {
 
 function done(d: Draft, r: Extract<Committed, { ok: true }>): string {
   const what =
-    d.kind === "book" ? "Booked" : d.kind === "move" ? "Moved" : d.kind === "cancel" ? "Cancelled" : d.kind === "note" ? "Note added" : "Text sent";
-  if (!r.texted || d.kind === "text") return `${what}.`;
+    d.kind === "book"
+      ? "Booked"
+      : d.kind === "move"
+        ? "Moved"
+        : d.kind === "cancel"
+          ? "Cancelled"
+          : d.kind === "note"
+            ? "Note added"
+            : d.kind === "details"
+              ? "Details updated"
+              : "Text sent";
+  if (!r.texted || d.kind === "text" || d.kind === "details") return `${what}.`;
   return r.texted.sent ? `${what} and texted.` : `${what}, but the text did not go: ${r.texted.reason}.`;
 }
 
@@ -179,6 +189,15 @@ async function view(session: VoiceBookingSession) {
   if (!d) return null;
   if (d.kind === "note") return { id: d.id, kind: d.kind, clientName: d.clientName, note: d.note };
   if (d.kind === "text") return { id: d.id, kind: d.kind, clientName: d.clientName, to: d.to, body: d.body, segments: d.segments };
+  if (d.kind === "details") {
+    const label = { name: "Name", phone: "Number", email: "Email", patchTest: "Patch test" } as const;
+    return {
+      id: d.id,
+      kind: d.kind,
+      clientName: d.clientName,
+      changes: d.changes.map((c) => ({ field: c.field, label: label[c.field], from: c.from, to: c.to })),
+    };
+  }
   const tz = await timeZone(session);
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });
   const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" });

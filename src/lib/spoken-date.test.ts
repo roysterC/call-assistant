@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { resolveSpokenDate, zonedIsoString, zonedParts } from "./business-hours";
+import {
+  describeAppointmentWhen,
+  resolveSpokenDate,
+  resolveSpokenPastDate,
+  zonedDayBounds,
+  zonedIsoString,
+  zonedParts,
+} from "./business-hours";
 
 const TZ = "Europe/London";
 // A Sunday, so every weekday name resolves within the following week.
@@ -107,6 +114,41 @@ describe("resolveSpokenDate: what British callers actually say", () => {
 // --- Times handed to the model, in the salon's own clock ---------------------
 
 
+describe("resolveSpokenPastDate: a day already gone, for a patch test", () => {
+  it("looks back, not forward", () => {
+    expect(resolveSpokenPastDate("today", TZ, SUNDAY)).toBe("2026-09-13");
+    expect(resolveSpokenPastDate("yesterday", TZ, SUNDAY)).toBe("2026-09-12");
+    expect(resolveSpokenPastDate("three days ago", TZ, SUNDAY)).toBe("2026-09-10");
+    expect(resolveSpokenPastDate("a week ago", TZ, SUNDAY)).toBe("2026-09-06");
+  });
+
+  it("counts days on the calendar across the clocks going back", () => {
+    // 11:30pm on 25 October 2026, the first night of GMT: 24 hours earlier
+    // was 12:30am on the 25th, in summer time.
+    const lateOnChangeDay = new Date("2026-10-25T23:30:00Z");
+    expect(resolveSpokenPastDate("today", TZ, lateOnChangeDay)).toBe("2026-10-25");
+    expect(resolveSpokenPastDate("yesterday", TZ, lateOnChangeDay)).toBe("2026-10-24");
+    expect(resolveSpokenPastDate("a week ago", TZ, lateOnChangeDay)).toBe("2026-10-18");
+  });
+
+  it("takes a weekday as the last one before today", () => {
+    expect(resolveSpokenPastDate("Thursday", TZ, SUNDAY)).toBe("2026-09-10");
+    expect(resolveSpokenPastDate("last Thursday", TZ, SUNDAY)).toBe("2026-09-10");
+    expect(resolveSpokenPastDate("on Friday", TZ, SUNDAY)).toBe("2026-09-11");
+    // Sunday said on a Sunday: a week ago; today would have been "today".
+    expect(resolveSpokenPastDate("Sunday", TZ, SUNDAY)).toBe("2026-09-06");
+  });
+
+  it("takes a date that has passed, and nothing still to come", () => {
+    expect(resolveSpokenPastDate("2026-09-01", TZ, SUNDAY)).toBe("2026-09-01");
+    expect(resolveSpokenPastDate("the 3rd of September", TZ, SUNDAY)).toBe("2026-09-03");
+    expect(resolveSpokenPastDate("tomorrow", TZ, SUNDAY)).toBeNull();
+    expect(resolveSpokenPastDate("2026-09-20", TZ, SUNDAY)).toBeNull();
+    expect(resolveSpokenPastDate("whenever", TZ, SUNDAY)).toBeNull();
+    expect(resolveSpokenPastDate("", TZ, SUNDAY)).toBeNull();
+  });
+});
+
 describe("zonedIsoString", () => {
   it("gives the time as the caller heard it, with the offset, in summer and winter", () => {
     // Quarter past one in the afternoon, British Summer Time.
@@ -119,5 +161,38 @@ describe("zonedIsoString", () => {
     const at = new Date("2026-10-06T12:15:00.000Z");
     expect(new Date(zonedIsoString(at, "Europe/London")).toISOString()).toBe(at.toISOString());
     expect(new Date(zonedIsoString(at, "America/St_Johns")).toISOString()).toBe(at.toISOString());
+  });
+});
+
+describe("the nights the clocks change", () => {
+  // 12:30am BST on Sunday 25 October 2026; the clocks go back at 2am.
+  const autumn = new Date("2026-10-24T23:30:00Z");
+  // 12:30am GMT on Sunday 29 March 2026; the clocks go forward at 1am.
+  const spring = new Date("2026-03-29T00:30:00Z");
+  // 11:30pm GMT on 25 October, the first evening of winter time.
+  const autumnLate = new Date("2026-10-25T23:30:00Z");
+
+  it("still knows which day tomorrow is", () => {
+    expect(resolveSpokenDate("today", TZ, autumn)).toBe("2026-10-25");
+    expect(resolveSpokenDate("tomorrow", TZ, autumn)).toBe("2026-10-26");
+    expect(resolveSpokenDate("Monday", TZ, autumn)).toBe("2026-10-26");
+    expect(resolveSpokenDate("tomorrow", TZ, autumnLate)).toBe("2026-10-26");
+    expect(resolveSpokenDate("today", TZ, spring)).toBe("2026-03-29");
+    expect(resolveSpokenDate("tomorrow", TZ, spring)).toBe("2026-03-30");
+    expect(resolveSpokenDate("in a week", TZ, spring)).toBe("2026-04-05");
+  });
+
+  it("says tomorrow in a text about tomorrow", () => {
+    expect(describeAppointmentWhen(new Date("2026-10-26T10:00:00Z"), TZ, autumn)).toBe("tomorrow at 10am");
+    expect(describeAppointmentWhen(new Date("2026-03-30T09:00:00Z"), TZ, spring)).toBe("tomorrow at 10am");
+  });
+
+  it("gives the day its 25 or 23 hours", () => {
+    const back = zonedDayBounds("2026-10-25", TZ);
+    expect(back.start.toISOString()).toBe("2026-10-24T23:00:00.000Z");
+    expect(back.end.toISOString()).toBe("2026-10-26T00:00:00.000Z");
+    const forward = zonedDayBounds("2026-03-29", TZ);
+    expect(forward.start.toISOString()).toBe("2026-03-29T00:00:00.000Z");
+    expect(forward.end.toISOString()).toBe("2026-03-29T23:00:00.000Z");
   });
 });

@@ -9,15 +9,18 @@ import { Button } from "@/components/ui/button";
 import { CalendarDays, LogIn, PhoneCall, Receipt } from "lucide-react";
 import { BrandMark } from "@/components/dashboard/sidebar";
 import { safeCallbackUrl } from "@/lib/safe-redirect";
+import { useT } from "@/components/providers/language-provider";
+import { LanguagePicker } from "@/components/i18n/language-picker";
+import type { MessageKey } from "@/lib/i18n";
 
 /**
  * NextAuth puts a code in ?error=. "Something went wrong" for SessionRequired
  * tells someone whose session simply expired that the product is broken.
  */
-const ERROR_MESSAGES: Record<string, string> = {
-  CredentialsSignin: "Invalid email or password.",
-  SessionRequired: "Your session has expired. Please sign in again.",
-  AccessDenied: "That account doesn't have access to this CRM.",
+const ERROR_MESSAGES: Record<string, MessageKey> = {
+  CredentialsSignin: "login.errorCredentials",
+  SessionRequired: "login.errorExpired",
+  AccessDenied: "login.errorDenied",
 };
 
 function LoginForm() {
@@ -35,6 +38,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useT();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,9 +54,7 @@ function LoginForm() {
 
     if (res?.error) {
       setError(
-        res.code === "too_many_attempts"
-          ? "Too many attempts. Wait 15 minutes, then try again."
-          : "Invalid email or password."
+        res.code === "too_many_attempts" ? t("login.errorTooMany") : t("login.errorCredentials")
       );
       setLoading(false);
       return;
@@ -65,7 +67,7 @@ function LoginForm() {
   const message =
     error ||
     (urlError
-      ? ERROR_MESSAGES[urlError] || "Something went wrong. Please try again."
+      ? t(ERROR_MESSAGES[urlError] ?? "login.errorGeneric")
       : null);
 
   return (
@@ -83,21 +85,19 @@ function LoginForm() {
           aria-hidden
           className="pointer-events-none absolute -bottom-40 -left-24 h-[26rem] w-[26rem] rounded-full bg-light-bronze-300/25 blur-3xl"
         />
-        <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-tea-green-500 text-tea-green-100 flex items-center justify-center font-heading font-bold">
-            K
-          </div>
-          <span className="font-heading text-lg font-semibold tracking-tight">Kikai</span>
+        <div className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a fixed SVG; nothing for next/image to optimise */}
+          <img src="/brand/kikai-logo-on-dark.svg" alt="Kikai" width={470} height={144} className="h-9 w-auto" />
         </div>
         <div className="relative max-w-md">
           <h2 className="font-heading text-4xl font-semibold leading-[1.15]">
-            Your diary, your clients and every call, in one place.
+            {t("login.panelHeadline")}
           </h2>
           <ul className="mt-10 space-y-5 text-tea-green-700">
             {[
-              { icon: CalendarDays, text: "A live diary for the whole team, on any screen" },
-              { icon: PhoneCall, text: "Calls answered and booked in, day and night" },
-              { icon: Receipt, text: "Takings recorded against every appointment" },
+              { icon: CalendarDays, text: t("login.panelDiary") },
+              { icon: PhoneCall, text: t("login.panelCalls") },
+              { icon: Receipt, text: t("login.panelTakings") },
             ].map(({ icon: Icon, text }) => (
               <li key={text} className="flex items-center gap-3.5">
                 <span className="w-9 h-9 shrink-0 rounded-lg bg-tea-green-200 text-cornsilk-500 flex items-center justify-center">
@@ -111,32 +111,30 @@ function LoginForm() {
         <p className="relative text-xs text-tea-green-400">© Kikai</p>
       </aside>
 
-      <main className="flex items-center justify-center p-6 sm:p-10">
+      <main className="relative flex items-center justify-center p-6 pt-16 sm:p-10">
+        <LanguagePicker className="absolute top-4 right-4" />
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3 mb-8">
             <BrandMark size="lg" />
             <div className="min-w-0">
               <h1 className="font-heading text-xl font-semibold">
-                Welcome back
+                {t("login.welcome")}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Sign in to Kikai to continue
+                {t("login.subtitle")}
               </p>
             </div>
           </div>
           {signedInAs && (
             <div className="mb-6 rounded-lg border bg-card p-3 text-sm">
-              <p className="text-muted-foreground">
-                You&apos;re signed in as{" "}
-                <span className="font-medium text-foreground">{signedInAs}</span>.
-              </p>
+              <p className="text-muted-foreground">{t("login.signedInAs", { name: signedInAs })}</p>
               <Button
                 type="button"
                 variant="outline"
                 className="mt-2 w-full"
                 onClick={() => router.push(callbackUrl)}
               >
-                Continue as {signedInAs}
+                {t("login.continueAs", { name: signedInAs })}
               </Button>
             </div>
           )}
@@ -149,7 +147,7 @@ function LoginForm() {
             */}
             <div>
               <label htmlFor="email" className="text-sm font-medium">
-                Email
+                {t("login.email")}
               </label>
               <Input
                 id="email"
@@ -169,7 +167,7 @@ function LoginForm() {
 
             <div>
               <label htmlFor="password" className="text-sm font-medium">
-                Password
+                {t("login.password")}
               </label>
               <Input
                 id="password"
@@ -198,26 +196,26 @@ function LoginForm() {
 
             <Button type="submit" disabled={loading} className="w-full h-10">
               <LogIn className="w-4 h-4 mr-2" />
-              {loading ? "Signing in…" : "Sign in"}
+              {loading ? t("login.signingIn") : t("login.signIn")}
             </Button>
           </form>
 
           <p className="text-xs text-muted-foreground mt-8 text-center">
-            Don&apos;t have an account? Your administrator will invite you.
+            {t("login.noAccount")}
           </p>
           {/* The public legal pages. Meta's app review and callers reach them
               by address; this is the one place in the app that links them. */}
-          <nav aria-label="Legal" className="mt-6 flex justify-center gap-3 text-xs text-muted-foreground">
+          <nav aria-label={t("login.legal")} className="mt-6 flex justify-center gap-3 text-xs text-muted-foreground">
             <Link href="/privacy-policy" className="hover:text-foreground hover:underline">
-              Privacy
+              {t("login.privacy")}
             </Link>
             <span aria-hidden>&middot;</span>
             <Link href="/terms-of-service" className="hover:text-foreground hover:underline">
-              Terms
+              {t("login.terms")}
             </Link>
             <span aria-hidden>&middot;</span>
             <Link href="/data-deletion" className="hover:text-foreground hover:underline">
-              Data deletion
+              {t("login.dataDeletion")}
             </Link>
           </nav>
         </div>

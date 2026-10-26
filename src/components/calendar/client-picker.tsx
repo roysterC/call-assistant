@@ -19,6 +19,8 @@ import { apiFetch } from "@/lib/api-fetch";
 import { DataTable, PersonCell, Pill, type ColumnDef } from "@/components/ui/data-table";
 import { speakablePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/providers/language-provider";
+import type { Translate } from "@/lib/i18n";
 
 export interface ClientRow {
   id: string;
@@ -52,8 +54,8 @@ interface ClientPickerProps {
   onBlockInstead?: () => void;
 }
 
-function shortDate(iso: string, timeZone: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
+function shortDate(iso: string, timeZone: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -61,8 +63,8 @@ function shortDate(iso: string, timeZone: string): string {
   });
 }
 
-function shortDateTime(iso: string, timeZone: string): string {
-  return new Date(iso).toLocaleString("en-GB", {
+function shortDateTime(iso: string, timeZone: string, locale: string): string {
+  return new Date(iso).toLocaleString(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -88,6 +90,7 @@ export function ClientPicker({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const { t, locale } = useT();
 
   useEffect(() => {
     if (mode === "search") searchRef.current?.focus();
@@ -113,7 +116,7 @@ export function ClientPicker({
         setTotal(data.total ?? 0);
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
-        setError("Could not load clients.");
+        setError(t("picker.couldNotLoad"));
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -122,24 +125,24 @@ export function ClientPicker({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [q, sort, dir, mode]);
+  }, [q, sort, dir, mode, t]);
 
   const columns: ColumnDef<ClientRow>[] = [
     {
       // Sorted by first name; search finds a surname.
       id: "firstName",
-      header: "Client",
+      header: t("picker.client"),
       cell: ({ row: { original: c } }) => (
         <PersonCell
           name={c.name}
           badge={<DuplicateFlag client={c} />}
-          detail={c.phone ? speakablePhone(c.phone) : reachedThrough(c)}
+          detail={c.phone ? speakablePhone(c.phone) : reachedThrough(c, t)}
         />
       ),
     },
     {
       id: "email",
-      header: "Email",
+      header: t("picker.email"),
       meta: {
         className: "hidden max-w-[14rem] truncate text-muted-foreground md:table-cell",
         headerClassName: "hidden md:table-cell",
@@ -148,20 +151,20 @@ export function ClientPicker({
     },
     {
       id: "lastVisit",
-      header: "Last visit",
+      header: t("picker.lastVisit"),
       enableSorting: false,
       meta: {
         className: "hidden whitespace-nowrap text-muted-foreground sm:table-cell",
         headerClassName: "hidden sm:table-cell",
       },
-      cell: ({ row: { original: c } }) => (c.lastVisit ? shortDate(c.lastVisit, timeZone) : "New client"),
+      cell: ({ row: { original: c } }) => (c.lastVisit ? shortDate(c.lastVisit, timeZone, locale) : t("picker.newClient")),
     },
     {
       id: "nextBooking",
-      header: "Next booking",
+      header: t("picker.nextBooking"),
       enableSorting: false,
       meta: { className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell" },
-      cell: ({ row: { original: c } }) => (c.nextBooking ? <Pill>{shortDateTime(c.nextBooking, timeZone)}</Pill> : null),
+      cell: ({ row: { original: c } }) => (c.nextBooking ? <Pill>{shortDateTime(c.nextBooking, timeZone, locale)}</Pill> : null),
     },
   ];
 
@@ -184,14 +187,14 @@ export function ClientPicker({
             ref={searchRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name, number or email"
+            placeholder={t("picker.searchPlaceholder")}
             className="pl-8"
-            aria-label="Search clients"
+            aria-label={t("picker.searchLabel")}
           />
         </div>
         <Button onClick={() => setMode("new")} className="gap-1.5">
           <UserPlus className="h-4 w-4" />
-          New client
+          {t("picker.newClient")}
         </Button>
       </div>
 
@@ -200,7 +203,7 @@ export function ClientPicker({
         data={rows}
         getRowId={(c) => c.id}
         onRowClick={onPick}
-        rowLabel={(c) => c.name ?? "client"}
+        rowLabel={(c) => c.name ?? t("picker.rowLabel")}
         loading={loading}
         manualSorting
         sorting={[{ id: sort, desc: dir === "desc" }]}
@@ -219,13 +222,13 @@ export function ClientPicker({
           <p className="px-5 py-8 text-center text-sm text-muted-foreground">
             {q ? (
               <>
-                No client matches &ldquo;{q}&rdquo;.{" "}
+                {t("picker.noMatch", { q })}{" "}
                 <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => setMode("new")}>
-                  Add them as a new client
+                  {t("picker.addAsNew")}
                 </button>
               </>
             ) : (
-              "No clients yet."
+              t("picker.noClients")
             )}
           </p>
         }
@@ -235,10 +238,10 @@ export function ClientPicker({
         <span aria-live="polite">
           {error ??
             (loading
-              ? "Searching…"
+              ? t("picker.searching")
               : total > rows.length
-                ? `Showing ${rows.length} of ${total}. Type more to narrow it down.`
-                : `${total} client${total === 1 ? "" : "s"}`)}
+                ? t("picker.showing", { shown: rows.length, total })
+                : t(total === 1 ? "picker.countOne" : "picker.countMany", { n: total }))}
         </span>
         <span className="flex gap-3 shrink-0">
           {onBlockInstead && (
@@ -247,7 +250,7 @@ export function ClientPicker({
               onClick={onBlockInstead}
               className="underline underline-offset-2 hover:text-foreground"
             >
-              Block this time instead
+              {t("picker.blockInstead")}
             </button>
           )}
           {onWalkIn && (
@@ -256,7 +259,7 @@ export function ClientPicker({
               onClick={onWalkIn}
               className="underline underline-offset-2 hover:text-foreground"
             >
-              Walk-in, no details
+              {t("picker.walkIn")}
             </button>
           )}
         </span>
@@ -296,6 +299,7 @@ function NewClientForm({
   const [existing, setExisting] = useState<ClientRow | null>(null);
   // The clash was on the number: maybe a family sharing a phone.
   const [numberTaken, setNumberTaken] = useState(false);
+  const { t } = useT();
 
   const save = async (contactThrough = false) => {
     setSaving(true);
@@ -321,12 +325,12 @@ function NewClientForm({
         return;
       }
       if (!res.ok) {
-        setError(data.error || "Could not add that client.");
+        setError(data.error || t("picker.couldNotAdd"));
         return;
       }
       onCreated(data.client);
     } catch {
-      setError("Could not reach the server.");
+      setError(t("common.noServer"));
     } finally {
       setSaving(false);
     }
@@ -341,7 +345,7 @@ function NewClientForm({
       }}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="First name" id="client-first">
+        <Field label={t("picker.firstName")} id="client-first">
           <Input
             id="client-first"
             value={firstName}
@@ -350,10 +354,10 @@ function NewClientForm({
             required
           />
         </Field>
-        <Field label="Last name" id="client-last">
+        <Field label={t("picker.lastName")} id="client-last">
           <Input id="client-last" value={lastName} onChange={(e) => setLastName(e.target.value)} />
         </Field>
-        <Field label="Phone" id="client-phone">
+        <Field label={t("picker.phone")} id="client-phone">
           <Input
             id="client-phone"
             type="tel"
@@ -362,7 +366,7 @@ function NewClientForm({
             placeholder="07700 900123"
           />
         </Field>
-        <Field label="Email" id="client-email">
+        <Field label={t("picker.email")} id="client-email">
           <Input
             id="client-email"
             type="email"
@@ -371,7 +375,7 @@ function NewClientForm({
           />
         </Field>
       </div>
-      <Field label="Notes" id="client-notes">
+      <Field label={t("picker.notes")} id="client-notes">
         <Textarea id="client-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
       </Field>
 
@@ -384,18 +388,18 @@ function NewClientForm({
               className="underline underline-offset-2 text-foreground"
               onClick={() => onCreated(existing)}
             >
-              Book {existing.name ?? "them"} instead
+              {t("picker.bookInstead", { name: existing.name ?? t("picker.them") })}
             </button>
           )}
           {existing && numberTaken && (
             <>
-              {" or "}
+              {t("picker.or")}
               <button
                 type="button"
                 className="underline underline-offset-2 text-foreground"
                 onClick={() => save(true)}
               >
-                add {firstName.trim() || "them"} as reached through {existing.name ?? "their"}&apos;s number
+                {t("picker.addThrough", { name: firstName.trim() || t("picker.them"), via: existing.name ?? t("picker.their") })}
               </button>
             </>
           )}
@@ -404,10 +408,10 @@ function NewClientForm({
 
       <div className="flex justify-between gap-2">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
-          Back to search
+          {t("picker.backToSearch")}
         </Button>
         <Button type="submit" disabled={!firstName.trim() || saving}>
-          {saving ? "Saving…" : "Save and continue"}
+          {saving ? t("common.saving") : t("picker.saveContinue")}
         </Button>
       </div>
     </form>
@@ -434,10 +438,12 @@ export function Field({
 }
 
 /** "via Claire Burns · 07700 900 721", for a client with no number of their own. */
-export function reachedThrough(c: Pick<ClientRow, "phone" | "contactLead">): string | null {
+export function reachedThrough(c: Pick<ClientRow, "phone" | "contactLead">, t: Translate): string | null {
   if (c.phone || !c.contactLead) return null;
   const via = c.contactLead;
-  return [`via ${via.name ?? "another client"}`, via.phone && speakablePhone(via.phone)].filter(Boolean).join(" · ");
+  return [t("picker.via", { name: via.name ?? t("picker.anotherClient") }), via.phone && speakablePhone(via.phone)]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /**
@@ -446,17 +452,18 @@ export function reachedThrough(c: Pick<ClientRow, "phone" | "contactLead">): str
  * which makes a second record the desk is best placed to spot.
  */
 export function DuplicateFlag({ client, className }: { client: ClientRow; className?: string }) {
+  const { t } = useT();
   const n = client.possibleDuplicates ?? 0;
   if (n === 0) return null;
   return (
     <span
-      title={`${n === 1 ? "Another client is" : `${n} other clients are`} also called ${client.name}. If it is the same person, their bookings are split across records.`}
+      title={n === 1 ? t("dup.oneTitle", { name: client.name ?? "" }) : t("dup.manyTitle", { n, name: client.name ?? "" })}
       className={cn(
         "inline-block rounded-md border border-papaya-whip-400 bg-papaya-whip-700 px-1.5 py-0.5 text-[11px] font-normal text-papaya-whip-100 whitespace-nowrap align-middle",
         className
       )}
     >
-      Possible duplicate
+      {t("dup.label")}
     </span>
   );
 }
@@ -476,10 +483,11 @@ export function ClientLink({ client }: { client: ClientRow }) {
   const [error, setError] = useState<string | null>(null);
   // Who they were linked to, to say so once unlinked here.
   const [unlinkedFrom, setUnlinkedFrom] = useState<string | null>(null);
+  const { t } = useT();
   if (!via) {
     return unlinkedFrom && phone ? (
       <p className="mt-1 text-xs text-muted-foreground">
-        Own number {speakablePhone(phone)}. No longer linked to {unlinkedFrom}.
+        {t("link.unlinked", { phone: speakablePhone(phone), name: unlinkedFrom })}
       </p>
     ) : null;
   }
@@ -495,27 +503,29 @@ export function ClientLink({ client }: { client: ClientRow }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(res.status === 403 ? "Only the salon owner can change this." : data.error || "Could not save that.");
+        setError(res.status === 403 ? t("link.ownerOnly") : data.error || t("link.couldNotSave"));
         return;
       }
       setPhone(data.client.phone);
-      if (!data.client.contactLead) setUnlinkedFrom(via?.name ?? "them");
+      if (!data.client.contactLead) setUnlinkedFrom(via?.name ?? t("picker.them"));
       setVia(data.client.contactLead);
       setAdding(false);
     } catch {
-      setError("Could not reach the server.");
+      setError(t("common.noServer"));
     } finally {
       setBusy(false);
     }
   };
 
-  const viaName = via.name ?? "the client they are linked to";
+  const viaName = via.name ?? t("link.linkedTo");
   return (
     <div className="mt-1 grid gap-1 text-xs text-muted-foreground">
       <p>
         {phone
-          ? `Own number ${speakablePhone(phone)}. Still linked to ${viaName}: a call from their number can manage these bookings.`
-          : `No number of their own. Texts go to ${viaName}${via.phone ? ` on ${speakablePhone(via.phone)}` : ""}.`}
+          ? t("link.ownNumber", { phone: speakablePhone(phone), name: viaName })
+          : via.phone
+            ? t("link.noNumberOn", { name: viaName, phone: speakablePhone(via.phone) })
+            : t("link.noNumber", { name: viaName })}
       </p>
       {adding ? (
         <div className="flex items-center gap-2">
@@ -535,17 +545,17 @@ export function ClientLink({ client }: { client: ClientRow }) {
             autoFocus
           />
           <Button type="button" size="sm" className="h-7" disabled={!draft.trim() || busy} onClick={() => change({ phone: draft })}>
-            Save
+            {t("common.save")}
           </Button>
           <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setAdding(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
         </div>
       ) : (
         <div className="flex gap-3">
           {!phone && (
             <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => setAdding(true)}>
-              Add their own number
+              {t("link.addOwn")}
             </button>
           )}
           {phone && (
@@ -555,7 +565,7 @@ export function ClientLink({ client }: { client: ClientRow }) {
               disabled={busy}
               onClick={() => change({ unlink: true })}
             >
-              Unlink from {viaName}
+              {t("link.unlinkFrom", { name: viaName })}
             </button>
           )}
         </div>

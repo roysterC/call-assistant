@@ -8,9 +8,10 @@ import type { MetadataRoute } from "next";
  * Named for what it opens rather than for any one salon, because every salon
  * on the system is served from the same address and so shares this file.
  *
- * Deliberately no service worker: nothing is cached for offline use. A diary
- * shown from a cache would show yesterday's bookings as today's, and a
- * booking made offline would have nowhere to go.
+ * Deliberately nothing cached for offline use: a diary shown from a cache
+ * would show yesterday's bookings as today's, and a booking made offline
+ * would have nowhere to go. The one service worker (public/sw.js) only shows
+ * booking alerts; it handles no requests.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -30,15 +31,15 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Ask the assistant",
         short_name: "Assistant",
         url: "/assistant",
-        icons: [{ src: "/icons/icon-192.png?v=3", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icons/icon-192.png?v=4", sizes: "192x192", type: "image/png" }],
       },
     ],
     // The query is a version: phones keep the icon they first fetched, so a
     // redrawn icon needs a new address before they will look again.
     icons: [
-      { src: "/icons/icon-192.png?v=3", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png?v=3", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png?v=3", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icons/icon-192.png?v=4", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png?v=4", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png?v=4", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

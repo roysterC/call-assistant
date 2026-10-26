@@ -13,6 +13,7 @@ import { TriangleAlert } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useT } from "@/components/providers/language-provider";
 
 export default function PageError({
   error,
@@ -21,6 +22,7 @@ export default function PageError({
   error: Error & { digest?: string };
   unstable_retry: () => void;
 }) {
+  const { t } = useT();
   useEffect(() => {
     console.error(error);
     Sentry.captureException(error);
@@ -32,19 +34,19 @@ export default function PageError({
         <CardContent className="p-0">
           <EmptyState
             icon={TriangleAlert}
-            title="This page didn't load"
-            hint="Nothing you saved is lost. Try again, and if it keeps happening, tell us what you were doing."
+            title={t("error.title")}
+            hint={t("error.hint")}
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                <Button onClick={() => unstable_retry()}>Try again</Button>
+                <Button onClick={() => unstable_retry()}>{t("common.tryAgain")}</Button>
                 <Link href="/start" className={buttonVariants({ variant: "outline" })}>
-                  Go to my start page
+                  {t("error.startPage")}
                 </Link>
               </div>
             }
           />
           {error.digest && (
-            <p className="pb-5 text-center text-xs text-muted-foreground">Reference {error.digest}</p>
+            <p className="pb-5 text-center text-xs text-muted-foreground">{t("error.reference", { code: error.digest })}</p>
           )}
         </CardContent>
       </Card>

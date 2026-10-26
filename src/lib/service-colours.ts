@@ -64,6 +64,18 @@ export const FAMILY_HUE: Record<ServiceFamily, string> = {
   other: FAMILY_STEPS.other[0],
 };
 
+/**
+ * A booking the receptionist took that this person has not opened yet, in
+ * the diary and on its pop-up. Magenta, because no service family and
+ * nothing in the app's own palette uses it, so "new" never reads as a kind
+ * of service. The chip's white text on the deep step clears 4.5:1.
+ */
+export const NEW_BOOKING = {
+  fill: "#d633842e",
+  border: "#d63384",
+  chip: "#b02a6b",
+} as const;
+
 const KEYWORDS: Array<{ family: ServiceFamily; words: string[] }> = [
   { family: "cutting", words: ["cut", "trim", "restyle", "fringe", "barber", "clipper", "shave"] },
   { family: "finishing", words: ["blow", "dry", "style", "curl", "updo", "occasion", "bridal", "set"] },

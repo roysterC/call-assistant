@@ -9,6 +9,8 @@
  * to its icon.
  */
 
+import type { MessageKey } from "@/lib/i18n";
+
 export type FeatureKey = "voice" | "chatbot" | "whatsapp" | "instagram" | "facebook";
 
 export interface FeatureFlags {
@@ -22,6 +24,8 @@ export interface FeatureFlags {
 export interface NavPage {
   href: string;
   label: string;
+  /** The label in the reader's language (src/lib/i18n). */
+  labelKey: MessageKey;
   /** Shown when ANY of these is switched on for the organisation. */
   requires?: FeatureKey | FeatureKey[];
   /** Hidden when this is switched on: another page has taken its place. */
@@ -50,27 +54,27 @@ export const DIARY = "/calendar";
 
 /** In the order the sidebar lists them, before the start page is moved up. */
 export const NAV_PAGES: NavPage[] = [
-  { href: DASHBOARD, label: "Dashboard" },
-  { href: "/calls", label: "Call History", requires: "voice" },
+  { href: DASHBOARD, label: "Dashboard", labelKey: "nav.dashboard" },
+  { href: "/calls", label: "Call History", labelKey: "nav.calls", requires: "voice" },
   {
     href: "/conversations",
-    label: "Conversations",
+    label: "Conversations", labelKey: "nav.conversations",
     requires: ["chatbot", "whatsapp", "instagram", "facebook"],
   },
-  { href: "/websites", label: "Websites", requires: "chatbot", ownerOnly: true },
+  { href: "/websites", label: "Websites", labelKey: "nav.websites", requires: "chatbot", ownerOnly: true },
   // The receptionist's figures for a salon, the chatbot's for a website.
-  { href: "/insights", label: "Insights", requires: ["voice", "chatbot"], ownerOnly: true },
+  { href: "/insights", label: "Insights", labelKey: "nav.insights", requires: ["voice", "chatbot"], ownerOnly: true },
   // A salon's people are its clients, with their bookings and patch tests;
   // Leads stays for an organisation without the diary (chat, WhatsApp).
-  { href: "/leads", label: "Leads", hiddenWhen: "voice", superAdminAlways: true },
-  { href: DIARY, label: "Diary", requires: "voice" },
-  { href: "/clients", label: "Clients", requires: "voice" },
-  { href: "/sales", label: "Sales", requires: "voice" },
-  { href: "/callbacks", label: "Callbacks", requires: "voice" },
+  { href: "/leads", label: "Leads", labelKey: "nav.leads", hiddenWhen: "voice", superAdminAlways: true },
+  { href: DIARY, label: "Diary", labelKey: "nav.diary", requires: "voice" },
+  { href: "/clients", label: "Clients", labelKey: "nav.clients", requires: "voice" },
+  { href: "/sales", label: "Sales", labelKey: "nav.sales", requires: "voice" },
+  { href: "/callbacks", label: "Callbacks", labelKey: "nav.callbacks", requires: "voice" },
   // Where we test the receptionist before a salon hears it. It books into the
   // real diary and spends on the AI and voice accounts, so it is ours.
-  { href: "/receptionist", label: "Receptionist lab", requires: "voice", superAdminOnly: true },
-  { href: "/settings", label: "Settings" },
+  { href: "/receptionist", label: "Receptionist lab", labelKey: "nav.receptionist", requires: "voice", superAdminOnly: true },
+  { href: "/settings", label: "Settings", labelKey: "nav.settings" },
 ];
 
 /**

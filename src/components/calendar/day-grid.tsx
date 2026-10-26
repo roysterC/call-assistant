@@ -31,7 +31,8 @@ import {
   WINDOW_MINUTES,
   type PlacedBlock,
 } from "@/lib/calendar-layout";
-import { toneFor, type ServiceTone } from "@/lib/service-colours";
+import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
+import { useT } from "@/components/providers/language-provider";
 
 export interface CalendarAppointment {
   id: string;
@@ -47,6 +48,8 @@ export interface CalendarAppointment {
   amountMinor: number | null;
   clientType: string;
   notes: string | null;
+  /** Booked by the receptionist and not yet opened by whoever is looking. */
+  unseen?: boolean;
   lead: {
     id: string;
     name: string | null;
@@ -149,6 +152,7 @@ export function DayGrid({
 }: DayGridProps) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [dropAt, setDropAt] = useState<{ stylistName: string; row: number } | null>(null);
+  const { t, lang } = useT();
   const marks = hourMarks();
   const lines = quarterMarks();
   const shaded = closedBands(open);
@@ -174,12 +178,12 @@ export function DayGrid({
                 )}
               >
                 {s.former
-                  ? "not on the team"
+                  ? t("grid.notOnTeam")
                   : !s.bookable
-                    ? "no calendar"
+                    ? t("grid.noCalendar")
                     : s.worksToday
-                      ? "working"
-                      : "not in"}
+                      ? t("grid.working")
+                      : t("grid.notIn")}
               </div>
             </div>
           ))}
@@ -198,7 +202,8 @@ export function DayGrid({
                 className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
                 style={{ top: `${m.topPct}%` }}
               >
-                {m.label}
+                {/* The 24-hour clock in Vietnamese: "14:00", not "2pm". */}
+                {lang === "vi" ? `${m.hour}:00` : m.label}
               </div>
             ))}
           </div>
@@ -298,6 +303,7 @@ function StylistColumn({
   onDragEnd: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { t } = useT();
   const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
 
   // How much of the column has already been and gone. Booking into it would
@@ -435,7 +441,7 @@ function StylistColumn({
               e.stopPropagation();
               onOpenBlock(b);
             }}
-            title={b.stylistName === null ? `${b.label} (everyone)` : b.label}
+            title={b.stylistName === null ? t("grid.everyone", { label: b.label }) : b.label}
             className="absolute inset-x-0 overflow-hidden border-y border-border/60 px-1.5 py-1 text-left text-[11px] leading-tight text-muted-foreground hover:text-foreground focus-visible:ring-2"
             style={{ top: `${g.topPct}%`, height: `${g.heightPct}%`, ...UNAVAILABLE_BG }}
           >
@@ -461,7 +467,8 @@ function StylistColumn({
 
       {placed.map((b) => {
         const a = b.item;
-        const tone = toneFor(a.serviceText, tones);
+        // New from the receptionist: its own colour until it is opened.
+        const tone = a.unseen ? NEW_BOOKING : toneFor(a.serviceText, tones);
         // Only a booking still to come can be moved; judged by the same
         // "now" the grid greys the past with.
         const draggable =
@@ -491,7 +498,7 @@ function StylistColumn({
               e.stopPropagation();
               onOpenAppointment(a);
             }}
-            title={`${a.lead.name ?? "Client"} — ${a.serviceText}`}
+            title={`${a.unseen ? t("grid.newBooking") : ""}${a.lead.name ?? t("grid.client")} — ${a.serviceText}`}
             className={cn(
               "absolute rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
               "text-[11px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
@@ -501,7 +508,8 @@ function StylistColumn({
               a.status === "completed" && "opacity-75",
               a.status === "no_show" && "border-dashed",
               b.clippedStart && "rounded-t-none",
-              b.clippedEnd && "rounded-b-none"
+              b.clippedEnd && "rounded-b-none",
+              a.unseen && "border-2 border-l-[3px]"
             )}
             style={{
               background: tone.fill,
@@ -514,12 +522,20 @@ function StylistColumn({
               width: `calc((100% - ${OVERBOOK_GUTTER_PX}px) / ${b.lanes} - 4px)`,
             }}
           >
-            <span className="block font-semibold truncate">
-              {a.lead.name ?? "Client"}
+            <span className="flex items-center gap-1 font-semibold min-w-0">
+              {a.unseen && (
+                <span
+                  className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-white"
+                  style={{ background: NEW_BOOKING.chip }}
+                >
+                  {t("grid.new")}
+                </span>
+              )}
+              <span className="truncate">{a.lead.name ?? t("grid.client")}</span>
             </span>
             <span className="block truncate text-foreground/70">{a.serviceText}</span>
             {a.patchTestRequired && (
-              <span className="block truncate font-medium text-papaya-whip-100">patch test</span>
+              <span className="block truncate font-medium text-papaya-whip-100">{t("grid.patchTest")}</span>
             )}
           </button>
         );

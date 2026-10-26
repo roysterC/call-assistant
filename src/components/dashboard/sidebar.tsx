@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutOfDevice } from "@/lib/push-client";
+import { useT } from "@/components/providers/language-provider";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -14,7 +16,6 @@ import {
   CalendarClock,
   Contact,
   Settings,
-  Bot,
   LogOut,
   Building2,
   Shield,
@@ -99,6 +100,7 @@ export function Sidebar({
   // changed since signing in shows at once. Nothing role-gated is shown
   // until it has loaded.
   const role = useMe()?.role ?? null;
+  const { t } = useT();
   const isSuperAdmin = role === "superAdmin";
 
   const [features, setFeatures] = useState<FeatureFlags | null>(null);
@@ -203,13 +205,13 @@ export function Sidebar({
           <div className={cn("min-w-0 flex-1", wide)}>
             {/* Held blank, at full height, until the name and role are known. */}
             <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate text-cornsilk-500">
-              {orgName ?? <span className="invisible">Loading</span>}
+              {orgName ?? <span className="invisible">{t("nav.loading")}</span>}
             </h1>
             <p className="text-xs text-tea-green-400 mt-0.5">
               {role ? (
-                isSuperAdmin && asOrg ? "viewing as super-admin" : "AI CRM"
+                isSuperAdmin && asOrg ? t("nav.viewingAsSuperAdmin") : t("nav.aiCrm")
               ) : (
-                <span className="invisible">AI CRM</span>
+                <span className="invisible">{t("nav.aiCrm")}</span>
               )}
             </p>
           </div>
@@ -224,14 +226,14 @@ export function Sidebar({
               <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-sidebar-foreground bg-white/5 hover:bg-white/10 border border-sidebar-border">
                 <span className="flex items-center gap-1.5">
                   <Building2 className="w-3 h-3" />
-                  Switch org
+                  {t("nav.switchOrg")}
                 </span>
                 <span className="text-tea-green-400 truncate">
                   {activeOrg?.slug || "—"}
                 </span>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56">
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Organizations</div>
+                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{t("nav.organizations")}</div>
                 <DropdownMenuSeparator />
                 {orgs.map((o) => (
                   <DropdownMenuItem
@@ -251,22 +253,23 @@ export function Sidebar({
 
       <nav className="flex-1 px-2 pb-3 space-y-0.5">
         <p className={cn("px-[15px] pb-2 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap text-tea-green-400", keep)}>
-          Menu
+          {t("nav.menu")}
         </p>
         {orderForStartPage(navItems, startPage)
           .filter((item) => isNavShown(item, features, role))
           .map((item) => {
             const isActive = pathname === item.href;
             const badge = item.href === "/callbacks" && pending > 0 ? pending : 0;
+            const label = t(item.labelKey);
             return (
               <Link
                 key={item.href}
                 href={item.href + navSuffix}
                 onClick={onNavigate}
                 // The folded rail shows icons only; the name is on hover.
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? label : undefined}
                 aria-label={
-                  badge ? `${item.label}, ${badge} waiting` : collapsed ? item.label : undefined
+                  badge ? t("nav.waiting", { label, n: badge }) : collapsed ? label : undefined
                 }
                 className={cn(
                   "group relative flex h-9 items-center gap-3 px-[15px] rounded-lg text-sm font-medium whitespace-nowrap transition-colors",
@@ -283,7 +286,7 @@ export function Sidebar({
                       : "text-tea-green-400 group-hover:text-tea-green-700"
                   )}
                 />
-                <span className={wide}>{item.label}</span>
+                <span className={wide}>{label}</span>
                 {badge > 0 && (
                   <span
                     aria-hidden
@@ -304,8 +307,8 @@ export function Sidebar({
           <Link
             href={`/admin/organizations${navSuffix}`}
             onClick={onNavigate}
-            title={collapsed ? "Admin" : undefined}
-            aria-label={collapsed ? "Admin" : undefined}
+            title={collapsed ? t("nav.admin") : undefined}
+            aria-label={collapsed ? t("nav.admin") : undefined}
             className={cn(
               "flex h-9 items-center gap-3 px-[15px] rounded-lg text-sm font-medium whitespace-nowrap transition-colors mt-4",
               pathname?.startsWith("/admin")
@@ -314,7 +317,7 @@ export function Sidebar({
             )}
           >
             <Shield className="w-[18px] h-[18px]" />
-            <span className={wide}>Admin</span>
+            <span className={wide}>{t("nav.admin")}</span>
           </Link>
         )}
       </nav>
@@ -325,8 +328,8 @@ export function Sidebar({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            aria-label={collapsed ? "Expand menu" : "Collapse menu"}
-            title={collapsed ? "Expand menu" : "Collapse menu"}
+            aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
+            title={collapsed ? t("nav.expand") : t("nav.collapse")}
             className="group flex h-9 w-full items-center gap-3 whitespace-nowrap rounded-lg px-[15px] text-sm font-medium text-tea-green-400 transition-colors hover:bg-white/8 hover:text-cornsilk-500"
           >
             {collapsed ? (
@@ -334,7 +337,7 @@ export function Sidebar({
             ) : (
               <PanelLeftClose className="h-[18px] w-[18px] text-tea-green-400 group-hover:text-tea-green-700" />
             )}
-            <span className={wide}>Collapse menu</span>
+            <span className={wide}>{t("nav.collapse")}</span>
           </button>
         </div>
       )}
@@ -367,18 +370,18 @@ export function Sidebar({
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => (window.location.href = "/settings/account")}>
                 <Settings className="w-4 h-4 mr-2" />
-                Account settings
+                {t("nav.accountSettings")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+              <DropdownMenuItem onClick={() => void signOutOfDevice()}>
                 <LogOut className="w-4 h-4 mr-2" />
-                Sign out
+                {t("nav.signOut")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="w-2 h-2 bg-tea-green-400 rounded-full" />
-            <span className={cn("text-xs text-tea-green-400", wide)}>Not signed in</span>
+            <span className={cn("text-xs text-tea-green-400", wide)}>{t("nav.notSignedIn")}</span>
           </div>
         )}
       </div>
@@ -387,20 +390,13 @@ export function Sidebar({
 }
 
 /**
- * The product mark: a rounded tile in pale tea green. Shared with the mobile
- * header and the sign-in page so the three never drift apart.
+ * The product mark: the Kikai app icon, the same tile as the favicon and the
+ * home-screen icon. Shared with the mobile header and the sign-in page so the
+ * three never drift apart. `alt=""` where "Kikai" is written beside it.
  */
-export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  const box = size === "sm" ? "w-7 h-7 rounded-lg" : size === "lg" ? "w-11 h-11 rounded-xl" : "w-9 h-9 rounded-xl";
-  const icon = size === "sm" ? "w-4 h-4" : size === "lg" ? "w-6 h-6" : "w-5 h-5";
-  return (
-    <div
-      className={cn(
-        box,
-        "shrink-0 flex items-center justify-center bg-tea-green-500 text-tea-green-100"
-      )}
-    >
-      <Bot className={icon} />
-    </div>
-  );
+export function BrandMark({ size = "md", alt = "Kikai" }: { size?: "sm" | "md" | "lg"; alt?: string }) {
+  const px = size === "sm" ? 28 : size === "lg" ? 44 : 36;
+  // The Kikai app icon: the same tile as the favicon and the home-screen icon.
+  // eslint-disable-next-line @next/next/no-img-element -- a fixed-size SVG; nothing to optimise
+  return <img src="/brand/kikai-app-icon.svg" alt={alt} width={px} height={px} className="shrink-0" />;
 }

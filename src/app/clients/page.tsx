@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/data-table";
 import { ClientSheet } from "@/components/clients/client-sheet";
 import { apiFetch } from "@/lib/api-fetch";
-import { plural } from "@/lib/plural";
+import { useT } from "@/components/providers/language-provider";
+import { DATE_FNS_LOCALE, type Lang } from "@/lib/i18n";
 
 interface ClientRow {
   id: string;
@@ -46,7 +47,11 @@ const SERVER_SORT: Record<string, string> = {
   nextBooking: "nextBooking",
 };
 
-const nextLabel = (iso: string) => format(new Date(iso), "EEE d MMM, h:mmaaa").replace(":00", "");
+// "Thu 3 Oct, 2pm"; in Vietnamese "Th 5 3 thg 10, 14:00".
+const nextLabel = (iso: string, lang: Lang) =>
+  lang === "vi"
+    ? format(new Date(iso), "EEE d MMM, HH:mm", { locale: DATE_FNS_LOCALE.vi })
+    : format(new Date(iso), "EEE d MMM, h:mmaaa").replace(":00", "");
 
 export default function ClientsPage() {
   const [query, setQuery] = useState("");
@@ -58,6 +63,7 @@ export default function ClientsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const { t, lang } = useT();
 
   // Search as they type, once they pause.
   useEffect(() => {
@@ -118,59 +124,61 @@ export default function ClientsPage() {
     () => [
       {
         id: "name",
-        header: "Client",
+        header: t("clients.client"),
         accessorFn: (c) => c.name ?? "",
         cell: ({ row: { original: c } }) => (
           <PersonCell
             name={c.name}
-            detail={c.phone ?? (c.contactLead ? `via ${c.contactLead.name ?? "another client"}` : null)}
+            detail={
+              c.phone ?? (c.contactLead ? t("clients.via", { name: c.contactLead.name ?? t("clients.anotherClient") }) : null)
+            }
           />
         ),
       },
       {
         id: "email",
-        header: "Email",
+        header: t("clients.email"),
         accessorFn: (c) => c.email ?? "",
         cell: ({ row: { original: c } }) => <span className="text-muted-foreground">{c.email ?? "—"}</span>,
       },
       {
         id: "lastVisit",
-        header: "Last visit",
+        header: t("clients.lastVisit"),
         // Oldest first on the first click: who hasn't been in for a while.
         sortDescFirst: false,
         accessorFn: (c) => c.lastVisit ?? "",
         cell: ({ row: { original: c } }) => (
           <span className="text-muted-foreground">
-            {c.lastVisit ? format(new Date(c.lastVisit), "d MMM yyyy") : "—"}
-            <SubText>{plural(c.visits, "visit")}</SubText>
+            {c.lastVisit ? format(new Date(c.lastVisit), "d MMM yyyy", { locale: DATE_FNS_LOCALE[lang] }) : "—"}
+            <SubText>{t(c.visits === 1 ? "clients.visitOne" : "clients.visitMany", { n: c.visits })}</SubText>
           </span>
         ),
       },
       {
         id: "nextBooking",
-        header: "Next booking",
+        header: t("clients.nextBooking"),
         // Soonest first. Clients with nothing booked come last either way.
         sortDescFirst: false,
         accessorFn: (c) => c.nextBooking ?? "",
         cell: ({ row: { original: c } }) =>
           c.nextBooking ? (
-            <Pill>{nextLabel(c.nextBooking)}</Pill>
+            <Pill>{nextLabel(c.nextBooking, lang)}</Pill>
           ) : (
-            <span className="text-[13px] text-muted-foreground/80">Nothing booked</span>
+            <span className="text-[13px] text-muted-foreground/80">{t("clients.nothingBooked")}</span>
           ),
       },
     ],
-    []
+    [t, lang]
   );
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Clients" />
+      <PageHeader title={t("clients.title")} />
 
       <TableToolbar>
         <TableSearch
-          label="Search clients"
-          placeholder="Search by name, number or email"
+          label={t("clients.searchLabel")}
+          placeholder={t("clients.searchPlaceholder")}
           value={query}
           onChange={setQuery}
         />
@@ -178,7 +186,7 @@ export default function ClientsPage() {
 
       {failed && (
         <p role="alert" className="text-sm text-red-600">
-          Clients couldn&apos;t be loaded. Refresh to try again.
+          {t("clients.loadFailed")}
         </p>
       )}
 
@@ -187,7 +195,7 @@ export default function ClientsPage() {
         data={clients}
         getRowId={(c) => c.id}
         onRowClick={(c) => setOpenId(c.id)}
-        rowLabel={(c) => c.name ?? "client"}
+        rowLabel={(c) => c.name ?? t("clients.rowLabel")}
         loading={loading}
         manualSorting
         sorting={sorting}
@@ -195,12 +203,12 @@ export default function ClientsPage() {
         total={total}
         onShowMore={showMore}
         loadingMore={loadingMore}
-        noun="clients"
+        noun={t("clients.noun")}
         empty={
           <EmptyState
             icon={Contact}
-            title={search ? "No clients match that" : "No clients yet"}
-            hint={search ? "Try part of their name, number or email." : "Clients appear here as they are booked."}
+            title={search ? t("clients.noMatch") : t("clients.none")}
+            hint={search ? t("clients.noMatchHint") : t("clients.noneHint")}
           />
         }
       />

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { getSalonConfig } from "@/lib/booking";
 import { resolvePeriod } from "@/lib/sales-period";
-import { zonedDateString } from "@/lib/business-hours";
+import { addCalendarDays, zonedDateString } from "@/lib/business-hours";
 import { listPriceLookup } from "@/lib/takings";
 import { summariseReceptionist } from "@/lib/receptionist-insights";
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const cfg = await getSalonConfig(orgId);
     const now = new Date();
     // From the start of the first salon day in the window.
-    const firstDay = zonedDateString(new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000), cfg.timeZone);
+    const firstDay = addCalendarDays(zonedDateString(now, cfg.timeZone), -(days - 1));
     const since = new Date(resolvePeriod("day", firstDay, cfg.timeZone).from);
 
     const [calls, bookings, callbacks] = await Promise.all([

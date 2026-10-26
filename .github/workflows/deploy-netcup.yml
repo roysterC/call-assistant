@@ -154,6 +154,14 @@ jobs:
             echo "==> Building (heap ${NODE_HEAP_MB}MB)"
             as_deploy "NODE_OPTIONS=--max-old-space-size=${NODE_HEAP_MB} npm run build"
 
+            # Booking alerts' signing keys: made once on this box and kept in
+            # .env (scripts/ensure-push-keys.ts). Before the restarts, so the
+            # CRM and the voice server both start with them. Never fails the
+            # deploy; the private key is never printed.
+            echo "==> Checking booking alert keys"
+            as_deploy 'npx tsx scripts/ensure-push-keys.ts' \
+              || echo "WARNING: booking alert keys could not be checked; phones will get no alerts" >&2
+
             echo "==> Restarting $SERVICE"
             systemctl restart "$SERVICE"
             # Give it a moment to fall over before declaring success: a unit

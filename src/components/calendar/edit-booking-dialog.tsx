@@ -25,6 +25,8 @@ import { splitServiceText, type SalonService } from "@/lib/salon-config";
 import { ClientPicker, type ClientRow } from "./client-picker";
 import { BookingDetails, type BookingDraft } from "./booking-details";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
+import { useT } from "@/components/providers/language-provider";
+import type { Translate } from "@/lib/i18n";
 
 /** "HH:MM" of an instant on the salon's clock. */
 function clockTime(at: Date, timeZone: string): string {
@@ -36,8 +38,8 @@ function clockTime(at: Date, timeZone: string): string {
   });
 }
 
-function describe(at: Date, timeZone: string): string {
-  return at.toLocaleString("en-GB", {
+function describe(at: Date, timeZone: string, locale: string): string {
+  return at.toLocaleString(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -72,7 +74,8 @@ function clientOf(a: CalendarAppointment): ClientRow {
 
 async function saveChanges(
   id: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  t: Translate
 ): Promise<{ ok: true; textError: string | null } | { ok: false; error: string }> {
   try {
     const res = await apiFetch(`/api/appointments/${id}`, {
@@ -81,12 +84,12 @@ async function saveChanges(
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: data.error || "Could not save the changes." };
+    if (!res.ok) return { ok: false, error: data.error || t("edit.couldNotSave") };
     const textError =
-      body.notifyClient && !data.textSent ? (data.textError ?? "The text did not send.") : null;
+      body.notifyClient && !data.textSent ? (data.textError ?? t("edit.textNotSent")) : null;
     return { ok: true, textError };
   } catch {
-    return { ok: false, error: "Could not reach the server." };
+    return { ok: false, error: t("common.noServer") };
   }
 }
 
@@ -127,6 +130,7 @@ function EditBooking({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textProblem, setTextProblem] = useState<string | null>(null);
+  const { t } = useT();
 
   const start = new Date(a.startsAt);
   const locked = !isMovable(a);
@@ -154,7 +158,7 @@ function EditBooking({
     }
     if (client.id !== a.lead.id) body.leadId = client.id;
 
-    const result = await saveChanges(a.id, body);
+    const result = await saveChanges(a.id, body, t);
     setSaving(false);
     if (!result.ok) {
       setError(result.error);
@@ -173,18 +177,18 @@ function EditBooking({
         <DialogHeader>
           <DialogTitle>
             {picking
-              ? "Who is this booking for?"
-              : `Change booking${a.bookingNumber !== null ? ` #${a.bookingNumber}` : ""}`}
+              ? t("edit.whoFor")
+              : a.bookingNumber !== null
+                ? t("edit.changeNumber", { n: a.bookingNumber })
+                : t("edit.change")}
           </DialogTitle>
         </DialogHeader>
 
         {textProblem ? (
           <div className="grid gap-4">
-            <p className="text-sm">
-              Saved. The text to the client could not be sent: {textProblem}
-            </p>
+            <p className="text-sm">{t("edit.savedTextFailed", { reason: textProblem })}</p>
             <div className="flex justify-end">
-              <Button onClick={onClose}>Done</Button>
+              <Button onClick={onClose}>{t("new.done")}</Button>
             </div>
           </div>
         ) : picking ? (
@@ -263,10 +267,11 @@ function MoveConfirm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textProblem, setTextProblem] = useState<string | null>(null);
+  const { t, locale } = useT();
 
   const a = move.appointment;
   const to = wallTimeToUtc(move.date, move.time, timeZone);
-  const who = a.lead.name ?? "this client";
+  const who = a.lead.name ?? t("move.thisClient");
 
   const confirm = async () => {
     setSaving(true);
@@ -275,7 +280,7 @@ function MoveConfirm({
       startsAt: to.toISOString(),
       stylistName: move.stylistName,
       notifyClient: Boolean(a.lead.phone) && notify,
-    });
+    }, t);
     setSaving(false);
     if (!result.ok) {
       setError(result.error);
@@ -290,25 +295,26 @@ function MoveConfirm({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className={`sm:max-w-md ${PHONE_SHEET}`}>
         <DialogHeader>
-          <DialogTitle>Move this booking?</DialogTitle>
+          <DialogTitle>{t("move.title")}</DialogTitle>
         </DialogHeader>
         {textProblem ? (
           <>
-            <p className="text-sm">Moved. The text to the client could not be sent: {textProblem}</p>
+            <p className="text-sm">{t("move.movedTextFailed", { reason: textProblem })}</p>
             <DialogFooter>
-              <Button onClick={onClose}>Done</Button>
+              <Button onClick={onClose}>{t("new.done")}</Button>
             </DialogFooter>
           </>
         ) : (
           <>
             <p className="text-sm">
-              Move <span className="font-medium">{who}</span>
-              {a.bookingNumber !== null && ` (#${a.bookingNumber})`} from{" "}
-              {describe(new Date(a.startsAt), timeZone)} with {a.stylistName} to{" "}
-              <span className="font-medium">
-                {describe(to, timeZone)} with {move.stylistName}
-              </span>
-              ?
+              {t("move.question", {
+                who,
+                number: a.bookingNumber !== null ? ` (#${a.bookingNumber})` : "",
+                from: describe(new Date(a.startsAt), timeZone, locale),
+                fromStylist: a.stylistName,
+                to: describe(to, timeZone, locale),
+                toStylist: move.stylistName,
+              })}
             </p>
             {a.lead.phone && (
               <label className="flex items-center gap-2 text-sm">
@@ -318,16 +324,16 @@ function MoveConfirm({
                   onChange={(e) => setNotify(e.target.checked)}
                   className="h-4 w-4 accent-foreground"
                 />
-                Text the client about the change
+                {t("form.textClient")}
               </label>
             )}
             {error && <p className="text-xs text-red-600">{error}</p>}
             <DialogFooter>
               <Button variant="ghost" onClick={onClose} disabled={saving}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button onClick={confirm} disabled={saving}>
-                {saving ? "Moving…" : "Move"}
+                {saving ? t("edit.moving") : t("edit.move")}
               </Button>
             </DialogFooter>
           </>

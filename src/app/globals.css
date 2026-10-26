@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-sans), var(--font-sans-vi), sans-serif;
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-display);
+  --font-heading: var(--font-display), var(--font-display-vi), var(--font-sans), var(--font-sans-vi), sans-serif;
   --shadow-surface: var(--elev-surface);
   --shadow-raised: var(--elev-raised);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -183,7 +183,7 @@
   h1,
   h2,
   h3 {
-    font-family: var(--font-display), var(--font-sans), sans-serif;
+    font-family: var(--font-display), var(--font-display-vi), var(--font-sans), var(--font-sans-vi), sans-serif;
   }
   /* Plus Jakarta Sans sets its word space narrow; at heading sizes, and with
      any negative tracking, "Call volume" starts reading as one word. */
