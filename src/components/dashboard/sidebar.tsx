@@ -15,7 +15,6 @@ import {
   CalendarClock,
   Contact,
   Settings,
-  Bot,
   LogOut,
   Building2,
   Shield,
@@ -391,17 +390,10 @@ export function Sidebar({
  * The product mark: a rounded tile in pale tea green. Shared with the mobile
  * header and the sign-in page so the three never drift apart.
  */
-export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  const box = size === "sm" ? "w-7 h-7 rounded-lg" : size === "lg" ? "w-11 h-11 rounded-xl" : "w-9 h-9 rounded-xl";
-  const icon = size === "sm" ? "w-4 h-4" : size === "lg" ? "w-6 h-6" : "w-5 h-5";
-  return (
-    <div
-      className={cn(
-        box,
-        "shrink-0 flex items-center justify-center bg-tea-green-500 text-tea-green-100"
-      )}
-    >
-      <Bot className={icon} />
-    </div>
-  );
+/** `alt=""` where the name "Kikai" is already written beside it. */
+export function BrandMark({ size = "md", alt = "Kikai" }: { size?: "sm" | "md" | "lg"; alt?: string }) {
+  const px = size === "sm" ? 28 : size === "lg" ? 44 : 36;
+  // The Kikai app icon: the same tile as the favicon and the home-screen icon.
+  // eslint-disable-next-line @next/next/no-img-element -- a fixed-size SVG; nothing to optimise
+  return <img src="/brand/kikai-app-icon.svg" alt={alt} width={px} height={px} className="shrink-0" />;
 }

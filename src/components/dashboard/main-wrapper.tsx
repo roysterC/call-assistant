@@ -63,7 +63,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
             </>
           )}
         </button>
-        <BrandMark size="sm" />
+        <BrandMark size="sm" alt="" />
         <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate text-cornsilk-500">Kikai</span>
       </header>
 

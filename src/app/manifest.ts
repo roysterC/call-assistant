@@ -31,15 +31,15 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Ask the assistant",
         short_name: "Assistant",
         url: "/assistant",
-        icons: [{ src: "/icons/icon-192.png?v=3", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icons/icon-192.png?v=4", sizes: "192x192", type: "image/png" }],
       },
     ],
     // The query is a version: phones keep the icon they first fetched, so a
     // redrawn icon needs a new address before they will look again.
     icons: [
-      { src: "/icons/icon-192.png?v=3", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png?v=3", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png?v=3", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icons/icon-192.png?v=4", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png?v=4", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png?v=4", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

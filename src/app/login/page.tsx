@@ -83,11 +83,9 @@ function LoginForm() {
           aria-hidden
           className="pointer-events-none absolute -bottom-40 -left-24 h-[26rem] w-[26rem] rounded-full bg-light-bronze-300/25 blur-3xl"
         />
-        <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-tea-green-500 text-tea-green-100 flex items-center justify-center font-heading font-bold">
-            K
-          </div>
-          <span className="font-heading text-lg font-semibold tracking-tight">Kikai</span>
+        <div className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a fixed SVG; nothing for next/image to optimise */}
+          <img src="/brand/kikai-logo-on-dark.svg" alt="Kikai" width={470} height={144} className="h-9 w-auto" />
         </div>
         <div className="relative max-w-md">
           <h2 className="font-heading text-4xl font-semibold leading-[1.15]">

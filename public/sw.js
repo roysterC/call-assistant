@@ -25,8 +25,8 @@ self.addEventListener("push", (event) => {
         body: data.body || "",
         tag: data.tag,
         data: { url: data.url || "/calendar" },
-        icon: "/icons/icon-192.png?v=3",
-        badge: "/icons/icon-192.png?v=3",
+        icon: "/icons/icon-192.png?v=4",
+        badge: "/icons/icon-192.png?v=4",
         // On a computer it stays until it is dealt with, like the pop-up.
         requireInteraction: true,
       });
