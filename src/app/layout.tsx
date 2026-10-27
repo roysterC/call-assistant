@@ -6,6 +6,7 @@ import { SessionProvider } from "@/components/providers/session-provider";
 import { MeProvider } from "@/components/providers/me-provider";
 import { DialogsProvider } from "@/components/providers/dialogs-provider";
 import { LanguageProvider } from "@/components/providers/language-provider";
+import { MotionProvider } from "@/components/providers/motion-provider";
 import { cookies } from "next/headers";
 import { DEFAULT_LANG, LANG_COOKIE, isLang } from "@/lib/i18n";
 
@@ -94,9 +95,11 @@ export default async function RootLayout({
         <SessionProvider>
           <MeProvider>
             <LanguageProvider initial={lang}>
-              <DialogsProvider>
-                <MainWrapper>{children}</MainWrapper>
-              </DialogsProvider>
+              <MotionProvider>
+                <DialogsProvider>
+                  <MainWrapper>{children}</MainWrapper>
+                </DialogsProvider>
+              </MotionProvider>
             </LanguageProvider>
           </MeProvider>
         </SessionProvider>
