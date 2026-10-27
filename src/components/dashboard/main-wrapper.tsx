@@ -55,7 +55,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
           onClick={() => setNavOpen(true)}
           aria-label={t("nav.open")}
           aria-expanded={navOpen}
-          className="relative h-9 w-9 -ml-1.5 rounded-md flex items-center justify-center text-tea-green-400 hover:text-cornsilk-500 hover:bg-white/10 transition-colors"
+          className="relative h-9 w-9 -ml-1.5 rounded-xl flex items-center justify-center text-tea-green-400 hover:text-cornsilk-500 hover:bg-white/10 transition-colors"
         >
           <Menu className="w-5 h-5" />
           {pending > 0 && (
@@ -107,7 +107,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
 function SidebarFallback({ collapsed }: { collapsed: boolean }) {
   return (
     <aside
-      className={`hidden md:block ${collapsed ? "w-16" : "w-64"} bg-sidebar border-r border-sidebar-border shrink-0`}
+      className={`hidden md:block m-3 mr-0 rounded-[28px] ${collapsed ? "w-[76px]" : "w-64"} bg-sidebar shrink-0`}
       aria-hidden
     />
   );

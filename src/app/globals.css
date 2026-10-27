@@ -20,6 +20,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-sidebar-muted: var(--sidebar-muted);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -157,6 +158,7 @@
   --sidebar-primary-foreground: #2d331a;
   --sidebar-accent: #5b6635; /* active item */
   --sidebar-accent-foreground: #fefae0; /* cornsilk */
+  --sidebar-muted: #acbb7b; /* tea green 400: headings, second lines */
   --sidebar-border: rgb(225 230 207 / 14%);
   --sidebar-ring: #acbb7b;
   /* Surfaces lift off the canvas with a hairline and the faintest shadow.
