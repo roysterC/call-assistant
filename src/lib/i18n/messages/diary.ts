@@ -7,7 +7,6 @@ export const diary = {
   "diary.nextDay": ["Next day", "Ngày sau"],
   "diary.today": ["Today", "Hôm nay"],
   "diary.month": ["Month", "Tháng"],
-  "diary.blockTime": ["Block time", "Chặn giờ"],
   "diary.closed": ["closed", "nghỉ"],
   "diary.loading": ["loading…", "đang tải…"],
   "diary.loadingDiary": ["Loading the diary…", "Đang tải lịch hẹn…"],

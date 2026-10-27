@@ -32,6 +32,7 @@ import {
   type PlacedBlock,
 } from "@/lib/calendar-layout";
 import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
+import { FORMER_STYLIST_COLOUR, stylistInitials } from "@/lib/stylist-colours";
 import { useT } from "@/components/providers/language-provider";
 
 export interface CalendarAppointment {
@@ -96,6 +97,47 @@ export interface CalendarStylist {
    * booked into the column.
    */
   former?: boolean;
+  /** Their badge colour, from `stylistColour` by team order. */
+  colour?: string;
+}
+
+/** A stylist's initials on their colour: who a column, or a tab, belongs to. */
+export function StylistBadge({
+  stylist,
+  size = "md",
+}: {
+  stylist: CalendarStylist;
+  size?: "sm" | "md";
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white ring-2 ring-card",
+        size === "md" ? "h-7 w-7 text-[11px]" : "h-5 w-5 text-[9px]",
+        !stylist.worksToday && !stylist.former && "opacity-60"
+      )}
+      style={{ background: stylist.former ? FORMER_STYLIST_COLOUR : (stylist.colour ?? FORMER_STYLIST_COLOUR) }}
+    >
+      {stylistInitials(stylist.name)}
+    </span>
+  );
+}
+
+/**
+ * A strip above the first hour and below the last, so their labels, drawn
+ * centred on the line, are not cut in half by the header and the bottom edge.
+ * Carries the column edges so the dividers run unbroken.
+ */
+function EdgeStrip({ count }: { count: number }) {
+  return (
+    <div className="flex h-2.5" aria-hidden="true">
+      <div className="w-14 shrink-0" />
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="flex-1 min-w-0 border-l border-border" />
+      ))}
+    </div>
+  );
 }
 
 interface DayGridProps {
@@ -168,27 +210,31 @@ export function DayGrid({
           {stylists.map((s) => (
             <div
               key={s.name}
-              className="flex-1 min-w-0 px-2 py-2 text-center border-l border-border"
+              className="flex-1 min-w-0 px-2 py-2 border-l border-border flex items-center justify-center gap-2"
             >
-              <div className="text-sm font-semibold truncate">{s.name}</div>
-              <div
-                className={cn(
-                  "text-[11px] truncate",
-                  s.former ? "font-medium text-papaya-whip-100" : "text-muted-foreground"
-                )}
-              >
-                {s.former
-                  ? t("grid.notOnTeam")
-                  : !s.bookable
-                    ? t("grid.noCalendar")
-                    : s.worksToday
-                      ? t("grid.working")
-                      : t("grid.notIn")}
+              <StylistBadge stylist={s} />
+              <div className="min-w-0 text-left">
+                <div className="text-sm font-semibold leading-tight truncate">{s.name}</div>
+                <div
+                  className={cn(
+                    "text-[11px] leading-tight truncate",
+                    s.former ? "font-medium text-papaya-whip-100" : "text-muted-foreground"
+                  )}
+                >
+                  {s.former
+                    ? t("grid.notOnTeam")
+                    : !s.bookable
+                      ? t("grid.noCalendar")
+                      : s.worksToday
+                        ? t("grid.working")
+                        : t("grid.notIn")}
+                </div>
               </div>
             </div>
           ))}
         </div>
 
+        <EdgeStrip count={stylists.length} />
         <div
           className="flex relative"
           style={{
@@ -255,6 +301,7 @@ export function DayGrid({
             />
           ))}
         </div>
+        <EdgeStrip count={stylists.length} />
       </div>
     </div>
   );
@@ -415,14 +462,14 @@ function StylistColumn({
           key={l.minutes}
           className={cn(
             "absolute inset-x-0 border-t pointer-events-none",
-            // Every quarter-hour visible, the hour plainest. The quarters
-            // were drawn at a quarter of the border colour, which on white
-            // is effectively nothing.
+            // Every quarter-hour visible, the hour plainest, the quarter
+            // past and to only just there: enough to aim a click at without
+            // ruling the day into a ledger.
             l.major
               ? "border-tea-green-500"
               : l.half
                 ? "border-tea-green-600"
-                : "border-tea-green-700"
+                : "border-tea-green-700/55"
           )}
           style={{ top: `${l.topPct}%` }}
         />

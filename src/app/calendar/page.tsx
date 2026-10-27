@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Ban, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
@@ -26,12 +26,14 @@ import {
 } from "@/lib/calendar-layout";
 import {
   DayGrid,
+  StylistBadge,
   type CalendarAppointment,
   type CalendarStylist,
   type DiaryBlock,
 } from "@/components/calendar/day-grid";
 import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
 import { useIsPhone } from "@/lib/use-is-phone";
+import { stylistColour } from "@/lib/stylist-colours";
 import {
   EditBookingDialog,
   MoveConfirmDialog,
@@ -322,8 +324,9 @@ export default function CalendarPage() {
 
   const columns: CalendarStylist[] = useMemo(
     () =>
-      stylists.map((s) => ({
+      stylists.map((s, i): CalendarStylist => ({
         name: s.name,
+        colour: stylistColour(i),
         // An empty list means "any day the salon is open", the same rule the
         // booking engine applies.
         worksToday:
@@ -457,21 +460,6 @@ export default function CalendarPage() {
           <CalendarDays className="h-3.5 w-3.5" />
           {t("diary.month")}
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() =>
-            setBlockDialog({
-              mode: "new",
-              initial: newBlockForm(selected, stylists[0]?.name ?? null, "13:00"),
-            })
-          }
-          disabled={stylists.length === 0}
-        >
-          <Ban className="h-3.5 w-3.5" />
-          {t("diary.blockTime")}
-        </Button>
         <div className="ml-1 sm:ml-2 min-w-0">
           <span className="font-heading text-base font-semibold">{prettyDate(selected, locale)}</span>
           {settingsLoaded && !open && (
@@ -494,12 +482,13 @@ export default function CalendarPage() {
                 role="tab"
                 aria-selected={on}
                 onClick={() => setPhonePick(c.name)}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm ${
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3.5 text-sm ${
                   on
                     ? "border-primary bg-primary text-primary-foreground shadow-[0_1px_2px_0_rgb(79_70_229/0.25)]"
                     : "border-input bg-card text-muted-foreground"
                 } ${c.worksToday ? "" : "opacity-60"}`}
               >
+                <StylistBadge stylist={{ ...c, worksToday: true }} size="sm" />
                 {c.name}
               </button>
             );
