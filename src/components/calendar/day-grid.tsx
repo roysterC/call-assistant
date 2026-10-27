@@ -67,12 +67,45 @@ export interface CalendarAppointment {
 /**
  * Time nobody can be booked into, blocked or outside opening hours: one look
  * for both, so a closed morning and a stylist's lunch read the same.
+ *
+ * Drawn once, behind every column, rather than on each band: a pattern
+ * starts from the corner of whatever it is drawn on, so a closed morning
+ * striped column by column had its stripes break at every divider. Each
+ * column paints itself white and leaves holes where it is unavailable
+ * (`columnBackground`), so the one pattern shows through them all.
  */
 const UNAVAILABLE_BG: React.CSSProperties = {
   backgroundImage:
     "repeating-linear-gradient(135deg, color-mix(in oklab, var(--muted-foreground) 14%, transparent) 0 6px, transparent 6px 12px)",
-  backgroundColor: "color-mix(in oklab, var(--muted) 55%, transparent)",
+  backgroundColor: "color-mix(in oklab, var(--muted) 55%, var(--card))",
 };
+
+/**
+ * A column's own background: card white, with see-through holes where it is
+ * closed or blocked so the stripes behind the grid show there.
+ */
+export function columnBackground(spans: Array<{ topPct: number; heightPct: number }>): string {
+  const holes = spans
+    .map((b) => [Math.max(b.topPct, 0), Math.min(b.topPct + b.heightPct, 100)] as const)
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  const merged: Array<[number, number]> = [];
+  for (const [a, b] of holes) {
+    const last = merged[merged.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else merged.push([a, b]);
+  }
+  if (merged.length === 0) return "var(--card)";
+  const stops: string[] = [];
+  let at = 0;
+  for (const [a, b] of merged) {
+    if (a > at) stops.push(`var(--card) ${at}% ${a}%`);
+    stops.push(`transparent ${a}% ${b}%`);
+    at = b;
+  }
+  if (at < 100) stops.push(`var(--card) ${at}% 100%`);
+  return `linear-gradient(to bottom, ${stops.join(", ")})`;
+}
 
 /** A stretch of blocked time as the diary fetch returns it. */
 export interface DiaryBlock {
@@ -239,9 +272,10 @@ export function DayGrid({
           className="flex relative"
           style={{
             height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * hourHeightPx}px`,
+            ...UNAVAILABLE_BG,
           }}
         >
-          <div className="w-14 shrink-0 relative">
+          <div className="w-14 shrink-0 relative bg-card">
             {marks.map((m) => (
               <div
                 key={m.hour}
@@ -365,6 +399,11 @@ function StylistColumn({
           100
         );
 
+  const blockSpans = blocks.flatMap((b) => {
+    const g = spanGeometry(new Date(b.start), new Date(b.end), date, timeZone);
+    return g ? [{ block: b, ...g }] : [];
+  });
+
   const placed: PlacedBlock<CalendarAppointment>[] = layoutColumn(
     appointments,
     (a) => ({ startsAt: new Date(a.startsAt), endsAt: new Date(a.endsAt) }),
@@ -425,16 +464,10 @@ function StylistColumn({
         "flex-1 min-w-0 relative border-l border-border",
         bookable ? "cursor-copy" : "cursor-not-allowed"
       )}
+      // Closed hours look like blocked time: either way, nobody can be
+      // booked then. Both are holes onto the stripes behind the grid.
+      style={{ background: columnBackground([...shaded, ...blockSpans]) }}
     >
-      {/* Closed hours look like blocked time: either way, nobody can be
-          booked then. */}
-      {shaded.map((b, i) => (
-        <div
-          key={i}
-          className="absolute inset-x-0 pointer-events-none"
-          style={{ top: `${b.topPct}%`, height: `${b.heightPct}%`, ...UNAVAILABLE_BG }}
-        />
-      ))}
 
       {!stylist.worksToday && (
         <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
@@ -477,9 +510,7 @@ function StylistColumn({
 
       {/* Blocked time sits under the bookings, so a booking made into a
           block (the desk may) is still there to click. */}
-      {blocks.map((b) => {
-        const g = spanGeometry(new Date(b.start), new Date(b.end), date, timeZone);
-        if (!g) return null;
+      {blockSpans.map(({ block: b, ...g }) => {
         return (
           <button
             key={`${b.blockId}-${b.date}`}
@@ -490,7 +521,7 @@ function StylistColumn({
             }}
             title={b.stylistName === null ? t("grid.everyone", { label: b.label }) : b.label}
             className="absolute inset-x-0 overflow-hidden border-y border-border/60 px-1.5 py-1 text-left text-[11px] leading-tight text-muted-foreground hover:text-foreground focus-visible:ring-2"
-            style={{ top: `${g.topPct}%`, height: `${g.heightPct}%`, ...UNAVAILABLE_BG }}
+            style={{ top: `${g.topPct}%`, height: `${g.heightPct}%` }}
           >
             <span className="font-medium">{b.label}</span>
           </button>
