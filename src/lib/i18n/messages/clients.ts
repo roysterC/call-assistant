@@ -59,6 +59,26 @@ export const clients = {
   "client.history": ["History", "Lịch sử"],
   "client.testNeeded": ["Patch test needed", "Cần thử dị ứng"],
   "client.textFailed": ["Confirmation text didn't send", "Tin nhắn xác nhận không gửi được"],
+  "client.deleteHeading": ["Delete client", "Xóa khách hàng"],
+  "client.deleteHint": [
+    "Removes them and their booking history for good. Calls and messages stay in the inbox.",
+    "Xóa vĩnh viễn khách và lịch sử đặt lịch của họ. Cuộc gọi và tin nhắn vẫn được giữ trong hộp thư.",
+  ],
+  "client.deleteBlockedUpcoming": [
+    "Cancel or move their upcoming bookings first.",
+    "Hãy hủy hoặc dời các lịch hẹn sắp tới của khách trước.",
+  ],
+  "client.deleteBlockedDependents": [
+    "{names} book through this number. Give them a number of their own first.",
+    "{names} đặt lịch qua số này. Hãy thêm số riêng cho họ trước.",
+  ],
+  "client.deleteConfirmTitle": ["Delete {name}?", "Xóa {name}?"],
+  "client.deleteConfirmBody": [
+    "This can't be undone. Their booking history goes too, and drops out of past takings.",
+    "Không thể hoàn tác. Lịch sử đặt lịch của khách cũng bị xóa và không còn tính vào doanh thu trước đây.",
+  ],
+  "client.deleted": ["{name} deleted", "Đã xóa {name}"],
+  "client.deleteFailed": ["Couldn't delete this client. Try again.", "Không xóa được khách hàng này. Vui lòng thử lại."],
 
   // --- Callbacks -------------------------------------------------------------------------
   "callbacks.title": ["Callbacks", "Gọi lại"],

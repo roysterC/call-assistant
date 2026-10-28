@@ -26,6 +26,7 @@ import type { SalonService, Stylist } from "@/lib/salon-config";
 import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 import { useMe } from "@/components/providers/me-provider";
+import { useDialogs } from "@/components/providers/dialogs-provider";
 import { ExpandableSection } from "@/components/settings/expandable-section";
 import { plural } from "@/lib/plural";
 
@@ -73,9 +74,9 @@ export default function SettingsPage() {
   const [voiceNumbers, setVoiceNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  // What the last save did. It used to say nothing either way, which is how a
-  // contact number that never saved went unnoticed.
-  const [saveResult, setSaveResult] = useState<{ ok: boolean; message: string } | null>(null);
+  // What a save did, as a snack bar. It used to say nothing either way, which
+  // is how a contact number that never saved went unnoticed.
+  const { notify } = useDialogs();
   // What "automatic" currently means for this organisation, to show beside it.
   const [automaticStart, setAutomaticStart] = useState<string>(DASHBOARD);
 
@@ -135,7 +136,6 @@ export default function SettingsPage() {
   async function handleSave() {
     if (!settings) return;
     setSaving(true);
-    setSaveResult(null);
     try {
       // Only send the fields the settings page actually edits. The API
       // strips super-admin-only fields anyway, but being explicit here
@@ -156,7 +156,7 @@ export default function SettingsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setSaveResult({ ok: false, message: data.error || "Could not save your changes." });
+        notify(data.error || "Could not save your changes.");
         return;
       }
       // Show what was stored, e.g. the contact number as texts will print it.
@@ -166,10 +166,10 @@ export default function SettingsPage() {
         startPage: data.settings?.startPage ?? null,
         salonFaq: data.settings?.salonFaq ?? "",
       });
-      setSaveResult({ ok: true, message: "Saved." });
+      notify("Settings saved", "success");
     } catch (error) {
       console.error("Failed to save settings:", error);
-      setSaveResult({ ok: false, message: "Could not reach the server." });
+      notify("Could not reach the server. Your changes are not saved.");
     } finally {
       setSaving(false);
     }
@@ -240,14 +240,6 @@ export default function SettingsPage() {
         title="Settings"
         actions={
           <div className="flex items-center gap-3">
-            {saveResult && (
-              <span
-                role="status"
-                className={saveResult.ok ? "text-sm text-tea-green-200" : "text-sm text-red-600"}
-              >
-                {saveResult.message}
-              </span>
-            )}
             {me?.role === "member" ? (
               <span className="text-sm text-muted-foreground">
                 Only the salon&apos;s owner can change these.

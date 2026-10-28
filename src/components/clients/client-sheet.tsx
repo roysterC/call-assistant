@@ -3,11 +3,12 @@
 /**
  * One client, opened from the Clients page: how to reach them, their patch
  * test, their notes, and every booking they have had or have coming. All of
- * it can be changed here, their name, number and email included.
+ * it can be changed here, their name, number and email included; and the
+ * owner can delete them (lib/client-delete says what goes with them).
  */
 
 import { useEffect, useState } from "react";
-import { Mail, Pencil, Phone, TriangleAlert } from "lucide-react";
+import { Mail, Pencil, Phone, Trash2, TriangleAlert } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,8 @@ import { formatMoney } from "@/lib/money";
 import { appointmentStatus, PATCH_TEST_BADGE, SMS_STATUS, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 import { useT } from "@/components/providers/language-provider";
+import { useMe } from "@/components/providers/me-provider";
+import { useDialogs } from "@/components/providers/dialogs-provider";
 import { INTL_LOCALE, clockTime, type Lang } from "@/lib/i18n";
 
 const STATUS_KEYS = ["booked", "completed", "cancelled", "no_show"] as const;
@@ -88,12 +91,16 @@ export function ClientSheet({
 
   const [notes, setNotes] = useState("");
   const [testDay, setTestDay] = useState("");
-  const [saving, setSaving] = useState<"notes" | "test" | "details" | null>(null);
+  const [saving, setSaving] = useState<"notes" | "test" | "details" | "delete" | null>(null);
   // Editing who they are: name, number, email.
   const [editing, setEditing] = useState(false);
   const [details, setDetails] = useState({ firstName: "", lastName: "", phone: "", email: "" });
   const [saved, setSaved] = useState<string | null>(null);
   const { t, lang, locale } = useT();
+  const me = useMe();
+  const { confirm, notify } = useDialogs();
+  // Members can change a client but not delete one; the API refuses them too.
+  const canDelete = me !== null && me.role !== "member";
 
   useEffect(() => {
     if (!clientId) return;
@@ -179,6 +186,35 @@ export function ClientSheet({
       if (kind === "details") setEditing(false);
       setSaved(kind === "notes" ? t("client.notesSaved") : kind === "test" ? t("client.testSaved") : t("client.detailsSaved"));
       onChanged();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function deleteThisClient() {
+    if (!client) return;
+    const name = client.name ?? t("client.client");
+    const yes = await confirm({
+      title: t("client.deleteConfirmTitle", { name }),
+      body: t("client.deleteConfirmBody"),
+      confirmLabel: t("common.delete"),
+      destructive: true,
+    });
+    if (!yes) return;
+    setSaving("delete");
+    try {
+      const res = await apiFetch(`/api/clients/${client.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        // The reasons it refuses are checked here first, so what is left
+        // is unexpected: say so plainly.
+        notify(t("client.deleteFailed"));
+        return;
+      }
+      notify(t("client.deleted", { name }), "success");
+      onChanged();
+      onClose();
+    } catch {
+      notify(t("client.deleteFailed"));
     } finally {
       setSaving(null);
     }
@@ -395,6 +431,32 @@ export function ClientSheet({
                 </>
               )}
             </section>
+
+            {canDelete && (
+              <section aria-labelledby="delete-heading" className="space-y-2 border-t pt-5">
+                <h3 id="delete-heading" className="text-sm font-semibold">
+                  {t("client.deleteHeading")}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {client.dependents.length > 0
+                    ? t("client.deleteBlockedDependents", {
+                        names: client.dependents.map((d) => d.name ?? t("client.someone")).join(", "),
+                      })
+                    : upcoming.length > 0
+                      ? t("client.deleteBlockedUpcoming")
+                      : t("client.deleteHint")}
+                </p>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={saving !== null || upcoming.length > 0 || client.dependents.length > 0}
+                  onClick={() => void deleteThisClient()}
+                >
+                  <Trash2 />
+                  {t("client.deleteHeading")}
+                </Button>
+              </section>
+            )}
           </div>
         )}
       </SheetContent>

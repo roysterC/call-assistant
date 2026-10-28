@@ -9,14 +9,17 @@
  *   const { confirm, notify } = useDialogs();
  *   if (!(await confirm({ title: "Delete this site?", confirmLabel: "Delete", destructive: true }))) return;
  *   notify("Couldn't save. Try again.");
+ *   notify("Settings saved", "success");
  *
- * A notice sits at the bottom of the screen for a few seconds and does not
- * block anything; a confirmation waits for an answer, and closing it is "no".
+ * A notice is a snack bar (components/ui/snackbar): it sits at the bottom of
+ * the screen for a few seconds and blocks nothing. Most notices say something
+ * went wrong, so that is what one is unless told otherwise. A confirmation
+ * waits for an answer, and closing it is "no".
  */
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { createContext, useCallback, useContext, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SnackbarHost, snack, type SnackTone } from "@/components/ui/snackbar";
 import { useT } from "@/components/providers/language-provider";
 import {
   Dialog,
@@ -38,17 +41,14 @@ export interface ConfirmOptions {
 
 interface Dialogs {
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
-  notify: (message: string) => void;
+  notify: (message: string, tone?: SnackTone) => void;
 }
 
 const DialogsContext = createContext<Dialogs | null>(null);
 
-const NOTICE_MS = 6000;
-
 export function DialogsProvider({ children }: { children: React.ReactNode }) {
   const [asking, setAsking] = useState<ConfirmOptions | null>(null);
   const answer = useRef<((yes: boolean) => void) | null>(null);
-  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
   const { t } = useT();
 
   const settle = useCallback((yes: boolean) => {
@@ -67,13 +67,7 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const notify = useCallback((message: string) => setNotice({ id: Date.now(), message }), []);
-
-  useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(null), NOTICE_MS);
-    return () => clearTimeout(t);
-  }, [notice]);
+  const notify = useCallback((message: string, tone: SnackTone = "error") => snack(message, tone), []);
 
   return (
     <DialogsContext.Provider value={{ confirm, notify }}>
@@ -96,28 +90,7 @@ export function DialogsProvider({ children }: { children: React.ReactNode }) {
         </DialogContent>
       </Dialog>
 
-      <div
-        role="alert"
-        aria-live="assertive"
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
-      >
-        {notice && (
-          <div
-            key={notice.id}
-            className="pointer-events-auto flex max-w-md items-start gap-3 rounded-xl bg-foreground px-4 py-3 text-sm text-background shadow-raised animate-in fade-in-0 slide-in-from-bottom-2"
-          >
-            <span className="flex-1">{notice.message}</span>
-            <button
-              type="button"
-              aria-label={t("common.dismiss")}
-              onClick={() => setNotice(null)}
-              className="-mr-1 rounded p-0.5 opacity-70 hover:opacity-100"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </div>
+      <SnackbarHost />
     </DialogsContext.Provider>
   );
 }

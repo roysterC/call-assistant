@@ -11,6 +11,8 @@
  * call from that number no longer manages their bookings. Unlinking a client
  * with no number of their own is refused: nobody could then text them or
  * find their bookings by phone.
+ *
+ * Deleting a client is for the owner only.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -20,6 +22,7 @@ import { getSalonConfig } from "@/lib/booking";
 import { parsePatchTestDate, patchTestDay } from "@/lib/patch-test";
 import { joinName } from "@/lib/client-name";
 import { checkClientEmail, checkClientPhone } from "@/lib/client-details";
+import { deleteClient } from "@/lib/client-delete";
 
 /** A trimmed string, "" as nothing; undefined when the field was not sent. */
 function field(value: unknown): string | null | undefined {
@@ -214,6 +217,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
   } catch (error) {
     console.error("[CLIENTS API] PATCH error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+/**
+ * Delete a client and their past bookings (see lib/client-delete). The
+ * owner's call, not every member of staff's: it cannot be undone, and it
+ * takes their bookings out of past takings.
+ */
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const ctx = await requireTenant(req);
+  if (isErrorResponse(ctx)) return ctx;
+
+  try {
+    const { id } = await params;
+    const result = await deleteClient(ctx.organizationId, id);
+    if (!result.ok) return NextResponse.json({ error: result.message }, { status: result.status });
+    return NextResponse.json({ deleted: true, bookings: result.bookings, callbacks: result.callbacks });
+  } catch (error) {
+    console.error("[CLIENTS API] DELETE error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
