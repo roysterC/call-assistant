@@ -314,6 +314,11 @@ export default function OrganizationDetailPage() {
         return;
       }
       await load();
+      // A save that worked used to say nothing, which left a new API key
+      // looking as if it might not have taken.
+      notify("Organisation saved", "success");
+    } catch {
+      notify("Could not reach the server. Nothing was saved.");
     } finally {
       setSaving(false);
     }
