@@ -127,6 +127,7 @@ export default function WebsiteEditPage() {
           .catch(() => null);
         throw new Error(detail || "Save failed");
       }
+      notify("Website saved", "success");
     } catch (err) {
       console.error("Save error:", err);
       notify(err instanceof Error ? err.message : "Couldn't save. Try again.");
