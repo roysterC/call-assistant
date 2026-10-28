@@ -15,6 +15,9 @@
  * block text is the dark foreground over an 18% tint, and the hue is carried
  * by a 3px leading edge at 70%, so the separation still does the work.
  *
+ * The tint is solid: the hue mixed with white, not laid over the grid at 18%
+ * alpha. See-through, the quarter-hour lines ran across every booking.
+ *
  * Emitted as inline styles rather than Tailwind classes on purpose: the
  * service list comes from settings at runtime, and as the note in
  * `status-styles.ts` says, Tailwind only scans source for literal class names
@@ -27,7 +30,7 @@ export type ServiceFamily = "cutting" | "colour" | "finishing" | "treatment" | "
 
 export interface ServiceTone {
   family: ServiceFamily;
-  /** Block fill. Low alpha so the text above it stays legible. */
+  /** Block fill: a light, solid tint so the text above it stays legible. */
   fill: string;
   /** Block edge, where most of the colour identity actually reads. */
   border: string;
@@ -55,6 +58,18 @@ export const FAMILY_STEPS: Record<ServiceFamily, string[]> = {
   other: ["#7a8a86", "#95a3a0", "#61706c", "#b0bbb8"],
 };
 
+/**
+ * `hex` at `share` over white, as a solid colour. The card the diary sits on
+ * is white, so this is what the old 18% alpha fill looked like, minus the
+ * gridlines showing through it.
+ */
+export function solidTint(hex: string, share = 0.18): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  const mix = (c: number) => Math.round(255 + (c - 255) * share);
+  const rgb = [mix((n >> 16) & 255), mix((n >> 8) & 255), mix(n & 255)];
+  return `#${rgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** The hue a family is known by, for the legend. */
 export const FAMILY_HUE: Record<ServiceFamily, string> = {
   cutting: FAMILY_STEPS.cutting[0],
@@ -71,7 +86,7 @@ export const FAMILY_HUE: Record<ServiceFamily, string> = {
  * of service. The chip's white text on the deep step clears 4.5:1.
  */
 export const NEW_BOOKING = {
-  fill: "#d633842e",
+  fill: solidTint("#d63384"),
   border: "#d63384",
   chip: "#b02a6b",
 } as const;
@@ -140,9 +155,9 @@ export function buildServiceTones(
 
     out.set(key, {
       family,
-      // Alpha suffixes: ~18% fill keeps 11px text readable over it, and a
-      // strong edge is what actually carries the colour at block size.
-      fill: `${hex}2e`,
+      // A light fill keeps 11px text readable over it, and a strong edge is
+      // what actually carries the colour at block size.
+      fill: solidTint(hex),
       border: `${hex}b3`,
     });
   }
@@ -176,7 +191,7 @@ export function toneFor(
   // name says nothing.
   const family = classifyService(parts[0] ?? text);
   const hex = FAMILY_STEPS[family][0];
-  return { family, fill: `${hex}2e`, border: `${hex}b3` };
+  return { family, fill: solidTint(hex), border: `${hex}b3` };
 }
 
 /** Families actually in use, in a stable order, for the legend. */

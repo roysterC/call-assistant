@@ -114,7 +114,7 @@ function resolveSpokenDateOrToday(spoken: string, tz: string): string | null {
 export async function clientHistory(asker: Asker, clientId: string) {
   const cfg = await getSalonConfig(asker.organizationId);
   const lead = await prisma.lead.findFirst({
-    where: { id: clientId, organizationId: asker.organizationId },
+    where: { id: clientId, organizationId: asker.organizationId, anonymisedAt: null },
     include: { contactLead: { select: { name: true, phone: true } } },
   });
   if (!lead) return { error: "That client was not found. Look them up again." };

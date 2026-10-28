@@ -113,7 +113,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     let lead = appt.lead;
     if (body.leadId !== undefined && body.leadId !== appt.leadId) {
       const other = await prisma.lead.findFirst({
-        where: { id: String(body.leadId), organizationId: ctx.organizationId },
+        where: { id: String(body.leadId), organizationId: ctx.organizationId, anonymisedAt: null },
       });
       if (!other) {
         return NextResponse.json({ error: "That client was not found." }, { status: 404 });

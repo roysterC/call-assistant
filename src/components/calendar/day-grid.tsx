@@ -32,7 +32,9 @@ import {
   type PlacedBlock,
 } from "@/lib/calendar-layout";
 import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
+import { FORMER_STYLIST_COLOUR, stylistInitials } from "@/lib/stylist-colours";
 import { useT } from "@/components/providers/language-provider";
+import type { Translate } from "@/lib/i18n";
 
 export interface CalendarAppointment {
   id: string;
@@ -60,18 +62,59 @@ export interface CalendarAppointment {
     notes: string | null;
     /** Reached through another client's number (a child on a parent's phone). */
     contactLead?: { id: string; name: string | null; phone: string | null } | null;
+    /** Set once the client was deleted: the booking stays, who they were does not. */
+    anonymisedAt?: string | null;
   };
+}
+
+/** Who a booking is for, as the diary names them. */
+export function clientLabel(lead: CalendarAppointment["lead"], t: Translate): string {
+  if (lead.anonymisedAt) return t("grid.deletedClient");
+  return lead.name ?? t("grid.client");
 }
 
 /**
  * Time nobody can be booked into, blocked or outside opening hours: one look
  * for both, so a closed morning and a stylist's lunch read the same.
+ *
+ * Drawn once, behind every column, rather than on each band: a pattern
+ * starts from the corner of whatever it is drawn on, so a closed morning
+ * striped column by column had its stripes break at every divider. Each
+ * column paints itself white and leaves holes where it is unavailable
+ * (`columnBackground`), so the one pattern shows through them all.
  */
 const UNAVAILABLE_BG: React.CSSProperties = {
   backgroundImage:
     "repeating-linear-gradient(135deg, color-mix(in oklab, var(--muted-foreground) 14%, transparent) 0 6px, transparent 6px 12px)",
-  backgroundColor: "color-mix(in oklab, var(--muted) 55%, transparent)",
+  backgroundColor: "color-mix(in oklab, var(--muted) 55%, var(--card))",
 };
+
+/**
+ * A column's own background: card white, with see-through holes where it is
+ * closed or blocked so the stripes behind the grid show there.
+ */
+export function columnBackground(spans: Array<{ topPct: number; heightPct: number }>): string {
+  const holes = spans
+    .map((b) => [Math.max(b.topPct, 0), Math.min(b.topPct + b.heightPct, 100)] as const)
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  const merged: Array<[number, number]> = [];
+  for (const [a, b] of holes) {
+    const last = merged[merged.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else merged.push([a, b]);
+  }
+  if (merged.length === 0) return "var(--card)";
+  const stops: string[] = [];
+  let at = 0;
+  for (const [a, b] of merged) {
+    if (a > at) stops.push(`var(--card) ${at}% ${a}%`);
+    stops.push(`transparent ${a}% ${b}%`);
+    at = b;
+  }
+  if (at < 100) stops.push(`var(--card) ${at}% 100%`);
+  return `linear-gradient(to bottom, ${stops.join(", ")})`;
+}
 
 /** A stretch of blocked time as the diary fetch returns it. */
 export interface DiaryBlock {
@@ -96,6 +139,47 @@ export interface CalendarStylist {
    * booked into the column.
    */
   former?: boolean;
+  /** Their badge colour, from `stylistColour` by team order. */
+  colour?: string;
+}
+
+/** A stylist's initials on their colour: who a column, or a tab, belongs to. */
+export function StylistBadge({
+  stylist,
+  size = "md",
+}: {
+  stylist: CalendarStylist;
+  size?: "sm" | "md";
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white ring-2 ring-card",
+        size === "md" ? "h-7 w-7 text-[11px]" : "h-5 w-5 text-[9px]",
+        !stylist.worksToday && !stylist.former && "opacity-60"
+      )}
+      style={{ background: stylist.former ? FORMER_STYLIST_COLOUR : (stylist.colour ?? FORMER_STYLIST_COLOUR) }}
+    >
+      {stylistInitials(stylist.name)}
+    </span>
+  );
+}
+
+/**
+ * A strip above the first hour and below the last, so their labels, drawn
+ * centred on the line, are not cut in half by the header and the bottom edge.
+ * Carries the column edges so the dividers run unbroken.
+ */
+function EdgeStrip({ count }: { count: number }) {
+  return (
+    <div className="flex h-2.5" aria-hidden="true">
+      <div className="w-14 shrink-0" />
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="flex-1 min-w-0 border-l border-border" />
+      ))}
+    </div>
+  );
 }
 
 interface DayGridProps {
@@ -168,34 +252,39 @@ export function DayGrid({
           {stylists.map((s) => (
             <div
               key={s.name}
-              className="flex-1 min-w-0 px-2 py-2 text-center border-l border-border"
+              className="flex-1 min-w-0 px-2 py-2 border-l border-border flex items-center justify-center gap-2"
             >
-              <div className="text-sm font-semibold truncate">{s.name}</div>
-              <div
-                className={cn(
-                  "text-[11px] truncate",
-                  s.former ? "font-medium text-papaya-whip-100" : "text-muted-foreground"
-                )}
-              >
-                {s.former
-                  ? t("grid.notOnTeam")
-                  : !s.bookable
-                    ? t("grid.noCalendar")
-                    : s.worksToday
-                      ? t("grid.working")
-                      : t("grid.notIn")}
+              <StylistBadge stylist={s} />
+              <div className="min-w-0 text-left">
+                <div className="text-sm font-semibold leading-tight truncate">{s.name}</div>
+                <div
+                  className={cn(
+                    "text-[11px] leading-tight truncate",
+                    s.former ? "font-medium text-papaya-whip-100" : "text-muted-foreground"
+                  )}
+                >
+                  {s.former
+                    ? t("grid.notOnTeam")
+                    : !s.bookable
+                      ? t("grid.noCalendar")
+                      : s.worksToday
+                        ? t("grid.working")
+                        : t("grid.notIn")}
+                </div>
               </div>
             </div>
           ))}
         </div>
 
+        <EdgeStrip count={stylists.length} />
         <div
           className="flex relative"
           style={{
             height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * hourHeightPx}px`,
+            ...UNAVAILABLE_BG,
           }}
         >
-          <div className="w-14 shrink-0 relative">
+          <div className="w-14 shrink-0 relative bg-card">
             {marks.map((m) => (
               <div
                 key={m.hour}
@@ -255,6 +344,7 @@ export function DayGrid({
             />
           ))}
         </div>
+        <EdgeStrip count={stylists.length} />
       </div>
     </div>
   );
@@ -318,6 +408,11 @@ function StylistColumn({
           100
         );
 
+  const blockSpans = blocks.flatMap((b) => {
+    const g = spanGeometry(new Date(b.start), new Date(b.end), date, timeZone);
+    return g ? [{ block: b, ...g }] : [];
+  });
+
   const placed: PlacedBlock<CalendarAppointment>[] = layoutColumn(
     appointments,
     (a) => ({ startsAt: new Date(a.startsAt), endsAt: new Date(a.endsAt) }),
@@ -378,16 +473,10 @@ function StylistColumn({
         "flex-1 min-w-0 relative border-l border-border",
         bookable ? "cursor-copy" : "cursor-not-allowed"
       )}
+      // Closed hours look like blocked time: either way, nobody can be
+      // booked then. Both are holes onto the stripes behind the grid.
+      style={{ background: columnBackground([...shaded, ...blockSpans]) }}
     >
-      {/* Closed hours look like blocked time: either way, nobody can be
-          booked then. */}
-      {shaded.map((b, i) => (
-        <div
-          key={i}
-          className="absolute inset-x-0 pointer-events-none"
-          style={{ top: `${b.topPct}%`, height: `${b.heightPct}%`, ...UNAVAILABLE_BG }}
-        />
-      ))}
 
       {!stylist.worksToday && (
         <div className="absolute inset-0 bg-muted/50 pointer-events-none" />
@@ -415,14 +504,14 @@ function StylistColumn({
           key={l.minutes}
           className={cn(
             "absolute inset-x-0 border-t pointer-events-none",
-            // Every quarter-hour visible, the hour plainest. The quarters
-            // were drawn at a quarter of the border colour, which on white
-            // is effectively nothing.
+            // Every quarter-hour visible, the hour plainest, the quarter
+            // past and to only just there: enough to aim a click at without
+            // ruling the day into a ledger.
             l.major
               ? "border-tea-green-500"
               : l.half
                 ? "border-tea-green-600"
-                : "border-tea-green-700"
+                : "border-tea-green-700/55"
           )}
           style={{ top: `${l.topPct}%` }}
         />
@@ -430,9 +519,7 @@ function StylistColumn({
 
       {/* Blocked time sits under the bookings, so a booking made into a
           block (the desk may) is still there to click. */}
-      {blocks.map((b) => {
-        const g = spanGeometry(new Date(b.start), new Date(b.end), date, timeZone);
-        if (!g) return null;
+      {blockSpans.map(({ block: b, ...g }) => {
         return (
           <button
             key={`${b.blockId}-${b.date}`}
@@ -443,7 +530,7 @@ function StylistColumn({
             }}
             title={b.stylistName === null ? t("grid.everyone", { label: b.label }) : b.label}
             className="absolute inset-x-0 overflow-hidden border-y border-border/60 px-1.5 py-1 text-left text-[11px] leading-tight text-muted-foreground hover:text-foreground focus-visible:ring-2"
-            style={{ top: `${g.topPct}%`, height: `${g.heightPct}%`, ...UNAVAILABLE_BG }}
+            style={{ top: `${g.topPct}%`, height: `${g.heightPct}%` }}
           >
             <span className="font-medium">{b.label}</span>
           </button>
@@ -498,7 +585,7 @@ function StylistColumn({
               e.stopPropagation();
               onOpenAppointment(a);
             }}
-            title={`${a.unseen ? t("grid.newBooking") : ""}${a.lead.name ?? t("grid.client")} — ${a.serviceText}`}
+            title={`${a.unseen ? t("grid.newBooking") : ""}${clientLabel(a.lead, t)} — ${a.serviceText}`}
             className={cn(
               "absolute rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
               "text-[11px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
@@ -531,7 +618,7 @@ function StylistColumn({
                   {t("grid.new")}
                 </span>
               )}
-              <span className="truncate">{a.lead.name ?? t("grid.client")}</span>
+              <span className="truncate">{clientLabel(a.lead, t)}</span>
             </span>
             <span className="block truncate text-foreground/70">{a.serviceText}</span>
             {a.patchTestRequired && (

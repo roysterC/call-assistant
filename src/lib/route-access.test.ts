@@ -22,7 +22,8 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "booking-notices": { GET: "members", POST: "members" },
   callbacks: { GET: "members", PATCH: "members" },
   calls: { GET: "members" },
-  "clients/[id]": { GET: "members", PATCH: "members" },
+  // Deleting a client cannot be undone and changes past takings.
+  "clients/[id]": { GET: "members", PATCH: "members", DELETE: "owner" },
   clients: { GET: "members", POST: "members" },
   "conversations/[id]/handoff": { POST: "members" },
   "conversations/[id]/persona-reset": { PATCH: "owner" },

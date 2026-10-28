@@ -279,6 +279,11 @@ model Lead {
   // desk on the client's page. Stored at noon UTC so the date reads the same
   // in any timezone. Null when none is on record.
   patchTestAt           DateTime?
+  // Set when the salon deleted this client. Their name, number, email and
+  // notes are wiped, but the row stays so their past bookings, and the
+  // takings on them, still have a client to belong to; screens show them as
+  // "Deleted client" and leave them out of every list (lib/client-delete).
+  anonymisedAt          DateTime?
   // Reached through another client's number: a child booked on a parent's
   // phone has a record of their own, with their own history, but no number.
   // Their texts go to the contact's number, and a call from that number can

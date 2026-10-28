@@ -4,6 +4,8 @@ import {
   classifyService,
   familiesInUse,
   FAMILY_STEPS,
+  NEW_BOOKING,
+  solidTint,
   toneFor,
 } from "./service-colours";
 
@@ -141,5 +143,19 @@ describe("familiesInUse", () => {
 
   it("is empty for a salon with nothing configured", () => {
     expect(familiesInUse([])).toEqual([]);
+  });
+});
+
+describe("solidTint", () => {
+  it("mixes the hue with white rather than leaving it see-through", () => {
+    expect(solidTint("#000000", 0.18)).toBe("#d1d1d1");
+    expect(solidTint("#ffffff")).toBe("#ffffff");
+    expect(solidTint("#3f88d4", 1)).toBe("#3f88d4");
+  });
+
+  it("gives every booking fill a solid six-digit colour, new ones included", () => {
+    const tones = buildServiceTones(SHOGO);
+    const fills = [...tones.values()].map((t) => t.fill).concat(NEW_BOOKING.fill, toneFor("Gone service", tones).fill);
+    for (const f of fills) expect(f).toMatch(/^#[0-9a-f]{6}$/);
   });
 });

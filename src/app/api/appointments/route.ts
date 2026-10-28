@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
     let phone: string | null = null;
     if (leadId) {
       lead = await prisma.lead.findFirst({
-        where: { id: String(leadId), organizationId: ctx.organizationId },
+        where: { id: String(leadId), organizationId: ctx.organizationId, anonymisedAt: null },
       });
       if (!lead) {
         return NextResponse.json(

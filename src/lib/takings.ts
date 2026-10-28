@@ -66,7 +66,7 @@ export async function computeTakings(
         ? { stylistName: { equals: stylistName, mode: "insensitive" as const } }
         : {}),
     },
-    include: { lead: { select: { name: true, phone: true } } },
+    include: { lead: { select: { name: true, phone: true, anonymisedAt: true } } },
     orderBy: { startsAt: "asc" },
     // A year for a busy salon is a few thousand rows. Capped so one wide
     // query cannot pull the box over; the response says when it bit.
@@ -113,7 +113,8 @@ export async function computeTakings(
       id: a.id,
       date: salonDate(a.startsAt, cfg.timeZone),
       startsAt: a.startsAt.toISOString(),
-      clientName: a.lead?.name ?? null,
+      // Their takings stay after they are deleted; who they were does not.
+      clientName: a.lead?.anonymisedAt ? "Deleted client" : (a.lead?.name ?? null),
       serviceText: a.serviceText,
       stylistName: a.stylistName,
       status: a.status,
