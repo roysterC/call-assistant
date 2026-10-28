@@ -61,8 +61,8 @@ export const clients = {
   "client.textFailed": ["Confirmation text didn't send", "Tin nhắn xác nhận không gửi được"],
   "client.deleteHeading": ["Delete client", "Xóa khách hàng"],
   "client.deleteHint": [
-    "Removes them and their booking history for good. Calls and messages stay in the inbox.",
-    "Xóa vĩnh viễn khách và lịch sử đặt lịch của họ. Cuộc gọi và tin nhắn vẫn được giữ trong hộp thư.",
+    "Wipes their name, number, email and notes for good. Their past bookings stay, as “Deleted client”, so your takings don't change.",
+    "Xóa vĩnh viễn tên, số điện thoại, email và ghi chú của khách. Các lịch hẹn trước đây vẫn được giữ dưới tên “Khách đã xóa”, nên doanh thu không thay đổi.",
   ],
   "client.deleteBlockedUpcoming": [
     "Cancel or move their upcoming bookings first.",
@@ -74,8 +74,8 @@ export const clients = {
   ],
   "client.deleteConfirmTitle": ["Delete {name}?", "Xóa {name}?"],
   "client.deleteConfirmBody": [
-    "This can't be undone. Their booking history goes too, and drops out of past takings.",
-    "Không thể hoàn tác. Lịch sử đặt lịch của khách cũng bị xóa và không còn tính vào doanh thu trước đây.",
+    "This can't be undone. Their details and notes are wiped; their past bookings and takings stay, under “Deleted client”.",
+    "Không thể hoàn tác. Thông tin và ghi chú của khách sẽ bị xóa; các lịch hẹn và doanh thu trước đây vẫn được giữ dưới tên “Khách đã xóa”.",
   ],
   "client.deleted": ["{name} deleted", "Đã xóa {name}"],
   "client.deleteFailed": ["Couldn't delete this client. Try again.", "Không xóa được khách hàng này. Vui lòng thử lại."],

@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { APPOINTMENT_STATUS } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 import { toneFor, type ServiceTone } from "@/lib/service-colours";
-import type { CalendarAppointment } from "./day-grid";
+import { clientLabel, type CalendarAppointment } from "./day-grid";
 import { useT } from "@/components/providers/language-provider";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -132,7 +132,7 @@ export function AppointmentSheet({
     <Dialog open={Boolean(a)} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className={`sm:max-w-md ${PHONE_SHEET}`}>
         <DialogHeader>
-          <DialogTitle>{a?.lead.name ?? t("grid.client")}</DialogTitle>
+          <DialogTitle>{a ? clientLabel(a.lead, t) : t("grid.client")}</DialogTitle>
         </DialogHeader>
 
         {a && (

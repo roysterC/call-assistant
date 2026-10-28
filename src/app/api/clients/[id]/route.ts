@@ -44,8 +44,9 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   try {
     const { id } = await params;
+    // A deleted client is gone as far as anyone opening them is concerned.
     const client = await prisma.lead.findFirst({
-      where: { id, organizationId: ctx.organizationId },
+      where: { id, organizationId: ctx.organizationId, anonymisedAt: null },
       select: {
         id: true,
         name: true,
@@ -106,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = (await req.json().catch(() => ({}))) ?? {};
 
     const client = await prisma.lead.findFirst({
-      where: { id, organizationId: ctx.organizationId },
+      where: { id, organizationId: ctx.organizationId, anonymisedAt: null },
       select: {
         id: true,
         phone: true,
@@ -222,9 +223,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 /**
- * Delete a client and their past bookings (see lib/client-delete). The
- * owner's call, not every member of staff's: it cannot be undone, and it
- * takes their bookings out of past takings.
+ * Delete a client: their details are wiped and their bookings kept, as
+ * "Deleted client" (see lib/client-delete). The owner's call, not every
+ * member of staff's: it cannot be undone.
  */
 export async function DELETE(req: NextRequest, { params }: Params) {
   const ctx = await requireTenant(req);
@@ -234,7 +235,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const result = await deleteClient(ctx.organizationId, id);
     if (!result.ok) return NextResponse.json({ error: result.message }, { status: result.status });
-    return NextResponse.json({ deleted: true, bookings: result.bookings, callbacks: result.callbacks });
+    return NextResponse.json({ deleted: true, bookingsKept: result.bookingsKept, callbacks: result.callbacks });
   } catch (error) {
     console.error("[CLIENTS API] DELETE error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

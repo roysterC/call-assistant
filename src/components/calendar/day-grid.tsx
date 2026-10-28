@@ -34,6 +34,7 @@ import {
 import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
 import { FORMER_STYLIST_COLOUR, stylistInitials } from "@/lib/stylist-colours";
 import { useT } from "@/components/providers/language-provider";
+import type { Translate } from "@/lib/i18n";
 
 export interface CalendarAppointment {
   id: string;
@@ -61,7 +62,15 @@ export interface CalendarAppointment {
     notes: string | null;
     /** Reached through another client's number (a child on a parent's phone). */
     contactLead?: { id: string; name: string | null; phone: string | null } | null;
+    /** Set once the client was deleted: the booking stays, who they were does not. */
+    anonymisedAt?: string | null;
   };
+}
+
+/** Who a booking is for, as the diary names them. */
+export function clientLabel(lead: CalendarAppointment["lead"], t: Translate): string {
+  if (lead.anonymisedAt) return t("grid.deletedClient");
+  return lead.name ?? t("grid.client");
 }
 
 /**
@@ -576,7 +585,7 @@ function StylistColumn({
               e.stopPropagation();
               onOpenAppointment(a);
             }}
-            title={`${a.unseen ? t("grid.newBooking") : ""}${a.lead.name ?? t("grid.client")} — ${a.serviceText}`}
+            title={`${a.unseen ? t("grid.newBooking") : ""}${clientLabel(a.lead, t)} — ${a.serviceText}`}
             className={cn(
               "absolute rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
               "text-[11px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
@@ -609,7 +618,7 @@ function StylistColumn({
                   {t("grid.new")}
                 </span>
               )}
-              <span className="truncate">{a.lead.name ?? t("grid.client")}</span>
+              <span className="truncate">{clientLabel(a.lead, t)}</span>
             </span>
             <span className="block truncate text-foreground/70">{a.serviceText}</span>
             {a.patchTestRequired && (

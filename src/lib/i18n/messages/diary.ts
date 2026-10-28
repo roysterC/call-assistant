@@ -24,6 +24,7 @@ export const diary = {
   "grid.newBooking": ["New booking: ", "Lịch hẹn mới: "],
   "grid.new": ["New", "Mới"],
   "grid.client": ["Client", "Khách"],
+  "grid.deletedClient": ["Deleted client", "Khách đã xóa"],
   "grid.patchTest": ["patch test", "thử dị ứng"],
   "month.prevMonth": ["Previous month", "Tháng trước"],
   "month.nextMonth": ["Next month", "Tháng sau"],

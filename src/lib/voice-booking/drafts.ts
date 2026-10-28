@@ -165,6 +165,7 @@ export async function findClients(organizationId: string, heard: string) {
   const rows = await prisma.lead.findMany({
     where: {
       organizationId,
+      anonymisedAt: null,
       OR: words.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })),
     },
     select: {

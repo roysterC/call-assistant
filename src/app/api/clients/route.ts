@@ -106,6 +106,7 @@ export async function GET(req: NextRequest) {
     // where it would be a blank row nobody can tell apart.
     const where = Prisma.sql`
       "organizationId" = ${ctx.organizationId}
+      AND "anonymisedAt" IS NULL
       AND (name IS NOT NULL OR phone IS NOT NULL OR email IS NOT NULL)
       AND ${searchSql(searchParams.get("q"))}
     `;

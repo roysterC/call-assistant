@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const { take, skip } = parsePagination(searchParams);
 
-    const where: Record<string, unknown> = { organizationId: ctx.organizationId };
+    // Deleted clients keep a row for their bookings, but are nobody's lead.
+    const where: Record<string, unknown> = { organizationId: ctx.organizationId, anonymisedAt: null };
     if (status) where.status = status;
 
     const [rawLeads, total] = await Promise.all([
