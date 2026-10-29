@@ -144,3 +144,34 @@ export function orderForStartPage<T extends { href: string }>(pages: T[], startP
   const first = pages.find((p) => p.href === startPage);
   return first ? [first, ...pages.filter((p) => p !== first)] : pages;
 }
+
+/**
+ * What a salon owner opens all day: always at the top of the menu, full size.
+ * Everything else is one tap further, under More.
+ */
+export const PRIMARY_PAGES = [DIARY, "/conversations"];
+
+const SETTINGS = "/settings";
+
+/**
+ * The menu in three parts: the pages up front (Diary, then Conversations, and
+ * a start page the organisation chose for itself, first), the rest under More
+ * in their usual order, and Settings, which sits at the foot on its own.
+ *
+ * `chosenStart` is the organisation's own choice, not the automatic one: a
+ * salon left on automatic keeps exactly Diary and Conversations up front.
+ * One with neither still gets something up front, its first page, so the
+ * menu never opens on a bare More.
+ */
+export function splitNav<T extends { href: string }>(
+  shown: T[],
+  chosenStart: string | null
+): { primary: T[]; more: T[]; settings: T | null } {
+  const settings = shown.find((p) => p.href === SETTINGS) ?? null;
+  const pages = shown.filter((p) => p.href !== SETTINGS);
+  let primary = PRIMARY_PAGES.flatMap((href) => pages.filter((p) => p.href === href));
+  const chosen = pages.find((p) => p.href === chosenStart);
+  if (chosen) primary = [chosen, ...primary.filter((p) => p !== chosen)];
+  if (primary.length === 0 && pages.length > 0) primary = [pages[0]];
+  return { primary, more: pages.filter((p) => !primary.includes(p)), settings };
+}
