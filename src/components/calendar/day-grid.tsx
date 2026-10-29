@@ -9,7 +9,7 @@
  * A stylist who is not working today is shaded and refuses clicks instead.
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   closedBands,
@@ -257,6 +257,21 @@ export function DayGrid({
 }: DayGridProps) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [dropAt, setDropAt] = useState<{ stylistName: string; row: number } | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // Open each day where it is worth looking: today an hour before now, any
+  // other day at opening time. Only when the day changes, so the grid never
+  // moves under someone reading it.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const target =
+      nowMinutes !== null ? nowMinutes - 60 : open ? open.openMin - SLOT_MINUTES : WINDOW_START_MIN;
+    const y = ((Math.max(target, WINDOW_START_MIN) - WINDOW_START_MIN) / 60) * hourHeightPx;
+    el.scrollTop = Math.max(0, y);
+    // The day is what decides; now and opening are read as they stand then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
   const { t, clock } = useT();
   const marks = hourMarks();
   const lines = quarterMarks();
@@ -266,7 +281,7 @@ export function DayGrid({
   const nearNow = (min: number) => nowShown && Math.abs(min - nowMinutes!) < 14;
 
   return (
-    <div className="flex-1 min-w-0 min-h-0 overflow-auto rounded-xl border border-border bg-card shadow-surface">
+    <div ref={scroller} className="flex-1 min-w-0 min-h-0 overflow-auto rounded-xl border border-border bg-card shadow-surface">
       {/* min-width keeps columns readable; the container scrolls rather than
           letting four stylists squeeze into thumbnails on a laptop. One
           column (a phone) needs no such help. */}

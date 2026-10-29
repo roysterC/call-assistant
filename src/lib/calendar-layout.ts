@@ -20,10 +20,11 @@ export const SLOT_MINUTES = 15;
 
 /**
  * Pixels per hour. Fifteen-minute rows need the room to be distinguishable,
- * and a short booking its name and service. Was 64; half as tall again (96)
- * at the salon's request, so each quarter-hour row is 24px.
+ * and a short booking its time, name and service. Was 64, then 96; now 120
+ * at the salon's request, so a half-hour booking (60px) has a line each for
+ * its time, client and service, and a quarter-hour row is 30px.
  */
-export const HOUR_HEIGHT_PX = 96;
+export const HOUR_HEIGHT_PX = 120;
 
 /** On a phone, where a row is also a thumb's target. Kept at 96 when the
  *  desktop grid grew: taller would mean scrolling a long way through a day. */
