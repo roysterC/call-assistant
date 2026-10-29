@@ -21,6 +21,8 @@ export interface Me {
   email: string | null;
   /** Their chosen language ("en", "vi"), or null if they have not chosen. */
   language: string | null;
+  /** Their chosen clock ("12h", "24h"), or null to follow the language. */
+  clock: string | null;
 }
 
 const MeContext = createContext<Me | null>(null);

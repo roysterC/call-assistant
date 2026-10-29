@@ -11,6 +11,14 @@ export const shell = {
     "Ngôn ngữ hiển thị CRM cho bạn. Tin nhắn gửi khách và lễ tân điện thoại vẫn dùng tiếng Anh.",
   ],
 
+  "clock.label": ["Clock", "Đồng hồ"],
+  "clock.12h": ["12-hour · 2:15pm", "12 giờ · 2:15pm"],
+  "clock.24h": ["24-hour · 14:15", "24 giờ · 14:15"],
+  "clock.hint": [
+    "How times are shown to you: in the diary, on bookings and in alerts.",
+    "Cách hiển thị giờ cho bạn: trong lịch hẹn, lịch đặt và thông báo.",
+  ],
+
   // --- Menu -------------------------------------------------------------------------------
   "nav.dashboard": ["Dashboard", "Tổng quan"],
   "nav.calls": ["Call History", "Lịch sử cuộc gọi"],

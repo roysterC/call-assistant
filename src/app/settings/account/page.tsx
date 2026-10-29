@@ -10,7 +10,7 @@ import { Languages, Lock, User as UserIcon, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
 import { DeviceAlertsCard } from "@/components/notifications/device-alerts-card";
-import { LanguagePicker } from "@/components/i18n/language-picker";
+import { ClockPicker, LanguagePicker } from "@/components/i18n/language-picker";
 import { useT } from "@/components/providers/language-provider";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -121,6 +121,11 @@ export default function AccountSettingsPage() {
         <CardContent className="space-y-3">
           <LanguagePicker />
           <p className="text-xs text-muted-foreground">{t("language.hint")}</p>
+          <div className="space-y-3 border-t border-border pt-4">
+            <p className="text-sm font-medium">{t("clock.label")}</p>
+            <ClockPicker />
+            <p className="text-xs text-muted-foreground">{t("clock.hint")}</p>
+          </div>
         </CardContent>
       </Card>
 
