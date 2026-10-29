@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { clockTime } from "@/lib/i18n";
 import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
 import { OPEN_BOOKING } from "@/components/notifications/booking-alerts";
 import { noticesChanged } from "@/lib/use-booking-notices";
@@ -155,7 +155,7 @@ function newBlockForm(
 }
 
 export default function CalendarPage() {
-  const { t, locale } = useT();
+  const { t, locale, lang } = useT();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [selected, setSelected] = useState(() => dateIn(DEFAULT_TZ));
   const [view, setView] = useState(() => {
@@ -194,13 +194,17 @@ export default function CalendarPage() {
   // configured" would be a false statement rather than an empty one.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  const today = useMemo(() => salonDate(new Date(), timeZone), [timeZone]);
+  // The time, kept current: the now line, the free time after it and the
+  // heading's clock all move with it. (It used to be read once, when the day
+  // was picked, so a diary left open all morning thought it was still 9.)
+  const clock = useClock();
+  const today = useMemo(() => salonDate(clock ?? new Date(), timeZone), [clock, timeZone]);
 
   // Minutes elapsed today, so the grid can grey out time that has gone. Null
   // on any day but today: a past day is wholly past, a future one wholly not.
   const nowMinutes = useMemo(
-    () => (selected === today ? minutesOfDay(new Date(), timeZone) : null),
-    [selected, today, timeZone]
+    () => (selected === today && clock ? minutesOfDay(clock, timeZone) : null),
+    [selected, today, timeZone, clock]
   );
   const isPastDay = selected < today;
 
@@ -429,45 +433,54 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6">
-      <div className="shrink-0">
-        <PageHeader
-          title={t("diary.title")}
-        />
-      </div>
-
-      <div className="flex items-center gap-2 pt-4 pb-3 shrink-0 flex-wrap">
-        <Button variant="outline" size="sm" aria-label={t("diary.prevDay")} onClick={() => jump(shiftDate(selected, -1))}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm" aria-label={t("diary.nextDay")} onClick={() => jump(shiftDate(selected, 1))}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => jump(today)}
-          disabled={selected === today}
-        >
-          {t("diary.today")}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 lg:hidden"
-          aria-expanded={showMonth}
-          onClick={() => setShowMonth((v) => !v)}
-        >
-          <CalendarDays className="h-3.5 w-3.5" />
-          {t("diary.month")}
-        </Button>
-        <div className="ml-1 sm:ml-2 min-w-0">
-          <span className="font-heading text-base font-semibold">{prettyDate(selected, locale)}</span>
-          {settingsLoaded && !open && (
-            <span className="ml-2 text-xs text-muted-foreground">{t("diary.closed")}</span>
-          )}
-          {loading && (
-            <span className="ml-2 text-xs text-muted-foreground">{t("diary.loading")}</span>
-          )}
+      {/* The day, large, and on today the time: what the diary is showing
+          and where in it we are, readable from a step back. The page's own
+          "Diary" title gave way to it; the menu already says where you are. */}
+      <div className="flex items-center gap-x-3 gap-y-2 pb-3 shrink-0 flex-wrap">
+        {/* "Today" is worked out on the server too, which may be either side
+            of midnight from the browser; the browser's is the one that counts. */}
+        <h1 suppressHydrationWarning className="font-heading text-xl md:text-[26px] font-bold tracking-tight">
+          {selected === today
+            ? t("diary.todayHeading", { date: prettyDate(selected, locale) })
+            : prettyDate(selected, locale)}
+        </h1>
+        {selected === today && clock && (
+          <span className="inline-flex h-8 items-center gap-2 rounded-full bg-sidebar px-3.5 text-sm md:text-base font-bold tabular-nums text-cornsilk-500">
+            <span aria-hidden className="h-2 w-2 rounded-full bg-[#e07b39]" />
+            {t("diary.now", { time: clockTime(clock, lang, timeZone) })}
+          </span>
+        )}
+        {settingsLoaded && !open && (
+          <span className="text-sm text-muted-foreground">{t("diary.closed")}</span>
+        )}
+        {loading && (
+          <span className="text-sm text-muted-foreground">{t("diary.loading")}</span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" aria-label={t("diary.prevDay")} onClick={() => jump(shiftDate(selected, -1))}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" aria-label={t("diary.nextDay")} onClick={() => jump(shiftDate(selected, 1))}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => jump(today)}
+            disabled={selected === today}
+          >
+            {t("diary.today")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 lg:hidden"
+            aria-expanded={showMonth}
+            onClick={() => setShowMonth((v) => !v)}
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            {t("diary.month")}
+          </Button>
         </div>
       </div>
 
@@ -650,4 +663,20 @@ export default function CalendarPage() {
       />
     </div>
   );
+}
+
+/**
+ * The time now, updated every half minute so the diary's now line keeps up
+ * with the day. Null until the page is running in the browser: the server's
+ * clock is not the salon's screen's, and text rendered from it would stay.
+ */
+function useClock(): Date | null {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
 }

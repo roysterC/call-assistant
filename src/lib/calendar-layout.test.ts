@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  freeGaps,
   spanGeometry,
   blockGeometry,
   closedBands,
@@ -317,5 +318,24 @@ describe("spanGeometry", () => {
     expect(
       spanGeometry(on("2026-10-21", "13:00"), on("2026-10-21", "14:00"), "2026-10-20", TZ_)
     ).toBeNull();
+  });
+});
+
+describe("freeGaps", () => {
+  it("finds the stretches of half an hour or more between bookings", () => {
+    // 9:00 to 13:00, booked 9:00-9:45, 10:00-10:30 and 11:00-12:00.
+    expect(freeGaps([[600, 630], [540, 585], [660, 720]], 540, 780)).toEqual([
+      [630, 660],
+      [720, 780],
+    ]);
+  });
+
+  it("ignores a gap too short to book, and merges what overlaps", () => {
+    expect(freeGaps([[540, 600], [580, 650], [665, 700]], 540, 700)).toEqual([]);
+  });
+
+  it("is the whole stretch when nothing is booked, and nothing when it is all booked", () => {
+    expect(freeGaps([], 600, 660)).toEqual([[600, 660]]);
+    expect(freeGaps([[500, 900]], 600, 660)).toEqual([]);
   });
 });

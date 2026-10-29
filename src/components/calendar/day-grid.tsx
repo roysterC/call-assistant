@@ -20,12 +20,14 @@ import {
   rowFromOffset,
   spanGeometry,
   quarterMarks,
+  freeGaps,
   timeOfRow,
   HOUR_HEIGHT_PX,
   ROW_COUNT,
   OVERBOOK_GUTTER_PX,
   SLOT_MINUTES,
   WINDOW_END_HOUR,
+  WINDOW_END_MIN,
   WINDOW_START_HOUR,
   WINDOW_START_MIN,
   WINDOW_MINUTES,
@@ -34,7 +36,7 @@ import {
 import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
 import { FORMER_STYLIST_COLOUR, stylistInitials } from "@/lib/stylist-colours";
 import { useT } from "@/components/providers/language-provider";
-import type { Translate } from "@/lib/i18n";
+import type { Lang, Translate } from "@/lib/i18n";
 
 export interface CalendarAppointment {
   id: string;
@@ -65,6 +67,26 @@ export interface CalendarAppointment {
     /** Set once the client was deleted: the booking stays, who they were does not. */
     anonymisedAt?: string | null;
   };
+}
+
+/** The line, and the pill on the clock, at the time it is now. */
+const NOW_COLOUR = "#e07b39";
+
+/**
+ * A time inside the diary: "10:45", "2:15" ("14:15" in Vietnamese). The hour
+ * labels beside them say am and pm, and a salon's day leaves no doubt.
+ */
+function shortTime(min: number, lang: Lang): string {
+  const h = Math.floor(min / 60);
+  const m = String(min % 60).padStart(2, "0");
+  return lang === "vi" ? `${h}:${m}` : `${h % 12 || 12}:${m}`;
+}
+
+/** "45 min", "1 h", "1 h 30". */
+function lengthLabel(min: number, t: Translate): string {
+  if (min < 60) return t("grid.lenMin", { n: min });
+  const h = Math.floor(min / 60);
+  return min % 60 ? t("grid.lenHoursMin", { h, m: min % 60 }) : t("grid.lenHours", { h });
 }
 
 /** Who a booking is for, as the diary names them. */
@@ -174,7 +196,7 @@ export function StylistBadge({
 function EdgeStrip({ count }: { count: number }) {
   return (
     <div className="flex h-2.5" aria-hidden="true">
-      <div className="w-14 shrink-0" />
+      <div className="w-16 shrink-0" />
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="flex-1 min-w-0 border-l border-border" />
       ))}
@@ -240,6 +262,9 @@ export function DayGrid({
   const marks = hourMarks();
   const lines = quarterMarks();
   const shaded = closedBands(open);
+  const nowShown = nowMinutes !== null && nowMinutes >= WINDOW_START_MIN && nowMinutes <= WINDOW_END_MIN;
+  /** A clock label the now pill would sit on top of. */
+  const nearNow = (min: number) => nowShown && Math.abs(min - nowMinutes!) < 14;
 
   return (
     <div className="flex-1 min-w-0 min-h-0 overflow-auto rounded-xl border border-border bg-card shadow-surface">
@@ -248,7 +273,7 @@ export function DayGrid({
           column (a phone) needs no such help. */}
       <div className={stylists.length > 1 ? "min-w-[560px]" : undefined}>
         <div className="flex sticky top-0 z-20 bg-card/95 backdrop-blur border-b border-border">
-          <div className="w-14 shrink-0" />
+          <div className="w-16 shrink-0" />
           {stylists.map((s) => (
             <div
               key={s.name}
@@ -284,17 +309,46 @@ export function DayGrid({
             ...UNAVAILABLE_BG,
           }}
         >
-          <div className="w-14 shrink-0 relative bg-card">
+          {/* The clock: each hour large and bold across the column, read from
+              a step back; the half hours small between them. The pill for
+              now covers whichever label it would sit on. */}
+          <div className="w-16 shrink-0 relative bg-card">
             {marks.map((m) => (
               <div
                 key={m.hour}
-                className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
+                className={cn(
+                  "absolute inset-x-0 pl-1.5 pr-2.5 -translate-y-1/2 text-right text-[15px] font-bold leading-none tabular-nums text-foreground",
+                  nearNow(m.hour * 60) && "invisible"
+                )}
                 style={{ top: `${m.topPct}%` }}
               >
                 {/* The 24-hour clock in Vietnamese: "14:00", not "2pm". */}
                 {lang === "vi" ? `${m.hour}:00` : m.label}
               </div>
             ))}
+            {lines
+              .filter((l) => l.half)
+              .map((l) => (
+                <div
+                  key={l.minutes}
+                  className={cn(
+                    "absolute inset-x-0 pr-2.5 -translate-y-1/2 text-right text-[11px] font-medium leading-none tabular-nums text-tea-green-200",
+                    nearNow(l.minutes) && "invisible"
+                  )}
+                  style={{ top: `${l.topPct}%` }}
+                >
+                  {shortTime(l.minutes, lang)}
+                </div>
+              ))}
+            {nowShown && (
+              <div
+                aria-hidden="true"
+                className="absolute right-1 z-10 -translate-y-1/2 rounded-md px-1.5 py-0.5 text-xs font-bold tabular-nums text-tea-green-100"
+                style={{ top: `${minutePct(nowMinutes!)}%`, background: NOW_COLOUR }}
+              >
+                {shortTime(nowMinutes!, lang)}
+              </div>
+            )}
           </div>
 
           {stylists.map((s) => (
@@ -302,6 +356,7 @@ export function DayGrid({
               key={s.name}
               stylist={s}
               timeZone={timeZone}
+              open={open}
               shaded={shaded}
               lines={lines}
               nowMinutes={nowMinutes}
@@ -350,9 +405,15 @@ export function DayGrid({
   );
 }
 
+/** Where a time of day sits down the grid, as a percentage. */
+function minutePct(min: number): number {
+  return ((min - WINDOW_START_MIN) / WINDOW_MINUTES) * 100;
+}
+
 function StylistColumn({
   stylist,
   timeZone,
+  open,
   shaded,
   lines,
   nowMinutes,
@@ -373,6 +434,7 @@ function StylistColumn({
 }: {
   stylist: CalendarStylist;
   timeZone: string;
+  open: { openMin: number; closeMin: number } | null;
   shaded: Array<{ topPct: number; heightPct: number }>;
   lines: Array<{ minutes: number; topPct: number; major: boolean; half: boolean }>;
   nowMinutes: number | null;
@@ -393,7 +455,7 @@ function StylistColumn({
   onDragEnd: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const { t } = useT();
+  const { t, lang } = useT();
   const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
 
   // How much of the column has already been and gone. Booking into it would
@@ -418,6 +480,32 @@ function StylistColumn({
     (a) => ({ startsAt: new Date(a.startsAt), endsAt: new Date(a.endsAt) }),
     timeZone
   );
+
+  // Room for another booking: half an hour or more before a booking or
+  // blocked time, from now (or opening). Only gaps that end at something:
+  // an empty day, or the empty end of one, is plain enough without a box
+  // over it. Read off what is drawn, so a box never overlaps a block beside
+  // it. Hidden while a booking is being dragged, which has its own outline.
+  const toMin = (pct: number) => Math.round(WINDOW_START_MIN + (pct / 100) * WINDOW_MINUTES);
+  const dayEnd = open ? Math.min(open.closeMin, WINDOW_END_MIN) : WINDOW_END_MIN;
+  const gaps = (
+    bookable && open && !drag
+      ? freeGaps(
+          [
+            ...placed
+              .filter((b) => b.item.status !== "cancelled")
+              .map((b): [number, number] => [toMin(b.topPct), toMin(b.topPct + b.heightPct)]),
+            ...blockSpans.map((g): [number, number] => [toMin(g.topPct), toMin(g.topPct + g.heightPct)]),
+          ],
+          Math.max(
+            open.openMin,
+            WINDOW_START_MIN,
+            nowMinutes === null ? 0 : Math.ceil(nowMinutes / SLOT_MINUTES) * SLOT_MINUTES
+          ),
+          dayEnd
+        )
+      : []
+  ).filter(([, to]) => to < dayEnd);
 
   /**
    * The quarter-hour row the dragged booking's top edge is over, snapped to
@@ -517,6 +605,14 @@ function StylistColumn({
         />
       ))}
 
+      {nowMinutes !== null && nowMinutes >= WINDOW_START_MIN && nowMinutes <= WINDOW_END_MIN && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 z-[5] border-t-2 pointer-events-none"
+          style={{ top: `${minutePct(nowMinutes)}%`, borderColor: NOW_COLOUR }}
+        />
+      )}
+
       {/* Blocked time sits under the bookings, so a booking made into a
           block (the desk may) is still there to click. */}
       {blockSpans.map(({ block: b, ...g }) => {
@@ -533,6 +629,34 @@ function StylistColumn({
             style={{ top: `${g.topPct}%`, height: `${g.heightPct}%` }}
           >
             <span className="font-medium">{b.label}</span>
+          </button>
+        );
+      })}
+
+      {gaps.map(([from, to]) => {
+        const len = lengthLabel(to - from, t);
+        return (
+          <button
+            key={from}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              // A click books the quarter-hour under the pointer, as anywhere
+              // else in the column does: a free afternoon is one box, and 3pm
+              // in it means 3pm. From the keyboard, the start of the gap.
+              if (e.detail > 0) pick(e.clientY);
+              else onPickSlot(stylist.name, timeOfRow((from - WINDOW_START_MIN) / SLOT_MINUTES));
+            }}
+            aria-label={t("grid.bookFree", { stylist: stylist.name, time: shortTime(from, lang), len })}
+            className="absolute flex items-start overflow-hidden rounded-md border border-dashed border-tea-green-400 px-1.5 py-1 text-left text-[11.5px] font-medium leading-tight text-tea-green-200 transition-colors hover:border-tea-green-300 hover:bg-tea-green-900 focus-visible:ring-2"
+            style={{
+              top: `calc(${minutePct(from)}% + 2px)`,
+              height: `calc(${minutePct(to) - minutePct(from)}% - 4px)`,
+              left: "2px",
+              width: `calc(100% - ${OVERBOOK_GUTTER_PX}px - 4px)`,
+            }}
+          >
+            + {t("grid.free", { len })}
           </button>
         );
       })}
@@ -554,6 +678,12 @@ function StylistColumn({
 
       {placed.map((b) => {
         const a = b.item;
+        const startMin = minutesOfDay(new Date(a.startsAt), timeZone);
+        const endMin = minutesOfDay(new Date(a.endsAt), timeZone);
+        const length = a.durationMinutes || endMin - startMin;
+        // Half an hour has room for two lines: the time leads the name. Longer
+        // bookings give the time a line of its own.
+        const roomy = length > 30;
         // New from the receptionist: its own colour until it is opened.
         const tone = a.unseen ? NEW_BOOKING : toneFor(a.serviceText, tones);
         // Only a booking still to come can be moved; judged by the same
@@ -585,10 +715,10 @@ function StylistColumn({
               e.stopPropagation();
               onOpenAppointment(a);
             }}
-            title={`${a.unseen ? t("grid.newBooking") : ""}${clientLabel(a.lead, t)} — ${a.serviceText}`}
+            title={`${a.unseen ? t("grid.newBooking") : ""}${shortTime(startMin, lang)}–${shortTime(endMin, lang)} ${clientLabel(a.lead, t)} — ${a.serviceText}`}
             className={cn(
               "absolute rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
-              "text-[11px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
+              "text-[12px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
               // Colour now carries the service, so status needs its own
               // channel rather than competing for the fill.
               a.status === "cancelled" && "opacity-50 line-through",
@@ -609,7 +739,13 @@ function StylistColumn({
               width: `calc((100% - ${OVERBOOK_GUTTER_PX}px) / ${b.lanes} - 4px)`,
             }}
           >
+            {roomy && (
+              <span className="block truncate font-bold tabular-nums">
+                {shortTime(startMin, lang)} – {shortTime(endMin, lang)}
+              </span>
+            )}
             <span className="flex items-center gap-1 font-semibold min-w-0">
+              {!roomy && <span className="shrink-0 font-bold tabular-nums">{shortTime(startMin, lang)}</span>}
               {a.unseen && (
                 <span
                   className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-white"
@@ -620,7 +756,7 @@ function StylistColumn({
               )}
               <span className="truncate">{clientLabel(a.lead, t)}</span>
             </span>
-            <span className="block truncate text-foreground/70">{a.serviceText}</span>
+            {length > 15 && <span className="block truncate text-foreground/70">{a.serviceText}</span>}
             {a.patchTestRequired && (
               <span className="block truncate font-medium text-papaya-whip-100">{t("grid.patchTest")}</span>
             )}

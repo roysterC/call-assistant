@@ -2,22 +2,13 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
-import { BrandMark, Sidebar } from "@/components/dashboard/sidebar";
+import { BrandMark, Navigation } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
 import { BookingAlerts } from "@/components/notifications/booking-alerts";
-import { usePendingCallbacks } from "@/lib/use-pending-callbacks";
-import { useT } from "@/components/providers/language-provider";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  // Closed by the links themselves (Sidebar's onNavigate) and by the backdrop,
-  // rather than by an effect watching the path — everything inside the drawer
-  // that navigates already runs one of those.
-  const [navOpen, setNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useCollapsedNav();
-  // A red dot on the phone's menu button when callbacks are waiting, since
-  // the counter itself is inside the closed drawer.
   // Embed, login, the in-person funnel and the public legal pages: no
   // sidebar, no padding, no chrome. The legal pages must render standalone so
   // Meta's app-review crawler (and end users) see them without logged-in UI.
@@ -29,9 +20,6 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
     "/terms-of-service",
     "/data-deletion",
   ].some((p) => pathname?.startsWith(p));
-  const pending = usePendingCallbacks(!chromeless);
-  const { t } = useT();
-
   if (chromeless) {
     return <>{children}</>;
   }
@@ -43,48 +31,16 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="h-full flex flex-col w-full">
-      {/*
-        Mobile chrome. The nav rail was a permanent 256px column at every width,
-        so on a phone it took two thirds of the screen and squeezed the content
-        into what was left — the conversations list rendered about 119px wide.
-        Below md the rail is now a drawer behind this button.
-      */}
-      {/* Dark, as the menu it opens and the phone's own bar above it. */}
+      {/* A phone's header: who this is. The menu is the tab bar along the
+          bottom (Navigation). */}
       <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
-        <button
-          onClick={() => setNavOpen(true)}
-          aria-label={t("nav.open")}
-          aria-expanded={navOpen}
-          className="relative h-9 w-9 -ml-1.5 rounded-xl flex items-center justify-center text-tea-green-400 hover:text-cornsilk-500 hover:bg-white/10 transition-colors"
-        >
-          <Menu className="w-5 h-5" />
-          {pending > 0 && (
-            <>
-              <span aria-hidden className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2 ring-sidebar" />
-              <span className="sr-only">{t("nav.callbacksWaiting", { n: pending })}</span>
-            </>
-          )}
-        </button>
         <BrandMark size="sm" alt="" />
         <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate text-cornsilk-500">Kikai</span>
       </header>
 
       <div className="flex flex-1 min-h-0 w-full">
-        {navOpen && (
-          <div
-            className="fixed inset-0 z-40 bg-tea-green-100/30 backdrop-blur-[2px] md:hidden"
-            onClick={() => setNavOpen(false)}
-            aria-hidden
-          />
-        )}
-
         <Suspense fallback={<SidebarFallback collapsed={collapsed} />}>
-          <Sidebar
-            open={navOpen}
-            onNavigate={() => setNavOpen(false)}
-            collapsed={collapsed}
-            onToggleCollapsed={() => setCollapsed(!collapsed)}
-          />
+          <Navigation collapsed={collapsed} onToggleCollapsed={() => setCollapsed(!collapsed)} />
         </Suspense>
 
         {/* The personal assistant: on every signed-in page. */}
@@ -92,7 +48,8 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         {/* The receptionist's new bookings, until each is closed or opened. */}
         <BookingAlerts />
 
-        <main className="flex-1 overflow-auto min-w-0">
+        {/* On a phone, clear of the tab bar along the bottom. */}
+        <main className="flex-1 overflow-auto min-w-0 max-md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
           {isFullWidth ? (
             <div className="h-full">{children}</div>
           ) : (

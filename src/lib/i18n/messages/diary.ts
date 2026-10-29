@@ -2,10 +2,11 @@
 
 export const diary = {
   // --- The page -------------------------------------------------------------------------
-  "diary.title": ["Diary", "Lịch hẹn"],
   "diary.prevDay": ["Previous day", "Ngày trước"],
   "diary.nextDay": ["Next day", "Ngày sau"],
   "diary.today": ["Today", "Hôm nay"],
+  "diary.todayHeading": ["Today, {date}", "Hôm nay, {date}"],
+  "diary.now": ["Now {time}", "Bây giờ {time}"],
   "diary.month": ["Month", "Tháng"],
   "diary.closed": ["closed", "nghỉ"],
   "diary.loading": ["loading…", "đang tải…"],
@@ -25,6 +26,11 @@ export const diary = {
   "grid.new": ["New", "Mới"],
   "grid.client": ["Client", "Khách"],
   "grid.deletedClient": ["Deleted client", "Khách đã xóa"],
+  "grid.free": ["{len} free", "Trống {len}"],
+  "grid.bookFree": ["Book {stylist} at {time}, {len} free", "Đặt lịch cho {stylist} lúc {time}, trống {len}"],
+  "grid.lenMin": ["{n} min", "{n} phút"],
+  "grid.lenHours": ["{h} h", "{h} giờ"],
+  "grid.lenHoursMin": ["{h} h {m}", "{h} giờ {m} phút"],
   "grid.patchTest": ["patch test", "thử dị ứng"],
   "month.prevMonth": ["Previous month", "Tháng trước"],
   "month.nextMonth": ["Next month", "Tháng sau"],

@@ -70,6 +70,9 @@ export interface VoiceDraft {
 /** Tells any open diary that it has changed, so it reloads (and can show the day). */
 export const DIARY_CHANGED = "kikai:diary-changed";
 
+/** Opens the assistant, listening: the phone's Assistant tab, which has no button of its own here. */
+export const OPEN_ASSISTANT = "kikai:open-assistant";
+
 type Line = { who: "you" | "assistant"; text: string };
 
 interface Reply {
@@ -400,6 +403,16 @@ export function Assistant() {
     void startListening();
   }
 
+  // The phone's Assistant tab. Dispatched from its tap, so the browser still
+  // counts the microphone and speech as asked for by the person.
+  useEffect(() => {
+    const onOpen = () => {
+      if (!open) openAndListen();
+    };
+    window.addEventListener(OPEN_ASSISTANT, onOpen);
+    return () => window.removeEventListener(OPEN_ASSISTANT, onOpen);
+  });
+
   return (
     <>
       {!open && (
@@ -408,7 +421,8 @@ export function Assistant() {
           onClick={openAndListen}
           aria-label={t("assistant.open")}
           title={t("assistant.open")}
-          className="fixed z-30 right-4 bottom-4 sm:right-6 sm:bottom-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-raised flex items-center justify-center hover:brightness-110 active:scale-95 transition"
+          // From md up; a phone has the Assistant tab in its bar instead.
+          className="fixed z-30 right-6 bottom-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-raised hidden md:flex items-center justify-center hover:brightness-110 active:scale-95 transition"
         >
           <Mic className="h-6 w-6" />
         </button>
@@ -418,7 +432,8 @@ export function Assistant() {
         <div
           role="dialog"
           aria-label={t("assistant.panel")}
-          className="fixed z-40 inset-x-2 bottom-2 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[400px] max-h-[75vh] flex flex-col rounded-xl border border-border bg-card shadow-raised"
+          // Above the phone's tab bar; in the corner from md up.
+          className="fixed z-40 inset-x-2 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:right-6 sm:w-[400px] md:bottom-6 max-h-[75vh] flex flex-col rounded-xl border border-border bg-card shadow-raised"
         >
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
             <Sparkles className="h-4 w-4 text-primary" />

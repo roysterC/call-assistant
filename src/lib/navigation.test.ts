@@ -8,6 +8,7 @@ import {
   isNavShown,
   isStartPageChoice,
   orderForStartPage,
+  splitNav,
   resolveStartPage,
   type FeatureFlags,
 } from "./navigation";
@@ -124,6 +125,35 @@ describe("the sidebar's order", () => {
 
   it("leaves it alone before the start page is known", () => {
     expect(orderForStartPage(NAV_PAGES, null)).toEqual(NAV_PAGES);
+  });
+});
+
+describe("the menu's three parts", () => {
+  const page = (href: string) => ({ href });
+  const salon = ["/dashboard", "/calls", "/conversations", "/calendar", "/clients", "/sales", "/callbacks", "/settings"].map(page);
+  const hrefs = (ps: { href: string }[]) => ps.map((p) => p.href);
+
+  it("puts Diary and Conversations up front, Settings apart, the rest under More in order", () => {
+    const { primary, more, settings } = splitNav(salon, null);
+    expect(hrefs(primary)).toEqual([DIARY, "/conversations"]);
+    expect(hrefs(more)).toEqual(["/dashboard", "/calls", "/clients", "/sales", "/callbacks"]);
+    expect(settings?.href).toBe("/settings");
+  });
+
+  it("brings another start page up front, first", () => {
+    const { primary, more } = splitNav(salon, "/sales");
+    expect(hrefs(primary)).toEqual(["/sales", DIARY, "/conversations"]);
+    expect(hrefs(more)).not.toContain("/sales");
+  });
+
+  it("never leaves an organisation with nothing up front", () => {
+    const chatless = ["/dashboard", "/leads", "/settings"].map(page);
+    expect(hrefs(splitNav(chatless, null).primary)).toEqual(["/dashboard"]);
+    expect(hrefs(splitNav(chatless, null).more)).toEqual(["/leads"]);
+  });
+
+  it("does not offer Settings as a start page up front", () => {
+    expect(hrefs(splitNav(salon, "/settings").primary)).toEqual([DIARY, "/conversations"]);
   });
 });
 
