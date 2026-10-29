@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/components/providers/language-provider";
 import { useMe } from "@/components/providers/me-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
-import { INTL_LOCALE, clockTime, type Lang } from "@/lib/i18n";
+import { INTL_LOCALE, clockTime, type Clock, type Lang } from "@/lib/i18n";
 
 const STATUS_KEYS = ["booked", "completed", "cancelled", "no_show"] as const;
 
@@ -51,12 +51,12 @@ interface Booking {
   confirmationError: string | null;
 }
 
-/** "Tue 14 Oct 2026, 2:30pm" in the salon's clock (24-hour in Vietnamese). */
-function when(iso: string, timeZone: string, lang: Lang): string {
+/** "Tue 14 Oct 2026, 2:30pm" in the salon's time zone, on the reader's clock. */
+function when(iso: string, timeZone: string, lang: Lang, clock: Clock): string {
   const d = new Date(iso);
   const day = d.toLocaleDateString(INTL_LOCALE[lang], { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone });
-  const time = clockTime(d, lang, timeZone);
-  return `${day}, ${lang === "en" ? time.replace(":00", "") : time}`;
+  const time = clockTime(d, clock, timeZone);
+  return `${day}, ${clock === "12h" ? time.replace(":00", "") : time}`;
 }
 
 /** A stored "YYYY-MM-DD" as "30 September 2026". */
@@ -96,7 +96,7 @@ export function ClientSheet({
   const [editing, setEditing] = useState(false);
   const [details, setDetails] = useState({ firstName: "", lastName: "", phone: "", email: "" });
   const [saved, setSaved] = useState<string | null>(null);
-  const { t, lang, locale } = useT();
+  const { t, lang, locale, clock } = useT();
   const me = useMe();
   const { confirm, notify } = useDialogs();
   // Members can change a client but not delete one; the API refuses them too.
@@ -357,7 +357,7 @@ export function ClientSheet({
                   <span>
                     {t("client.testNeededFor", {
                       service: testNeededFor.serviceText,
-                      when: when(testNeededFor.startsAt, timeZone, lang),
+                      when: when(testNeededFor.startsAt, timeZone, lang, clock),
                     })}
                   </span>
                 </p>
@@ -514,7 +514,7 @@ function BookingList({
   /** A test is recorded on the client, so a booking's flag is answered. */
   testOnRecord: boolean;
 }) {
-  const { t, lang } = useT();
+  const { t, lang, clock } = useT();
   if (bookings.length === 0) return null;
   return (
     <div>
@@ -527,7 +527,7 @@ function BookingList({
           return (
             <li key={b.id} className="space-y-1 px-3 py-2 text-sm">
               <div className="flex items-start justify-between gap-2">
-                <span className="font-medium">{when(b.startsAt, timeZone, lang)}</span>
+                <span className="font-medium">{when(b.startsAt, timeZone, lang, clock)}</span>
                 <span className={cn(STATUS_BADGE, status.className)}>
                   {(STATUS_KEYS as readonly string[]).includes(b.status) ? t(`status.${b.status as (typeof STATUS_KEYS)[number]}`) : status.label}
                 </span>

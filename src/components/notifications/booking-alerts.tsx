@@ -19,15 +19,15 @@ import { onServiceWorkerMessage } from "@/lib/push-client";
 import { NEW_BOOKING } from "@/lib/service-colours";
 import { hideNotice, noticesChanged, useBookingNotices, type BookingNotice } from "@/lib/use-booking-notices";
 import { useT } from "@/components/providers/language-provider";
-import { INTL_LOCALE, clockTime, type Lang, type Translate } from "@/lib/i18n";
+import { INTL_LOCALE, clockTime, type Clock, type Lang, type Translate } from "@/lib/i18n";
 
 /** Asks an open diary to show a booking: `detail` is { date, id }. */
 export const OPEN_BOOKING = "kikai:open-booking";
 
-function when(iso: string, timeZone: string, lang: Lang): string {
+function when(iso: string, timeZone: string, lang: Lang, clock: Clock): string {
   const at = new Date(iso);
   const day = at.toLocaleDateString(INTL_LOCALE[lang], { timeZone, weekday: "short", day: "numeric", month: "short" });
-  return `${day}, ${clockTime(at, lang, timeZone)}`;
+  return `${day}, ${clockTime(at, clock, timeZone)}`;
 }
 
 function ago(iso: string, t: Translate): string {
@@ -46,7 +46,7 @@ function dateIn(iso: string, timeZone: string): string {
 
 export function BookingAlerts() {
   const { notices, total, timeZone } = useBookingNotices(true);
-  const { t, lang } = useT();
+  const { t, lang, clock } = useT();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -127,7 +127,7 @@ export function BookingAlerts() {
               <p className="mt-0.5 font-semibold truncate">{n.clientName}</p>
               <p className="text-sm truncate">{n.serviceText}</p>
               <p className="text-sm text-muted-foreground">
-                {t("alerts.withStylist", { when: when(n.startsAt, timeZone, lang), stylist: n.stylistName })}
+                {t("alerts.withStylist", { when: when(n.startsAt, timeZone, lang, clock), stylist: n.stylistName })}
                 {n.bookingNumber ? ` · #${n.bookingNumber}` : ""}
               </p>
               {n.status === "cancelled" && <p className="mt-1 text-xs font-medium text-rose-600">{t("alerts.sinceCancelled")}</p>}

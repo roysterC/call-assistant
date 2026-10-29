@@ -155,7 +155,7 @@ function newBlockForm(
 }
 
 export default function CalendarPage() {
-  const { t, locale, lang } = useT();
+  const { t, locale, clock: clockKind } = useT();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [selected, setSelected] = useState(() => dateIn(DEFAULT_TZ));
   const [view, setView] = useState(() => {
@@ -447,7 +447,7 @@ export default function CalendarPage() {
         {selected === today && clock && (
           <span className="inline-flex h-8 items-center gap-2 rounded-full bg-sidebar px-3.5 text-sm md:text-base font-bold tabular-nums text-cornsilk-500">
             <span aria-hidden className="h-2 w-2 rounded-full bg-[#e07b39]" />
-            {t("diary.now", { time: clockTime(clock, lang, timeZone) })}
+            {t("diary.now", { time: clockTime(clock, clockKind, timeZone) })}
           </span>
         )}
         {settingsLoaded && !open && (

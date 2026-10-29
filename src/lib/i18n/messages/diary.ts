@@ -27,7 +27,6 @@ export const diary = {
   "grid.client": ["Client", "Khách"],
   "grid.deletedClient": ["Deleted client", "Khách đã xóa"],
   "grid.free": ["{len} free", "Trống {len}"],
-  "grid.bookFree": ["Book {stylist} at {time}, {len} free", "Đặt lịch cho {stylist} lúc {time}, trống {len}"],
   "grid.lenMin": ["{n} min", "{n} phút"],
   "grid.lenHours": ["{h} h", "{h} giờ"],
   "grid.lenHoursMin": ["{h} h {m}", "{h} giờ {m} phút"],

@@ -45,12 +45,37 @@ export function translate(lang: Lang, key: MessageKey, vars?: Vars): string {
 export type { MessageKey };
 
 /**
- * A time of day as each language writes it: "2:15pm" in English, "14:15" in
- * Vietnamese, where the 24-hour clock is the norm.
+ * The clock a person reads times on: "2:15pm" or "14:15". Each chooses
+ * (Account); until they do it follows their language, 12-hour for English
+ * and 24-hour for Vietnamese, where that is the norm. Kept in the kikai-clock
+ * cookie as well as on their user record, like the language.
  */
-export function clockTime(at: Date, lang: Lang, timeZone: string): string {
-  if (lang === "vi") {
-    return at.toLocaleTimeString("vi-VN", { timeZone, hour: "2-digit", minute: "2-digit", hour12: false });
-  }
-  return at.toLocaleTimeString("en-GB", { timeZone, hour: "numeric", minute: "2-digit", hour12: true }).replace(" ", "");
+export type Clock = "12h" | "24h";
+export const CLOCK_COOKIE = "kikai-clock";
+
+export function isClock(v: unknown): v is Clock {
+  return v === "12h" || v === "24h";
+}
+
+export function defaultClock(lang: Lang): Clock {
+  return lang === "vi" ? "24h" : "12h";
+}
+
+/**
+ * Minutes past midnight on `clock`: "2:15pm" and "9:00am", or "14:15" and
+ * "9:00". `suffix: false` leaves am and pm off, where the hours beside the
+ * time already say which (the diary).
+ */
+export function minutesTime(min: number, clock: Clock, suffix = true): string {
+  const h = Math.floor(min / 60) % 24;
+  const m = String(min % 60).padStart(2, "0");
+  if (clock === "24h") return `${h}:${m}`;
+  return `${h % 12 || 12}:${m}${suffix ? (h < 12 ? "am" : "pm") : ""}`;
+}
+
+/** An instant's time of day in `timeZone`, on `clock`. */
+export function clockTime(at: Date, clock: Clock, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "numeric", minute: "2-digit", hourCycle: "h23" }).formatToParts(at);
+  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return minutesTime(part("hour") * 60 + part("minute"), clock);
 }

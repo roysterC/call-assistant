@@ -8,7 +8,7 @@ import { DialogsProvider } from "@/components/providers/dialogs-provider";
 import { LanguageProvider } from "@/components/providers/language-provider";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { cookies } from "next/headers";
-import { DEFAULT_LANG, LANG_COOKIE, isLang } from "@/lib/i18n";
+import { CLOCK_COOKIE, DEFAULT_LANG, LANG_COOKIE, isClock, isLang } from "@/lib/i18n";
 
 // The fonts ship with the app (the @fontsource-variable packages, OFL) rather
 // than coming from Google Fonts. next/font/google downloads them during every
@@ -84,8 +84,12 @@ export default async function RootLayout({
 }>) {
   // The language this person chose (src/lib/i18n), so the page is rendered
   // in it from the start.
-  const chosen = (await cookies()).get(LANG_COOKIE)?.value;
+  const jar = await cookies();
+  const chosen = jar.get(LANG_COOKIE)?.value;
   const lang = isLang(chosen) ? chosen : DEFAULT_LANG;
+  // And their clock, 12- or 24-hour, likewise.
+  const chosenClock = jar.get(CLOCK_COOKIE)?.value;
+  const clock = isClock(chosenClock) ? chosenClock : null;
   return (
     <html
       lang={lang}
@@ -94,7 +98,7 @@ export default async function RootLayout({
       <body className="h-full bg-background text-foreground overflow-hidden">
         <SessionProvider>
           <MeProvider>
-            <LanguageProvider initial={lang}>
+            <LanguageProvider initial={lang} initialClock={clock}>
               <MotionProvider>
                 <DialogsProvider>
                   <MainWrapper>{children}</MainWrapper>
