@@ -334,3 +334,27 @@ export function closedBands(
   }
   return bands;
 }
+
+/** The shortest free stretch the diary points out: room for a trim. */
+export const FREE_GAP_MIN = 30;
+
+/**
+ * The free stretches between `from` and `to` (minutes past midnight) that
+ * nothing busy covers, each at least `min` long: where a stylist could take
+ * another booking. `busy` may overlap and come in any order.
+ */
+export function freeGaps(
+  busy: Array<[number, number]>,
+  from: number,
+  to: number,
+  min = FREE_GAP_MIN
+): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  let at = from;
+  for (const [a, b] of busy.filter(([a, b]) => b > from && a < to).sort((x, y) => x[0] - y[0])) {
+    if (a - at >= min) out.push([at, a]);
+    at = Math.max(at, b);
+  }
+  if (to - at >= min) out.push([at, to]);
+  return out;
+}
