@@ -25,9 +25,9 @@ const salon = {
     { day: 1, closed: true, open: "09:00", close: "18:00" },
   ],
   services: [
-    { name: "Cut and finish", durationMinutes: 45, bufferMinutes: 0, requiresPatchTest: false, priceMinor: 4500 },
-    { name: "Balayage", durationMinutes: 180, bufferMinutes: 0, requiresPatchTest: true, priceMinor: 15050 },
-    { name: "Fringe trim", durationMinutes: 15, bufferMinutes: 0, requiresPatchTest: false, priceMinor: null },
+    { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false, priceMinor: 4500 },
+    { name: "Balayage", durationMinutes: 180, requiresPatchTest: true, priceMinor: 15050 },
+    { name: "Fringe trim", durationMinutes: 15, requiresPatchTest: false, priceMinor: null },
   ],
   stylists: [{ name: "Jo", role: "owner", workingDays: [], services: [], bookable: true }],
   calComApiKey: null,

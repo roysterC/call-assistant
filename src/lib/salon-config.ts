@@ -19,8 +19,6 @@ export interface SalonService {
   durationMinutes: number;
   /** Colour work needs a skin test 48h ahead for clients we have not seen. */
   requiresPatchTest: boolean;
-  /** Tidy-up time booked after the appointment; excluded from the slot. */
-  bufferMinutes: number;
   /**
    * List price in pence, or null when the salon has not set one.
    *
@@ -51,7 +49,6 @@ export interface Stylist {
   services: string[];
 }
 
-const DEFAULT_BUFFER_MINUTES = 0;
 
 // -------------------------------------------------------------------------
 // Parsing
@@ -82,11 +79,9 @@ export function parseServices(raw: unknown): SalonService[] {
     // A single appointment longer than a working day is a data-entry error.
     if (durationMinutes > 12 * 60) continue;
 
-    const bufferRaw = Number(e.bufferMinutes);
-    const bufferMinutes =
-      Number.isFinite(bufferRaw) && bufferRaw >= 0
-        ? bufferRaw
-        : DEFAULT_BUFFER_MINUTES;
+    // A service may still carry the tidy-up minutes it was saved with. There
+    // is no tidy-up any more: a booking blocks exactly its service's time, so
+    // they are left behind here, and dropped from settings at the next save.
 
     // Null and zero are different facts: "not priced yet" must not total as
     // a free service, so only a real number becomes a price.
@@ -102,7 +97,6 @@ export function parseServices(raw: unknown): SalonService[] {
       name,
       durationMinutes: Math.round(durationMinutes),
       requiresPatchTest: Boolean(e.requiresPatchTest),
-      bufferMinutes: Math.round(bufferMinutes),
       priceMinor,
     });
   }
@@ -354,8 +348,6 @@ export function combineServices(parts: SalonService[]): CombinedService {
     name: ordered.map((p) => p.name).join(SERVICE_JOINER),
     // Back to back in one slot, so the times add up.
     durationMinutes: ordered.reduce((n, p) => n + p.durationMinutes, 0),
-    // One tidy-up at the end of the appointment, not one per service.
-    bufferMinutes: Math.max(...ordered.map((p) => p.bufferMinutes)),
     // Any colour in the mix brings its patch-test rule with it.
     requiresPatchTest: ordered.some((p) => p.requiresPatchTest),
     // A total is only a total when every part of it has a price. Adding up

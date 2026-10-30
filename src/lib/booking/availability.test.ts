@@ -32,7 +32,6 @@ const CUT: SalonService = {
   name: "Cut and finish",
   durationMinutes: 45,
   requiresPatchTest: false,
-  bufferMinutes: 0,
   priceMinor: 4500,
 };
 
@@ -40,7 +39,6 @@ const BALAYAGE: SalonService = {
   name: "Balayage",
   durationMinutes: 180,
   requiresPatchTest: true,
-  bufferMinutes: 0,
   priceMinor: 18000,
 };
 
@@ -191,23 +189,22 @@ describe("computeBookableSlots", () => {
     expect(times[0]).toBe("12:00");
   });
 
-  it("respects a buffer against other bookings without blocking close", () => {
-    const withBuffer = { ...CUT, bufferMinutes: 15 };
+  it("books right up to the next booking and to closing, with nothing kept after", () => {
     const slots = computeBookableSlots({
       date: TUE,
       timeZone: TZ,
       hours: HOURS,
-      service: withBuffer,
+      service: CUT,
       candidates: [{ stylist: stylist("Jo"), busy: [busy(TUE, 11, 12)] }],
       clientType: "returning",
       now: at(TUE, 6),
     });
     const times = localTimes(slots);
-    // 10:00 + 45m + 15m buffer = 11:00 exactly, which is fine (half-open).
-    expect(times).toContain("10:00");
-    // 10:15 + 45m + 15m = 11:15, which runs into the 11:00 booking.
-    expect(times).not.toContain("10:15");
-    // The buffer may run past closing; 17:15 + 45m = 18:00 service end.
+    // 10:15 + 45m = 11:00 exactly, which is fine (half-open).
+    expect(times).toContain("10:15");
+    // 10:30 + 45m = 11:15, which runs into the 11:00 booking.
+    expect(times).not.toContain("10:30");
+    // 17:15 + 45m = 18:00, closing.
     expect(times).toContain("17:15");
   });
 

@@ -86,7 +86,7 @@ import type { SalonConfig } from "@/lib/booking";
 import type { BookingProvider } from "@/lib/booking/types";
 
 describe("phoneSlotProblem", () => {
-  const cut = { name: "Cut and finish", durationMinutes: 45, bufferMinutes: 0, requiresPatchTest: false, priceMinor: 4500 };
+  const cut = { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false, priceMinor: 4500 };
   const marcus = { name: "Marcus", workingDays: [2, 3, 4, 5], services: [] };
   const cfg = {
     timeZone: "Europe/London",

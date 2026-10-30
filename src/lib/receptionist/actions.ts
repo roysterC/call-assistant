@@ -2409,7 +2409,7 @@ export async function phoneSlotProblem(
   stylist: Stylist,
   opts: { clientType?: "new" | "returning" | "unknown"; offeredOnly: boolean }
 ): Promise<string | null> {
-  const endsAt = new Date(startsAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60_000);
+  const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
   const start = zonedParts(startsAt, cfg.timeZone);
   const end = zonedParts(endsAt, cfg.timeZone);
   const dayName = DAY_NAMES_LONG[start.weekday];

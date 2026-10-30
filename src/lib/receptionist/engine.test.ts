@@ -360,7 +360,7 @@ describe("receptionist prompt", () => {
   const bookable = {
     ...cfg,
     hours: [{ day: 4, closed: false, open: "10:00", close: "19:00" }],
-    services: [{ name: "Blow dry", durationMinutes: 45, bufferMinutes: 0, requiresPatchTest: false, priceMinor: null }],
+    services: [{ name: "Blow dry", durationMinutes: 45, requiresPatchTest: false, priceMinor: null }],
     stylists: [{ name: "Chloe", workingDays: [4], services: [] }],
   } as unknown as SalonConfig;
 
