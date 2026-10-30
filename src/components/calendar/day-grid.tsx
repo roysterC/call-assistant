@@ -36,6 +36,7 @@ import {
 import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
 import { FORMER_STYLIST_COLOUR, stylistInitials } from "@/lib/stylist-colours";
 import { useT } from "@/components/providers/language-provider";
+import { useDialogs } from "@/components/providers/dialogs-provider";
 import { minutesTime, type Clock, type Translate } from "@/lib/i18n";
 
 export interface CalendarAppointment {
@@ -470,6 +471,7 @@ function StylistColumn({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const { t, clock } = useT();
+  const { notify } = useDialogs();
   const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
 
   // How much of the column has already been and gone. Booking into it would
@@ -532,9 +534,27 @@ function StylistColumn({
     return row;
   };
 
+  /**
+   * A click on empty time: open a booking there, or say why not. Refusals
+   * used to be silent, so a click on this morning simply did nothing and
+   * looked broken.
+   */
   const pick = (clientY: number) => {
     const el = ref.current;
-    if (!el || !bookable) return;
+    if (!el) return;
+    if (!bookable) {
+      notify(
+        isPastDay
+          ? t("grid.refusePastDay")
+          : stylist.former
+            ? t("grid.refuseFormer", { name: stylist.name })
+            : !stylist.bookable
+              ? t("grid.refuseNoCalendar", { name: stylist.name })
+              : t("grid.refuseNotIn", { name: stylist.name }),
+        "info"
+      );
+      return;
+    }
     const box = el.getBoundingClientRect();
     const row = rowFromOffset((clientY - box.top) / box.height);
 
@@ -542,6 +562,8 @@ function StylistColumn({
     // time through `earliestBookableStart`; the desk had no equivalent, so a
     // click on this morning would happily book into it.
     if (nowMinutes !== null && WINDOW_START_MIN + row * SLOT_MINUTES < nowMinutes) {
+      const next = Math.ceil(nowMinutes / SLOT_MINUTES) * SLOT_MINUTES;
+      notify(t("grid.refusePast", { time: minutesTime(next, clock) }), "info");
       return;
     }
 
