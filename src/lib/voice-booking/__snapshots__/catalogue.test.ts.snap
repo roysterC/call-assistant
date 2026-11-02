@@ -1,0 +1,347 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the assistant's reply catalogue > book: a client found by name 1`] = `
+{
+  "draft": {
+    "clientName": "Sarah Friend",
+    "clientType": "new",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T13:45:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "sarah",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a client on the books, stylist named, free 1`] = `
+{
+  "draft": {
+    "clientName": "Sarah Friend",
+    "clientType": "new",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T13:45:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "sarah",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a closed day 1`] = `
+{
+  "message": "The salon is closed on Mondays.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a day the stylist does not work 1`] = `
+{
+  "message": "Marcus does not work on Saturdays.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a new client by name and number 1`] = `
+{
+  "draft": {
+    "clientName": "Pat Newcomer",
+    "clientType": "new",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T13:45:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": null,
+    "newClient": {
+      "name": "Pat Newcomer",
+      "phone": "+447700900111",
+    },
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a service not on the list 1`] = `
+{
+  "message": ""balayage" is not on the service list.",
+  "ok": false,
+  "services": [
+    "Blow dry",
+    "Root tint",
+  ],
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a stylist not on the team 1`] = `
+{
+  "message": ""Joe" is not on the team: Jo, Marcus.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a stylist who does not do the service 1`] = `
+{
+  "message": "Marcus does not do root tint. Jo does.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a time already gone 1`] = `
+{
+  "message": "That time has already gone.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: any time within hours, not only diary slots 1`] = `
+{
+  "draft": {
+    "clientName": "Sarah Friend",
+    "clientType": "new",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T16:00:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "sarah",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T15:15:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: colour for a regular 1`] = `
+{
+  "draft": {
+    "clientName": "Sarah Friend",
+    "clientType": "returning",
+    "durationMinutes": 90,
+    "endsAt": "2026-09-29T14:30:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "sarah",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Root tint",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: colour, a patch test on record 1`] = `
+{
+  "draft": {
+    "clientName": "Nina New",
+    "clientType": "new",
+    "durationMinutes": 90,
+    "endsAt": "2026-09-29T14:30:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "nina",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Root tint",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: colour, no visits, inside the skin-test wait 1`] = `
+{
+  "message": "Nina New has no visits on record, so root tint needs a skin test 48 hours before; the earliest is Thursday 1 October at 9am. If they have had one, say so.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: colour, no visits, staff say they have had one 1`] = `
+{
+  "draft": {
+    "clientName": "Nina New",
+    "clientType": "new",
+    "durationMinutes": 90,
+    "endsAt": "2026-09-29T14:30:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "nina",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Root tint",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: no stylist named, the first free in team order 1`] = `
+{
+  "draft": {
+    "clientName": "Sarah Friend",
+    "clientType": "new",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T13:45:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "sarah",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: no stylist named, the first is busy 1`] = `
+{
+  "draft": {
+    "clientName": "Sarah Friend",
+    "clientType": "new",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T13:45:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "sarah",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Marcus",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: nobody named 1`] = `
+{
+  "message": "Who is the booking for?",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: outside opening hours 1`] = `
+{
+  "message": "That is outside opening hours: on Tuesdays the salon is open 09:00 to 18:00, and blow dry takes 45 minutes.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: running past closing 1`] = `
+{
+  "message": "That is outside opening hours: on Tuesdays the salon is open 09:00 to 18:00, and blow dry takes 45 minutes.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: the salon is blocked out then 1`] = `
+{
+  "message": "The salon is closed then.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: the stylist named is blocked out then 1`] = `
+{
+  "message": "Jo is not available then.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: the stylist named is booked then 1`] = `
+{
+  "message": "Jo already has cut and finish at 2pm.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > move: a colour waiting on its skin test, too close 1`] = `
+{
+  "message": "This colour is waiting on a skin test, so it cannot move before Thursday 1 October at 9am.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > move: a colour whose skin test has since been recorded 1`] = `
+{
+  "message": "This colour is waiting on a skin test, so it cannot move before Thursday 1 October at 9am.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > move: to a closed day 1`] = `
+{
+  "message": "The salon is closed on Mondays.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > move: to a free time the same day 1`] = `
+{
+  "draft": {
+    "appointmentId": "appt-1",
+    "clientName": "Sarah Friend",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T13:45:00.000Z",
+    "from": {
+      "startsAt": "2026-09-29T08:00:00.000Z",
+      "stylist": "Jo",
+    },
+    "id": "<id>",
+    "kind": "move",
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > move: to a time the stylist is booked 1`] = `
+{
+  "message": "Jo already has cut and finish at 2pm.",
+  "ok": false,
+}
+`;
