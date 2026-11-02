@@ -54,6 +54,10 @@ export function withCallerContext(
   input: Record<string, unknown>,
   callerNumber: string | null
 ): Record<string, unknown> {
-  if (!callerNumber) return { ...input };
-  return { ...input, callerNumber };
+  // The staff view of the diary (every free time, with names) is for the
+  // CRM's own assistant: a caller cannot talk the receptionist into it.
+  const { forStaff: _staffOnly, ...rest } = input;
+  void _staffOnly;
+  if (!callerNumber) return rest;
+  return { ...rest, callerNumber };
 }

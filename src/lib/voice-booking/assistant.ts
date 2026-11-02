@@ -329,6 +329,8 @@ export async function startVoiceBooking(
             service: i.service,
             stylist: i.stylist,
             clientType: "returning",
+            // Every free time and who is free, not a caller's two choices.
+            forStaff: true,
           });
         case "day_schedule":
           return daySchedule(asker, { date: str(i.date), stylist: str(i.stylist) });

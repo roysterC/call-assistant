@@ -262,6 +262,68 @@ async function patchTestOnFile(
   return client?.patchTestAt ? spokenPatchTest(client.patchTestAt) : null;
 }
 
+/**
+ * The diary as staff ask about it: every free time on the day, and who is
+ * free at each. A caller is offered two times and no names, so as not to be
+ * read a list; someone at the salon choosing who to put a client with needs
+ * the whole day. The day is the one asked about, or the first after it with
+ * anything free.
+ */
+function staffAvailability(input: {
+  slots: TimeSlot[];
+  date: string;
+  today: string;
+  named: boolean;
+  timeZone: string;
+  service: string;
+  durationMinutes: number;
+}) {
+  const dayOf = (sl: TimeSlot) => zonedDateString(new Date(sl.start), input.timeZone);
+  const onDay = input.slots.filter((sl) => dayOf(sl) === input.date);
+  const shown = onDay.length ? onDay : input.slots.filter((sl) => dayOf(sl) > input.date || !input.named);
+  const day = shown.length ? dayOf(shown[0]) : null;
+  if (!day) {
+    return {
+      available: false,
+      canCheck: true,
+      today: input.today,
+      date: input.date,
+      message: `Nothing free for ${input.service.toLowerCase()} on ${spokenDay(input.date, input.timeZone)} or in the weeks after.`,
+    };
+  }
+  const options = shown
+    .filter((sl) => dayOf(sl) === day)
+    .map((sl) => ({
+      day: spokenDay(day, input.timeZone),
+      date: day,
+      time: spokenTime(sl.start, input.timeZone),
+      startsAt: zonedIsoString(new Date(sl.start), input.timeZone),
+      stylist: sl.stylistName,
+    }));
+  const byStylist = new Map<string, string[]>();
+  for (const o of options) {
+    const name = o.stylist ?? "Anyone";
+    byStylist.set(name, [...(byStylist.get(name) ?? []), o.time]);
+  }
+  const list = [...byStylist]
+    .map(([name, times]) => `${name} at ${times.length > 1 ? `${times.slice(0, -1).join(", ")} and ${times.at(-1)}` : times[0]}`)
+    .join("; ");
+  const movedOn = day !== input.date;
+  return {
+    available: !movedOn,
+    canCheck: true,
+    today: input.today,
+    date: day,
+    ...(movedOn ? { requestedDate: input.date } : {}),
+    service: input.service,
+    durationMinutes: input.durationMinutes,
+    options,
+    message:
+      (movedOn && input.named ? `Nothing free on ${spokenDay(input.date, input.timeZone)}. ` : "") +
+      `Free on ${spokenDay(day, input.timeZone)}: ${list}.`,
+  };
+}
+
 /** How far ahead a caller who can wait is looked for: a month. */
 const MONTH_SEARCH_DAYS = 31;
 
@@ -786,6 +848,12 @@ async function checkAvailability(
     time?: string;
     /** Search a month ahead rather than two weeks, once the caller has said they can wait. */
     lookFurther?: boolean | string;
+    /**
+     * Asked by staff (the diary's assistant), not a caller: every free time
+     * on the day, with who is free, rather than the two choices a caller is
+     * offered. Never set from the phone: the receptionist's session drops it.
+     */
+    forStaff?: boolean;
   }
 ) {
   const provider = await getBookingProvider(organizationId);
@@ -969,6 +1037,18 @@ async function checkAvailability(
   const inWindow = hasPreference ? filterSlotsByPreference(slots, cfg.timeZone, preference) : slots;
   const windowEmpty = hasPreference && inWindow.length === 0;
   const named = wants !== "earliest";
+
+  if (params.forStaff) {
+    return staffAvailability({
+      slots: windowEmpty ? slots : inWindow,
+      date,
+      today,
+      named,
+      timeZone: cfg.timeZone,
+      service: service.name,
+      durationMinutes: service.durationMinutes,
+    });
+  }
   const offer = chooseOffer({
     slots: windowEmpty ? slots : inWindow,
     timeZone: cfg.timeZone,

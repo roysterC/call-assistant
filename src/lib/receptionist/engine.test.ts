@@ -326,6 +326,14 @@ describe("receptionist tools", () => {
     expect(tool.input_schema.required).toEqual(["name"]);
   });
 
+  it("never lets a caller have the staff view of the diary", () => {
+    expect(withCallerContext("check_availability", { date: "Tuesday", forStaff: true }, "+447700900123")).toEqual({
+      date: "Tuesday",
+      callerNumber: "+447700900123",
+    });
+    expect(withCallerContext("check_availability", { forStaff: true }, null)).toEqual({});
+  });
+
   it("always sets callerNumber from caller ID", () => {
     expect(
       withCallerContext("save_customer_details", { name: "Jo", callerNumber: "+440000" }, "+447700900123")

@@ -323,7 +323,28 @@ describe("check_availability: what is offered", () => {
   const slot = (iso: string, stylistName = "Jo") => ({ start: new Date(iso).toISOString(), end: "", stylistName });
   type Answer = { available: boolean; exact?: boolean; options: Array<{ day: string; time: string; stylist?: string }>; message: string };
   const ask = (p: Record<string, unknown>) =>
-    handleCheckAvailability("org", { service: "blow dry", ...p } as Parameters<typeof handleCheckAvailability>[1]) as Promise<Answer>;
+    handleCheckAvailability("org", { service: "blow dry", ...p } as Parameters<typeof handleCheckAvailability>[1]) as unknown as Promise<Answer>;
+
+  it("gives staff every free time on the day, with who is free, not a caller's two", async () => {
+    salon.free = [
+      slot("2026-09-29T10:00:00+01:00", "Jo"),
+      slot("2026-09-29T10:00:00+01:00", "Marcus"),
+      slot("2026-09-29T11:00:00+01:00", "Jo"),
+      slot("2026-09-29T14:00:00+01:00", "Jo"),
+      slot("2026-09-29T15:30:00+01:00", "Marcus"),
+    ];
+    const r = await ask({ date: "Tuesday", forStaff: true });
+    expect(r.options).toHaveLength(5);
+    expect(r.options.every((o) => o.stylist)).toBe(true);
+    expect(r.message).toBe("Free on Tuesday: Jo at 10am, 11am and 2pm; Marcus at 10am and half past 3.");
+    expect(r.message).not.toMatch(/Do not name a stylist|Offer these two/);
+  });
+
+  it("tells staff when the day is empty, and gives them the next day that is not", async () => {
+    salon.free = [slot("2026-10-03T09:00:00+01:00", "Jo")];
+    const r = await ask({ date: "Tuesday", forStaff: true });
+    expect(r.message).toBe("Nothing free on Tuesday. Free on Saturday the 3rd: Jo at 9am.");
+  });
 
   it("offers the time they asked for alone when it is free, without a stylist's name", async () => {
     salon.free = [slot("2026-09-29T10:00:00+01:00"), slot("2026-09-29T14:00:00+01:00", "Marcus")];
