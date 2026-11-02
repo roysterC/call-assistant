@@ -8,7 +8,7 @@ import {
   getSalonConfig,
   type SalonConfig,
 } from "@/lib/booking";
-import type { BookingProvider, ReadableProvider, WritableProvider } from "@/lib/booking/types";
+import type { ReadableProvider, WritableProvider } from "@/lib/booking/types";
 import {
   DEFAULT_SEARCH_DAYS,
   filterSlotsByPreference,
@@ -17,13 +17,12 @@ import {
 } from "@/lib/booking/availability";
 import type { TimeSlot } from "@/lib/booking/types";
 import { chooseOffer } from "@/lib/booking/offer";
+import { colourStatus, moveClientType, slotProblem, stylistServiceProblem } from "@/lib/booking/rules";
 import {
   matchStylist,
   resolveBookedService,
   servicesLike,
   serviceIsStaffedOn,
-  stylistDoesService,
-  stylistsForService,
   type SalonService,
   type Stylist,
 } from "@/lib/salon-config";
@@ -47,7 +46,6 @@ import {
   zonedDateString,
   zonedIsoString,
   zonedParts,
-  hoursForWeekday,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
 import { namesMatch, splitName } from "@/lib/client-name";
@@ -656,39 +654,6 @@ function blankToUndefined(value: unknown): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-/**
- * Refuse a stylist who does not do the service, and say who does.
- *
- * Returning "nothing free" would be true and useless — the caller would try
- * another day and get the same answer. Naming the right person is what a
- * receptionist does, and it is the difference between the agent sounding
- * knowledgeable and sounding broken.
- *
- * Returns null when the pairing is fine.
- */
-export function stylistServiceProblem(
-  stylistName: string | undefined,
-  service: SalonService,
-  stylists: Stylist[]
-): string | null {
-  if (!stylistName) return null;
-  const requested = matchStylist(stylistName, stylists);
-  if (!requested) return null; // unrecognised names are handled separately
-  if (stylistDoesService(requested, service)) return null;
-
-  const who = stylistsForService(service, stylists).map((s) => s.name);
-  const alternative =
-    who.length === 0
-      ? "Nobody here is set up for it at the moment — take a message."
-      : who.length === 1
-        ? `${who[0]} does.`
-        : `${who.slice(0, -1).join(", ")} and ${who.at(-1)} do.`;
-
-  return (
-    `${requested.name} does not do ${service.name.toLowerCase()}. ` +
-    `${alternative} Offer that, or ask whether they wanted a different service.`
-  );
-}
 
 function normaliseClientType(
   raw: string | undefined
@@ -1423,27 +1388,23 @@ async function checkBooking(organizationId: string, params: BookingParams) {
     return { success: false, message: "That date and time did not parse." };
   }
 
-  let clientType = normaliseClientType(
-    params.clientType ??
-      (params.newClient === true
-        ? "new"
-        : params.newClient === false
-          ? "returning"
-          : undefined)
+  // New or returning (from what was said, or their own record found by name
+  // and number), and a patch test on the salon's records for whoever this is
+  // for: colour then needs no new test and no 48-hour wait, and there is
+  // nothing to ask. patchType is for the skin-test rules only; the booking
+  // still records clientType.
+  const colour = await colourStatus(
+    organizationId,
+    service,
+    { phone, name: clientName },
+    {
+      said: normaliseClientType(
+        params.clientType ?? (params.newClient === true ? "new" : params.newClient === false ? "returning" : undefined)
+      ),
+    }
   );
-  // Their own record, found by name and number, has a visit on it: they have
-  // been before, whatever was said or misheard, and nobody needs to ask.
-  if (clientType !== "returning" && (await hasBeenBefore(organizationId, phone, clientName))) {
-    clientType = "returning";
-  }
-
-  // A patch test on the salon's records for whoever this is for: colour
-  // needs no new test and no 48-hour wait, and there is nothing to ask.
-  const onFile = service.requiresPatchTest
-    ? await patchTestOnFile(organizationId, { customerPhone: phone, customerName: clientName })
-    : null;
-  // For the patch-test rules only; the booking still records what was said.
-  const patchType = onFile ? "returning" : clientType;
+  const { clientType, patchType } = colour;
+  const onFile = colour.testedOn ? spokenPatchTest(colour.testedOn) : null;
 
   // The rule the prompt states, enforced: colour needs to know. Treating
   // "unknown" as new is safe for the diary, but a regular who had colour
@@ -1545,12 +1506,12 @@ async function checkBooking(organizationId: string, params: BookingParams) {
     return { success: false, message: bookingPairing };
   }
 
-  const slotProblem = await phoneSlotProblem(provider, organizationId, cfg, startsAt, service, stylist, {
+  const slotIssue = await slotProblem(provider, organizationId, cfg, startsAt, service, stylist, {
     clientType: patchType,
     offeredOnly: true,
   });
-  if (slotProblem) {
-    return { success: false, today, notAvailable: true, message: slotProblem };
+  if (slotIssue) {
+    return { success: false, today, notAvailable: true, message: slotIssue };
   }
 
   return {
@@ -2503,11 +2464,7 @@ async function checkMove(organizationId: string, params: MoveParams) {
   // colour moved inside the patch-test window is the same hazard whether it
   // was booked that way or moved there.
   // A patch test recorded since the booking was made counts too.
-  const tested =
-    appt.patchTestRequired &&
-    Boolean((await prisma.lead.findUnique({ where: { id: appt.lead.id }, select: { patchTestAt: true } }))?.patchTestAt);
-  const clientType =
-    appt.clientType === "returning" || tested ? "returning" : appt.patchTestRequired ? "new" : "unknown";
+  const clientType = await moveClientType({ patchTestRequired: appt.patchTestRequired, leadId: appt.lead.id });
   const floor = earliestBookableStart(service, clientType, new Date(), undefined, undefined, cfg);
   if (startsAt < floor.at) {
     return {
@@ -2533,11 +2490,11 @@ async function checkMove(organizationId: string, params: MoveParams) {
   // Hours and working days only: the diary would count this appointment's
   // own current slot as busy, so "offered times" would refuse a move by
   // half an hour. The move itself still refuses any real clash.
-  const slotProblem = await phoneSlotProblem(provider, organizationId, cfg, startsAt, service, stylist, {
+  const slotIssue = await slotProblem(provider, organizationId, cfg, startsAt, service, stylist, {
     offeredOnly: false,
   });
-  if (slotProblem) {
-    return { success: false, notAvailable: true, message: slotProblem };
+  if (slotIssue) {
+    return { success: false, notAvailable: true, message: slotIssue };
   }
 
   return { ok: true as const, move: { provider, cfg, appt, service, stylist, startsAt, previousWhenText } };
@@ -2622,73 +2579,7 @@ async function writeMove(organizationId: string, m: CheckedMove) {
  * names in the schema, so each handler normalises what it is given rather than
  * relying on the caller to have got it right.
  */
-/**
- * Why a phone booking cannot go at `startsAt`, or null when it can.
- *
- * The diary write checks clashes and blocked time but not opening hours, on
- * purpose: the desk may book whatever it likes. The phone may not. Without
- * this, a stylist named and a time sent straight to book_appointment (no
- * check_availability first) put a cut in at 3am, and one running past
- * closing. So: the salon open that day, the whole service inside its hours,
- * the stylist in that day; and for a new booking, a time the diary would
- * actually offer, which also covers the stylist's own blocks and bookings.
- */
-export async function phoneSlotProblem(
-  provider: BookingProvider,
-  organizationId: string,
-  cfg: SalonConfig,
-  startsAt: Date,
-  service: SalonService,
-  stylist: Stylist,
-  opts: { clientType?: "new" | "returning" | "unknown"; offeredOnly: boolean }
-): Promise<string | null> {
-  const endsAt = new Date(startsAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60_000);
-  const start = zonedParts(startsAt, cfg.timeZone);
-  const end = zonedParts(endsAt, cfg.timeZone);
-  const dayName = DAY_NAMES_LONG[start.weekday];
-  const hours = hoursForWeekday(cfg.hours, start.weekday);
-  if (!hours || hours.closed) {
-    return `The salon is closed on ${dayName}s. Offer another day.`;
-  }
-  const hhmm = (p: { hour: number; minute: number }) =>
-    `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
-  const sameDay = zonedDateString(startsAt, cfg.timeZone) === zonedDateString(endsAt, cfg.timeZone);
-  if (hhmm(start) < hours.open || !sameDay || hhmm(end) > hours.close) {
-    return (
-      `That is outside opening hours: on ${dayName}s the salon is open ` +
-      `${hours.open} to ${hours.close}, and ${service.name.toLowerCase()} takes ` +
-      `${service.durationMinutes} minutes. Offer a time that fits.`
-    );
-  }
-  if (stylist.workingDays.length > 0 && !stylist.workingDays.includes(start.weekday)) {
-    return `${stylist.name} does not work on ${dayName}s. Offer another day, or someone else.`;
-  }
-  if (opts.offeredOnly && canReadAvailability(provider)) {
-    try {
-      const slots = await provider.getAvailability({
-        organizationId,
-        date: zonedDateString(startsAt, cfg.timeZone),
-        serviceName: service.name,
-        stylistName: stylist.name,
-        clientType: opts.clientType,
-      });
-      const iso = startsAt.toISOString();
-      if (!slots.some((sl) => sl.start === iso)) {
-        return (
-          `${stylist.name} cannot take that time: it is booked, blocked, or ` +
-          "not a time the diary offers. Call check_availability for that day " +
-          "and offer one of the times it gives."
-        );
-      }
-    } catch (err) {
-      // The write itself still refuses a clash; hours were checked above.
-      console.warn("[VAPI FUNCTIONS] Slot check failed:", err);
-    }
-  }
-  return null;
-}
 
-const DAY_NAMES_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /**
  * The handlers are written for strings; a model does not always send them.

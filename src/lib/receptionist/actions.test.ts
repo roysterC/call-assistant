@@ -81,7 +81,7 @@ describe("callerNumberFromVapiPayload", () => {
 
 // --- Phone bookings only go where the diary would offer --------------------
 
-import { phoneSlotProblem } from "./actions";
+import { slotProblem as phoneSlotProblem } from "@/lib/booking/rules";
 import type { SalonConfig } from "@/lib/booking";
 import type { BookingProvider } from "@/lib/booking/types";
 

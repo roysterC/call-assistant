@@ -305,8 +305,23 @@ exports[`the assistant's reply catalogue > move: a colour waiting on its skin te
 
 exports[`the assistant's reply catalogue > move: a colour whose skin test has since been recorded 1`] = `
 {
-  "message": "This colour is waiting on a skin test, so it cannot move before Thursday 1 October at 9am.",
-  "ok": false,
+  "draft": {
+    "appointmentId": "appt-2",
+    "clientName": "Nina New",
+    "durationMinutes": 105,
+    "endsAt": "2026-09-29T14:45:00.000Z",
+    "from": {
+      "startsAt": "2026-10-03T12:00:00.000Z",
+      "stylist": "Jo",
+    },
+    "id": "<id>",
+    "kind": "move",
+    "service": "Root tint",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
 }
 `;
 
