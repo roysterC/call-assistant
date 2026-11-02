@@ -8,7 +8,7 @@ import {
   getSalonConfig,
   type SalonConfig,
 } from "@/lib/booking";
-import type { BookingProvider } from "@/lib/booking/types";
+import type { BookingProvider, ReadableProvider } from "@/lib/booking/types";
 import {
   DEFAULT_SEARCH_DAYS,
   filterSlotsByPreference,
@@ -820,48 +820,58 @@ export async function handleCheckAvailability(
   };
 }
 
-async function checkAvailability(
-  organizationId: string,
-  params: {
-    date?: string;
-    /** The model sometimes sends a weekday under `day`. */
-    day?: string;
-    service?: string;
-    stylist?: string;
-    teamMember?: string;
-    clientType?: string;
-    /** Some phrasings produce a boolean instead of clientType. */
-    newClient?: boolean;
-    /** Who it is for, with their number: enough to tell a regular from their record. */
-    customerName?: string;
-    customerPhone?: string;
-    callerNumber?: string;
-    /** "morning" | "afternoon" | "evening" */
-    timeOfDay?: string;
-    /** "HH:MM" local — caller wants nothing before this. */
-    after?: string;
-    /** "HH:MM" local — caller wants nothing after this. */
-    before?: string;
-    /** "earliest" when they asked for the soonest rather than a choice. */
-    prefer?: string;
-    /** The one time they asked for ("2pm", "14:00"): offered alone when free. */
-    time?: string;
-    /** Search a month ahead rather than two weeks, once the caller has said they can wait. */
-    lookFurther?: boolean | string;
-    /**
-     * Asked by staff (the diary's assistant), not a caller: every free time
-     * on the day, with who is free, rather than the two choices a caller is
-     * offered. Never set from the phone: the receptionist's session drops it.
-     */
-    forStaff?: boolean;
-  }
-) {
+/** What check_availability is asked. */
+interface AvailabilityParams {
+  date?: string;
+  /** The model sometimes sends a weekday under `day`. */
+  day?: string;
+  service?: string;
+  stylist?: string;
+  teamMember?: string;
+  clientType?: string;
+  /** Some phrasings produce a boolean instead of clientType. */
+  newClient?: boolean;
+  /** Who it is for, with their number: enough to tell a regular from their record. */
+  customerName?: string;
+  customerPhone?: string;
+  callerNumber?: string;
+  /** "morning" | "afternoon" | "evening" */
+  timeOfDay?: string;
+  /** "HH:MM" local — caller wants nothing before this. */
+  after?: string;
+  /** "HH:MM" local — caller wants nothing after this. */
+  before?: string;
+  /** "earliest" when they asked for the soonest rather than a choice. */
+  prefer?: string;
+  /** The one time they asked for ("2pm", "14:00"): offered alone when free. */
+  time?: string;
+  /** Search a month ahead rather than two weeks, once the caller has said they can wait. */
+  lookFurther?: boolean | string;
+  /**
+   * Asked by staff (the diary's assistant), not a caller: every free time
+   * on the day, with who is free, rather than the two choices a caller is
+   * offered. Never set from the phone: the receptionist's session drops it.
+   */
+  forStaff?: boolean;
+}
+
+/**
+ * The diary, as a caller (or staff) asked about it. Each step is below, in
+ * the order they run:
+ *
+ * 1. availabilityRequest: what was asked, checked and resolved.
+ * 2. readFreeSlots: the diary, from that day for two weeks (or a month).
+ * 3. staffAvailability: for staff, every free time with names, and done.
+ * 4. chooseOffer (booking/offer.ts): the time asked for, or two choices.
+ * 5. availabilityReply: those in words, with why a named day is out.
+ */
+async function checkAvailability(organizationId: string, params: AvailabilityParams) {
   const provider = await getBookingProvider(organizationId);
 
   // Belt to the type system's braces. Even if `check_availability` is left
-  // attached in the Vapi console for an organization whose provider cannot
-  // read a diary, the refusal is returned here — at the exact moment the model
-  // would otherwise improvise a time. This is what replaced stubSlots().
+  // attached for an organization whose provider cannot read a diary, the
+  // refusal is returned here — at the exact moment the model would otherwise
+  // improvise a time. This is what replaced stubSlots().
   if (!canReadAvailability(provider)) {
     return {
       available: null,
@@ -874,39 +884,93 @@ async function checkAvailability(
   }
 
   const cfg = await getSalonConfig(organizationId);
+  const req = await availabilityRequest(organizationId, params, cfg);
+  if (!req.ok) return req.reply;
+
+  const canLookAhead = provider.capabilities.forwardSearch;
+  // Two weeks ahead as a rule; a month when the caller has said they can
+  // wait that long.
+  const searchDays = !canLookAhead ? 1 : req.lookFurther ? MONTH_SEARCH_DAYS : DEFAULT_SEARCH_DAYS;
+
+  const read = await readFreeSlots(provider, organizationId, req, searchDays);
+  if (!read.ok) return read.reply;
+
+  // Inside the window they gave. If it has nothing at all in the range, say
+  // so and offer what there is, rather than quietly ignoring them.
+  const inWindow = req.hasPreference ? filterSlotsByPreference(read.slots, cfg.timeZone, req.preference) : read.slots;
+  const windowEmpty = req.hasPreference && inWindow.length === 0;
+  const pool = windowEmpty ? read.slots : inWindow;
+
+  if (params.forStaff) {
+    return staffAvailability({
+      slots: pool,
+      date: req.date,
+      today: req.today,
+      named: req.named,
+      timeZone: cfg.timeZone,
+      service: req.service.name,
+      durationMinutes: req.service.durationMinutes,
+    });
+  }
+
+  const offer = chooseOffer({
+    slots: pool,
+    timeZone: cfg.timeZone,
+    day: req.date,
+    named: req.named,
+    time: req.askedTime,
+    minGapMinutes: req.service.durationMinutes,
+  });
+  return availabilityReply(cfg, req, offer, { windowEmpty, searchDays, canLookAhead });
+}
+
+type AvailabilityRequest = {
+  ok: true;
+  service: SalonService;
+  clientType: "new" | "returning" | "unknown";
+  stylistName: string | undefined;
+  /** They named a day (or a date), rather than asking for the soonest. */
+  named: boolean;
+  date: string;
+  today: string;
+  preference: { timeOfDay: ReturnType<typeof parseTimeOfDay>; after?: string; before?: string };
+  hasPreference: boolean;
+  /** "HH:MM", the one time they asked for. */
+  askedTime: string | null;
+  lookFurther: boolean;
+};
+
+/**
+ * Step 1: what was asked, checked and resolved, or the reply that sends the
+ * model back for something it is missing (a service, a real stylist, a day).
+ */
+async function availabilityRequest(
+  organizationId: string,
+  params: AvailabilityParams,
+  cfg: SalonConfig
+): Promise<AvailabilityRequest | { ok: false; reply: Record<string, unknown> }> {
   // Every service the caller named, folded into one appointment. A cut and a
   // colour is one slot as long as both of them together, and checking for
   // only one of them offers a time that will not fit the work.
-  const resolvedService = resolveBookedService(
-    blankToUndefined(params.service),
-    cfg.services
-  );
-
+  const resolvedService = resolveBookedService(blankToUndefined(params.service), cfg.services);
   if (!resolvedService.ok) {
     return {
-      available: null,
-      canCheck: true,
-      message: params.service?.trim()
-        ? serviceNotResolvedMessage(
-            params.service,
-            resolvedService.matched,
-            resolvedService.unmatched,
-            cfg.services
-          )
-        : "Which service is that for? I need to know before I can check " +
-          "the diary, because different services take different amounts " +
-          "of time.",
+      ok: false,
+      reply: {
+        available: null,
+        canCheck: true,
+        message: params.service?.trim()
+          ? serviceNotResolvedMessage(params.service, resolvedService.matched, resolvedService.unmatched, cfg.services)
+          : "Which service is that for? I need to know before I can check " +
+            "the diary, because different services take different amounts " +
+            "of time.",
+      },
     };
   }
   const service = resolvedService.service;
 
   let clientType = normaliseClientType(
-    params.clientType ??
-      (params.newClient === true
-        ? "new"
-        : params.newClient === false
-          ? "returning"
-          : undefined)
+    params.clientType ?? (params.newClient === true ? "new" : params.newClient === false ? "returning" : undefined)
   );
   // Only colour cares (a new client's skin test holds back the first two
   // days), and then a regular found on their own record is offered those
@@ -922,35 +986,31 @@ async function checkAvailability(
   ) {
     clientType = "returning";
   }
-  const stylistName =
-    blankToUndefined(params.stylist) ?? blankToUndefined(params.teamMember);
+  const stylistName = blankToUndefined(params.stylist) ?? blankToUndefined(params.teamMember);
 
   // A name that is nobody here. Searching everyone instead would read out
   // other stylists' times as if they were the one asked for. Usually the
   // line mishearing a name ("Joe" for "Jo"), so the team is listed.
   if (stylistName && !matchStylist(stylistName, cfg.stylists)) {
     return {
-      available: null,
-      canCheck: true,
-      unknownStylist: true,
-      team: cfg.stylists.map((st) => st.name),
-      message:
-        `"${stylistName}" is not a stylist here. The team is ` +
-        `${cfg.stylists.map((st) => st.name).join(", ")}. Check the name ` +
-        "with the caller, then call this again.",
+      ok: false,
+      reply: {
+        available: null,
+        canCheck: true,
+        unknownStylist: true,
+        team: cfg.stylists.map((st) => st.name),
+        message:
+          `"${stylistName}" is not a stylist here. The team is ` +
+          `${cfg.stylists.map((st) => st.name).join(", ")}. Check the name ` +
+          "with the caller, then call this again.",
+      },
     };
   }
 
   const pairing = stylistServiceProblem(stylistName, service, cfg.stylists);
-  if (pairing) {
-    return { available: null, canCheck: true, message: pairing };
-  }
+  if (pairing) return { ok: false, reply: { available: null, canCheck: true, message: pairing } };
 
-  const wants: SlotPreference =
-    (blankToUndefined(params.prefer) ?? "").toLowerCase() === "earliest"
-      ? "earliest"
-      : "any";
-
+  const wants: SlotPreference = (blankToUndefined(params.prefer) ?? "").toLowerCase() === "earliest" ? "earliest" : "any";
   const today = zonedDateString(new Date(), cfg.timeZone);
 
   // Callers say "Thursday"; the model has no dependable idea what today is.
@@ -962,11 +1022,12 @@ async function checkAvailability(
     // and let the forward search find the day.
     if (wants !== "earliest") {
       return {
-        available: null,
-        canCheck: true,
-        message:
-          "Which day did they mean? Ask for a specific day of the week or a " +
-          "date, then call this again.",
+        ok: false,
+        reply: {
+          available: null,
+          canCheck: true,
+          message: "Which day did they mean? Ask for a specific day of the week or a date, then call this again.",
+        },
       };
     }
     date = today;
@@ -977,21 +1038,17 @@ async function checkAvailability(
   // it can correct itself on the next call.
   if (date < today) {
     return {
-      available: null,
-      canCheck: true,
-      today,
-      message:
-        `That date (${date}) is in the past. Today is ${today}. Work out the ` +
-        "day the caller meant from that and call this again.",
+      ok: false,
+      reply: {
+        available: null,
+        canCheck: true,
+        today,
+        message:
+          `That date (${date}) is in the past. Today is ${today}. Work out the ` +
+          "day the caller meant from that and call this again.",
+      },
     };
   }
-
-  const canLookAhead = provider.capabilities.forwardSearch;
-  // Two weeks ahead as a rule; a month when the caller has said they can
-  // wait that long.
-  const lookFurther = params.lookFurther === true || params.lookFurther === "true";
-  const searchDays = !canLookAhead ? 1 : lookFurther ? MONTH_SEARCH_DAYS : DEFAULT_SEARCH_DAYS;
-  const spokenRange = lookFurther ? "month" : "two weeks";
 
   // Honour what the caller asked for. Offering nine in the morning to someone
   // who said "anytime after five" is the kind of thing that makes an agent
@@ -1002,61 +1059,68 @@ async function checkAvailability(
     after: blankToUndefined(params.after),
     before: blankToUndefined(params.before),
   };
-  const hasPreference = Boolean(
-    preference.timeOfDay || preference.after || preference.before
-  );
-  // "Can I have 2 o'clock?": the one time they asked for.
-  const askedTime = parseSpokenTime(blankToUndefined(params.time) ?? "") ?? null;
 
-  let slots: TimeSlot[];
+  return {
+    ok: true,
+    service,
+    clientType,
+    stylistName,
+    named: wants !== "earliest",
+    date,
+    today,
+    preference,
+    hasPreference: Boolean(preference.timeOfDay || preference.after || preference.before),
+    // "Can I have 2 o'clock?": the one time they asked for.
+    askedTime: parseSpokenTime(blankToUndefined(params.time) ?? "") ?? null,
+    lookFurther: params.lookFurther === true || params.lookFurther === "true",
+  };
+}
+
+/**
+ * Step 2: the day they named and the days after it, in one free/busy read:
+ * when that day has nothing, the next choices are already to hand.
+ */
+async function readFreeSlots(
+  provider: ReadableProvider,
+  organizationId: string,
+  req: AvailabilityRequest,
+  searchDays: number
+): Promise<{ ok: true; slots: TimeSlot[] } | { ok: false; reply: Record<string, unknown> }> {
   try {
-    // The day they named and the days after it, in one free/busy read: when
-    // that day has nothing, the next choices are already to hand.
-    slots = await provider.getAvailability({
+    const slots = await provider.getAvailability({
       organizationId,
-      date,
-      serviceName: service.name,
-      stylistName,
-      clientType,
+      date: req.date,
+      serviceName: req.service.name,
+      stylistName: req.stylistName,
+      clientType: req.clientType,
       searchDays,
     });
+    return { ok: true, slots };
   } catch (err) {
     // Could not read the diary. Say so — never fall back to a guess.
     console.error("[VAPI FUNCTIONS] Availability lookup failed:", err);
     return {
-      available: null,
-      canCheck: false,
-      message:
-        "The diary could not be reached. Apologise, take the booking request, " +
-        "and tell the caller the salon will confirm it when they open.",
+      ok: false,
+      reply: {
+        available: null,
+        canCheck: false,
+        message:
+          "The diary could not be reached. Apologise, take the booking request, " +
+          "and tell the caller the salon will confirm it when they open.",
+      },
     };
   }
+}
 
-  // Inside the window they gave. If it has nothing at all in the range, say
-  // so and offer what there is, rather than quietly ignoring them.
-  const inWindow = hasPreference ? filterSlotsByPreference(slots, cfg.timeZone, preference) : slots;
-  const windowEmpty = hasPreference && inWindow.length === 0;
-  const named = wants !== "earliest";
-
-  if (params.forStaff) {
-    return staffAvailability({
-      slots: windowEmpty ? slots : inWindow,
-      date,
-      today,
-      named,
-      timeZone: cfg.timeZone,
-      service: service.name,
-      durationMinutes: service.durationMinutes,
-    });
-  }
-  const offer = chooseOffer({
-    slots: windowEmpty ? slots : inWindow,
-    timeZone: cfg.timeZone,
-    day: date,
-    named,
-    time: askedTime,
-    minGapMinutes: service.durationMinutes,
-  });
+/** Step 5: what chooseOffer picked, in words for the receptionist to say. */
+function availabilityReply(
+  cfg: SalonConfig,
+  req: AvailabilityRequest,
+  offer: ReturnType<typeof chooseOffer>,
+  ctx: { windowEmpty: boolean; searchDays: number; canLookAhead: boolean }
+) {
+  const { service, stylistName, date, today, named, askedTime } = req;
+  const spokenRange = req.lookFurther ? "month" : "two weeks";
 
   // What is said is the time and its day; who would do it waits for the
   // read-back, unless they asked for someone.
@@ -1079,12 +1143,11 @@ async function checkAvailability(
       : options.length === 1
         ? said(options[0])
         : "";
+  const noStylist = stylistName ? "" : " Do not name a stylist; who it is with is read back before it is booked.";
   const howToOffer =
-    (options.length === 2
-      ? "Offer these two, each with its day, and nothing else: "
-      : "Offer this: ") +
+    (options.length === 2 ? "Offer these two, each with its day, and nothing else: " : "Offer this: ") +
     `${offerLine}.` +
-    (stylistName ? "" : " Do not name a stylist; who it is with is read back before it is booked.") +
+    noStylist +
     " When they choose, use the exact startsAt value for that option.";
 
   const dayHasAny = offer.picks.some((sl) => zonedDateString(new Date(sl.start), cfg.timeZone) === date);
@@ -1103,54 +1166,27 @@ async function checkAvailability(
       message:
         `${options[0].time} on ${options[0].day} is free. Offer just that one; do not read out ` +
         "other times. If they take it, use the exact startsAt value." +
-        (stylistName ? "" : " Do not name a stylist; who it is with is read back before it is booked."),
+        noStylist,
     };
   }
 
   if (named && !dayHasAny) {
-    // Nothing on the day they named. Why matters: shut is not full, too late
-    // today is not full, and a day nobody does this service on is not full.
-    // Then the next two, already read.
-    const floor = earliestBookableStart(service, clientType, new Date(), undefined, undefined, cfg);
-    const closed = openWindowFor(cfg.hours, cfg.timeZone, date) === null;
-    const unstaffed = !closed && !serviceStaffedOnDate(cfg, service, date);
-    const window = closed ? null : openWindowFor(cfg.hours, cfg.timeZone, date);
-    const overForToday =
-      date === today &&
-      window !== null &&
-      Date.now() + service.durationMinutes * 60_000 > window.end.getTime();
-    const theDay = spokenDay(date, cfg.timeZone);
-    const why =
-      floor.reason === "patch_test" && date < zonedDateString(floor.at, cfg.timeZone)
-        ? `${service.name} needs a skin patch test at least 48 hours beforehand for a new client, done ` +
-          `at the salon while it is open, so the earliest is ${spokenDay(zonedDateString(floor.at, cfg.timeZone), cfg.timeZone)}.`
-        : closed
-          ? `The salon is closed on ${theDay} — say that, not that it is booked up.`
-          : overForToday
-            ? "It is too late in the day for that today: the salon is closing or has closed. Say " +
-              "that, not that it is booked up."
-            : unstaffed
-              ? `Nobody who does ${service.name.toLowerCase()} works ${theDay} — say that it is not a ` +
-                "day we offer it, not that it is booked up, so they do not ask again for the same " +
-                "day next week."
-              : windowEmpty
-                ? `Nothing free on ${theDay} in the window they asked for, nor in the next ${spokenRange}.`
-                : `Nothing free on ${theDay} for that service.`;
+    const out = whyDayIsOut(cfg, req, ctx.windowEmpty, spokenRange);
     const nextAvailable = options.length ? { date: firstDate, options } : undefined;
     return {
       available: false,
       canCheck: true,
       today,
       date,
-      searchedDays: searchDays,
+      searchedDays: ctx.searchDays,
       nextAvailable,
-      closed,
-      unstaffed,
-      ...(floor.reason === "patch_test" ? { patchTestRequired: true } : {}),
-      ...(windowEmpty ? { outsidePreference: true } : {}),
+      closed: out.closed,
+      unstaffed: out.unstaffed,
+      ...(out.patchTest ? { patchTestRequired: true } : {}),
+      ...(ctx.windowEmpty ? { outsidePreference: true } : {}),
       message: options.length
-        ? `${why} ${howToOffer}`
-        : `${why} ${nothingAhead(service.name, spokenRange, lookFurther, canLookAhead)}`,
+        ? `${out.why} ${howToOffer}`
+        : `${out.why} ${nothingAhead(service.name, spokenRange, req.lookFurther, ctx.canLookAhead)}`,
     };
   }
 
@@ -1160,10 +1196,10 @@ async function checkAvailability(
       canCheck: true,
       today,
       date,
-      searchedDays: searchDays,
+      searchedDays: ctx.searchDays,
       message:
-        (canLookAhead ? "" : `Nothing free for ${service.name.toLowerCase()} ${spokenDay(date, cfg.timeZone)}. `) +
-        nothingAhead(service.name, spokenRange, lookFurther, canLookAhead),
+        (ctx.canLookAhead ? "" : `Nothing free for ${service.name.toLowerCase()} ${spokenDay(date, cfg.timeZone)}. `) +
+        nothingAhead(service.name, spokenRange, req.lookFurther, ctx.canLookAhead),
     };
   }
 
@@ -1180,13 +1216,45 @@ async function checkAvailability(
     ...(movedOn ? { requestedDate: date } : {}),
     service: service.name,
     durationMinutes: service.durationMinutes,
-    ...(windowEmpty ? { outsidePreference: true } : {}),
+    ...(ctx.windowEmpty ? { outsidePreference: true } : {}),
     options,
     message:
-      (windowEmpty ? "Nothing free in the window they asked for. Say so plainly, then: " : "") +
+      (ctx.windowEmpty ? "Nothing free in the window they asked for. Say so plainly, then: " : "") +
       (askedTime && named ? `${spokenTime(`${date}T${askedTime}:00Z`, "UTC")} is taken. Say so, then: ` : "") +
       howToOffer,
   };
+}
+
+/**
+ * Why the day they named has nothing. It matters: shut is not full, too late
+ * today is not full, and a day nobody does this service on is not full.
+ */
+function whyDayIsOut(cfg: SalonConfig, req: AvailabilityRequest, windowEmpty: boolean, spokenRange: string) {
+  const { service, date, today } = req;
+  const floor = earliestBookableStart(service, req.clientType, new Date(), undefined, undefined, cfg);
+  const closed = openWindowFor(cfg.hours, cfg.timeZone, date) === null;
+  const unstaffed = !closed && !serviceStaffedOnDate(cfg, service, date);
+  const window = closed ? null : openWindowFor(cfg.hours, cfg.timeZone, date);
+  const overForToday =
+    date === today && window !== null && Date.now() + service.durationMinutes * 60_000 > window.end.getTime();
+  const theDay = spokenDay(date, cfg.timeZone);
+  const why =
+    floor.reason === "patch_test" && date < zonedDateString(floor.at, cfg.timeZone)
+      ? `${service.name} needs a skin patch test at least 48 hours beforehand for a new client, done ` +
+        `at the salon while it is open, so the earliest is ${spokenDay(zonedDateString(floor.at, cfg.timeZone), cfg.timeZone)}.`
+      : closed
+        ? `The salon is closed on ${theDay} — say that, not that it is booked up.`
+        : overForToday
+          ? "It is too late in the day for that today: the salon is closing or has closed. Say " +
+            "that, not that it is booked up."
+          : unstaffed
+            ? `Nobody who does ${service.name.toLowerCase()} works ${theDay} — say that it is not a ` +
+              "day we offer it, not that it is booked up, so they do not ask again for the same " +
+              "day next week."
+            : windowEmpty
+              ? `Nothing free on ${theDay} in the window they asked for, nor in the next ${spokenRange}.`
+              : `Nothing free on ${theDay} for that service.`;
+  return { why, closed, unstaffed, patchTest: floor.reason === "patch_test" };
 }
 
 export async function handleBookAppointment(
