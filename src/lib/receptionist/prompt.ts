@@ -1,10 +1,9 @@
 /**
  * What the receptionist is told, for our own engine.
  *
- * The salon-specific rules are the same generated prompt the Vapi assistant
- * gets (`composeVoicePrompt`): booking stance, caller-identity rules, closing,
- * hours, services and team. Our engine adds what Vapi's platform otherwise
- * supplies — that it is speaking down a phone line — and the time of day.
+ * The salon-specific rules are generated (`composeVoicePrompt`): booking
+ * stance, caller-identity rules, closing, hours, services and team. Added
+ * here: that it is speaking down a phone line, and the time of day.
  *
  * Split into two system blocks on purpose. The first never changes within a
  * call and carries the cache marker, so every turn after the first reads the
@@ -71,7 +70,7 @@ export function buildSystem(
   faq: string | null = null
 ): Anthropic.TextBlockParam[] {
   // Our own line: bookings are read back before they are made, and no email.
-  const composed = composeVoicePrompt(cfg, body, faq, { ownLine: true });
+  const composed = composeVoicePrompt(cfg, body, faq);
   const stable = [
     SPOKEN_STYLE.replace("{{business}}", businessName || "the salon"),
     composed.prompt,

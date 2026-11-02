@@ -40,7 +40,7 @@ export function scrubEvent<T extends ErrorEvent>(event: T): T {
     delete event.request.data;
     if (event.request.headers) {
       for (const h of Object.keys(event.request.headers)) {
-        if (/^(cookie|authorization|x-hub-signature|x-twilio-signature|x-vapi)/i.test(h)) delete event.request.headers[h];
+        if (/^(cookie|authorization|x-hub-signature|x-twilio-signature)/i.test(h)) delete event.request.headers[h];
       }
     }
     // Query strings carry session ids and, on the diary, client searches.

@@ -1,3 +1,4 @@
+import { PHONE_CHANNELS } from "@/lib/phone-channels";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
@@ -35,7 +36,7 @@ export async function POST(
   try {
     const { id: organizationId } = await params;
     const body = await req.json();
-    const { number, channel, vapiPhoneNumberId, whatsappPhoneNumberId, label } = body;
+    const { number, channel, whatsappPhoneNumberId, label } = body;
 
     if (!number || !channel) {
       return NextResponse.json(
@@ -44,9 +45,9 @@ export async function POST(
       );
     }
 
-    if (!["vapi", "whatsapp"].includes(channel)) {
+    if (!(PHONE_CHANNELS as readonly string[]).includes(channel)) {
       return NextResponse.json(
-        { error: "channel must be 'vapi' or 'whatsapp'" },
+        { error: `channel must be one of ${PHONE_CHANNELS.join(", ")}` },
         { status: 400 }
       );
     }
@@ -56,7 +57,6 @@ export async function POST(
         organizationId,
         number,
         channel,
-        vapiPhoneNumberId: vapiPhoneNumberId || null,
         whatsappPhoneNumberId: whatsappPhoneNumberId || null,
         label: label || null,
       },

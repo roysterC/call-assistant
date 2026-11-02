@@ -1,19 +1,14 @@
 /**
- * Generates the Vapi assistant's tool list and prompt from what the booking
- * provider can actually do, and pushes it to Vapi.
+ * The receptionist's tools and the generated parts of its instructions, both
+ * produced from what the salon's booking provider can actually do.
  *
- * Vapi assistants are configured in Vapi's console, so this repo cannot be
- * their source of truth — but it can be the generator. The point is that the
- * attached tools and the prompt's stance on availability are produced from one
- * capability object, so they cannot contradict each other. A prompt that says
- * "you may confirm" beside a provider that cannot read a diary is how callers
- * get told a slot is free when nobody knows.
- *
- * Server-side enforcement still exists independently in the functions route:
- * console drift must not be able to produce a lie.
+ * The point is that the tools offered and the instructions' stance on
+ * availability come from one capability object, so they cannot contradict
+ * each other. Instructions that say "you may confirm" beside a provider that
+ * cannot read a diary is how callers get told a slot is free when nobody
+ * knows. The tools enforce the same rules themselves, whatever was said.
  */
 
-import { prisma } from "@/lib/prisma";
 import { describeHoursForPrompt } from "@/lib/business-hours";
 import {
   describeServicesForPrompt,
@@ -21,12 +16,10 @@ import {
 } from "@/lib/salon-config";
 import {
   explainProviderSelection,
-  getSalonConfig,
   selectProvider,
   type BookingCapabilities,
   type SalonConfig,
 } from "@/lib/booking";
-import { getAssistant, listTools, updateAssistant } from "@/lib/vapi";
 import { NOT_LISTED, salonQuestionsSection } from "@/lib/salon-knowledge";
 
 export interface VapiTool {
@@ -53,7 +46,6 @@ const SAVE_CUSTOMER_DETAILS: VapiTool = {
       type: "object",
       properties: {
         name: { type: "string", description: "The caller's full name" },
-        email: { type: "string", description: "Email address, if offered" },
         phone: {
           type: "string",
           description:
@@ -176,7 +168,11 @@ const CHECK_AVAILABILITY: VapiTool = {
   },
 };
 
-const BOOK_APPOINTMENT: VapiTool = {
+/**
+ * What a booking is made of. prepare_booking takes these and books nothing;
+ * book_appointment then books what was read back.
+ */
+const BOOKING_DETAILS: VapiTool = {
   type: "function",
   function: {
     name: "book_appointment",
@@ -262,7 +258,7 @@ const PREPARE_BOOKING: VapiTool = {
       "booked. Call it once they have picked a time that check_availability " +
       "offered and you have their name. Pass the exact startsAt value " +
       "check_availability returned as `time`.",
-    parameters: BOOK_APPOINTMENT.function.parameters,
+    parameters: BOOKING_DETAILS.function.parameters,
   },
 };
 
@@ -285,31 +281,6 @@ const BOOK_PREPARED: VapiTool = {
     },
   },
 };
-
-/** As SAVE_CUSTOMER_DETAILS, with no email: our line never asks for one. */
-const SAVE_CUSTOMER_DETAILS_NO_EMAIL: VapiTool = {
-  ...SAVE_CUSTOMER_DETAILS,
-  function: {
-    ...SAVE_CUSTOMER_DETAILS.function,
-    parameters: {
-      ...SAVE_CUSTOMER_DETAILS.function.parameters,
-      properties: Object.fromEntries(
-        Object.entries(SAVE_CUSTOMER_DETAILS.function.parameters.properties as Record<string, unknown>).filter(
-          ([k]) => k !== "email"
-        )
-      ),
-    },
-  },
-};
-
-/**
- * Our own receptionist rather than Vapi. Vapi is kept as it was, as the line
- * to go back to: its tools and prompt are synced from here and it has no
- * per-call state to hold a read-back in.
- */
-export interface VoiceToolOptions {
-  ownLine?: boolean;
-}
 
 const BOOK_CALLBACK: VapiTool = {
   type: "function",
@@ -550,11 +521,11 @@ const RESCHEDULE_APPOINTMENT: VapiTool = {
  * read a diary — an absent tool cannot be called by mistake, and every tool
  * schema costs prefill tokens on every turn of the call.
  */
-export function buildVoiceTools(caps: BookingCapabilities, opts: VoiceToolOptions = {}): VapiTool[] {
-  const tools: VapiTool[] = [opts.ownLine ? SAVE_CUSTOMER_DETAILS_NO_EMAIL : SAVE_CUSTOMER_DETAILS];
+export function buildVoiceTools(caps: BookingCapabilities): VapiTool[] {
+  const tools: VapiTool[] = [SAVE_CUSTOMER_DETAILS];
   if (caps.readAvailability) tools.push(CHECK_AVAILABILITY);
   if (caps.createBooking) {
-    tools.push(...(opts.ownLine ? [PREPARE_BOOKING, BOOK_PREPARED] : [BOOK_APPOINTMENT]));
+    tools.push(PREPARE_BOOKING, BOOK_PREPARED);
     // Changing a booking needs the same write access as making one. On an
     // after-hours line these matter as much as new bookings — someone
     // realising at nine at night that tomorrow will not work.
@@ -574,23 +545,7 @@ export function buildVoiceTools(caps: BookingCapabilities, opts: VoiceToolOption
 // Prompt
 // -------------------------------------------------------------------------
 
-/** Before booking, for Vapi: asked of the model, not enforced. */
-const SUM_UP_STEPS = `- **Before you book, sum it up once and ask.** When they have picked a time
-  and you have their name, say it all back in one go: the service, the day
-  and time, the stylist if one was named, their name, and where the
-  confirmation text will go — *"the phone you're calling from"*, or the
-  number they read out. Then ask if you should book it: *"So that's a wash and
-  blow dry for medium hair, Thursday at 11, for Hannah Lee, and I'll text the
-  confirmation to the phone you're calling from. Shall I book that in?"* This
-  is their chance to change anything, including the number, before it is in
-  the diary and the text has gone. Do not read out the digits of the number
-  they are ringing from.
-- When they say yes, call \`book_appointment\` with the exact \`startsAt\`
-  value that \`check_availability\` gave you for that option. If they change
-  something instead, sort that out and sum it up again. Once it is booked, do
-  not ask about any of it again.`;
-
-/** Before booking, on our own line: the read-back is enforced by the tools. */
+/** Before booking: the read-back, enforced by the tools (receptionist/read-back.ts). */
 const READ_BACK_STEPS = `- **Read it back before you book.** When they have picked a time and you
   have their name, call \`prepare_booking\`. It checks everything and books
   nothing, and gives you the details to read back: the service, the stylist,
@@ -611,7 +566,7 @@ const READ_BACK_STEPS = `- **Read it back before you book.** When they have pick
  *
  * Three cases, and they must match the tools exactly.
  */
-export function buildAvailabilityStance(caps: BookingCapabilities, opts: VoiceToolOptions = {}): string {
+export function buildAvailabilityStance(caps: BookingCapabilities): string {
   if (!caps.readAvailability) {
     return `# The one thing you must never do
 
@@ -663,7 +618,7 @@ it.
 - When the tool finds nothing in the next two weeks, say so and ask whether
   they could wait longer. If they could, check again with \`lookFurther\`,
   which looks a month ahead; if not, take a message.
-${opts.ownLine ? READ_BACK_STEPS : SUM_UP_STEPS}
+${READ_BACK_STEPS}
 - Only once the tool confirms it worked may you say they are booked in. If it
   reports a clash, apologise and offer another time. If it fails any other way,
   say the salon will ring to confirm — **do not** tell them they are booked.
@@ -788,9 +743,9 @@ stylist. If you did not hear it, say so. Guessing is worse than asking twice.`;
 /**
  * How a call ends.
  *
- * The end-call tool is configured in the Vapi console and is not in
- * `buildVoiceTools`, so nothing here can stop the model reaching for it. On
- * the call this was written for it called that tool 1.02 seconds after the
+ * Hanging up is the engine's own tool (receptionist/engine.ts), which refuses
+ * a hang-up without a goodbye. These rules came from a call that ended 1.02
+ * seconds after the
  * caller said "That's correct" — no goodbye, no "anything else?", just the
  * line going dead. `endedReason` was `assistant-ended-call`, so the agent did
  * that deliberately.
@@ -831,17 +786,14 @@ export interface ComposedPrompt {
 export function composeVoicePrompt(
   cfg: SalonConfig,
   body: string | null,
-  faq: string | null = null,
-  opts: VoiceToolOptions = {}
+  faq: string | null = null
 ): ComposedPrompt {
   const provider = selectProvider(cfg);
   const caps = provider.capabilities;
 
   const sections = [
-    buildAvailabilityStance(caps, opts),
-    opts.ownLine
-      ? `${CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`
-      : CALLER_IDENTITY_RULES,
+    buildAvailabilityStance(caps),
+    `${CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`,
     CALL_CLOSING_RULES,
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
     `# Services\n\n${NOT_LISTED}\n\n${describeServicesForPrompt(cfg.services)}`,
@@ -866,191 +818,8 @@ export function composeVoicePrompt(
 
   return {
     prompt: sections.join("\n\n---\n\n"),
-    toolNames: buildVoiceTools(caps, opts).map((t) => t.function.name),
+    toolNames: buildVoiceTools(caps).map((t) => t.function.name),
     providerId: provider.id,
-    warnings,
-  };
-}
-
-// -------------------------------------------------------------------------
-// Sync
-// -------------------------------------------------------------------------
-
-export interface SyncResult {
-  synced: boolean;
-  dryRun: boolean;
-  assistantId: string | null;
-  providerId: string;
-  /** Tools this organization's capabilities call for. */
-  expectedTools: string[];
-  /** Expected tools that are not attached to the assistant in Vapi. */
-  missingTools: string[] | null;
-  /** Tools attached that this app does not generate — endCall and the like. */
-  extraTools: string[] | null;
-  /** The exact body that was, or would be, sent. */
-  payload?: Record<string, unknown>;
-  warnings: string[];
-}
-
-/**
- * Push the composed prompt to the Vapi assistant.
- *
- * Prompt only, deliberately. Vapi holds tools as separate objects referenced
- * by `model.toolIds`, and each carries its own server URL and auth credential
- * — none of which the generated tool JSON knows about. Writing tools from here
- * would replace working, authenticated tools with definitions that point
- * nowhere. Tools stay managed in the console; this reports whether the number
- * attached matches what the capabilities call for, which is the part that
- * silently drifts.
- *
- * The prompt is the thing that actually goes stale: opening hours and the
- * service list are generated from settings, so the moment a tenant edits them
- * the agent starts saying something the booking engine will not honour.
- *
- * Reads the assistant before writing and merges, rather than PATCHing a bare
- * `model`. A partial model object risks dropping `provider`, `model`,
- * `toolIds` and `promptCacheRetention` — which would take the assistant down
- * rather than update it.
- */
-export async function syncAssistant(
-  organizationId: string,
-  options: { dryRun?: boolean } = {}
-): Promise<SyncResult> {
-  const dryRun = Boolean(options.dryRun);
-
-  const settings = await prisma.organizationSettings.findUnique({
-    where: { organizationId },
-    select: { vapiAssistantId: true, voiceSystemPrompt: true, salonFaq: true },
-  });
-
-  const cfg = await getSalonConfig(organizationId);
-  const composed = composeVoicePrompt(
-    cfg,
-    settings?.voiceSystemPrompt ?? null,
-    settings?.salonFaq ?? null
-  );
-  const expectedTools = composed.toolNames;
-
-  const assistantId = settings?.vapiAssistantId ?? null;
-  if (!assistantId) {
-    return {
-      synced: false,
-      dryRun,
-      assistantId: null,
-      providerId: composed.providerId,
-      expectedTools,
-      missingTools: null,
-      extraTools: null,
-      warnings: [
-        ...composed.warnings,
-        "No vapiAssistantId configured for this organization — nothing to push.",
-      ],
-    };
-  }
-
-  if (!process.env.VAPI_API_KEY) {
-    return {
-      synced: false,
-      dryRun,
-      assistantId,
-      providerId: composed.providerId,
-      expectedTools,
-      missingTools: null,
-      extraTools: null,
-      warnings: [
-        ...composed.warnings,
-        "VAPI_API_KEY is not set, so the assistant cannot be read or written.",
-      ],
-    };
-  }
-
-  const warnings = [...composed.warnings];
-
-  // Read first. Everything else on the model object has to survive.
-  const current = (await getAssistant(assistantId)) as {
-    model?: Record<string, unknown>;
-    name?: string;
-  };
-
-  const currentModel = current.model ?? {};
-  const toolIds = Array.isArray(currentModel.toolIds)
-    ? (currentModel.toolIds as unknown[])
-    : [];
-
-  // Keep any non-system messages the assistant carries, and replace only the
-  // system one. Vapi assistants normally hold a single system message, but
-  // discarding anything else would be an unpleasant surprise.
-  const existingMessages = Array.isArray(currentModel.messages)
-    ? (currentModel.messages as Array<{ role?: string }>)
-    : [];
-  const nonSystem = existingMessages.filter((m) => m?.role !== "system");
-
-  const payload = {
-    model: {
-      ...currentModel,
-      messages: [
-        { role: "system", content: composed.prompt },
-        ...nonSystem,
-      ],
-    },
-  };
-
-  // Compare names, not counts. An assistant legitimately carries tools this
-  // app does not generate — endCall, transfers — so counting would report
-  // "6 of 6" while one of ours was missing and one of theirs made up the
-  // number. That is worse than no check: it reads as a pass.
-  let missingTools: string[] | null = null;
-  let extraTools: string[] | null = null;
-  try {
-    const all = await listTools();
-    const byId = new Map(all.map((t) => [t.id, t]));
-    const attachedNames = toolIds
-      .map((id) => byId.get(String(id))?.name)
-      .filter((n): n is string => Boolean(n));
-
-    missingTools = expectedTools.filter((n) => !attachedNames.includes(n));
-    extraTools = attachedNames.filter((n) => !expectedTools.includes(n));
-
-    if (missingTools.length > 0) {
-      warnings.push(
-        `Not attached in Vapi: ${missingTools.join(", ")}. The prompt tells ` +
-          "the agent it can do these, so it will try and find no tool to " +
-          "call. Tools are managed in the Vapi console; this sync does not " +
-          "touch them."
-      );
-    }
-  } catch (err) {
-    warnings.push(
-      "Could not list tools from Vapi, so the attached set was not checked: " +
-        (err instanceof Error ? err.message : String(err))
-    );
-  }
-
-  if (dryRun) {
-    return {
-      synced: false,
-      dryRun: true,
-      assistantId,
-      providerId: composed.providerId,
-      expectedTools,
-      missingTools,
-      extraTools,
-      payload,
-      warnings,
-    };
-  }
-
-  await updateAssistant(assistantId, payload);
-
-  return {
-    synced: true,
-    dryRun: false,
-    assistantId,
-    providerId: composed.providerId,
-    expectedTools,
-    missingTools,
-    extraTools,
-    payload,
     warnings,
   };
 }

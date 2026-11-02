@@ -1,9 +1,8 @@
 /**
  * The salon's tools, in the shape the Claude API takes.
  *
- * Generated from the same capability-driven list the Vapi assistant is given
- * (`buildVoiceTools`), so both receptionists can do exactly the same things and
- * the booking rules behind them are shared, not copied.
+ * Generated from the capability-driven list in `buildVoiceTools`, so the
+ * tools offered always match what the salon's diary can do.
  */
 
 import type Anthropic from "@anthropic-ai/sdk";

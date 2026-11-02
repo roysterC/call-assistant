@@ -43,7 +43,6 @@ const WRITABLE_FIELDS = [
   "voiceSystemPrompt",
   // The salon's FAQ, read by the receptionist and the chat bots.
   "salonFaq",
-  "vapiAssistantId",
   "whatsappSystemPrompt",
   "whatsappEnabled",
   "chatbotEnabled",

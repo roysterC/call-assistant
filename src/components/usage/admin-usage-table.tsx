@@ -160,7 +160,7 @@ export function AdminUsageTable({ names }: { names: Record<string, string> }) {
         empty={<p className="px-5 py-8 text-center text-sm text-muted-foreground">No calls this month.</p>}
       />
       <p className="text-[11px] text-muted-foreground">
-        Our cost is what the providers bill (Vapi as reported; our own receptionist worked out from its usage),
+        Our cost is what the providers bill (Vapi as reported, for calls before the move to our own receptionist; ours worked out from its usage),
         shown at $1 = £{data.usdToGbp}. Lab testing is on our bill but never charged to the salon.
       </p>
     </section>

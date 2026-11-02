@@ -381,26 +381,15 @@ describe("receptionist prompt", () => {
     expect(stable.text).not.toContain("Before you book, sum it up once and ask");
   });
 
-  it("leaves Vapi's instructions and tools as they were", () => {
-    const vapi = composeVoicePrompt(bookable, null);
-    expect(vapi.prompt).toContain("Before you book, sum it up once and ask");
-    expect(vapi.prompt).not.toContain("prepare_booking");
-    expect(vapi.prompt).not.toContain("Never ask for an email address");
-    expect(vapi.toolNames).not.toContain("prepare_booking");
-  });
-
-  it("gives our own line the two booking steps and no email field; Vapi the one booking tool", () => {
+  it("books in two steps, read back in between, and has no email field", () => {
     const caps = selectProvider(bookable).capabilities;
-    const own = buildVoiceTools(caps, { ownLine: true });
-    const fn = (tools: typeof own, name: string) => tools.find((t) => t.function.name === name)!.function;
-    expect(own.map((t) => t.function.name)).toEqual(expect.arrayContaining(["prepare_booking", "book_appointment"]));
-    expect((fn(own, "book_appointment").parameters as { required: string[] }).required).toEqual(["bookingRef"]);
-    expect(Object.keys((fn(own, "save_customer_details").parameters as { properties: object }).properties)).not.toContain("email");
-
-    const vapi = buildVoiceTools(caps);
-    expect(vapi.map((t) => t.function.name)).not.toContain("prepare_booking");
-    expect((fn(vapi, "book_appointment").parameters as { required: string[] }).required).toContain("time");
-    expect(Object.keys((fn(vapi, "save_customer_details").parameters as { properties: object }).properties)).toContain("email");
+    const tools = buildVoiceTools(caps);
+    const fn = (name: string) => tools.find((t) => t.function.name === name)!.function;
+    expect(tools.map((t) => t.function.name)).toEqual(expect.arrayContaining(["prepare_booking", "book_appointment"]));
+    expect((fn("book_appointment").parameters as { required: string[] }).required).toEqual(["bookingRef"]);
+    expect((fn("prepare_booking").parameters as { required: string[] }).required).toContain("time");
+    expect(Object.keys((fn("save_customer_details").parameters as { properties: object }).properties)).not.toContain("email");
+    expect(composeVoicePrompt(bookable, null).toolNames).toContain("prepare_booking");
   });
 
   it("caches the instructions and keeps the clock out of the cached part", () => {

@@ -112,7 +112,7 @@ export function UsageSummary() {
               value={money(usage.marginPence)}
             />
             <Figure
-              label="Vapi / our receptionist"
+              label="Vapi (past calls) / our receptionist"
               value={`${money(usage.sources?.vapiPence)} / ${money(usage.sources?.receptionistPence)}`}
             />
             <Figure

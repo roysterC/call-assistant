@@ -4,7 +4,7 @@
  * Everything salon-specific is read once, when the call starts, so the
  * instructions and tool list are byte-identical for every turn of the call and
  * the prompt cache holds. A salon editing its hours mid-call gets them on the
- * next call, which is the same thing the Vapi sync does.
+ * next call.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -97,7 +97,7 @@ export async function startReceptionist(
   }
   const cfg = await getSalonConfig(organizationId);
   const caps = selectProvider(cfg).capabilities;
-  const tools = toClaudeTools(buildVoiceTools(caps, { ownLine: true }));
+  const tools = toClaudeTools(buildVoiceTools(caps));
   const allowed = new Set(tools.map((t) => t.name));
   const businessName = settings?.businessName ?? "";
 

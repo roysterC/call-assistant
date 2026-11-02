@@ -46,7 +46,6 @@ const TOOL_LABEL: Record<string, string> = {
   reschedule_appointment: "Moved a booking",
   book_callback: "Booked a callback",
   take_message: "Took a message",
-  transfer_call: "Transferred the call",
 };
 
 /** Kikai's super-admins only; the lab's API refuses anyone else too. */

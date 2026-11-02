@@ -17,7 +17,7 @@
  *   SHOGO_CAL_PRIYA=...
  *   SHOGO_CAL_CHLOE=...
  *
- * Also creates a PhoneNumber row so `resolveOrgFromVapiPayload` can map an
+ * Also creates a PhoneNumber row so the phone line (/api/twilio/voice) can map an
  * inbound call to this org. Override the number with SHOGO_PHONE.
  */
 
@@ -28,6 +28,7 @@ loadEnv({ path: ".env" });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { SHOGO_CONTACT_PHONE, SHOGO_FAQ, SHOGO_HOURS, SHOGO_SERVICES } from "./shogo-menu";
+import { VOICE_CHANNEL } from "../src/lib/phone-channels";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -131,14 +132,14 @@ async function main() {
     console.log(`    ${mark}${m.name}${m.googleCalendarId ? ` -> ${m.googleCalendarId}` : " (no calendar id)"}`);
   }
 
-  // Lets resolveOrgFromVapiPayload map an inbound call to this org.
+  // Lets the phone line map an inbound call to this org.
   await prisma.phoneNumber.upsert({
     where: { number: PHONE },
-    update: { organizationId: org.id, channel: "vapi", active: true },
+    update: { organizationId: org.id, channel: VOICE_CHANNEL, active: true },
     create: {
       organizationId: org.id,
       number: PHONE,
-      channel: "vapi",
+      channel: VOICE_CHANNEL,
       label: "Shogo inbound (dev)",
       active: true,
     },

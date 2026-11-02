@@ -59,121 +59,10 @@ import { spokenPatchTest } from "@/lib/patch-test";
  * details. Each action checks the salon's rules itself (hours, who does
  * what, the skin test, no double-booking), whoever asks.
  *
- * Callers: our own phone line and the lab (receptionist/session.ts), the
- * personal assistant (voice-booking/), and the two Vapi routes that remain
- * for salons not yet moved off Vapi. That history is why the names below
- * still say "Vapi": the envelope route, where Vapi names the function in the
- * body, and the path route, where an "API Request" tool posts bare
- * parameters and the name comes from the URL.
+ * Callers: our own phone line and the lab (receptionist/session.ts), and the
+ * diary's assistant (voice-booking/), which asks the diary through
+ * check_availability.
  */
-
-/**
- * Work out which organization a Vapi payload belongs to.
- *
- * Vapi does not put the identifiers in one place. A tool call carries the
- * phone number under `message.call`; an end-of-call report carries it under
- * `message.phoneNumber`, a sibling of the call. The webhook route used to
- * have its own copy of this that only looked at the first, which is why tool
- * calls resolved and call records silently did not — the duplication was the
- * bug, not the lookup.
- *
- * Four routes to an answer, cheapest first:
- *   1. the Vapi phone-number id, if we have stored it
- *   2. the number that was dialled
- *   3. the assistant id — the only one a web call has, since there is no
- *      number to dial
- */
-/**
- * The number the caller is ringing from, off the call itself.
- *
- * `callerNumber` has been a parameter on the booking tools all along, with a
- * description telling the model to send it "if the tool supplies it" — but
- * nothing ever supplied it. The model cannot see the caller ID, so the
- * parameter was never filled and the fallback behind it never ran. A caller
- * saying "use the number I'm ringing from" left the agent with nothing, which
- * is how it ended up agreeing that the number worked and then asking for it.
- *
- * Read here instead, from the payload Vapi already sends, and injected by the
- * route so every handler gets it whatever the model did or did not send.
- */
-export function callerNumberFromVapiPayload(
-  body: Record<string, unknown>
-): string | null {
-  // Walked defensively, for the same reason resolveOrgFromVapiPayload is:
-  // the shape varies by event and a type here would only be half true.
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const root = body as any;
-  const message = root.message ?? root;
-  const call = message?.call ?? root.call ?? {};
-  const customer = call?.customer ?? message?.customer ?? root.customer ?? null;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-
-  const number = typeof customer?.number === "string" ? customer.number : null;
-  return blankToUndefined(number ?? undefined) ?? null;
-}
-
-export async function resolveOrgFromVapiPayload(
-  body: Record<string, unknown>
-): Promise<string | null> {
-  // Vapi's payloads are loosely shaped and vary by event, so this walks them
-  // defensively rather than against a type that would only be half true.
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const root = body as any;
-  const message = root.message ?? root;
-  const call = message?.call ?? root.call ?? {};
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-
-  // `message.phoneNumber` is where an end-of-call report puts it; `call.
-  // phoneNumber` is where a tool call does.
-  const phoneNumber = message?.phoneNumber ?? call?.phoneNumber ?? null;
-
-  const vapiPhoneNumberId =
-    call?.phoneNumberId ??
-    message?.phoneNumberId ??
-    (typeof phoneNumber === "object" ? phoneNumber?.id : null) ??
-    null;
-
-  if (vapiPhoneNumberId) {
-    const match = await prisma.phoneNumber.findFirst({
-      where: { vapiPhoneNumberId, channel: "vapi" },
-      select: { organizationId: true },
-    });
-    if (match) return match.organizationId;
-  }
-
-  const dialledNumber =
-    (typeof phoneNumber === "object" ? phoneNumber?.number : null) ??
-    (typeof phoneNumber === "string" ? phoneNumber : null) ??
-    null;
-
-  if (dialledNumber) {
-    const match = await prisma.phoneNumber.findUnique({
-      where: { number: dialledNumber },
-      select: { organizationId: true },
-    });
-    if (match) return match.organizationId;
-  }
-
-  // Web calls carry no phone number — there is nothing to dial — so fall back
-  // to the assistant. Also covers an inbound number we have not mapped yet.
-  const assistantId =
-    call?.assistantId ??
-    call?.assistant?.id ??
-    message?.assistantId ??
-    message?.assistant?.id ??
-    (typeof phoneNumber === "object" ? phoneNumber?.assistantId : null) ??
-    null;
-
-  if (assistantId) {
-    const match = await prisma.organizationSettings.findFirst({
-      where: { vapiAssistantId: assistantId },
-      select: { organizationId: true },
-    });
-    if (match) return match.organizationId;
-  }
-
-  return null;
-}
 
 export type VapiFunctionName =
   | "save_customer_details"
@@ -183,8 +72,7 @@ export type VapiFunctionName =
   | "find_appointment"
   | "cancel_appointment"
   | "reschedule_appointment"
-  | "take_message"
-  | "transfer_call";
+  | "take_message";
 
 export const VAPI_FUNCTION_NAMES: VapiFunctionName[] = [
   "save_customer_details",
@@ -195,7 +83,6 @@ export const VAPI_FUNCTION_NAMES: VapiFunctionName[] = [
   "cancel_appointment",
   "reschedule_appointment",
   "take_message",
-  "transfer_call",
 ];
 
 export function isVapiFunctionName(name: string): name is VapiFunctionName {
@@ -210,12 +97,12 @@ function validEmail(raw: string | undefined): string | null {
 }
 
 /**
- * Settle on a usable number from what the agent sent and what Vapi knows.
+ * Settle on a usable number from what the agent sent and the caller ID.
  *
  * The model transcribes a number it heard spoken and gets it wrong — one call
  * sent "4782" while simultaneously holding the full number for the booking.
- * `callerNumber` is the caller ID, which Vapi can put in the tool body and
- * which nobody has to hear correctly.
+ * `callerNumber` is the caller ID, which the line fills in on every tool call
+ * (receptionist/tools.ts) and which nobody has to hear correctly.
  *
  * Caller ID is the fallback rather than the default because people ring on
  * behalf of others, and the number they give is the one they want used.
@@ -404,7 +291,7 @@ export async function handleSaveCustomerDetails(
     name?: string;
     email?: string;
     phone?: string;
-    /** Caller ID, if the Vapi tool body supplies it. */
+    /** Caller ID, filled in by the line. */
     callerNumber?: string;
     company?: string;
     businessType?: string;
@@ -618,7 +505,7 @@ export async function handleBookCallback(
       calendarEventId = written.ref;
     } else {
       console.warn(
-        "[VAPI FUNCTIONS] Callback calendar write failed:",
+        "[RECEPTIONIST] Callback calendar write failed:",
         written.reason
       );
     }
@@ -647,7 +534,7 @@ export async function handleBookCallback(
   };
 }
 
-/** Vapi body templates send unset fields as "" — that means absent. */
+/** A model often sends an unset field as "": that means absent. */
 function blankToUndefined(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -1063,7 +950,7 @@ async function readFreeSlots(
     return { ok: true, slots };
   } catch (err) {
     // Could not read the diary. Say so — never fall back to a guess.
-    console.error("[VAPI FUNCTIONS] Availability lookup failed:", err);
+    console.error("[RECEPTIONIST] Availability lookup failed:", err);
     return {
       ok: false,
       reply: {
@@ -1230,7 +1117,7 @@ type BookingParams = {
     service: string;
     stylist?: string;
     customerPhone: string;
-    /** Caller ID, if the Vapi tool body supplies it. */
+    /** Caller ID, filled in by the line. */
     callerNumber?: string;
     customerName?: string;
     clientType?: string;
@@ -1468,7 +1355,7 @@ async function checkBooking(organizationId: string, params: BookingParams) {
         stylist = matchStylist(free[0], cfg.stylists);
       }
     } catch (err) {
-      console.warn("[VAPI FUNCTIONS] Stylist inference failed:", err);
+      console.warn("[RECEPTIONIST] Stylist inference failed:", err);
     }
     // Nobody can take it: closed, outside hours, too late to fit the
     // service, or already booked. Asking "with whom?" would send the caller
@@ -1870,37 +1757,6 @@ export async function handleTakeMessage(
       "have nothing to add, thank them for calling.",
   };
 }
-
-export async function handleTransferCall(
-  organizationId: string,
-  params: { teamMember?: string; reason?: string }
-) {
-  const settings = await prisma.organizationSettings.findUnique({
-    where: { organizationId },
-  });
-  const members = (settings?.teamMembers as Array<{ name: string; phone: string }>) || [];
-
-  const member = params.teamMember
-    ? members.find((m) => m.name.toLowerCase().includes(params.teamMember!.toLowerCase()))
-    : members[0];
-
-  if (!member?.phone) {
-    return {
-      success: false,
-      message: "No team member available for transfer. Would you like to book a callback instead?",
-    };
-  }
-
-  return {
-    success: true,
-    destination: {
-      type: "number",
-      number: member.phone,
-      message: `Transferring you to ${member.name} now.`,
-    },
-  };
-}
-
 
 // -------------------------------------------------------------------------
 // Changing an existing appointment
@@ -2340,7 +2196,7 @@ export async function handleCancelAppointment(
       );
     } catch (err) {
       calendarCleared = false;
-      console.error("[VAPI FUNCTIONS] Calendar cancellation failed:", err);
+      console.error("[RECEPTIONIST] Calendar cancellation failed:", err);
     }
   }
 
@@ -2637,8 +2493,6 @@ export async function executeVapiFunction(
       return handleRescheduleAppointment(organizationId, parameters as Parameters<typeof handleRescheduleAppointment>[1]);
     case "take_message":
       return handleTakeMessage(organizationId, parameters as Parameters<typeof handleTakeMessage>[1]);
-    case "transfer_call":
-      return handleTransferCall(organizationId, parameters as Parameters<typeof handleTransferCall>[1]);
     default:
       return { error: `Unknown function: ${name}` };
   }

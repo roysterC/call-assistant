@@ -2,10 +2,9 @@
  * The receptionist's conversation loop: one caller turn in, a spoken reply
  * out, with whatever diary work it takes in between.
  *
- * This is the part Vapi does for us today, minus the audio. It is kept free of
- * the database and of any transport so the same loop serves the typed lab, the
- * browser microphone and the phone line — each of those only decides where the
- * caller's words come from and where the reply's words go.
+ * It is kept free of the database and of any transport so the same loop serves
+ * the typed lab, the browser microphone and the phone line — each of those only
+ * decides where the caller's words come from and where the reply's words go.
  *
  * The reply is streamed as it is written, so a voice layer can start speaking
  * the first sentence while the model is still writing the second. Tool calls
@@ -34,7 +33,7 @@ export interface StreamingClient {
  * the phone down once the goodbye has finished playing; the typed lab closes
  * the chat.
  *
- * Only honoured when the same reply says goodbye out loud. On Vapi the agent
+ * Only honoured when the same reply says goodbye out loud. A receptionist
  * once hung up a second after the caller said "That's correct", with no
  * goodbye at all (see CALL_CLOSING_RULES); here that attempt is turned back
  * with a reason, and the model says goodbye and tries again.

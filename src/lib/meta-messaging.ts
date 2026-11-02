@@ -413,7 +413,7 @@ async function processMessageEvent(
     channel,
     allowCLI: true,
     // Let Claude extract issue / name / email / company onto the lead
-    // when the customer shares them. Mirrors the Vapi voice flow.
+    // when the customer shares them. Mirrors the phone receptionist.
     extractToLead: conversation.leadId
       ? { leadId: conversation.leadId }
       : undefined,
