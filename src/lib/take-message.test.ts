@@ -25,8 +25,8 @@ vi.mock("@/lib/booking", async (original) => ({
   }),
 }));
 
-import { handleTakeMessage, mergeMessage } from "./receptionist/actions";
-import { buildVoiceTools } from "./vapi-assistant";
+import { handleTakeMessage, mergeMessage } from "./receptionist/messages";
+import { buildVoiceTools } from "./receptionist/tool-definitions";
 
 beforeEach(() => {
   vi.clearAllMocks();

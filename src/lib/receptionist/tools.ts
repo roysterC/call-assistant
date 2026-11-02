@@ -6,7 +6,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { VapiTool } from "@/lib/vapi-assistant";
+import type { ToolDefinition } from "@/lib/receptionist/tool-definitions";
 
 /**
  * Parameters the model must not be asked for, because the line already knows
@@ -15,7 +15,7 @@ import type { VapiTool } from "@/lib/vapi-assistant";
  */
 const SERVER_FILLED = new Set(["callerNumber"]);
 
-export function toClaudeTools(tools: VapiTool[]): Anthropic.Tool[] {
+export function toClaudeTools(tools: ToolDefinition[]): Anthropic.Tool[] {
   return tools.map(({ function: fn }) => {
     const params = fn.parameters as {
       properties?: Record<string, unknown>;

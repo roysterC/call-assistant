@@ -11,7 +11,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 import { getSalonConfig } from "@/lib/booking";
-import { executeVapiFunction } from "@/lib/receptionist/actions";
+import { runAction } from "@/lib/receptionist/actions";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
 import { upcomingDays } from "@/lib/receptionist/prompt";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
@@ -324,7 +324,7 @@ export async function startVoiceBooking(
         case "find_bookings":
           return { bookings: await upcomingBookings(asker, String(i.clientId ?? ""), cfg) };
         case "check_availability":
-          return executeVapiFunction("check_availability", asker.organizationId, {
+          return runAction("check_availability", asker.organizationId, {
             date: i.date,
             service: i.service,
             stylist: i.stylist,

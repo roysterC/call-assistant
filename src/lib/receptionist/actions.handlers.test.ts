@@ -73,13 +73,11 @@ import {
   handleBookAppointment,
   handleCheckAvailability,
   handleFindAppointment,
-  executeVapiFunction,
+  runAction,
   handleSaveCustomerDetails,
-  lookupPhone,
-  parseBookingNumber,
   saysNotBooked,
-  thirdPartyRefusal,
 } from "./actions";
+import { lookupPhone, parseBookingNumber, thirdPartyRefusal } from "./changes";
 
 const SARAH = "+447700900715";
 const OLIVIA = "+447700900714";
@@ -458,7 +456,7 @@ describe("what the model sends", () => {
   it("answers a number where text was expected, rather than crashing", async () => {
     // The stress test found `service: 123` crashing on .trim(). Numbers are
     // turned into text before any handler sees them.
-    const r = (await executeVapiFunction("check_availability", "org", { date: "Tuesday", service: 123 })) as {
+    const r = (await runAction("check_availability", "org", { date: "Tuesday", service: 123 })) as {
       message: string;
     };
     expect(r.message).toMatch(/"123"/);
@@ -775,8 +773,8 @@ describe("book_appointment", () => {
   });
 
   it("starts a refused booking with NOT booked, through the tool router", async () => {
-    const { executeVapiFunction } = await import("./actions");
-    const r = (await executeVapiFunction("book_appointment", "org", {
+    const { runAction } = await import("./actions");
+    const r = (await runAction("book_appointment", "org", {
       time: "2026-09-29T15:00:00+01:00",
       service: "blow dry",
       stylist: "Jo",

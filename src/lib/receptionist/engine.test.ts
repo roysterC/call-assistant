@@ -4,7 +4,8 @@ import { END_CALL, FALLBACK_REPLY, ReceptionistEngine, type StreamingClient, typ
 import { toClaudeTools, withCallerContext } from "./tools";
 import { buildSystem, greetingFor } from "./prompt";
 import { selectProvider, type SalonConfig } from "@/lib/booking";
-import { buildVoiceTools, composeVoicePrompt } from "@/lib/vapi-assistant";
+import { buildVoiceTools } from "@/lib/receptionist/tool-definitions";
+import { composeVoicePrompt } from "@/lib/receptionist/instructions";
 
 // --- A stand-in for the model ------------------------------------------------
 

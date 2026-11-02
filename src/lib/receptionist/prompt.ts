@@ -14,7 +14,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SalonConfig } from "@/lib/booking";
-import { composeVoicePrompt } from "@/lib/vapi-assistant";
+import { composeVoicePrompt } from "@/lib/receptionist/instructions";
 import { hoursForWeekday, zonedParts } from "@/lib/business-hours";
 
 export const SPOKEN_STYLE = `# You are on the phone
