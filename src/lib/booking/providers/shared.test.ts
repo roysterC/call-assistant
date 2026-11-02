@@ -20,14 +20,12 @@ const COLOUR: SalonService = {
   name: "Full head colour",
   durationMinutes: 120,
   requiresPatchTest: true,
-  bufferMinutes: 0,
   priceMinor: 9500,
 };
 const CUT: SalonService = {
   name: "Cut and finish",
   durationMinutes: 45,
   requiresPatchTest: false,
-  bufferMinutes: 0,
   priceMinor: 4500,
 };
 

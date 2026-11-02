@@ -12,7 +12,6 @@ const services = vi.hoisted(() => {
   const s = (name: string, pounds: number, minutes = 45, patch = false) => ({
     name,
     durationMinutes: minutes,
-    bufferMinutes: 0,
     requiresPatchTest: patch,
     priceMinor: pounds * 100,
   });

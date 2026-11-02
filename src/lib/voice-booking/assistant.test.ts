@@ -9,7 +9,7 @@ vi.mock("@/lib/booking", () => ({
   getSalonConfig: async () => ({
     timeZone: "Europe/London",
     hours: [],
-    services: [{ name: "Cut and finish", durationMinutes: 45, bufferMinutes: 0, requiresPatchTest: false, priceMinor: null }],
+    services: [{ name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false, priceMinor: null }],
     stylists: [{ name: "Jo", workingDays: [], services: [] }],
   }),
 }));

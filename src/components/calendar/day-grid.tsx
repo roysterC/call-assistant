@@ -36,6 +36,7 @@ import {
 import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
 import { FORMER_STYLIST_COLOUR, stylistInitials } from "@/lib/stylist-colours";
 import { useT } from "@/components/providers/language-provider";
+import { useDialogs } from "@/components/providers/dialogs-provider";
 import { minutesTime, type Clock, type Translate } from "@/lib/i18n";
 
 export interface CalendarAppointment {
@@ -470,6 +471,7 @@ function StylistColumn({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const { t, clock } = useT();
+  const { notify } = useDialogs();
   const bookable = stylist.worksToday && stylist.bookable && !isPastDay;
 
   // How much of the column has already been and gone. Booking into it would
@@ -532,9 +534,27 @@ function StylistColumn({
     return row;
   };
 
+  /**
+   * A click on empty time: open a booking there, or say why not. Refusals
+   * used to be silent, so a click on this morning simply did nothing and
+   * looked broken.
+   */
   const pick = (clientY: number) => {
     const el = ref.current;
-    if (!el || !bookable) return;
+    if (!el) return;
+    if (!bookable) {
+      notify(
+        isPastDay
+          ? t("grid.refusePastDay")
+          : stylist.former
+            ? t("grid.refuseFormer", { name: stylist.name })
+            : !stylist.bookable
+              ? t("grid.refuseNoCalendar", { name: stylist.name })
+              : t("grid.refuseNotIn", { name: stylist.name }),
+        "info"
+      );
+      return;
+    }
     const box = el.getBoundingClientRect();
     const row = rowFromOffset((clientY - box.top) / box.height);
 
@@ -542,6 +562,8 @@ function StylistColumn({
     // time through `earliestBookableStart`; the desk had no equivalent, so a
     // click on this morning would happily book into it.
     if (nowMinutes !== null && WINDOW_START_MIN + row * SLOT_MINUTES < nowMinutes) {
+      const next = Math.ceil(nowMinutes / SLOT_MINUTES) * SLOT_MINUTES;
+      notify(t("grid.refusePast", { time: minutesTime(next, clock) }), "info");
       return;
     }
 
@@ -712,7 +734,9 @@ function StylistColumn({
             }}
             title={`${a.unseen ? t("grid.newBooking") : ""}${shortTime(startMin, clock)}–${shortTime(endMin, clock)} ${clientLabel(a.lead, t)} — ${a.serviceText}`}
             className={cn(
-              "absolute rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
+              // Content from the top, where the booking starts: a button
+              // centres it otherwise, putting a long booking's time halfway down.
+              "absolute flex flex-col justify-start rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
               "text-[12px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
               // Colour now carries the service, so status needs its own
               // channel rather than competing for the fill.
@@ -734,13 +758,31 @@ function StylistColumn({
               width: `calc((100% - ${OVERBOOK_GUTTER_PX}px) / ${b.lanes} - 4px)`,
             }}
           >
+            {/* The start time is the headline, the largest thing on the
+                booking, so the day can be read from a step back; the end
+                time sits small beside it. Half-hour and quarter-hour
+                bookings put it before the name, a little smaller. */}
             {roomy && (
-              <span className="block truncate font-bold tabular-nums">
-                {shortTime(startMin, clock)} – {shortTime(endMin, clock)}
+              <span className="flex items-baseline gap-1.5 min-w-0">
+                <span className="shrink-0 text-[20px] font-extrabold leading-[1.1] tracking-[-0.01em] tabular-nums text-tea-green-100">
+                  {shortTime(startMin, clock)}
+                </span>
+                <span className="whitespace-nowrap text-[12.5px] font-semibold tabular-nums text-foreground/75">
+                  – {shortTime(endMin, clock)}
+                </span>
               </span>
             )}
-            <span className="flex items-center gap-1 font-semibold min-w-0">
-              {!roomy && <span className="shrink-0 font-bold tabular-nums">{shortTime(startMin, clock)}</span>}
+            <span className={cn("flex items-baseline gap-1.5 font-semibold min-w-0 text-[13px]", roomy && "mt-0.5")}>
+              {!roomy && (
+                <span
+                  className={cn(
+                    "shrink-0 font-extrabold leading-[1.1] tracking-[-0.01em] tabular-nums text-tea-green-100",
+                    length <= 15 ? "text-[15px]" : "text-[17px]"
+                  )}
+                >
+                  {shortTime(startMin, clock)}
+                </span>
+              )}
               {a.unseen && (
                 <span
                   className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-white"

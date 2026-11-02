@@ -145,7 +145,6 @@ export function computeBookableSlots(input: SlotComputationInput): TimeSlot[] {
   ).at;
 
   const durationMs = service.durationMinutes * MINUTE;
-  const bufferMs = service.bufferMinutes * MINUTE;
   const stepMs = granularityMinutes * MINUTE;
 
   const slots: TimeSlot[] = [];
@@ -156,19 +155,16 @@ export function computeBookableSlots(input: SlotComputationInput): TimeSlot[] {
 
     for (
       let start = new Date(openWindow.start.getTime());
-      // The service itself must finish before close. The tidy-up buffer may
-      // run past closing time — that is how a salon actually works — but it
-      // still has to be free of other bookings, checked below.
+      // The service must finish by closing time.
       start.getTime() + durationMs <= openWindow.end.getTime();
       start = new Date(start.getTime() + stepMs)
     ) {
       if (start < floor) continue;
 
       const serviceEnd = new Date(start.getTime() + durationMs);
-      const blockEnd = new Date(serviceEnd.getTime() + bufferMs);
 
       const clash = busy.some((b) =>
-        overlaps(start, blockEnd, b.start, b.end)
+        overlaps(start, serviceEnd, b.start, b.end)
       );
       if (clash) continue;
 
