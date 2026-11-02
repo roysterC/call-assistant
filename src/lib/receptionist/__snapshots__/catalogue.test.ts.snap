@@ -1,0 +1,1418 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the reply catalogue > book: a daughter on her mum's phone 1`] = `
+{
+  "noticed": [
+    {
+      "bookingNumber": 1050,
+      "clientName": "Amy Burns",
+      "id": "appt-new",
+      "serviceText": "Blow dry",
+      "startsAt": 2026-09-29T09:00:00.000Z,
+      "stylistName": "Jo",
+    },
+  ],
+  "reply": {
+    "bookingNumber": 1050,
+    "clientName": "Amy Burns",
+    "message": "Booked: Blow dry for Amy Burns with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T10:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+    "today": "2026-09-26",
+    "usedCallerId": true,
+  },
+  "texted": [
+    [
+      "+447700900721",
+      "Hi Claire Burns, Amy is booked in Tuesday at 10am for a blow dry with Jo. Booking no. 1050. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "booked": {
+        "record": {
+          "clientType": "unknown",
+          "durationMinutes": 45,
+          "leadId": "lead-Amy Burns",
+          "notes": null,
+          "organizationId": "org",
+          "patchTestRequired": false,
+          "serviceText": "Blow dry",
+          "source": "voice",
+          "stylistName": "Jo",
+        },
+        "write": {
+          "clientEmail": null,
+          "clientName": "Amy Burns",
+          "clientPhone": "+447700900721",
+          "durationMinutes": 45,
+          "leadId": "lead-Amy Burns",
+          "notes": undefined,
+          "organizationId": "org",
+          "serviceName": "Blow dry",
+          "startsAt": "2026-09-29T09:00:00.000Z",
+          "stylistName": "Jo",
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > book: a number read out 1`] = `
+{
+  "noticed": [
+    {
+      "bookingNumber": 1050,
+      "clientName": "Nina New",
+      "id": "appt-new",
+      "serviceText": "Blow dry",
+      "startsAt": 2026-09-29T09:00:00.000Z,
+      "stylistName": "Jo",
+    },
+  ],
+  "reply": {
+    "bookingNumber": 1050,
+    "clientName": "Nina New",
+    "message": "Booked: Blow dry for Nina New with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way.",
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T10:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+    "today": "2026-09-26",
+    "usedCallerId": false,
+  },
+  "texted": [
+    [
+      "+447700900799",
+      "Hi Nina New, you're booked in Tuesday at 10am for a blow dry with Jo. Booking no. 1050. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "booked": {
+        "record": {
+          "clientType": "unknown",
+          "durationMinutes": 45,
+          "leadId": "lead-Nina New",
+          "notes": null,
+          "organizationId": "org",
+          "patchTestRequired": false,
+          "serviceText": "Blow dry",
+          "source": "voice",
+          "stylistName": "Jo",
+        },
+        "write": {
+          "clientEmail": null,
+          "clientName": "Nina New",
+          "clientPhone": "+447700900799",
+          "durationMinutes": 45,
+          "leadId": "lead-Nina New",
+          "notes": undefined,
+          "organizationId": "org",
+          "serviceName": "Blow dry",
+          "startsAt": "2026-09-29T09:00:00.000Z",
+          "stylistName": "Jo",
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > book: a number that will not parse 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "badPhone": true,
+    "message": "That is 4 digits — too short for a UK number. Read it back digit by digit, confirm it, then book.",
+    "success": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > book: a patch test on record 1`] = `
+{
+  "noticed": [
+    {
+      "bookingNumber": 1050,
+      "clientName": "Sarah Friend",
+      "id": "appt-new",
+      "serviceText": "Root tint",
+      "startsAt": 2026-09-29T09:00:00.000Z,
+      "stylistName": "Jo",
+    },
+  ],
+  "reply": {
+    "bookingNumber": 1050,
+    "clientName": "Sarah Friend",
+    "message": "Booked: Root tint for Sarah Friend with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. If it helps, they have a patch test on record from 1 September 2026, so no new one is needed. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "patchTestOnRecord": "1 September 2026",
+    "patchTestRequired": false,
+    "service": "Root tint",
+    "startsAt": "2026-09-29T10:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+    "today": "2026-09-26",
+    "usedCallerId": true,
+  },
+  "texted": [
+    [
+      "+447700900715",
+      "Hi Sarah Friend, you're booked in Tuesday at 10am for a root tint with Jo. Booking no. 1050. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "booked": {
+        "record": {
+          "clientType": "unknown",
+          "durationMinutes": 90,
+          "leadId": "lead-sarah",
+          "notes": null,
+          "organizationId": "org",
+          "patchTestRequired": false,
+          "serviceText": "Root tint",
+          "source": "voice",
+          "stylistName": "Jo",
+        },
+        "write": {
+          "clientEmail": null,
+          "clientName": "Sarah Friend",
+          "clientPhone": "+447700900715",
+          "durationMinutes": 90,
+          "leadId": "lead-sarah",
+          "notes": undefined,
+          "organizationId": "org",
+          "serviceName": "Root tint",
+          "startsAt": "2026-09-29T09:00:00.000Z",
+          "stylistName": "Jo",
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > book: a regular, returning from her record 1`] = `
+{
+  "noticed": [
+    {
+      "bookingNumber": 1050,
+      "clientName": "Sarah Friend",
+      "id": "appt-new",
+      "serviceText": "Root tint",
+      "startsAt": 2026-09-29T09:00:00.000Z,
+      "stylistName": "Jo",
+    },
+  ],
+  "reply": {
+    "bookingNumber": 1050,
+    "clientName": "Sarah Friend",
+    "message": "Booked: Root tint for Sarah Friend with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "patchTestRequired": false,
+    "service": "Root tint",
+    "startsAt": "2026-09-29T10:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+    "today": "2026-09-26",
+    "usedCallerId": true,
+  },
+  "texted": [
+    [
+      "+447700900715",
+      "Hi Sarah Friend, you're booked in Tuesday at 10am for a root tint with Jo. Booking no. 1050. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "booked": {
+        "record": {
+          "clientType": "returning",
+          "durationMinutes": 90,
+          "leadId": "lead-sarah",
+          "notes": null,
+          "organizationId": "org",
+          "patchTestRequired": false,
+          "serviceText": "Root tint",
+          "source": "voice",
+          "stylistName": "Jo",
+        },
+        "write": {
+          "clientEmail": null,
+          "clientName": "Sarah Friend",
+          "clientPhone": "+447700900715",
+          "durationMinutes": 90,
+          "leadId": "lead-sarah",
+          "notes": undefined,
+          "organizationId": "org",
+          "serviceName": "Root tint",
+          "startsAt": "2026-09-29T09:00:00.000Z",
+          "stylistName": "Jo",
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > book: a stylist who is not here 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "message": ""Joe" is not a stylist here. Confirm the name with the caller, or say who you offered the slot with.",
+    "success": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > book: a time the diary did not offer 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "message": "Jo cannot take that time: it is booked, blocked, or not a time the diary offers. Call check_availability for that day and offer one of the times it gives.",
+    "notAvailable": true,
+    "success": false,
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > book: checked only, a new colour client 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "clientName": "Nina New",
+    "patchTestRequired": true,
+    "phone": "+447700900799",
+    "ready": true,
+    "service": "Root tint",
+    "startsAt": "2026-10-03T13:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "usedCallerId": true,
+    "when": "Saturday 3 October at 1pm",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > book: checked only, for the read-back 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "clientName": "Nina New",
+    "patchTestRequired": false,
+    "phone": "+447700900799",
+    "ready": true,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T14:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "usedCallerId": true,
+    "when": "Tuesday 29 September at 2pm",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > book: colour for someone new, far enough ahead 1`] = `
+{
+  "noticed": [
+    {
+      "bookingNumber": 1050,
+      "clientName": "Nina New",
+      "id": "appt-new",
+      "serviceText": "Root tint",
+      "startsAt": 2026-10-03T12:00:00.000Z,
+      "stylistName": "Jo",
+    },
+  ],
+  "reply": {
+    "bookingNumber": 1050,
+    "clientName": "Nina New",
+    "message": "Booked: Root tint for Nina New with Jo on Saturday the 3rd at 1pm. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. Also tell them, in one sentence: as a new colour client they need a quick skin test at the salon at least 48 hours before, which is separate and which the salon will be in touch to arrange. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "patchTestRequired": true,
+    "service": "Root tint",
+    "startsAt": "2026-10-03T13:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+    "today": "2026-09-26",
+    "usedCallerId": true,
+  },
+  "texted": [
+    [
+      "+447700900799",
+      "Hi Nina New, you're booked in Saturday 3 October at 1pm for a root tint with Jo. Booking no. 1050. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "booked": {
+        "record": {
+          "clientType": "new",
+          "durationMinutes": 90,
+          "leadId": "lead-Nina New",
+          "notes": null,
+          "organizationId": "org",
+          "patchTestRequired": true,
+          "serviceText": "Root tint",
+          "source": "voice",
+          "stylistName": "Jo",
+        },
+        "write": {
+          "clientEmail": null,
+          "clientName": "Nina New",
+          "clientPhone": "+447700900799",
+          "durationMinutes": 90,
+          "leadId": "lead-Nina New",
+          "notes": undefined,
+          "organizationId": "org",
+          "serviceName": "Root tint",
+          "startsAt": "2026-10-03T12:00:00.000Z",
+          "stylistName": "Jo",
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > book: colour for someone new, too soon 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "message": "Root tint needs a skin patch test at least 48 hours beforehand for a new client. Explain that and offer a later date.",
+    "patchTestRequired": true,
+    "success": false,
+    "today": "2026-09-26",
+    "tooSoon": true,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > book: colour, client type unknown 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "message": "Root tint is a colour service and there is no visit or patch test on record for Nina New on this number. Ask whether they have had colour here before, then book again with clientType 'returning' if they have, or 'new' if not.",
+    "needsClientType": true,
+    "success": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > book: no name 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "message": "No name was given. You cannot book without the caller's name. Ask for it again — and if you still do not catch it, ask them to spell it out letter by letter. Do not guess it, do not use the number instead, and do not thank them for a name you have not heard.",
+    "missingName": true,
+    "success": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > book: no stylist named, worked out from the slot 1`] = `
+{
+  "noticed": [
+    {
+      "bookingNumber": 1050,
+      "clientName": "Nina New",
+      "id": "appt-new",
+      "serviceText": "Blow dry",
+      "startsAt": 2026-09-29T13:00:00.000Z,
+      "stylistName": "Jo",
+    },
+  ],
+  "reply": {
+    "bookingNumber": 1050,
+    "clientName": "Nina New",
+    "message": "Booked: Blow dry for Nina New with Jo on Tuesday at 2pm. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T14:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+    "today": "2026-09-26",
+    "usedCallerId": true,
+  },
+  "texted": [
+    [
+      "+447700900799",
+      "Hi Nina New, you're booked in Tuesday at 2pm for a blow dry with Jo. Booking no. 1050. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "booked": {
+        "record": {
+          "clientType": "unknown",
+          "durationMinutes": 45,
+          "leadId": "lead-Nina New",
+          "notes": null,
+          "organizationId": "org",
+          "patchTestRequired": false,
+          "serviceText": "Blow dry",
+          "source": "voice",
+          "stylistName": "Jo",
+        },
+        "write": {
+          "clientEmail": null,
+          "clientName": "Nina New",
+          "clientPhone": "+447700900799",
+          "durationMinutes": 45,
+          "leadId": "lead-Nina New",
+          "notes": undefined,
+          "organizationId": "org",
+          "serviceName": "Blow dry",
+          "startsAt": "2026-09-29T13:00:00.000Z",
+          "stylistName": "Jo",
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > book: on caller ID, text not sent 1`] = `
+{
+  "noticed": [
+    {
+      "bookingNumber": 1050,
+      "clientName": "Sarah Friend",
+      "id": "appt-new",
+      "serviceText": "Blow dry",
+      "startsAt": 2026-09-29T09:00:00.000Z,
+      "stylistName": "Jo",
+    },
+  ],
+  "reply": {
+    "bookingNumber": 1050,
+    "clientName": "Sarah Friend",
+    "message": "Booked: Blow dry for Sarah Friend with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking. Do NOT promise a text — one could not be sent. It is on the number they are ringing from. The booking still stands; do not read the number out.",
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T10:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "textSent": false,
+    "today": "2026-09-26",
+    "usedCallerId": true,
+  },
+  "texted": [
+    [
+      "+447700900715",
+      "Hi Sarah Friend, you're booked in Tuesday at 10am for a blow dry with Jo. Booking no. 1050. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "booked": {
+        "record": {
+          "clientType": "unknown",
+          "durationMinutes": 45,
+          "leadId": "lead-sarah",
+          "notes": null,
+          "organizationId": "org",
+          "patchTestRequired": false,
+          "serviceText": "Blow dry",
+          "source": "voice",
+          "stylistName": "Jo",
+        },
+        "write": {
+          "clientEmail": null,
+          "clientName": "Sarah Friend",
+          "clientPhone": "+447700900715",
+          "durationMinutes": 45,
+          "leadId": "lead-sarah",
+          "notes": undefined,
+          "organizationId": "org",
+          "serviceName": "Blow dry",
+          "startsAt": "2026-09-29T09:00:00.000Z",
+          "stylistName": "Jo",
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > book: on caller ID, text sent 1`] = `
+{
+  "noticed": [
+    {
+      "bookingNumber": 1050,
+      "clientName": "Sarah Friend",
+      "id": "appt-new",
+      "serviceText": "Blow dry",
+      "startsAt": 2026-09-29T09:00:00.000Z,
+      "stylistName": "Jo",
+    },
+  ],
+  "reply": {
+    "bookingNumber": 1050,
+    "clientName": "Sarah Friend",
+    "message": "Booked: Blow dry for Sarah Friend with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T10:00:00+01:00",
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+    "today": "2026-09-26",
+    "usedCallerId": true,
+  },
+  "texted": [
+    [
+      "+447700900715",
+      "Hi Sarah Friend, you're booked in Tuesday at 10am for a blow dry with Jo. Booking no. 1050. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "booked": {
+        "record": {
+          "clientType": "unknown",
+          "durationMinutes": 45,
+          "leadId": "lead-sarah",
+          "notes": null,
+          "organizationId": "org",
+          "patchTestRequired": false,
+          "serviceText": "Blow dry",
+          "source": "voice",
+          "stylistName": "Jo",
+        },
+        "write": {
+          "clientEmail": null,
+          "clientName": "Sarah Friend",
+          "clientPhone": "+447700900715",
+          "durationMinutes": 45,
+          "leadId": "lead-sarah",
+          "notes": undefined,
+          "organizationId": "org",
+          "serviceName": "Blow dry",
+          "startsAt": "2026-09-29T09:00:00.000Z",
+          "stylistName": "Jo",
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > cancel: her own booking 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "calendarCleared": true,
+    "cancelled": "Tuesday at 9am",
+    "message": "Cancelled: Sarah Friend's Blow dry with Jo Tuesday at 9am. Confirm that back to the caller and say a text is coming. Offer to rebook if they want another time.",
+    "success": true,
+    "textSent": true,
+  },
+  "texted": [
+    [
+      "+447700900715",
+      "Hi Sarah Friend, your appointment Tuesday at 9am for a blow dry has been cancelled. Call us on 020 7431 7546 to rebook. Shogo",
+    ],
+  ],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > cancel: someone else's booking 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "found": true,
+    "message": "Say nothing about the booking yet. Ask whose name it is booked under, then call this again with the booking number and that name as bookingName.",
+    "needsBookingName": true,
+    "success": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: 'Saturday' said on a Saturday 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-10-03",
+    "durationMinutes": 45,
+    "message": "Today is Saturday, so "Saturday" was taken as a week today, not today; if they meant today, check "today". Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-10-03",
+        "day": "Saturday the 3rd",
+        "startsAt": "2026-10-03T08:30:00+01:00",
+        "time": "half past 8",
+      },
+      {
+        "date": "2026-10-03",
+        "day": "Saturday the 3rd",
+        "startsAt": "2026-10-03T13:00:00+01:00",
+        "time": "1pm",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a closed day 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": false,
+    "canCheck": true,
+    "closed": true,
+    "date": "2026-09-28",
+    "message": "The salon is closed on Monday — say that, not that it is booked up. Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 11am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "nextAvailable": {
+      "date": "2026-09-29",
+      "options": [
+        {
+          "date": "2026-09-29",
+          "day": "Tuesday",
+          "startsAt": "2026-09-29T09:00:00+01:00",
+          "time": "9am",
+        },
+        {
+          "date": "2026-09-29",
+          "day": "Tuesday",
+          "startsAt": "2026-09-29T11:00:00+01:00",
+          "time": "11am",
+        },
+      ],
+    },
+    "searchedDays": 14,
+    "today": "2026-09-26",
+    "unstaffed": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a day in the past 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": null,
+    "canCheck": true,
+    "message": "That date (2020-01-01) is in the past. Today is 2026-09-26. Work out the day the caller meant from that and call this again.",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a day nobody who does it works 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": false,
+    "canCheck": true,
+    "closed": false,
+    "date": "2026-09-29",
+    "message": "Nobody who does blow dry works Tuesday — say that it is not a day we offer it, not that it is booked up, so they do not ask again for the same day next week. Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "nextAvailable": {
+      "date": "2026-10-03",
+      "options": [
+        {
+          "date": "2026-10-03",
+          "day": "Saturday the 3rd",
+          "startsAt": "2026-10-03T08:30:00+01:00",
+          "time": "half past 8",
+        },
+        {
+          "date": "2026-10-03",
+          "day": "Saturday the 3rd",
+          "startsAt": "2026-10-03T13:00:00+01:00",
+          "time": "1pm",
+        },
+      ],
+    },
+    "searchedDays": 14,
+    "today": "2026-09-26",
+    "unstaffed": true,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a day with plenty free 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "time": "half past 12",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a diary read one day at a time, empty 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": false,
+    "canCheck": true,
+    "closed": false,
+    "date": "2026-09-29",
+    "message": "Nothing free on Tuesday for that service. Ask which other day suits them, and check that day.",
+    "nextAvailable": undefined,
+    "searchedDays": 1,
+    "today": "2026-09-26",
+    "unstaffed": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a named stylist 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "stylist": "Jo",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "stylist": "Jo",
+        "time": "half past 12",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a service the salon does not list 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": null,
+    "canCheck": true,
+    "message": ""balayage" is not on this salon's service list, so the salon does not offer it by that name. Do not say that it does. Tell the caller it is not on the price list, mention the closest listed service if one plainly fits, and offer to take a message so the stylist can ring them back.",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a stylist who does not do the service 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": null,
+    "canCheck": true,
+    "message": "Marcus does not do root tint. Jo does. Offer that, or ask whether they wanted a different service.",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: a stylist who is not here 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": null,
+    "canCheck": true,
+    "message": ""Joe" is not a stylist here. The team is Jo, Marcus. Check the name with the caller, then call this again.",
+    "team": [
+      "Jo",
+      "Marcus",
+    ],
+    "unknownStylist": true,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: after six, which has nothing 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "Nothing free in the window they asked for. Say so plainly, then: Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "time": "half past 12",
+      },
+    ],
+    "outsidePreference": true,
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: an afternoon 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at half past 12, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "time": "half past 12",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T15:30:00+01:00",
+        "time": "half past 3",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: colour for a regular found on her record 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 90,
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "time": "half past 12",
+      },
+    ],
+    "service": "Root tint",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: colour for someone new, inside the skin-test wait 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 90,
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "time": "half past 12",
+      },
+    ],
+    "service": "Root tint",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: colour for someone new, the day they named inside the skin-test wait 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": false,
+    "canCheck": true,
+    "closed": false,
+    "date": "2026-09-29",
+    "message": "Root tint needs a skin patch test at least 48 hours beforehand for a new client, done at the salon while it is open, so the earliest is Thursday. Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "nextAvailable": {
+      "date": "2026-10-03",
+      "options": [
+        {
+          "date": "2026-10-03",
+          "day": "Saturday the 3rd",
+          "startsAt": "2026-10-03T08:30:00+01:00",
+          "time": "half past 8",
+        },
+        {
+          "date": "2026-10-03",
+          "day": "Saturday the 3rd",
+          "startsAt": "2026-10-03T13:00:00+01:00",
+          "time": "1pm",
+        },
+      ],
+    },
+    "patchTestRequired": true,
+    "searchedDays": 14,
+    "today": "2026-09-26",
+    "unstaffed": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: colour for someone with a patch test on record 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 90,
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option. They have a patch test on record from 1 September 2026, so no new test is needed.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "time": "half past 12",
+      },
+    ],
+    "patchTestOnRecord": "1 September 2026",
+    "service": "Root tint",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: no day named 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": null,
+    "canCheck": true,
+    "message": "Which day did they mean? Ask for a specific day of the week or a date, then call this again.",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: no service named 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": null,
+    "canCheck": true,
+    "message": "Which service is that for? I need to know before I can check the diary, because different services take different amounts of time.",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: nothing in a month either 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": false,
+    "canCheck": true,
+    "closed": false,
+    "date": "2026-09-29",
+    "message": "Nothing free on Tuesday for that service. Nothing free for blow dry in the next month. Say so, and take a message with take_message so someone can ring them back with something.",
+    "nextAvailable": undefined,
+    "searchedDays": 31,
+    "today": "2026-09-26",
+    "unstaffed": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: nothing in two weeks 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": false,
+    "canCheck": true,
+    "closed": false,
+    "date": "2026-09-29",
+    "message": "Nothing free on Tuesday for that service. Nothing free for blow dry in the next two weeks. Say so, and ask whether they could wait longer. If they could, call this again with lookFurther true to look a month ahead; if not, take a message with take_message so someone can ring them back.",
+    "nextAvailable": undefined,
+    "searchedDays": 14,
+    "today": "2026-09-26",
+    "unstaffed": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: staff asking 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "Free on Tuesday: Jo at 9am, 10am, 11am, half past 12, 2pm and half past 3.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "stylist": "Jo",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T10:00:00+01:00",
+        "stylist": "Jo",
+        "time": "10am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T11:00:00+01:00",
+        "stylist": "Jo",
+        "time": "11am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "stylist": "Jo",
+        "time": "half past 12",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T14:00:00+01:00",
+        "stylist": "Jo",
+        "time": "2pm",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T15:30:00+01:00",
+        "stylist": "Jo",
+        "time": "half past 3",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: the soonest 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 11am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T11:00:00+01:00",
+        "time": "11am",
+      },
+    ],
+    "requestedDate": "2026-09-26",
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: the time asked for is free 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "exact": true,
+    "message": "2pm on Tuesday is free. Offer just that one; do not read out other times. If they take it, use the exact startsAt value. Do not name a stylist; who it is with is read back before it is booked.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T14:00:00+01:00",
+        "time": "2pm",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: the time asked for is taken 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "1pm is taken. Say so, then: Offer these two, each with its day, and nothing else: Tuesday at half past 12, or at 2pm. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T12:30:00+01:00",
+        "time": "half past 12",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T14:00:00+01:00",
+        "time": "2pm",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: too late today 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": false,
+    "canCheck": true,
+    "closed": false,
+    "date": "2026-09-26",
+    "message": "It is too late in the day for that today: the salon is closing or has closed. Say that, not that it is booked up. Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 11am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "nextAvailable": {
+      "date": "2026-09-29",
+      "options": [
+        {
+          "date": "2026-09-29",
+          "day": "Tuesday",
+          "startsAt": "2026-09-29T09:00:00+01:00",
+          "time": "9am",
+        },
+        {
+          "date": "2026-09-29",
+          "day": "Tuesday",
+          "startsAt": "2026-09-29T11:00:00+01:00",
+          "time": "11am",
+        },
+      ],
+    },
+    "searchedDays": 14,
+    "today": "2026-09-26",
+    "unstaffed": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > move: her own booking, to a free time 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "message": "Moved Sarah Friend's booking to Tuesday at 2pm with Jo. Confirm that back to the caller and say a text is coming.",
+    "movedTo": "Tuesday at 2pm",
+    "oldSlotReleased": true,
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+  },
+  "texted": [
+    [
+      "+447700900715",
+      "Hi Sarah Friend, your blow dry has moved from Tuesday at 9am to Tuesday at 2pm with Jo. Booking no. 1043. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "moved": {
+        "durationMinutes": 45,
+        "serviceName": "Blow dry",
+        "startsAt": 2026-09-29T13:00:00.000Z,
+        "stylistName": "Jo",
+      },
+    },
+  ],
+}
+`;
+
+exports[`the reply catalogue > move: someone else's booking 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "found": true,
+    "message": "Say nothing about the booking yet. Ask whose name it is booked under, then call this again with the booking number and that name as bookingName.",
+    "needsBookingName": true,
+    "success": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > move: to a time the diary did not offer (moves leave clashes to the diary's write) 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "message": "Moved Sarah Friend's booking to Tuesday at 1pm with Jo. Confirm that back to the caller and say a text is coming.",
+    "movedTo": "Tuesday at 1pm",
+    "oldSlotReleased": true,
+    "stylist": "Jo",
+    "success": true,
+    "textSent": true,
+  },
+  "texted": [
+    [
+      "+447700900715",
+      "Hi Sarah Friend, your blow dry has moved from Tuesday at 9am to Tuesday at 1pm with Jo. Booking no. 1043. Call us on 020 7431 7546 if that doesn't suit. Shogo",
+    ],
+  ],
+  "written": [
+    {
+      "moved": {
+        "durationMinutes": 45,
+        "serviceName": "Blow dry",
+        "startsAt": 2026-09-29T12:00:00.000Z,
+        "stylistName": "Jo",
+      },
+    },
+  ],
+}
+`;
