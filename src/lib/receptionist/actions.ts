@@ -8,7 +8,7 @@ import {
   getSalonConfig,
   type SalonConfig,
 } from "@/lib/booking";
-import type { BookingProvider, ReadableProvider } from "@/lib/booking/types";
+import type { BookingProvider, ReadableProvider, WritableProvider } from "@/lib/booking/types";
 import {
   DEFAULT_SEARCH_DAYS,
   filterSlotsByPreference,
@@ -1257,9 +1257,8 @@ function whyDayIsOut(cfg: SalonConfig, req: AvailabilityRequest, windowEmpty: bo
   return { why, closed, unstaffed, patchTest: floor.reason === "patch_test" };
 }
 
-export async function handleBookAppointment(
-  organizationId: string,
-  params: {
+/** What book_appointment is sent. */
+type BookingParams = {
     date?: string;
     day?: string;
     time: string;
@@ -1272,7 +1271,31 @@ export async function handleBookAppointment(
     clientType?: string;
     newClient?: boolean;
     notes?: string;
-  },
+  };
+
+/** A booking that has passed every rule, with all that writing it needs. */
+interface CheckedBooking {
+  provider: WritableProvider;
+  cfg: SalonConfig;
+  service: SalonService;
+  stylist: Stylist;
+  startsAt: Date;
+  clientName: string;
+  /** E.164: the number the booking goes on, and its text to. */
+  phone: string;
+  usedCallerId: boolean;
+  /** As said or found on their record: what the booking records. */
+  clientType: "new" | "returning" | "unknown";
+  needsSkinTest: boolean;
+  /** A patch test on the salon's records, as said ("1 September 2026"). */
+  onFile: string | null;
+  notes?: string;
+  today: string;
+}
+
+export async function handleBookAppointment(
+  organizationId: string,
+  params: BookingParams,
   /**
    * Check only: every rule a booking is held to, and nothing written. Gives
    * back exactly what would be booked, for the receptionist to read back
@@ -1280,6 +1303,20 @@ export async function handleBookAppointment(
    */
   opts: { dryRun?: boolean } = {}
 ) {
+  const checked = await checkBooking(organizationId, params);
+  if (checked.ok !== true) return checked;
+  return opts.dryRun ? readBackDetails(checked.booking) : writeBooking(organizationId, checked.booking);
+}
+
+/**
+ * Every rule a phone booking is held to, in order: a number, a name, a diary
+ * that takes bookings, the service, the stylist, the time, new or returning
+ * (from what was said, their record, or a patch test on file), the skin-test
+ * and lead-time floor, who owns an unnamed slot, the stylist doing the
+ * service, and the slot being one the diary offers. The refusal for the first
+ * that fails, or the booking ready to write.
+ */
+async function checkBooking(organizationId: string, params: BookingParams) {
   const { time, customerPhone, customerName, notes } = params;
 
   const resolvedPhone = resolveCallerPhone(customerPhone, params.callerNumber);
@@ -1516,36 +1553,65 @@ export async function handleBookAppointment(
     return { success: false, today, notAvailable: true, message: slotProblem };
   }
 
-  if (opts.dryRun) {
-    return {
-      success: true,
-      ready: true,
-      service: service.name,
-      stylist: stylist.name,
-      startsAt: zonedIsoString(startsAt, cfg.timeZone),
-      // Weekday and date, always: what is read back is checked against a
-      // calendar, and "Thursday" alone can be this week or next.
-      when: `${new Intl.DateTimeFormat("en-GB", {
-        timeZone: cfg.timeZone,
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-      }).format(startsAt)} at ${spokenTime(startsAt.toISOString(), cfg.timeZone)}`,
+  return {
+    ok: true as const,
+    booking: {
+      provider,
+      cfg,
+      service,
+      stylist,
+      startsAt,
       clientName,
       phone,
       usedCallerId: resolvedPhone.source === "callerId",
-      patchTestRequired: service.requiresPatchTest && patchType !== "returning",
-      ...(onFile ? { patchTestOnRecord: onFile } : {}),
-    };
-  }
+      clientType,
+      needsSkinTest: service.requiresPatchTest && patchType !== "returning",
+      onFile,
+      notes,
+      today,
+    } satisfies CheckedBooking,
+  };
+}
+
+/** What would be booked, for the read-back: nothing is written. */
+function readBackDetails(b: CheckedBooking) {
+  const { cfg, startsAt } = b;
+  return {
+    success: true,
+    ready: true,
+    service: b.service.name,
+    stylist: b.stylist.name,
+    startsAt: zonedIsoString(startsAt, cfg.timeZone),
+    // Weekday and date, always: what is read back is checked against a
+    // calendar, and "Thursday" alone can be this week or next.
+    when: `${new Intl.DateTimeFormat("en-GB", {
+      timeZone: cfg.timeZone,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(startsAt)} at ${spokenTime(startsAt.toISOString(), cfg.timeZone)}`,
+    clientName: b.clientName,
+    phone: b.phone,
+    usedCallerId: b.usedCallerId,
+    patchTestRequired: b.needsSkinTest,
+    ...(b.onFile ? { patchTestOnRecord: b.onFile } : {}),
+  };
+}
+
+/**
+ * Write a checked booking: the client record, the diary entry (whose own
+ * lock refuses a clash that crept in), the salon's notice, the confirmation
+ * text, and the reply.
+ */
+async function writeBooking(organizationId: string, b: CheckedBooking) {
+  const { provider, cfg, service, stylist, startsAt, clientName, phone, clientType, needsSkinTest, onFile, notes, today, usedCallerId } = b;
+
 
   // One number, one client record, but not always one person: a mum books
   // herself and her daughter on her own phone. The daughter goes on a record
   // of her own, reached through her mum's number (src/lib/client-link.ts).
   const { lead, contact } = await clientForBooking(organizationId, phone, clientName);
   const bookingNotes = blankToUndefined(notes);
-
-  const needsSkinTest = service.requiresPatchTest && patchType !== "returning";
 
   const written = await bookAppointment(
     provider,
@@ -1699,7 +1765,7 @@ export async function handleBookAppointment(
     service: service.name,
     clientName,
     textSent: sms.ok,
-    usedCallerId: resolvedPhone.source === "callerId",
+    usedCallerId: usedCallerId,
     patchTestRequired: needsSkinTest,
     ...(onFile ? { patchTestOnRecord: onFile } : {}),
     message:
@@ -1718,7 +1784,7 @@ export async function handleBookAppointment(
       // text has already gone to it. Asking afterwards whether the number is
       // right put a question to the caller about something they could not
       // change and had just been told was done; it only sounded unsure.
-      (resolvedPhone.source === "callerId"
+      (usedCallerId
         ? sms.ok
           ? " It is on the number they are ringing from, so say the text is on its way to this phone. " +
             "Do not read the number out or ask whether it is right."
@@ -2359,16 +2425,27 @@ export async function handleCancelAppointment(
   };
 }
 
-export async function handleRescheduleAppointment(
-  organizationId: string,
-  params: BookingLookup & {
-    date?: string;
-    day?: string;
-    time: string;
-    stylist?: string;
-  }
-) {
+/** What reschedule_appointment is sent: the booking, and where it goes. */
+type MoveParams = BookingLookup & {
+  date?: string;
+  day?: string;
+  time: string;
+  stylist?: string;
+};
 
+export async function handleRescheduleAppointment(organizationId: string, params: MoveParams) {
+  const checked = await checkMove(organizationId, params);
+  if (checked.ok !== true) return checked;
+  return writeMove(organizationId, checked.move);
+}
+
+/**
+ * Every rule a move by phone is held to: a diary that takes changes, the
+ * booking found and theirs to change, the new time, the service as it was
+ * booked, the skin-test and lead-time floor, the stylist, and opening hours
+ * and working days. The refusal for the first that fails, or the move.
+ */
+async function checkMove(organizationId: string, params: MoveParams) {
   const cfg = await getSalonConfig(organizationId);
   const provider = await getBookingProvider(organizationId);
   if (!canCreateBooking(provider)) {
@@ -2463,6 +2540,14 @@ export async function handleRescheduleAppointment(
     return { success: false, notAvailable: true, message: slotProblem };
   }
 
+  return { ok: true as const, move: { provider, cfg, appt, service, stylist, startsAt, previousWhenText } };
+}
+
+type CheckedMove = Extract<Awaited<ReturnType<typeof checkMove>>, { ok: true }>["move"];
+
+/** Move a checked booking, text the client, and say how it went. */
+async function writeMove(organizationId: string, m: CheckedMove) {
+  const { provider, cfg, appt, service, stylist, startsAt, previousWhenText } = m;
   const refused = (conflict: boolean) => ({
     success: false,
     conflict,
