@@ -73,13 +73,11 @@ import {
   handleBookAppointment,
   handleCheckAvailability,
   handleFindAppointment,
-  executeVapiFunction,
+  runAction,
   handleSaveCustomerDetails,
-  lookupPhone,
-  parseBookingNumber,
   saysNotBooked,
-  thirdPartyRefusal,
 } from "./actions";
+import { lookupPhone, parseBookingNumber, thirdPartyRefusal } from "./changes";
 
 const SARAH = "+447700900715";
 const OLIVIA = "+447700900714";
@@ -323,7 +321,28 @@ describe("check_availability: what is offered", () => {
   const slot = (iso: string, stylistName = "Jo") => ({ start: new Date(iso).toISOString(), end: "", stylistName });
   type Answer = { available: boolean; exact?: boolean; options: Array<{ day: string; time: string; stylist?: string }>; message: string };
   const ask = (p: Record<string, unknown>) =>
-    handleCheckAvailability("org", { service: "blow dry", ...p } as Parameters<typeof handleCheckAvailability>[1]) as Promise<Answer>;
+    handleCheckAvailability("org", { service: "blow dry", ...p } as Parameters<typeof handleCheckAvailability>[1]) as unknown as Promise<Answer>;
+
+  it("gives staff every free time on the day, with who is free, not a caller's two", async () => {
+    salon.free = [
+      slot("2026-09-29T10:00:00+01:00", "Jo"),
+      slot("2026-09-29T10:00:00+01:00", "Marcus"),
+      slot("2026-09-29T11:00:00+01:00", "Jo"),
+      slot("2026-09-29T14:00:00+01:00", "Jo"),
+      slot("2026-09-29T15:30:00+01:00", "Marcus"),
+    ];
+    const r = await ask({ date: "Tuesday", forStaff: true });
+    expect(r.options).toHaveLength(5);
+    expect(r.options.every((o) => o.stylist)).toBe(true);
+    expect(r.message).toBe("Free on Tuesday: Jo at 10am, 11am and 2pm; Marcus at 10am and half past 3.");
+    expect(r.message).not.toMatch(/Do not name a stylist|Offer these two/);
+  });
+
+  it("tells staff when the day is empty, and gives them the next day that is not", async () => {
+    salon.free = [slot("2026-10-03T09:00:00+01:00", "Jo")];
+    const r = await ask({ date: "Tuesday", forStaff: true });
+    expect(r.message).toBe("Nothing free on Tuesday. Free on Saturday the 3rd: Jo at 9am.");
+  });
 
   it("offers the time they asked for alone when it is free, without a stylist's name", async () => {
     salon.free = [slot("2026-09-29T10:00:00+01:00"), slot("2026-09-29T14:00:00+01:00", "Marcus")];
@@ -413,7 +432,8 @@ describe("check_availability late on a Saturday", () => {
     db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
     const tested = await ask();
     expect(tested.patchTestOnRecord).toBe("1 September 2026");
-    expect(tested.message).toMatch(/patch test on record from 1 September 2026, so no new test is needed/);
+    // Booked as returning without a word about it: nothing to say to the caller.
+    expect(tested.message).not.toMatch(/patch test/);
   });
 
   it("checks a caller with a patch test on record as returning, so colour has no 48-hour wait", async () => {
@@ -437,7 +457,7 @@ describe("what the model sends", () => {
   it("answers a number where text was expected, rather than crashing", async () => {
     // The stress test found `service: 123` crashing on .trim(). Numbers are
     // turned into text before any handler sees them.
-    const r = (await executeVapiFunction("check_availability", "org", { date: "Tuesday", service: 123 })) as {
+    const r = (await runAction("check_availability", "org", { date: "Tuesday", service: 123 })) as {
       message: string;
     };
     expect(r.message).toMatch(/"123"/);
@@ -521,8 +541,8 @@ describe("book_appointment", () => {
       callerNumber: "+447700900714",
     })) as { success: boolean; usedCallerId: boolean; textSent: boolean; message: string };
     expect(r).toMatchObject({ success: true, usedCallerId: true, textSent: true });
-    expect(r.message).toMatch(/on its way to this phone/);
-    expect(r.message).toMatch(/Do not read the number out or ask whether it is right/);
+    expect(r.message).toMatch(/a text is on its way/);
+    expect(r.message).toMatch(/do not read the number out or ask whether it is right/);
     // The digits are not handed over, so there is nothing to read out.
     expect(r.message).not.toMatch(/900|714/);
   });
@@ -538,7 +558,8 @@ describe("book_appointment", () => {
     })) as { success: boolean; textSent: boolean; message: string };
     expect(r).toMatchObject({ success: true, textSent: false });
     expect(r.message).toMatch(/Do NOT promise a text/);
-    expect(r.message).toMatch(/The booking still stands/);
+    expect(r.message).toMatch(/that it is booked/);
+    expect(r.message).toMatch(/do not read the number out/);
     // A failure on our side is not the caller's phone being a landline.
     expect(r.message).not.toMatch(/landline/);
     expect(r.message).not.toMatch(/431|7546/);
@@ -754,8 +775,8 @@ describe("book_appointment", () => {
   });
 
   it("starts a refused booking with NOT booked, through the tool router", async () => {
-    const { executeVapiFunction } = await import("./actions");
-    const r = (await executeVapiFunction("book_appointment", "org", {
+    const { runAction } = await import("./actions");
+    const r = (await runAction("book_appointment", "org", {
       time: "2026-09-29T15:00:00+01:00",
       service: "blow dry",
       stylist: "Jo",

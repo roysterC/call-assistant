@@ -34,8 +34,7 @@ describe("booking only after a read-back the caller has answered", () => {
     expect(deps.check).toHaveBeenCalledWith(asked);
     expect(deps.book).not.toHaveBeenCalled();
     expect(r.readBack).toBe(
-      "Wash and blow dry, medium hair with Chloe on Thursday 15 October at 11am, for Hannah Lee, " +
-        "and the confirmation text goes to the phone they're calling from."
+      "Wash and blow dry, medium hair with Chloe on Thursday 15 October at 11am, for Hannah Lee."
     );
     expect(r.message).toMatch(/^Nothing is booked yet/);
     expect(r.message).toMatch(new RegExp(`bookingRef ${r.bookingRef}`));
@@ -106,13 +105,13 @@ describe("the read-back sentence", () => {
   it("gives a number the caller read out, and never caller ID's digits", () => {
     expect(readBackSentence(checked)).not.toMatch(/\d{3}/);
     expect(readBackSentence({ ...checked, usedCallerId: false, phone: "+447700900605" })).toMatch(
-      /confirmation text goes to 07700 900605/
+      /with the text to 07700 900605/
     );
   });
 
   it("includes the skin test, before anything is booked, for a new colour client", () => {
     expect(readBackSentence({ ...checked, service: "Root tint", patchTestRequired: true })).toMatch(
-      /need a quick skin test at the salon at least 48 hours before/
+      /need a quick skin test at the salon 48 hours before/
     );
     expect(readBackSentence(checked)).not.toMatch(/skin test/);
   });

@@ -27,18 +27,19 @@ import {
   getSalonConfig,
   type SalonConfig,
 } from "@/lib/booking";
-import { bookAppointment, findBlockClash, findClash, moveAppointment } from "@/lib/booking/diary";
+import { bookAppointment, moveAppointment } from "@/lib/booking/diary";
+import type { BookingProvider } from "@/lib/booking/types";
 import {
   describeAppointmentWhen,
   parseDateOnly,
-  parseSpokenTime,
+  parseSpokenTimeOn,
   resolveSpokenDate,
   resolveSpokenPastDate,
   zonedDateString,
   zonedParts,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
-import { clientForBooking, hasVisited, textRecipient } from "@/lib/client-link";
+import { clientForBooking, textRecipient } from "@/lib/client-link";
 import {
   cancellationBody,
   confirmationBody,
@@ -52,7 +53,7 @@ import { checkClientEmail, checkClientPhone } from "@/lib/client-details";
 import { normalisePhone, speakablePhone } from "@/lib/phone";
 import { matchStylist, resolveBookedService, servicesLike, type SalonService, type Stylist } from "@/lib/salon-config";
 import type { TenantContext } from "@/lib/tenant";
-import { phoneSlotProblem, stylistServiceProblem } from "@/lib/receptionist/actions";
+import { colourStatus, moveClientType, staffSlotProblem, stylistServiceProblem } from "@/lib/booking/rules";
 import { parsePatchTestDate, spokenPatchTest } from "@/lib/patch-test";
 
 /** Who is asking, as far as drafting cares. */
@@ -239,39 +240,13 @@ function resolveWhen(
 ): { ok: true; at: Date } | { ok: false; message: string } {
   const day = date ? resolveSpokenDate(date, cfg.timeZone) : defaultDate ?? null;
   if (!day) return { ok: false, message: `Which day? "${date ?? ""}" is not a day I can place.` };
-  const clock = parseSpokenTime(time);
+  const clock = parseSpokenTimeOn(time, cfg.hours, day);
   if (!clock) return { ok: false, message: `What time? "${time ?? ""}" is not a time I can read.` };
   const d = parseDateOnly(day);
   const [h, m] = clock.split(":").map(Number);
   return { ok: true, at: zonedWallTimeToUtc(d.year, d.month, d.day, h, m, cfg.timeZone) };
 }
 
-/** Why `service` cannot go at `startsAt` with `stylist`, or null. */
-async function slotProblem(
-  asker: Asker,
-  cfg: SalonConfig,
-  startsAt: Date,
-  service: SalonService,
-  stylist: Stylist,
-  excludeAppointmentId?: string
-): Promise<string | null> {
-  if (startsAt.getTime() < Date.now() - PAST_GRACE_MS) return "That time has already gone.";
-  const pairing = stylistServiceProblem(stylist.name, service, cfg.stylists);
-  if (pairing) return pairing.replace(/ Offer that, or ask whether they wanted a different service\.$/, "");
-  const provider = await getBookingProvider(asker.organizationId);
-  const hours = await phoneSlotProblem(provider, asker.organizationId, cfg, startsAt, service, stylist, {
-    offeredOnly: false,
-  });
-  if (hours) return hours.replace(/ (Offer|Call) .*$/, "");
-  const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
-  const clash = await findClash(prisma, asker.organizationId, stylist.name, startsAt, endsAt, excludeAppointmentId);
-  if (clash) {
-    return `${stylist.name} already has ${clash.serviceText.toLowerCase()} at ${spokenTime(clash.startsAt, cfg.timeZone)}.`;
-  }
-  const block = await findBlockClash(prisma, asker.organizationId, stylist.name, startsAt, endsAt);
-  if (block) return block.stylistName === null ? "The salon is closed then." : `${stylist.name} is not available then.`;
-  return null;
-}
 
 /**
  * The first stylist, in team order, who does the service and is free then;
@@ -280,6 +255,7 @@ async function slotProblem(
  */
 async function anyFreeStylist(
   asker: Asker,
+  provider: BookingProvider,
   cfg: SalonConfig,
   startsAt: Date,
   service: SalonService
@@ -288,7 +264,7 @@ async function anyFreeStylist(
   for (const s of cfg.stylists) {
     if (s.bookable === false) continue;
     if (stylistServiceProblem(s.name, service, cfg.stylists)) continue;
-    const why = await slotProblem(asker, cfg, startsAt, service, s);
+    const why = await staffSlotProblem(provider, asker.organizationId, cfg, startsAt, service, s);
     if (!why) return { stylist: s };
     if (!/already has/.test(why)) reasons.add(why.replace(new RegExp(`^${s.name}\\b`), "Everyone"));
   }
@@ -385,10 +361,16 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
   if (!when.ok) return when;
   const startsAt = when.at;
 
-  const clientType = leadId && (await hasVisited(leadId)) ? "returning" : "new";
-  // A patch test on the client's record counts as having had one.
-  const tested = leadId ? await patchTestOnRecord(leadId) : false;
-  const needsTest = service.requiresPatchTest && clientType === "new" && !req.skinTestDone && !tested;
+  // New or returning from their visits; a patch test on their record, or
+  // staff saying they have had one, counts as having had one. The same rule
+  // as a phone booking (booking/rules.ts).
+  const { clientType: knownType, needsSkinTest: needsTest } = await colourStatus(
+    asker.organizationId,
+    service,
+    { leadId },
+    { skinTestDone: req.skinTestDone }
+  );
+  const clientType = knownType === "returning" ? "returning" : "new";
   if (needsTest) {
     const floor = earliestBookableStart(service, "new", new Date(), 0, undefined, { hours: cfg.hours, timeZone: cfg.timeZone });
     if (startsAt < floor.at) {
@@ -407,10 +389,10 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
     if (!stylist) {
       return { ok: false, message: `"${req.stylist}" is not on the team: ${cfg.stylists.map((s) => s.name).join(", ")}.` };
     }
-    const why = await slotProblem(asker, cfg, startsAt, service, stylist);
+    const why = await staffSlotProblem(provider, asker.organizationId, cfg, startsAt, service, stylist);
     if (why) return { ok: false, message: why };
   } else {
-    const free = await anyFreeStylist(asker, cfg, startsAt, service);
+    const free = await anyFreeStylist(asker, provider, cfg, startsAt, service);
     if ("reason" in free) return { ok: false, message: free.reason };
     stylist = free.stylist;
   }
@@ -458,11 +440,6 @@ function shownPhone(e164: string): string {
   return r.isMobile ? speakablePhone(e164) : r.national;
 }
 
-async function patchTestOnRecord(leadId: string): Promise<boolean> {
-  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { patchTestAt: true } });
-  return Boolean(lead?.patchTestAt);
-}
-
 /** An upcoming booking this person may change, or why not. */
 async function changeable(asker: Asker, appointmentId: string | undefined) {
   if (!appointmentId) return { ok: false as const, message: "Which booking? Look the client's bookings up first." };
@@ -496,9 +473,20 @@ export async function proposeMove(
 
   const stylist = matchStylist(req.stylist ?? appt.stylistName, cfg.stylists);
   if (!stylist) return { ok: false, message: `"${req.stylist}" is not on the team.` };
-  const why = await slotProblem(asker, cfg, when.at, { ...service, durationMinutes: appt.durationMinutes }, stylist, appt.id);
+  const provider = await getBookingProvider(asker.organizationId);
+  const why = await staffSlotProblem(
+    provider,
+    asker.organizationId,
+    cfg,
+    when.at,
+    { ...service, durationMinutes: appt.durationMinutes },
+    stylist,
+    appt.id
+  );
   if (why) return { ok: false, message: why };
-  if (appt.patchTestRequired) {
+  // Still waiting on its skin test, unless one has been recorded since: the
+  // same rule as a move by phone (booking/rules.ts).
+  if ((await moveClientType({ patchTestRequired: appt.patchTestRequired, leadId: appt.leadId })) === "new") {
     const floor = earliestBookableStart(service, "new", new Date(), 0, undefined, { hours: cfg.hours, timeZone: cfg.timeZone });
     if (when.at < floor.at) {
       return { ok: false, message: `This colour is waiting on a skin test, so it cannot move before ${spokenWhen(floor.at, cfg.timeZone)}.` };

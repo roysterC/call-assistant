@@ -118,8 +118,8 @@ interface ChatOptions {
 }
 
 /**
- * Anthropic tool definition. Mirrors the shape of Vapi's existing
- * save_customer_details function so all channels populate Lead fields
+ * Anthropic tool definition. Mirrors the shape of the phone receptionist's
+ * save_customer_details tool so all channels populate Lead fields
  * consistently.
  *
  * Earlier (cautious) wording made the model under-call the tool. Current

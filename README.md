@@ -1,4 +1,4 @@
-DOAI Call Assistant — multi-tenant CRM for voice (Vapi), WhatsApp, and embeddable website chatbots.
+DOAI Call Assistant — multi-tenant CRM for voice (our own phone receptionist), WhatsApp, and embeddable website chatbots.
 
 ## Local development
 
@@ -309,13 +309,13 @@ sudo -u postgres dropdb restore_test
 Restoring over the live database is refused unless `--replace-live` is
 passed. Stop `call-assistant.service` before doing that for real.
 
-### The phone line (our own receptionist, not Vapi)
+### The phone line (our own receptionist)
 
 A call to the salon's Twilio number is answered by our own receptionist:
 
 1. Twilio posts "a call comes in" to `/api/twilio/voice`. The CRM checks
    Twilio's signature (`TWILIO_AUTH_TOKEN`), finds the salon from the number
-   dialled (a voice number on the salon in Admin, channel "vapi"), and answers
+   dialled (a Voice number on the salon in Admin), and answers
    with TwiML that streams the call to the voice server with a one-minute
    pass (`src/lib/twilio-voice.ts`).
 2. The voice server takes it on `/voice/phone`: 8kHz mu-law both ways, the
@@ -324,13 +324,12 @@ A call to the salon's Twilio number is answered by our own receptionist:
    usage (including the phone line, `USAGE_RATE_TELEPHONY_PER_MIN`) is
    recorded against the salon. A deploy waits for live calls to finish.
 
-To switch a salon from Vapi to this:
+To put a salon's number on it:
 
 1. Admin → the salon → phone numbers: add the Twilio number (E.164, channel
-   "vapi"), if it is not there already.
+   Voice), if it is not there already.
 2. Twilio console → the number → Voice configuration → "A call comes in":
-   Webhook, `https://89-58-45-110.nip.io/api/twilio/voice`, HTTP POST. This is
-   the switch: Vapi stops receiving the calls.
+   Webhook, `https://89-58-45-110.nip.io/api/twilio/voice`, HTTP POST.
 3. `.env` on the box needs `TWILIO_AUTH_TOKEN` (already there for texts),
    `RECEPTIONIST_VOICE_URL`, `RECEPTIONIST_VOICE_SECRET`, `DEEPGRAM_API_KEY`,
    `ELEVENLABS_API_KEY` and an Anthropic key, as for the lab. If the web
@@ -338,8 +337,6 @@ To switch a salon from Vapi to this:
    the exact URL Twilio calls, or every call is refused as unsigned.
 4. Ring the number. The voice server's log shows `[VOICE] phone call CA...`,
    and the call appears in Call History when it ends.
-
-To go back, point the number's webhook at Vapi again.
 
 ### The personal assistant
 

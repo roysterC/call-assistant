@@ -4,14 +4,14 @@
  * Everything salon-specific is read once, when the call starts, so the
  * instructions and tool list are byte-identical for every turn of the call and
  * the prompt cache holds. A salon editing its hours mid-call gets them on the
- * next call, which is the same thing the Vapi sync does.
+ * next call.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
-import { buildVoiceTools } from "@/lib/vapi-assistant";
-import { executeVapiFunction, handleBookAppointment, isVapiFunctionName, normaliseParameters } from "@/lib/receptionist/actions";
+import { buildVoiceTools } from "@/lib/receptionist/tool-definitions";
+import { runAction, handleBookAppointment, isActionName, normaliseParameters } from "@/lib/receptionist/actions";
 import { ReadBackGate } from "./read-back";
 import { END_CALL_TOOL, ReceptionistEngine, type StreamingClient } from "./engine";
 import { buildSystem, greetingFor } from "./prompt";
@@ -97,7 +97,7 @@ export async function startReceptionist(
   }
   const cfg = await getSalonConfig(organizationId);
   const caps = selectProvider(cfg).capabilities;
-  const tools = toClaudeTools(buildVoiceTools(caps, { ownLine: true }));
+  const tools = toClaudeTools(buildVoiceTools(caps));
   const allowed = new Set(tools.map((t) => t.name));
   const businessName = settings?.businessName ?? "";
 
@@ -107,14 +107,14 @@ export async function startReceptionist(
     check: (input) =>
       handleBookAppointment(
         organizationId,
-        // Tidied as executeVapiFunction tidies the real booking's input.
+        // Tidied as runAction tidies the real booking's input.
         normaliseParameters(withCallerContext("book_appointment", input, opts.callerNumber)) as Parameters<
           typeof handleBookAppointment
         >[1],
         { dryRun: true }
       ),
     book: (input) =>
-      executeVapiFunction("book_appointment", organizationId, withCallerContext("book_appointment", input, opts.callerNumber)),
+      runAction("book_appointment", organizationId, withCallerContext("book_appointment", input, opts.callerNumber)),
   });
 
   const engine: ReceptionistEngine = new ReceptionistEngine({
@@ -137,10 +137,10 @@ export async function startReceptionist(
     execute: async (name, input) => {
       if (name === "prepare_booking" && allowed.has(name)) return readBack.prepare(input);
       if (name === "book_appointment" && allowed.has(name)) return readBack.book(input);
-      if (!allowed.has(name) || !isVapiFunctionName(name)) {
+      if (!allowed.has(name) || !isActionName(name)) {
         return { error: `There is no tool called ${name}.` };
       }
-      return executeVapiFunction(name, organizationId, withCallerContext(name, input, opts.callerNumber));
+      return runAction(name, organizationId, withCallerContext(name, input, opts.callerNumber));
     },
   });
 

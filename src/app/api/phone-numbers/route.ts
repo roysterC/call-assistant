@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { parsePagination } from "@/lib/pagination";
+import { PHONE_CHANNELS } from "@/lib/phone-channels";
 
 /**
  * Tenant-scoped, read-only list of phone numbers owned by the caller's org.
  *
  * Super-admins can scope to a different org via `?asOrg=<id>` (handled inside
- * requireTenant). Optional `?channel=whatsapp|vapi` filter.
+ * requireTenant). Optional `?channel=` filter (see lib/phone-channels).
  *
- * Internal provider IDs (vapiPhoneNumberId, whatsappPhoneNumberId) are never
+ * Internal provider IDs (such as whatsappPhoneNumberId) are never
  * exposed here — those live on the super-admin admin route.
  */
 export async function GET(req: NextRequest) {
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const channelParam = req.nextUrl.searchParams.get("channel");
     const channel =
-      channelParam === "whatsapp" || channelParam === "vapi"
+      (PHONE_CHANNELS as readonly string[]).includes(channelParam ?? "")
         ? channelParam
         : undefined;
 

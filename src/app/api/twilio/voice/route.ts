@@ -19,6 +19,7 @@ import {
   validTwilioSignature,
 } from "@/lib/twilio-voice";
 import { normalisePhone } from "@/lib/phone";
+import { VOICE_CHANNEL } from "@/lib/phone-channels";
 
 const twiml = (body: string, status = 200) =>
   new Response(body, { status, headers: { "Content-Type": "text/xml; charset=utf-8" } });
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
   const dialled = normalisePhone(params.To);
   const line = dialled.ok
     ? await prisma.phoneNumber.findFirst({
-        where: { number: dialled.e164, channel: "vapi", active: true },
+        where: { number: dialled.e164, channel: VOICE_CHANNEL, active: true },
         select: { organizationId: true, organization: { select: { settings: { select: { voiceEnabled: true } } } } },
       })
     : null;

@@ -46,7 +46,7 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { plural } from "@/lib/plural";
-import { VapiSyncCard } from "@/components/admin/vapi-sync-card";
+import { VOICE_CHANNEL, WHATSAPP_CHANNEL, channelLabel } from "@/lib/phone-channels";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 
 
@@ -89,7 +89,6 @@ interface Org {
     id: string;
     number: string;
     channel: string;
-    vapiPhoneNumberId: string | null;
     whatsappPhoneNumberId: string | null;
     label: string | null;
   }>;
@@ -107,8 +106,7 @@ export default function OrganizationDetailPage() {
   const [phoneDialog, setPhoneDialog] = useState(false);
   const [phoneForm, setPhoneForm] = useState({
     number: "",
-    channel: "whatsapp",
-    vapiPhoneNumberId: "",
+    channel: WHATSAPP_CHANNEL,
     whatsappPhoneNumberId: "",
     label: "",
   });
@@ -339,8 +337,7 @@ export default function OrganizationDetailPage() {
     setPhoneDialog(false);
     setPhoneForm({
       number: "",
-      channel: "whatsapp",
-      vapiPhoneNumberId: "",
+      channel: WHATSAPP_CHANNEL,
       whatsappPhoneNumberId: "",
       label: "",
     });
@@ -496,17 +493,17 @@ export default function OrganizationDetailPage() {
     {
       id: "channel",
       header: "Channel",
-      accessorFn: (p) => (p.channel === "vapi" ? "Voice" : p.channel),
+      accessorFn: (p) => channelLabel(p.channel),
       cell: ({ row: { original: p } }) => (
-        <Pill className="bg-muted capitalize text-foreground">{p.channel === "vapi" ? "Voice" : p.channel}</Pill>
+        <Pill className="bg-muted capitalize text-foreground">{channelLabel(p.channel)}</Pill>
       ),
     },
     {
       id: "provider",
       header: "Provider ID",
-      accessorFn: (p) => p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "",
+      accessorFn: (p) => p.whatsappPhoneNumberId || "",
       meta: { className: "font-mono text-xs text-muted-foreground" },
-      cell: ({ row: { original: p } }) => p.vapiPhoneNumberId || p.whatsappPhoneNumberId || "—",
+      cell: ({ row: { original: p } }) => p.whatsappPhoneNumberId || "—",
     },
     {
       id: "actions",
@@ -789,8 +786,8 @@ export default function OrganizationDetailPage() {
                 onToggle={(v) => updateFeature("facebookEnabled", v)}
               />
               <FeatureToggle
-                label="Voice agent (Vapi)"
-                description="Inbound phone calls handled by AI"
+                label="Phone receptionist"
+                description="Calls to the salon's Voice numbers answered by our receptionist"
                 enabled={org.settings.voiceEnabled}
                 onToggle={(v) => updateFeature("voiceEnabled", v)}
               />
@@ -1025,24 +1022,14 @@ export default function OrganizationDetailPage() {
 
             <div className="border-t border-border pt-5">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Voice agent (Vapi)
+                Phone receptionist
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Tools live in the Vapi dashboard, along with their server URLs
-                and credentials. The system prompt is generated from this
-                org&apos;s settings and pushed from the card below. Inbound
-                calls route here via the org&apos;s phone numbers (managed
-                above), falling back to the assistant id for web calls.
+                Its instructions are generated from this salon&apos;s settings
+                at the start of every call. Calls reach it through the
+                salon&apos;s Voice numbers (below) once Twilio points them at
+                /api/twilio/voice.
               </p>
-              <a
-                href="https://dashboard.vapi.ai"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-2"
-              >
-                <ExternalLink className="w-3 h-3" />
-                Open Vapi dashboard
-              </a>
 
               {/* Cal.com integration — books an event when the voice agent
                   creates a callback. Optional; leave blank to skip. */}
@@ -1103,10 +1090,6 @@ export default function OrganizationDetailPage() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {org.settings?.voiceEnabled && (
-        <VapiSyncCard organizationId={org.id} />
       )}
 
       <section className="space-y-3" aria-labelledby="org-phones">
@@ -1206,12 +1189,12 @@ export default function OrganizationDetailPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="vapi">Vapi (voice)</SelectItem>
+                  <SelectItem value={WHATSAPP_CHANNEL}>WhatsApp</SelectItem>
+                  <SelectItem value={VOICE_CHANNEL}>Voice (our receptionist)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {phoneForm.channel === "whatsapp" ? (
+            {phoneForm.channel === WHATSAPP_CHANNEL ? (
               <div>
                 <label className="text-xs font-medium">
                   WhatsApp Phone Number ID (from Meta)
@@ -1229,19 +1212,10 @@ export default function OrganizationDetailPage() {
                 />
               </div>
             ) : (
-              <div>
-                <label className="text-xs font-medium">Vapi Phone Number ID</label>
-                <Input
-                  value={phoneForm.vapiPhoneNumberId}
-                  onChange={(e) =>
-                    setPhoneForm({
-                      ...phoneForm,
-                      vapiPhoneNumberId: e.target.value,
-                    })
-                  }
-                  className="mt-1"
-                />
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Calls to this number are answered by our receptionist once its
+                webhook in Twilio points at /api/twilio/voice.
+              </p>
             )}
             <div>
               <label className="text-xs font-medium">Label (optional)</label>

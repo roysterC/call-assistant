@@ -29,6 +29,7 @@ import { useMe } from "@/components/providers/me-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { ExpandableSection } from "@/components/settings/expandable-section";
 import { plural } from "@/lib/plural";
+import { VOICE_CHANNEL, type PhoneChannel } from "@/lib/phone-channels";
 
 const labelFor = (href: string) => NAV_PAGES.find((p) => p.href === href)?.label ?? "Dashboard";
 
@@ -57,7 +58,7 @@ interface Settings {
 interface PhoneNumber {
   id: string;
   number: string;
-  channel: "vapi" | "whatsapp";
+  channel: PhoneChannel;
   label: string | null;
   active: boolean;
   createdAt: string;
@@ -117,7 +118,7 @@ export default function SettingsPage() {
         }
         if (s.voiceEnabled) {
           fetches.push(
-            apiFetch("/api/phone-numbers?channel=vapi")
+            apiFetch(`/api/phone-numbers?channel=${VOICE_CHANNEL}`)
               .then((r) => r.json())
               .then((d) => setVoiceNumbers(d.phoneNumbers || []))
               .catch(() => setVoiceNumbers([])),

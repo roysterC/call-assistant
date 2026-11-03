@@ -686,6 +686,39 @@ const PAST_TO_MINUTES: Record<string, number> = {
  * a time at all gives null.
  */
 export function parseSpokenTime(input: string | number | null | undefined): string | null {
+  return readSpokenTime(input)?.clock ?? null;
+}
+
+/**
+ * A spoken time on a given day, read inside the salon's hours that day.
+ *
+ * Callers say "3", not "3pm", and nobody at a salon means three in the
+ * morning; asking "am or pm?" only annoys them. So when no am or pm was said,
+ * a time outside the day's opening hours whose other half of the clock is
+ * inside them is taken as that one: "7" is 7am at a salon open 7 to 6, and
+ * 7pm at one open till 9. Said with am or pm, or written as 24-hour time, it
+ * is left as it is, and a time that fits neither way is left for the booking
+ * to refuse with the hours.
+ */
+export function parseSpokenTimeOn(
+  input: string | number | null | undefined,
+  hours: BusinessHours,
+  date: string | null | undefined
+): string | null {
+  const read = readSpokenTime(input);
+  if (!read || read.fixed || !date) return read?.clock ?? null;
+  const { year, month, day } = parseDateOnly(date);
+  const today = hoursForWeekday(hours, new Date(Date.UTC(year, month - 1, day)).getUTCDay());
+  if (!today || today.closed) return read.clock;
+  const inside = (clock: string) => clock >= today.open && clock < today.close;
+  if (inside(read.clock)) return read.clock;
+  const [h, m] = read.clock.split(":").map(Number);
+  const other = `${String((h + 12) % 24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  return inside(other) ? other : read.clock;
+}
+
+/** The time, and whether it was said exactly (am/pm, 24-hour, noon) or is a bare hour. */
+function readSpokenTime(input: string | number | null | undefined): { clock: string; fixed: boolean } | null {
   if (input === null || input === undefined) return null;
   let t = String(input)
     .toLowerCase()
@@ -702,8 +735,8 @@ export function parseSpokenTime(input: string | number | null | undefined): stri
     t = t.slice(0, periodMatch.index).trim();
   }
 
-  if (t === "noon" || t === "midday") return "12:00";
-  if (t === "midnight") return "00:00";
+  if (t === "noon" || t === "midday") return { clock: "12:00", fixed: true };
+  if (t === "midnight") return { clock: "00:00", fixed: true };
 
   const hourOf = (w: string): number | undefined => (/^\d{1,2}$/.test(w) ? Number(w) : HOUR_WORDS[w]);
   // A written 24-hour time with a leading zero ("09:30") is already exact.
@@ -754,5 +787,8 @@ export function parseSpokenTime(input: string | number | null | undefined): stri
 
   let total = hour * 60 + minute - minus;
   if (total < 0) total += 24 * 60;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  return {
+    clock: `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`,
+    fixed: period !== null || exact,
+  };
 }

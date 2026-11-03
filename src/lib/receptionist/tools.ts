@@ -1,13 +1,12 @@
 /**
  * The salon's tools, in the shape the Claude API takes.
  *
- * Generated from the same capability-driven list the Vapi assistant is given
- * (`buildVoiceTools`), so both receptionists can do exactly the same things and
- * the booking rules behind them are shared, not copied.
+ * Generated from the capability-driven list in `buildVoiceTools`, so the
+ * tools offered always match what the salon's diary can do.
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
-import type { VapiTool } from "@/lib/vapi-assistant";
+import type { ToolDefinition } from "@/lib/receptionist/tool-definitions";
 
 /**
  * Parameters the model must not be asked for, because the line already knows
@@ -16,7 +15,7 @@ import type { VapiTool } from "@/lib/vapi-assistant";
  */
 const SERVER_FILLED = new Set(["callerNumber"]);
 
-export function toClaudeTools(tools: VapiTool[]): Anthropic.Tool[] {
+export function toClaudeTools(tools: ToolDefinition[]): Anthropic.Tool[] {
   return tools.map(({ function: fn }) => {
     const params = fn.parameters as {
       properties?: Record<string, unknown>;
@@ -54,6 +53,10 @@ export function withCallerContext(
   input: Record<string, unknown>,
   callerNumber: string | null
 ): Record<string, unknown> {
-  if (!callerNumber) return { ...input };
-  return { ...input, callerNumber };
+  // The staff view of the diary (every free time, with names) is for the
+  // CRM's own assistant: a caller cannot talk the receptionist into it.
+  const { forStaff: _staffOnly, ...rest } = input;
+  void _staffOnly;
+  if (!callerNumber) return rest;
+  return { ...rest, callerNumber };
 }
