@@ -345,32 +345,33 @@ To put a salon's number on it:
 region (US1) because every call failed. It stays on US1 until the steps
 below are done.
 
-Why calls failed is not yet known. On IE1 the number at first had no "A call
-comes in" webhook; once that was set, calls were still refused with a
-"sorry". The first guess, that IE1 signs webhooks with a different auth
-token, does not hold: the account's auth token is the same on IE1. Find the
-cause before moving it again: Twilio console → Monitor → Logs → Errors for
-the failed calls (3 November, around 12:20), and
-`journalctl -u call-assistant.service --since "2026-11-03 11:30" --until "2026-11-03 12:40" | grep -i twilio`.
-Nothing in the incoming-call path is region-specific (Twilio posts the
-webhook; the CRM answers with TwiML), so the error code decides the fix.
+Why calls failed: Twilio keeps a number's settings per region, and each
+region has its own auth token, valid only there, which it signs webhooks
+with. On IE1 the number had no "A call comes in" webhook at first; once set,
+the CRM answered every call 403 (Twilio's error log) because they were
+signed with the IE1 token, not `TWILIO_AUTH_TOKEN`. The Console's token page
+shows one region at a time and opens on US1, so the IE1 token looks
+unchanged until the region is switched there.
 
 To move it, in this order:
 
-1. Fix whatever the error log above shows.
-2. Only if IE1's auth token turns out to differ from `TWILIO_AUTH_TOKEN`:
-   add it to `/home/deploy/call-assistant/.env` as
-   `TWILIO_WEBHOOK_AUTH_TOKENS=<the IE1 auth token>` and restart
-   `call-assistant.service`. Leave `TWILIO_AUTH_TOKEN` alone: texts use it.
+1. Twilio console → Builder tools → API Key & creds → API Keys & auth tokens
+   (legacy: Account → Keys & Credentials → API keys & tokens). Switch the
+   Region selector to IE1 first, then copy the Auth Token shown for IE1.
+2. On the box, add it to `/home/deploy/call-assistant/.env`:
+   `TWILIO_WEBHOOK_AUTH_TOKENS=<the IE1 auth token>` (comma-separated for
+   more than one). Leave `TWILIO_AUTH_TOKEN` alone: texts are sent with it.
+   Then `systemctl restart call-assistant.service`.
 3. Twilio console → move the number to IE1 → set "A call comes in" there:
    Webhook, `https://89-58-45-110.nip.io/api/twilio/voice`, HTTP POST.
 4. Ring the number. If it fails, `journalctl -u call-assistant.service -n 50 | grep TWILIO`
    says why: "refused an unsigned or mis-signed voice webhook" is the token;
    "matched no salon's voice number" means IE1 sends the dialled number in
    a different form from the one in Admin.
-5. Make a test booking and check the confirmation text arrives: texts still
-   go through Twilio's US API with `TWILIO_AUTH_TOKEN`, which may need
-   changing for a number that belongs to IE1.
+5. Make a test booking and check the confirmation text arrives. Texts go
+   through Twilio's US API with the US credentials, and Twilio's credentials
+   only work in their own region, so texts from a number on IE1 may need the
+   IE1 API and token (`src/lib/sms.ts`).
 
 Then delete this section.
 
