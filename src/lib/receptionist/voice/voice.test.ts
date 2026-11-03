@@ -285,6 +285,49 @@ describe("VoiceCall", () => {
     expect(m.sinceHeardMs - m.firstAudioMs).toBe(400);
   });
 
+  it("splits the wait into parts that add up to it", async () => {
+    const h = harness(async (text, hooks) => {
+      h.advance(600); // the model thinking
+      hooks.onText?.("Of course");
+      h.advance(150); // the rest of the first sentence
+      hooks.onText?.(". ");
+      return done("Of course.");
+    });
+    await h.call.start();
+    await tick();
+    h.advance(5_000);
+    h.stt().onFinal("A cut please");
+    h.advance(400);
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    const m = h.events.find((e) => e.type === "metrics");
+    if (m?.type !== "metrics" || m.sinceHeardMs === null) throw new Error("no timing");
+    expect(m.parts.endOfTurnMs).toBe(400);
+    expect(m.parts.modelMs).toBe(600);
+    expect(m.parts.sentenceMs).toBe(150);
+    expect(m.lookup).toBe(false);
+    const { endOfTurnMs, modelMs, sentenceMs, voiceMs } = m.parts;
+    expect(endOfTurnMs + modelMs! + sentenceMs! + voiceMs!).toBe(m.sinceHeardMs);
+  });
+
+  it("marks a reply that looked something up before saying anything", async () => {
+    const h = harness(async (text, hooks) => {
+      hooks.onToolStart?.("check_availability");
+      hooks.onText?.("Yes, that's free. ");
+      return done("Yes, that's free.");
+    });
+    await h.call.start();
+    await tick();
+    h.stt().onFinal("Thursday at 3?");
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    const m = h.events.find((e) => e.type === "metrics");
+    if (m?.type !== "metrics") throw new Error("no timing");
+    expect(m.lookup).toBe(true);
+  });
+
   it("stops talking when the caller talks over it", async () => {
     let seenSignal: AbortSignal | undefined;
     const h = harness(
