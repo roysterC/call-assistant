@@ -901,6 +901,37 @@ exports[`the reply catalogue > check: a stylist who is not here 1`] = `
 }
 `;
 
+exports[`the reply catalogue > check: a window wider than an hour stays a window 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T14:00:00+01:00",
+        "time": "2pm",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T15:30:00+01:00",
+        "time": "half past 3",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
 exports[`the reply catalogue > check: after six, which has nothing 1`] = `
 {
   "noticed": [],
@@ -1152,6 +1183,32 @@ exports[`the reply catalogue > check: nothing in two weeks 1`] = `
     "searchedDays": 14,
     "today": "2026-09-26",
     "unstaffed": false,
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: one time asked for as a narrow window, free 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "exact": true,
+    "message": "2pm on Tuesday is free, and it is the time they asked for. If you have their name, call prepare_booking with the exact startsAt value now and read that back; do not ask whether to book it first. If not, say it is free and ask their name. Do not read out other times. Do not name a stylist; who it is with is read back before it is booked.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T14:00:00+01:00",
+        "time": "2pm",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
   },
   "texted": [],
   "written": [],

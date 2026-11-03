@@ -35,6 +35,20 @@ export interface SttStream {
   /** Raw caller audio, in the format the stream was opened with. */
   send(audio: Buffer): void;
   close(): void;
+  /**
+   * Change how the recogniser listens, mid-call, for the answer about to be
+   * given (Flux's Configure): more patient for a phone number, digits on for
+   * one. Recognisers that cannot leave it unset.
+   */
+  configure?(listening: Listening): void;
+}
+
+/** How to listen for the next answer: see listeningFor in call.ts. */
+export interface Listening {
+  eotThreshold: number;
+  eagerEotThreshold: number | null;
+  eotTimeoutMs: number;
+  numerals: boolean;
 }
 
 export interface SpeechToText {
@@ -176,7 +190,13 @@ export interface FluxOptions {
   /** Silence that ends a turn whatever was said, in ms (500 to 60000). */
   eotTimeoutMs?: number;
   keyterms?: string[];
-  /** Where to connect instead of Deepgram: a stand-in server, for tests. */
+  /**
+   * Where to connect. Deepgram's EU region by default: the voice server is in
+   * Germany, so audio and transcripts no longer cross the Atlantic. The same
+   * API key works there. It has no failover, so DEEPGRAM_HOST (e.g.
+   * wss://api.deepgram.com) switches back if it is ever down. Tests point it
+   * at a stand-in server.
+   */
   host?: string;
 }
 
@@ -199,13 +219,22 @@ export function fluxListenUrl(encoding: AudioEncoding, opts: FluxOptions = {}): 
     sample_rate: String(encoding.kind === "pcm16" ? encoding.sampleRate : 8000),
     eot_threshold: String(eot),
     eot_timeout_ms: String(opts.eotTimeoutMs ?? FLUX_DEFAULTS.eotTimeoutMs),
-    // Digits for numbers: phone numbers and times read back reliably.
-    numerals: "true",
+    // No `numerals`: it turned "quarter to twelve" into "0.25 to 12" on the
+    // first Flux call. Times and numbers in words are read here already.
   });
   // Above the end-of-turn bar Deepgram refuses the stream; capped there.
   if (eager !== null) params.set("eager_eot_threshold", String(Math.min(eager, eot)));
   for (const term of opts.keyterms ?? []) params.append("keyterm", term);
-  return `${opts.host ?? "wss://api.deepgram.com"}/v2/listen?${params}`;
+  return `${opts.host ?? DEEPGRAM_EU}/v2/listen?${params}`;
+}
+
+export const DEEPGRAM_EU = "wss://api.eu.deepgram.com";
+
+/** Flux's mid-call Configure message for a way of listening (thresholds clamped as Flux requires). */
+export function fluxConfigureMessage(l: Listening): string {
+  const thresholds: Record<string, number> = { eot_threshold: l.eotThreshold, eot_timeout_ms: l.eotTimeoutMs };
+  if (l.eagerEotThreshold !== null) thresholds.eager_eot_threshold = Math.min(l.eagerEotThreshold, l.eotThreshold);
+  return JSON.stringify({ type: "Configure", thresholds, numerals: l.numerals });
 }
 
 /** Audio per message: Deepgram strongly recommends 80ms for Flux; the phone sends 20ms. */
@@ -263,6 +292,11 @@ export class FluxStt implements SpeechToText {
             if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "CloseStream" }));
             setTimeout(() => ws.terminate(), 1000).unref?.();
           },
+          configure(listening) {
+            // In order with the audio: anything still held goes first.
+            flush();
+            if (ws.readyState === WebSocket.OPEN) ws.send(fluxConfigureMessage(listening));
+          },
         });
       });
       ws.on("message", (raw) => handleFluxMessage(raw.toString(), handlers));
@@ -310,6 +344,9 @@ export function handleFluxMessage(raw: string, handlers: SttHandlers): void {
     }
   } else if (msg.type === "Error") {
     handlers.onError(new Error(msg.description ?? "Flux error"));
+  } else if (msg.type === "ConfigureFailure") {
+    // The stream carries on as it was; worth knowing, not worth ending a call.
+    console.warn("[FLUX] a change to how it listens was refused:", msg.description ?? "no reason given");
   }
 }
 

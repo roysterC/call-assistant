@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import type Anthropic from "@anthropic-ai/sdk";
 import { ReceptionistEngine, type StreamingClient, type ToolExecutor } from "../engine";
-import { VoiceCall } from "./call";
+import { listeningFor, VoiceCall } from "./call";
 import {
   FluxStt,
   DeepgramStt,
+  fluxConfigureMessage,
   fluxListenUrl,
   handleFluxMessage,
   speechToText,
@@ -17,9 +18,10 @@ import {
 /** Deepgram's Flux: turns ended by what was said, and early starts it calls. */
 
 describe("the Flux stream address", () => {
-  it("asks for Flux on 8kHz phone audio, with the turn settings, digits and the salon's words", () => {
+  it("asks for Flux on 8kHz phone audio, with the turn settings and the salon's words", () => {
     const url = new URL(fluxListenUrl({ kind: "mulaw8k" }, { keyterms: ["Chloe", "balayage"] }));
-    expect(url.origin + url.pathname).toBe("wss://api.deepgram.com/v2/listen");
+    // Deepgram's EU region: the voice server is in Germany.
+    expect(url.origin + url.pathname).toBe("wss://api.eu.deepgram.com/v2/listen");
     const p = url.searchParams;
     expect(p.get("model")).toBe("flux-general-en");
     expect(p.get("encoding")).toBe("mulaw");
@@ -27,13 +29,17 @@ describe("the Flux stream address", () => {
     expect(p.get("eot_threshold")).toBe("0.8");
     expect(p.get("eager_eot_threshold")).toBe("0.5");
     expect(p.get("eot_timeout_ms")).toBe("6000");
-    expect(p.get("numerals")).toBe("true");
+    expect(p.has("numerals")).toBe(false); // "quarter to 12" came out as "0.25 to 12"
     expect(p.getAll("keyterm")).toEqual(["Chloe", "balayage"]);
   });
 
   it("never asks for an early start surer than the end itself, which Deepgram refuses, and can leave it out", () => {
     expect(new URL(fluxListenUrl({ kind: "mulaw8k" }, { eotThreshold: 0.6, eagerEotThreshold: 0.9 })).searchParams.get("eager_eot_threshold")).toBe("0.6");
     expect(new URL(fluxListenUrl({ kind: "mulaw8k" }, { eagerEotThreshold: null })).searchParams.has("eager_eot_threshold")).toBe(false);
+  });
+
+  it("can be pointed back at Deepgram's US region", () => {
+    expect(fluxListenUrl({ kind: "mulaw8k" }, { host: "wss://api.deepgram.com" })).toMatch(/^wss:\/\/api\.deepgram\.com\/v2\/listen\?/);
   });
 
   it("takes the lab's microphone audio as 16-bit PCM", () => {
@@ -237,5 +243,93 @@ describe("the Flux connection", () => {
     } finally {
       await new Promise((r) => server.close(r));
     }
+  });
+});
+
+describe("listening for the answer to what was just asked", () => {
+  const base = { eotThreshold: 0.8, eagerEotThreshold: 0.5, eotTimeoutMs: 6000, numerals: false };
+
+  it("is patient, with digits, while they give a number", () => {
+    expect(listeningFor("Thanks. What's the best number to reach you on?", base)).toEqual({
+      eotThreshold: 0.9,
+      eagerEotThreshold: 0.85,
+      eotTimeoutMs: 8000,
+      numerals: true,
+    });
+    expect(listeningFor("Do you have the booking number from your text?", base).numerals).toBe(true);
+  });
+
+  it("is patient, without digits, while they spell something", () => {
+    expect(listeningFor("Sorry, could you spell that for me?", base)).toMatchObject({ eotThreshold: 0.9, numerals: false });
+  });
+
+  it("is quick for a yes or no", () => {
+    expect(listeningFor("That's a blow dry with Jo, Tuesday at 2, for Sam. Shall I book it?", base)).toMatchObject({ eotThreshold: 0.7, numerals: false });
+    expect(listeningFor("That's booked, and a text is on its way. Anything else?", base).eotThreshold).toBe(0.7);
+  });
+
+  it("is the normal way for anything else", () => {
+    expect(listeningFor("Which day would suit you?", base)).toBe(base);
+    expect(listeningFor("Tomorrow at ten, or at quarter to twelve?", base)).toBe(base);
+    // Shaped like a yes or no, but answered with a pause: "My name is… Roy".
+    expect(listeningFor("Can I take your name?", base)).toBe(base);
+  });
+
+  it("goes to Flux as a Configure message, never asking for an early start surer than the end", () => {
+    expect(JSON.parse(fluxConfigureMessage({ eotThreshold: 0.7, eagerEotThreshold: 0.85, eotTimeoutMs: 6000, numerals: false }))).toEqual({
+      type: "Configure",
+      thresholds: { eot_threshold: 0.7, eot_timeout_ms: 6000, eager_eot_threshold: 0.7 },
+      numerals: false,
+    });
+    expect(JSON.parse(fluxConfigureMessage({ eotThreshold: 0.9, eagerEotThreshold: null, eotTimeoutMs: 8000, numerals: true })).thresholds).not.toHaveProperty("eager_eot_threshold");
+  });
+
+  it("is sent after a reply, only when it changes", async () => {
+    const configure = vi.fn();
+    const { client } = model(["What's the best number to reach you on?", "Thanks.", "Which day would suit you?"]);
+    const engine = new ReceptionistEngine({
+      client,
+      model: "test",
+      system: [{ type: "text", text: "sys" }],
+      tools: [],
+      execute: vi.fn<ToolExecutor>(async () => ({ ok: true })),
+    });
+    engine.messages.push({ role: "user", content: "[The call has connected.]" }, { role: "assistant", content: "Hi." });
+    let h: SttHandlers | null = null;
+    let clock = 10_000;
+    const call = new VoiceCall({
+      engine,
+      stt: {
+        detectsTurns: true,
+        async open(handlers) {
+          h = handlers;
+          return { send: vi.fn(), close: vi.fn(), configure };
+        },
+      },
+      tts: {
+        bytesPerSecond: 100,
+        async *synth() {
+          yield Buffer.alloc(100);
+        },
+      },
+      out: { audio: vi.fn(), clear: vi.fn(), event: vi.fn() },
+      greeting: "Hi.",
+      now: () => clock,
+      silence: null,
+      listening: base,
+    });
+    await call.start();
+    const turn = async (text: string) => {
+      clock += 60_000;
+      h!.onFinal(text);
+      h!.onEndOfTurn();
+      await tick();
+    };
+    await turn("I'd like a cut.");
+    expect(configure).toHaveBeenLastCalledWith(expect.objectContaining({ numerals: true, eotThreshold: 0.9 }));
+    await turn("07700 900123.");
+    expect(configure).toHaveBeenLastCalledWith(base); // "Thanks." is nothing special: back to normal
+    await turn("Tuesday.");
+    expect(configure).toHaveBeenCalledTimes(2); // still normal: nothing sent
   });
 });

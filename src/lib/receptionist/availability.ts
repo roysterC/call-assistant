@@ -22,6 +22,7 @@ import {
   parseSpokenTimeOn,
   resolveSpokenDate,
   zonedDateString,
+  toMinutes,
   zonedIsoString,
 } from "@/lib/business-hours";
 import { hasBeenBefore } from "@/lib/client-link";
@@ -426,10 +427,29 @@ async function availabilityRequest(
     today,
     preference,
     hasPreference: Boolean(preference.timeOfDay || preference.after || preference.before),
-    // "Can I have 2 o'clock?": the one time they asked for.
-    askedTime: parseSpokenTimeOn(blankToUndefined(params.time) ?? "", cfg.hours, date) ?? null,
+    // "Can I have 2 o'clock?": the one time they asked for. Sent instead as a
+    // window an hour or less wide ("after 11:45, before 12:15"), it is the
+    // same question: offered as a window, a free quarter to 12 came back as
+    // one of two choices beside Thursday, and the caller asked why Thursday.
+    askedTime:
+      parseSpokenTimeOn(blankToUndefined(params.time) ?? "", cfg.hours, date) ??
+      narrowWindowStart(preference.after, preference.before, cfg, date),
     lookFurther: params.lookFurther === true || params.lookFurther === "true",
   };
+}
+
+/** The start of an after/before window an hour or less wide: one time asked for, not a range. */
+function narrowWindowStart(
+  after: string | undefined,
+  before: string | undefined,
+  cfg: SalonConfig,
+  date: string
+): string | null {
+  const from = after ? parseSpokenTimeOn(after, cfg.hours, date) : null;
+  const to = before ? parseSpokenTimeOn(before, cfg.hours, date) : null;
+  if (!from || !to) return null;
+  const width = toMinutes(to) - toMinutes(from);
+  return width >= 0 && width <= 60 ? from : null;
 }
 
 /**
