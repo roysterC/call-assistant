@@ -345,20 +345,23 @@ To put a salon's number on it:
 region (US1) because every call failed. It stays on US1 until the steps
 below are done.
 
-Why calls failed: Twilio keeps a number's settings per region, and each
-region signs its webhooks with its own auth token. On IE1 the number had no
-"A call comes in" webhook, and once that was set, the CRM refused the calls
-because they were signed with the Ireland token, not `TWILIO_AUTH_TOKEN`
-(Twilio then plays "We're sorry, an application error has occurred").
+Why calls failed is not yet known. On IE1 the number at first had no "A call
+comes in" webhook; once that was set, calls were still refused with a
+"sorry". The first guess, that IE1 signs webhooks with a different auth
+token, does not hold: the account's auth token is the same on IE1. Find the
+cause before moving it again: Twilio console → Monitor → Logs → Errors for
+the failed calls (3 November, around 12:20), and
+`journalctl -u call-assistant.service --since "2026-11-03 11:30" --until "2026-11-03 12:40" | grep -i twilio`.
+Nothing in the incoming-call path is region-specific (Twilio posts the
+webhook; the CRM answers with TwiML), so the error code decides the fix.
 
 To move it, in this order:
 
-1. Twilio console, switched to the Ireland (IE1) region: copy that region's
-   Auth Token (Account → API keys & tokens). It differs from the US one.
-2. On the box, add it to `/home/deploy/call-assistant/.env`:
-   `TWILIO_WEBHOOK_AUTH_TOKENS=<the IE1 auth token>` (comma-separated for
-   more than one). Leave `TWILIO_AUTH_TOKEN` alone: texts are sent with it.
-   Then `systemctl restart call-assistant.service`.
+1. Fix whatever the error log above shows.
+2. Only if IE1's auth token turns out to differ from `TWILIO_AUTH_TOKEN`:
+   add it to `/home/deploy/call-assistant/.env` as
+   `TWILIO_WEBHOOK_AUTH_TOKENS=<the IE1 auth token>` and restart
+   `call-assistant.service`. Leave `TWILIO_AUTH_TOKEN` alone: texts use it.
 3. Twilio console → move the number to IE1 → set "A call comes in" there:
    Webhook, `https://89-58-45-110.nip.io/api/twilio/voice`, HTTP POST.
 4. Ring the number. If it fails, `journalctl -u call-assistant.service -n 50 | grep TWILIO`
