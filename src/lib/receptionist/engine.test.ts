@@ -464,3 +464,48 @@ describe("ReceptionistEngine under stress", () => {
     }
   });
 });
+
+describe("the model's cache", () => {
+  it("marks every turn for caching, so the call so far is read from the cache next turn", async () => {
+    const { client, sent } = fakeClient([{ text: ["Hello."] }]);
+    const { engine } = engineWith(client);
+    await engine.respond("Hi");
+    expect(sent[0].cache_control).toEqual({ type: "ephemeral" });
+  });
+
+  it("warms the cache before anyone speaks: no output, the same settings, up to the first user turn", async () => {
+    const created: Anthropic.MessageCreateParamsNonStreaming[] = [];
+    const { client } = fakeClient([{ text: ["Hello."] }]);
+    client.messages.create = async (params) => {
+      created.push(params);
+      return { usage: { cache_read_input_tokens: 0, cache_creation_input_tokens: 1800 } } as Anthropic.Message;
+    };
+    const { engine } = engineWith(client);
+    engine.messages.push({ role: "user", content: "[The call has connected.]" }, { role: "assistant", content: "Hi, Studio." });
+
+    expect(await engine.prewarm()).toEqual({ cacheRead: 0, cacheWrite: 1800 });
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({
+      model: "test-model",
+      max_tokens: 0,
+      system: [{ type: "text", text: "sys" }],
+      messages: [{ role: "user", content: "[The call has connected.]" }],
+      cache_control: { type: "ephemeral" },
+    });
+  });
+
+  it("skips the warm-up without a client that can do it, and survives one that fails", async () => {
+    const { client } = fakeClient([{ text: ["Hello."] }]);
+    const { engine } = engineWith(client);
+    engine.messages.push({ role: "user", content: "[The call has connected.]" });
+    expect(await engine.prewarm()).toBeNull();
+
+    client.messages.create = async () => {
+      throw new Error("overloaded");
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await engine.prewarm()).toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
