@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SPOKEN_STYLE, buildSystem, greetingFor } from "./prompt";
 import { readBackSentence } from "./read-back";
+import { instructions as assistantInstructions } from "@/lib/voice-booking/assistant";
 
 /**
  * The receptionist talks the way its examples do, whatever the rules say, so
@@ -70,5 +71,18 @@ describe("what the caller hears unprompted", () => {
       patchTestRequired: false,
     });
     expect(words(line)).toBeLessThanOrEqual(18);
+  });
+});
+
+describe("what the diary's assistant is shown to say", () => {
+  const text = assistantInstructions("Studio", "Jo");
+  const said = [...text.matchAll(/"([^"]{12,})"/g)].map((m) => m[1]).filter((l) => /[.?]$/.test(l));
+
+  it("has examples to copy", () => {
+    expect(said.length).toBeGreaterThan(2);
+  });
+
+  it.each(said)("is short: %s", (line) => {
+    expect(words(line)).toBeLessThanOrEqual(12);
   });
 });
