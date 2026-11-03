@@ -1260,7 +1260,7 @@ exports[`the reply catalogue > check: the time asked for is free 1`] = `
     "date": "2026-09-29",
     "durationMinutes": 45,
     "exact": true,
-    "message": "2pm on Tuesday is free. Offer just that one; do not read out other times. If they take it, use the exact startsAt value. Do not name a stylist; who it is with is read back before it is booked.",
+    "message": "2pm on Tuesday is free, and it is the time they asked for. If you have their name, call prepare_booking with the exact startsAt value now and read that back; do not ask whether to book it first. If not, say it is free and ask their name. Do not read out other times. Do not name a stylist; who it is with is read back before it is booked.",
     "options": [
       {
         "date": "2026-09-29",

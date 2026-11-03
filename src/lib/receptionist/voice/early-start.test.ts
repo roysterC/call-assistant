@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
 import { ReceptionistEngine, type StreamingClient, type ToolExecutor } from "../engine";
-import { VoiceCall, type VoiceEvent } from "./call";
+import { soundsUnfinished, VoiceCall, type VoiceEvent } from "./call";
 import type { SttHandlers, TextToSpeech } from "./providers";
 
 /**
@@ -172,5 +172,53 @@ describe("starting the reply early", () => {
     t.stt().onInterim("Hello");
     t.still();
     expect(t.requests).toHaveLength(0);
+  });
+});
+
+describe("a caller who stops part-way through a sentence", () => {
+  it("is given a moment to finish, and answered on the whole of it", async () => {
+    const t = setUp([{ text: "Yes, half past four is free." }]);
+    await t.call.start();
+    t.quiet();
+    t.stt().onFinal("Can I get half");
+    t.stt().onEndOfTurn(); // the recogniser calls it over, mid-phrase
+    await tick();
+    expect(t.requests).toHaveLength(0);
+
+    t.stt().onFinal("past four?");
+    t.stt().onEndOfTurn();
+    await tick();
+    expect(t.requests).toHaveLength(1);
+    expect(t.requests[0].messages.at(-1)).toEqual({ role: "user", content: "Can I get half past four?" });
+  });
+
+  it("is answered on what they said when nothing more comes", async () => {
+    const t = setUp([{ text: "What can I help you with?" }]);
+    await t.call.start();
+    t.quiet();
+    t.stt().onFinal("I'm looking for");
+    t.stt().onEndOfTurn();
+    await tick();
+    expect(t.requests).toHaveLength(0);
+    t.still(); // the wait runs out
+    await tick();
+    expect(t.requests).toHaveLength(1);
+    expect(t.requests[0].messages.at(-1)).toEqual({ role: "user", content: "I'm looking for" });
+  });
+});
+
+describe("what counts as an unfinished sentence", () => {
+  it.each([
+    ["Can I get half", true],
+    ["Hi. Hi. I'm looking for", true],
+    ["a men's cut with", true],
+    ["um", true],
+    ["Can I get half past four?", false],
+    ["A men's cut.", false],
+    ["Thursday at 3", false],
+    ["Yes please", false],
+    ["It's Howard", false],
+  ])("%s", (text, unfinished) => {
+    expect(soundsUnfinished(text)).toBe(unfinished);
   });
 });

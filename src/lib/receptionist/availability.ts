@@ -520,8 +520,10 @@ function availabilityReply(
       exact: true,
       options,
       message:
-        `${options[0].time} ${onDay(options[0].day)} is free. Offer just that one; do not read out ` +
-        "other times. If they take it, use the exact startsAt value." +
+        `${options[0].time} ${onDay(options[0].day)} is free, and it is the time they asked for. If you ` +
+        "have their name, call prepare_booking with the exact startsAt value now and read that back; do " +
+        "not ask whether to book it first. If not, say it is free and ask their name. Do not read out " +
+        "other times." +
         noStylist,
     };
   }

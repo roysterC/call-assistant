@@ -351,7 +351,8 @@ describe("check_availability: what is offered", () => {
     expect(r.options).toHaveLength(1);
     expect(r.options[0]).toMatchObject({ day: "Tuesday", time: "2pm" });
     expect(r.options[0]).not.toHaveProperty("stylist");
-    expect(r.message).toMatch(/^2pm on Tuesday is free\. Offer just that one/);
+    expect(r.message).toMatch(/^2pm on Tuesday is free, and it is the time they asked for\./);
+    expect(r.message).toMatch(/do not ask whether to book it first/);
     expect(r.message).not.toMatch(/Marcus|Jo\b/);
   });
 
