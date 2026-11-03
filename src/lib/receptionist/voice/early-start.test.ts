@@ -192,6 +192,23 @@ describe("a caller who stops part-way through a sentence", () => {
     expect(t.requests[0].messages.at(-1)).toEqual({ role: "user", content: "Can I get half past four?" });
   });
 
+  it("is still waited for when the recogniser signals the end a second time", async () => {
+    const t = setUp([{ text: "Thanks, Roy." }]);
+    await t.call.start();
+    t.quiet();
+    t.stt().onFinal("My name is");
+    t.stt().onEndOfTurn(); // after 0.4s of silence
+    t.stt().onEndOfTurn(); // the backstop, about a second later
+    await tick();
+    expect(t.requests).toHaveLength(0);
+
+    t.stt().onFinal("Roy.");
+    t.stt().onEndOfTurn();
+    await tick();
+    expect(t.requests).toHaveLength(1);
+    expect(t.requests[0].messages.at(-1)).toEqual({ role: "user", content: "My name is Roy." });
+  });
+
   it("is answered on what they said when nothing more comes", async () => {
     const t = setUp([{ text: "What can I help you with?" }]);
     await t.call.start();

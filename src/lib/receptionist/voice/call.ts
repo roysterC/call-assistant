@@ -484,7 +484,11 @@ export class VoiceCall {
     if (!text || this.closed) return;
     // Stopped part-way through a sentence: give them a moment to finish it,
     // once. Their next words cancel the wait (wordsChanged), and the next end
-    // of turn is judged afresh on everything they said.
+    // of turn is judged afresh on everything they said. While waiting, a
+    // further end-of-turn signal changes nothing: the recogniser sends a
+    // backstop one about a second after the first, which cut the wait short
+    // ("My name is" answered before "Roy").
+    if (this.cancelHold) return;
     if (!this.held && soundsUnfinished(text)) {
       this.held = true;
       this.cancelHold = this.scheduler()(() => {
@@ -493,8 +497,6 @@ export class VoiceCall {
       }, UNFINISHED_HOLD_MS);
       return;
     }
-    this.cancelHold?.();
-    this.cancelHold = null;
     this.held = false;
     this.heard = [];
     this.interim = "";
