@@ -67,6 +67,17 @@ describe("POST /api/twilio/voice", () => {
     expect(db.phoneNumber.findFirst).not.toHaveBeenCalled();
   });
 
+  it("takes a call signed with another Twilio region's auth token, when it is listed", async () => {
+    const ireland = request(params, twilioSignature("ie1-tok", URL_, params));
+    expect((await POST(ireland)).status).toBe(403);
+    vi.stubEnv("TWILIO_WEBHOOK_AUTH_TOKENS", "other, ie1-tok");
+    const res = await POST(request(params, twilioSignature("ie1-tok", URL_, params)));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("<Stream");
+    // Still nothing for a signature made with a token that is not listed.
+    expect((await POST(request(params, twilioSignature("stranger", URL_, params)))).status).toBe(403);
+  });
+
   it("refuses everything when no auth token is set", async () => {
     vi.stubEnv("TWILIO_AUTH_TOKEN", "");
     expect((await POST(signed(params))).status).toBe(403);

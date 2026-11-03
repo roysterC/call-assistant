@@ -47,9 +47,17 @@ export async function POST(req: NextRequest) {
   for (const [key, value] of form.entries()) if (typeof value === "string") params[key] = value;
 
   // Anyone can post to a public URL; only Twilio can sign with our token.
-  const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
-  if (!validTwilioSignature(authToken, publicUrl(req), params, req.headers.get("x-twilio-signature"))) {
-    console.warn(`[TWILIO] refused an unsigned or mis-signed voice webhook${authToken ? "" : " (TWILIO_AUTH_TOKEN is not set)"}`);
+  // A number handled in another Twilio region (Ireland, say) is signed with
+  // that region's auth token, so any of TWILIO_WEBHOOK_AUTH_TOKENS is taken
+  // too. TWILIO_AUTH_TOKEN stays the one texts are sent with.
+  const tokens = webhookAuthTokens();
+  const url = publicUrl(req);
+  const signature = req.headers.get("x-twilio-signature");
+  if (!tokens.some((t) => validTwilioSignature(t, url, params, signature))) {
+    console.warn(
+      `[TWILIO] refused an unsigned or mis-signed voice webhook for ${url}` +
+        (tokens.length ? ` (checked ${tokens.length} auth token${tokens.length > 1 ? "s" : ""})` : " (no auth token is set)")
+    );
     return new Response("Forbidden", { status: 403 });
   }
 
@@ -90,4 +98,10 @@ export async function POST(req: NextRequest) {
     secret
   );
   return twiml(streamTwiml(`${base}/phone`, { token }));
+}
+
+/** Every auth token a genuine call may be signed with: the main one, and any region's. */
+function webhookAuthTokens(): string[] {
+  const extra = (process.env.TWILIO_WEBHOOK_AUTH_TOKENS ?? "").split(",");
+  return [process.env.TWILIO_AUTH_TOKEN ?? "", ...extra].map((t) => t.trim()).filter(Boolean);
 }
