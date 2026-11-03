@@ -10,6 +10,12 @@ loadEnvConfig(process.cwd());
 const nextConfig: NextConfig = {
   // No "X-Powered-By: Next.js" advertising what to attack.
   poweredByHeader: false,
+  // The build's own TypeScript pass is skipped: on the production box (3.8GB,
+  // shared with Postgres and the live app) it was killed for memory four
+  // minutes in, failing the deploy. Types are still checked before anything
+  // ships: the deploy waits on the `checks` job, whose `npm run typecheck`
+  // fails it on any type error.
+  typescript: { ignoreBuildErrors: true },
   async headers() {
     return securityHeaders({
       voiceUrl: process.env.RECEPTIONIST_VOICE_URL,
