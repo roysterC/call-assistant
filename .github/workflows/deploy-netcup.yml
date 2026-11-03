@@ -39,26 +39,37 @@ env:
 
 jobs:
   # Fail fast on the runner, before anything touches production.
+  #
+  # The four checks run side by side, one job each; the deploy waits for all
+  # of them, and the first to fail cancels the rest. The build stays: it
+  # catches a broken build before the server starts one.
   checks:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        check: [typecheck, lint, test, build]
+    name: checks (${{ matrix.check }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+      # node_modules itself, not just npm's download cache: restoring it takes
+      # seconds, where `npm ci` took a minute every run. Keyed on the lockfile
+      # and Node, so any change to either installs afresh.
+      - name: Restore node_modules
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
       - name: Install deps
+        if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
       - name: Generate Prisma client
         run: npm run prisma:generate
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Lint
-        run: npm run lint
-      - name: Test
-        run: npm test
-      - name: Build
-        run: npm run build
+      - name: ${{ matrix.check }}
+        run: npm run ${{ matrix.check }}
 
   deploy:
     needs: checks
@@ -111,8 +122,19 @@ jobs:
             echo "==> Fetching master"
             as_deploy 'git fetch origin master && git reset --hard origin/master'
 
+            # Installed afresh only when the lockfile or Node has changed since
+            # the last install: most deploys change neither, and `npm ci` took
+            # most of a minute, wiping node_modules under the running service
+            # while it did. The stamp is written after a good install, inside
+            # node_modules, so a failed or partial install is never mistaken
+            # for a current one.
             echo "==> Installing dependencies"
-            as_deploy 'npm ci'
+            as_deploy 'want="$(node --version) $(sha256sum package-lock.json | cut -d" " -f1)"
+              if [ -d node_modules ] && [ "$(cat node_modules/.deploy-installed 2>/dev/null)" = "$want" ]; then
+                echo "    unchanged since the last install; skipped"
+              else
+                npm ci && printf "%s" "$want" > node_modules/.deploy-installed
+              fi'
 
             echo "==> Generating Prisma client"
             as_deploy 'npm run prisma:generate'
