@@ -68,6 +68,7 @@ function harness(
     silence: opts.silence === undefined ? null : opts.silence,
     hangupGraceMs: 0,
     interruptible: opts.interruptible,
+    unfinishedHoldMs: null,
   });
   const stt = () => handlers[handlers.length - 1];
   /** The caller says something and pauses. */

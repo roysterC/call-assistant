@@ -170,6 +170,9 @@ function harness(
     now: () => clock,
     silence: null,
     interruptible: opts.interruptible,
+    // These callers speak in unpunctuated test phrases; the wait for an
+    // unfinished sentence has tests of its own (early-start.test.ts).
+    unfinishedHoldMs: null,
     sleep: (ms) =>
       new Promise<void>((resolve) =>
         waits.push(() => {
@@ -409,7 +412,7 @@ describe("VoiceCall", () => {
     h.stt().onFinal("anything Tuesday");
     h.stt().onEndOfTurn();
     await tick(10);
-    expect(h.spoken.slice(1)).toEqual(["One moment.", "Tuesday at ten is free."]);
+    expect(h.spoken.slice(1)).toEqual(["Let me have a look.", "Tuesday at ten is free."]);
 
     const h2 = harness(async (_t, hooks) => {
       hooks.onText?.("Let me just check that for you.");

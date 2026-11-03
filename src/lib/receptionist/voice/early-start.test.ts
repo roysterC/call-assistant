@@ -225,16 +225,22 @@ describe("a caller who stops part-way through a sentence", () => {
 });
 
 describe("what counts as an unfinished sentence", () => {
+  // As the recogniser gave them on real calls: whole sentences punctuated,
+  // fragments bare.
   it.each([
     ["Can I get half", true],
     ["Hi. Hi. I'm looking for", true],
-    ["a men's cut with", true],
-    ["um", true],
+    ["I'm thinking", true],
+    ["I was wondering", true],
+    ["if we can", true],
+    ["Yeah. Cash", true],
+    ["I'm looking for.", true],
     ["Can I get half past four?", false],
-    ["A men's cut.", false],
-    ["Thursday at 3", false],
-    ["Yes please", false],
-    ["It's Howard", false],
+    ["I'm looking for a ladies cut.", false],
+    ["Roy.", false],
+    ["Yes, please.", false],
+    ["That's everything. Thank you.", false],
+    ["I'm trying to pick a day?", false],
   ])("%s", (text, unfinished) => {
     expect(soundsUnfinished(text)).toBe(unfinished);
   });
