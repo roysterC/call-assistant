@@ -336,3 +336,53 @@ describe("listening for the answer to what was just asked", () => {
     expect(configure).toHaveBeenCalledTimes(2); // still normal: nothing sent
   });
 });
+
+describe("cutting in on Flux", () => {
+  it("waits for Flux's StartOfTurn, Deepgram's barge-in signal, before stopping for words", async () => {
+    const { client } = model(["We have Tuesday at nine, or Wednesday at two, or Thursday at ten."]);
+    const engine = new ReceptionistEngine({
+      client,
+      model: "test",
+      system: [{ type: "text", text: "sys" }],
+      tools: [],
+      execute: vi.fn<ToolExecutor>(async () => ({ ok: true })),
+    });
+    engine.messages.push({ role: "user", content: "[The call has connected.]" }, { role: "assistant", content: "Hi." });
+    let h: SttHandlers | null = null;
+    let clock = 10_000;
+    const clear = vi.fn();
+    const call = new VoiceCall({
+      engine,
+      stt: {
+        detectsTurns: true,
+        async open(handlers) {
+          h = handlers;
+          return { send: vi.fn(), close: vi.fn() };
+        },
+      },
+      tts: {
+        bytesPerSecond: 100,
+        async *synth() {
+          yield Buffer.alloc(1000); // ten seconds
+        },
+      },
+      out: { audio: vi.fn(), clear, event: vi.fn() },
+      greeting: "Hi.",
+      now: () => clock,
+      silence: null,
+    });
+    await call.start();
+    await tick();
+    clock += 60_000;
+    h!.onFinal("What have you got?");
+    h!.onEndOfTurn();
+    await tick();
+    clock += 1_000;
+
+    h!.onInterim("Friday"); // words without Flux saying a turn began
+    expect(clear).not.toHaveBeenCalled();
+    h!.onStartOfTurn!("Friday");
+    h!.onInterim("Friday");
+    expect(clear).toHaveBeenCalledTimes(1);
+  });
+});

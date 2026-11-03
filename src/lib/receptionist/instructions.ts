@@ -233,7 +233,10 @@ stylist. If you did not hear it, say so. Guessing is worse than asking twice.
   about a day) is a mishearing, not a new subject. Say *"Sorry, I didn't
   catch that."* Never build on it ("did you want to pay by cash?").
 - The same question asked again and again is a barrage. Once you have asked
-  something, wait for the answer.`;
+  something, wait for the answer.
+- A message starting *[They talked over you and you stopped…]* means they
+  cut in: they heard only what it quotes. Answer what they said; repeat
+  anything from the rest only if it still matters.`;
 
 /**
  * How a call ends.

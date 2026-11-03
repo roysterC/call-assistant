@@ -381,8 +381,7 @@ async function main() {
       startEarlyAfterMs: startEarlyAfterMs(),
       listening: normalListening(FLUX_DEFAULTS),
       unfinishedHoldMs: msSetting("RECEPTIONIST_UNFINISHED_HOLD_MS"),
-      // RECEPTIONIST_INTERRUPTIBLE=on lets callers cut it off again.
-      interruptible: process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase() === "on",
+      interruptions: interruptionsSetting(),
       stt,
       tts,
       greeting: session.greeting,
@@ -557,8 +556,7 @@ async function main() {
       startEarlyAfterMs: startEarlyAfterMs(),
       listening: normalListening(FLUX_DEFAULTS),
       unfinishedHoldMs: msSetting("RECEPTIONIST_UNFINISHED_HOLD_MS"),
-      // RECEPTIONIST_INTERRUPTIBLE=on lets callers cut it off again.
-      interruptible: process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase() === "on",
+      interruptions: interruptionsSetting(),
       stt,
       tts,
       greeting: session.greeting,
@@ -777,6 +775,17 @@ function normalListening(defaults: { eotThreshold: number; eagerEotThreshold: nu
     eotTimeoutMs: f.eotTimeoutMs ?? defaults.eotTimeoutMs,
     numerals: false,
   };
+}
+
+/**
+ * RECEPTIONIST_INTERRUPTIBLE: unset for the default (a caller can cut it off
+ * when they mean to, on Flux's StartOfTurn, but not during the read-back,
+ * confirmation or goodbye); "off" never; "on" whenever two words are said
+ * over it, whatever they are.
+ */
+function interruptionsSetting(): "real" | "never" | "any" | undefined {
+  const v = process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase();
+  return v === "off" ? "never" : v === "on" ? "any" : undefined;
 }
 
 function median(values: number[]): number | null {

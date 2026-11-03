@@ -118,11 +118,50 @@ export interface VoiceCallDeps {
    */
   listening?: Listening;
   /**
-   * Whether the caller can cut the receptionist off by talking over it. Off
-   * by default: it always finishes what it is saying, and whatever the caller
-   * said meanwhile is the next turn, answered once it has finished.
+   * Whether the caller can cut the receptionist off by talking over it.
+   * "real" (the default): when they really mean to (see hasRealWords), on
+   * Flux once its StartOfTurn says they have begun; never during the
+   * read-back, a booking's confirmation or the goodbye. "never": it always
+   * finishes. "any": two words over it stop it, whatever they are.
    */
+  interruptions?: Interruptions;
+  /** Older switch: true is "any", false is "never". */
   interruptible?: boolean;
+}
+
+export type Interruptions = "real" | "never" | "any";
+
+/**
+ * What the receptionist says while doing these is never cut off: the
+ * read-back before booking, the confirmation of a booking, move or cancel,
+ * and the goodbye. A caller talking over them is kept and answered after.
+ */
+const PROTECTED_TOOLS = new Set([
+  "prepare_booking",
+  "book_appointment",
+  "cancel_appointment",
+  "reschedule_appointment",
+  END_CALL,
+]);
+
+/**
+ * Sounds a listener makes while someone else talks, which are not a bid to
+ * speak: "mm-hm", "yeah", "okay", "right", and a hello over the greeting. Anything else said over the
+ * receptionist ("no", "wait", "actually", "sorry", a day or a name) is.
+ */
+const BACKCHANNEL = new Set(
+  (
+    "mm mmm hm mhm mmhmm hmm uh huh um er erm ah oh aha ooh " +
+    "yeah yes yep yup ok okay right sure alright cool lovely perfect great fine good " +
+    "thanks thank you cheers i see got it " +
+    // A caller often says hello as the line connects, over the greeting.
+    "hello hi hiya hey"
+  ).split(" ")
+);
+
+/** Words over the receptionist that mean to interrupt it, not just listening noises. */
+export function hasRealWords(text: string): boolean {
+  return words(text).some((w) => !BACKCHANNEL.has(w));
 }
 
 export const SILENCE_PROMPT = "Are you still there?";
@@ -242,6 +281,14 @@ export class VoiceCall {
   private readonly fillers = new FillerPicker();
   /** The way of listening last sent to the recogniser, to send only changes. */
   private listeningSent = "";
+  /** Replies that are never cut off: see PROTECTED_TOOLS. */
+  private readonly protectedReplies = new WeakSet<AbortSignal>();
+  /** Each piece of speech and when it began to play, to know what was heard if cut off. */
+  private played: Array<{ text: string; startsAt: number; signal: AbortSignal }> = [];
+  /** Flux has said the caller began a turn (StartOfTurn) that has not yet ended. */
+  private callerTurnStarted = false;
+  /** Told to the model with the caller's next words, after cutting a reply off. */
+  private cutOff = "";
   /** Turns whose reply has begun to be spoken: those always play out. */
   private readonly spoke = new WeakSet<AbortController>();
   /** Words heard while it was talking, waiting for it to finish: see KEPT_WORDS_GRACE_MS. */
@@ -295,6 +342,9 @@ export class VoiceCall {
       onEndOfTurn: () => this.onEndOfTurn(),
       onEagerEndOfTurn: (text) => this.onEagerEndOfTurn(text),
       onTurnResumed: () => this.dropEarly(),
+      onStartOfTurn: () => {
+        this.callerTurnStarted = true;
+      },
       onError: (err) => this.deps.out.event({ type: "error", message: `Speech recognition: ${err.message}` }),
       onClose: () => void this.recoverStt(),
     });
@@ -360,6 +410,7 @@ export class VoiceCall {
     this.turn?.abort();
     const ctl = new AbortController();
     this.turn = ctl;
+    this.protectedReplies.add(ctl.signal);
     this.say(text, ctl.signal);
     this.log.push({ who: "assistant", text });
     void this.hangUpAfterGoodbye(ctl, opts);
@@ -424,7 +475,7 @@ export class VoiceCall {
     this.lastHeardAt = this.now();
     this.callerSpoke();
     this.deps.out.event({ type: "caller", text: [...this.heard, text].join(" "), final: false });
-    if (this.deps.interruptible && this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
+    this.maybeInterrupt([...this.heard, text].join(" "));
     this.wordsChanged();
   }
 
@@ -438,8 +489,43 @@ export class VoiceCall {
     this.lastHeardAt = this.now();
     this.callerSpoke();
     this.deps.out.event({ type: "caller", text: this.heard.join(" "), final: false });
-    if (this.deps.interruptible && this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
+    this.maybeInterrupt(this.heard.join(" "));
     this.wordsChanged();
+  }
+
+  private get interruptions(): Interruptions {
+    if (this.deps.interruptions) return this.deps.interruptions;
+    if (this.deps.interruptible === true) return "any";
+    if (this.deps.interruptible === false) return "never";
+    return "real";
+  }
+
+  /**
+   * The caller is talking over the receptionist: cut it off if they mean to.
+   * On Flux, only once its StartOfTurn has said they have begun (Deepgram's
+   * barge-in signal, which noise does not trigger); then any word that is not
+   * a listening noise does it, unless what is playing is protected.
+   */
+  private maybeInterrupt(text: string) {
+    const mode = this.interruptions;
+    if (mode === "never") return;
+    if (mode === "any") {
+      if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
+      return;
+    }
+    if (this.now() >= this.playbackEndsAt) return;
+    if (this.deps.stt.detectsTurns && !this.callerTurnStarted) return;
+    if (!hasRealWords(text)) return;
+    const playing = this.playingNow();
+    if (playing && this.protectedReplies.has(playing.signal)) return;
+    this.interrupt();
+  }
+
+  /** The piece of speech playing now, if any. */
+  private playingNow() {
+    const now = this.now();
+    for (let i = this.played.length - 1; i >= 0; i--) if (this.played[i].startsAt <= now) return this.played[i];
+    return null;
   }
 
   /** What the caller has said this turn, settled words and those still coming. */
@@ -558,6 +644,18 @@ export class VoiceCall {
 
   private interrupt() {
     if (!this.turn) return;
+    // What they heard of the reply: the pieces that had begun to play. The
+    // model is told, so it does not go on as if they heard the rest.
+    const playing = this.playingNow();
+    if (playing) {
+      const heard = this.played
+        .filter((p) => p.signal === playing.signal && p.startsAt <= this.now())
+        .map((p) => p.text)
+        .join(" ");
+      const unheard = this.played.some((p) => p.signal === playing.signal && p.startsAt > this.now());
+      this.cutOff = `[They talked over you and you stopped. They heard only: "${heard}"${unheard ? "; not the rest" : ""}.]`;
+    }
+    this.played = [];
     this.turn.abort();
     this.turn = null;
     this.turnRunning = false;
@@ -598,7 +696,8 @@ export class VoiceCall {
     // Said over the receptionist while it was talking: kept until it has
     // finished, then put in front of their answer, or answered on its own if
     // no answer comes.
-    if (!this.deps.interruptible && this.now() < this.playbackEndsAt) {
+    this.callerTurnStarted = false;
+    if (this.interruptions !== "any" && this.now() < this.playbackEndsAt) {
       this.kept = `${this.kept} ${text}`.trim();
       this.dropEarly();
       this.scheduleKept();
@@ -615,7 +714,7 @@ export class VoiceCall {
     // turn follows it (speech is queued in order; the model waits for the last
     // turn to settle). A reply not yet begun is replaced, unheard, so the
     // caller gets one answer to everything they said, not one per breath.
-    if (this.deps.interruptible) {
+    if (this.interruptions === "any") {
       if (this.busy) this.interrupt();
     } else if (this.turn && this.turnRunning && !this.spoke.has(this.turn)) {
       this.overtake();
@@ -653,6 +752,10 @@ export class VoiceCall {
       text = `${this.carry} ${text}`;
       this.carry = "";
     }
+    if (this.cutOff) {
+      text = `${this.cutOff}\n${text}`;
+      this.cutOff = "";
+    }
     const started = this.now();
     let firstAudio: number | null = null;
     let spokeThisTurn = false;
@@ -687,6 +790,7 @@ export class VoiceCall {
           },
           onToolStart: (name) => {
             output();
+            if (PROTECTED_TOOLS.has(name)) this.protectedReplies.add(ctl.signal);
             if (firstSpeakAt === null && name !== END_CALL) lookup = true;
             // Hanging up is shown as the call ending, after the goodbye, not
             // as a tool ahead of it.
@@ -778,6 +882,8 @@ export class VoiceCall {
           if (signal.aborted || this.closed) return;
           if (first) {
             first = false;
+            this.played.push({ text, startsAt: Math.max(this.playbackEndsAt, this.now()), signal });
+            if (this.played.length > 20) this.played.shift();
             onFirstAudio?.();
             this.deps.out.event({ type: "state", state: "speaking" });
           }

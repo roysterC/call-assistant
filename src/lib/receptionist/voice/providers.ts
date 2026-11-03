@@ -26,6 +26,12 @@ export interface SttHandlers {
   onEagerEndOfTurn?(text: string): void;
   /** They carried on after an eager end: whatever was started is out of date. */
   onTurnResumed?(): void;
+  /**
+   * They have begun to speak (Flux's StartOfTurn). Deepgram's own barge-in
+   * signal: every one carries real words, so silence and noise do not start
+   * one. Recognisers without it leave it unset.
+   */
+  onStartOfTurn?(text: string): void;
   onError(err: Error): void;
   /** The connection went down without being asked to. */
   onClose?(): void;
@@ -327,6 +333,9 @@ export function handleFluxMessage(raw: string, handlers: SttHandlers): void {
     const text = msg.transcript?.trim() ?? "";
     switch (msg.event) {
       case "StartOfTurn":
+        handlers.onStartOfTurn?.(text);
+        if (text) handlers.onInterim(text);
+        break;
       case "Update":
         if (text) handlers.onInterim(text);
         break;

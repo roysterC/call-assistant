@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TurnHooks, TurnResult } from "../engine";
-import { VoiceCall, type VoiceEvent } from "./call";
+import { hasRealWords, VoiceCall, type Interruptions, type VoiceEvent } from "./call";
 import { SentenceChunker } from "./sentences";
 import { signVoicePass, verifyVoicePass } from "./token";
 import { ElevenLabsTts, evenChunks, labVoiceRate, speakingSpeed, type SttHandlers, type TextToSpeech } from "./providers";
@@ -135,7 +135,7 @@ describe("speaking speed", () => {
 
 function harness(
   respond: (text: string, hooks: TurnHooks, signal?: AbortSignal) => Promise<TurnResult>,
-  opts: { playbackSecondsPerPiece?: number; interruptible?: boolean } = {}
+  opts: { playbackSecondsPerPiece?: number; interruptible?: boolean; interruptions?: Interruptions } = {}
 ) {
   let clock = 0;
   let stt: SttHandlers | null = null;
@@ -172,6 +172,7 @@ function harness(
     now: () => clock,
     silence: null,
     interruptible: opts.interruptible,
+    interruptions: opts.interruptions,
     // These callers speak in unpunctuated test phrases; the wait for an
     // unfinished sentence has tests of its own (early-start.test.ts).
     unfinishedHoldMs: null,
@@ -367,7 +368,7 @@ describe("VoiceCall", () => {
     expect(h.events).toContainEqual({ type: "interrupted" });
   });
 
-  it("finishes what it is saying when the caller talks over it, then answers them", async () => {
+  it("set never to be cut off, finishes what it is saying when the caller talks over it, then answers them", async () => {
     const seen: string[] = [];
     const signals: AbortSignal[] = [];
     const h = harness(
@@ -377,7 +378,7 @@ describe("VoiceCall", () => {
         hooks.onText?.(seen.length === 1 ? "We have nine o'clock or quarter past one on Tuesday. " : "Wednesday, then. ");
         return done("…");
       },
-      { playbackSecondsPerPiece: 10 }
+      { playbackSecondsPerPiece: 10, interruptions: "never" }
     );
     await h.call.start();
     await tick();
@@ -405,6 +406,86 @@ describe("VoiceCall", () => {
     await tick(10);
     expect(seen).toEqual(["Tuesday please", "actually Wednesday"]);
     expect(h.spoken.slice(-2)).toEqual(["We have nine o'clock or quarter past one on Tuesday.", "Wednesday, then."]);
+  });
+
+  it("stops when the caller really cuts in, and tells the model what they heard of it", async () => {
+    const seen: string[] = [];
+    const h = harness(
+      async (text, hooks) => {
+        seen.push(text);
+        if (seen.length === 1) hooks.onText?.("We have Tuesday at nine. Or Wednesday at two. Or Thursday at ten. ");
+        else hooks.onText?.("Of course, Friday. ");
+        return done("…");
+      },
+      { playbackSecondsPerPiece: 3 }
+    );
+    await h.call.start();
+    await tick();
+    h.advance(20_000);
+    h.stt().onFinal("What have you got?");
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    // Four seconds in: the first sentence has played, the second has begun.
+    h.advance(4_000);
+    h.stt().onInterim("No wait, Friday");
+    expect(h.clear).toHaveBeenCalledTimes(1);
+    expect(h.events).toContainEqual({ type: "interrupted" });
+    h.stt().onFinal("No wait, Friday.");
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toBe(
+      '[They talked over you and you stopped. They heard only: "We have Tuesday at nine. Or Wednesday at two."; not the rest.]\nNo wait, Friday.'
+    );
+  });
+
+  it("does not stop for a listening noise: mm-hm, yeah, okay", async () => {
+    const h = harness(
+      async (_t, hooks) => {
+        hooks.onText?.("We have Tuesday at nine, or Wednesday at two. ");
+        return done("…");
+      },
+      { playbackSecondsPerPiece: 10 }
+    );
+    await h.call.start();
+    await tick();
+    h.advance(20_000);
+    h.stt().onFinal("What have you got?");
+    h.stt().onEndOfTurn();
+    await tick(10);
+    h.advance(1_000);
+    h.stt().onInterim("mm hmm yeah okay");
+    expect(h.clear).not.toHaveBeenCalled();
+  });
+
+  it("is never cut off while reading a booking back", async () => {
+    const h = harness(
+      async (_t, hooks) => {
+        hooks.onToolStart?.("prepare_booking", {});
+        hooks.onText?.("That's a blow dry with Jo, Tuesday at two, for Sam. Shall I book it? ");
+        return done("…");
+      },
+      { playbackSecondsPerPiece: 10 }
+    );
+    await h.call.start();
+    await tick();
+    h.advance(20_000);
+    h.stt().onFinal("Tuesday at two please, it's Sam.");
+    h.stt().onEndOfTurn();
+    await tick(10);
+    h.advance(1_000);
+    h.stt().onInterim("actually make it three");
+    expect(h.clear).not.toHaveBeenCalled();
+  });
+
+  it("knows a listening noise from a real word", () => {
+    expect(hasRealWords("Mm-hm. Yeah, okay.")).toBe(false);
+    expect(hasRealWords("Hello? Hi!")).toBe(false);
+    expect(hasRealWords("No")).toBe(true);
+    expect(hasRealWords("wait")).toBe(true);
+    expect(hasRealWords("yeah Friday")).toBe(true);
   });
 
   it("puts a word heard over its question in front of the answer that follows, answering once", async () => {
