@@ -88,6 +88,7 @@ async function main() {
     sentenceMs: number | null;
     voiceMs: number | null;
     lookup: boolean;
+    tokens: { cacheRead: number; cacheWrite: number; uncached: number } | null;
   }> = [];
   const notePhoneProblem = (message: string) => {
     lastPhoneProblem = { at: new Date().toISOString(), message: problemForHealth(message) };
@@ -562,11 +563,14 @@ async function main() {
             );
             phoneReplyMs.push(e.sinceHeardMs);
             if (phoneReplyMs.length > 20) phoneReplyMs.shift();
-            phoneReplyParts.push({ ...e.parts, lookup: e.lookup });
+            phoneReplyParts.push({ ...e.parts, lookup: e.lookup, tokens: e.tokens });
             if (phoneReplyParts.length > 20) phoneReplyParts.shift();
             console.log(
               `[VOICE] phone call ${start.callSid}: end of turn ${e.parts.endOfTurnMs}ms, model ${e.parts.modelMs}ms, ` +
-                `sentence ${e.parts.sentenceMs}ms, voice ${e.parts.voiceMs}ms${e.lookup ? " (looked something up)" : ""}`
+                `sentence ${e.parts.sentenceMs}ms, voice ${e.parts.voiceMs}ms${e.lookup ? " (looked something up)" : ""}` +
+                (e.tokens
+                  ? `; tokens ${e.tokens.cacheRead} cached, ${e.tokens.cacheWrite} written, ${e.tokens.uncached} uncached`
+                  : "")
             );
           }
           if (e.type !== "error") return;
@@ -667,7 +671,14 @@ function problemForHealth(message: string): string {
  * looked something up first, with how many of each the medians are from.
  */
 function replyBreakdown(
-  parts: Array<{ endOfTurnMs: number; modelMs: number | null; sentenceMs: number | null; voiceMs: number | null; lookup: boolean }>
+  parts: Array<{
+    endOfTurnMs: number;
+    modelMs: number | null;
+    sentenceMs: number | null;
+    voiceMs: number | null;
+    lookup: boolean;
+    tokens: { cacheRead: number; cacheWrite: number; uncached: number } | null;
+  }>
 ) {
   const of = (rows: typeof parts) => ({
     replies: rows.length,
@@ -675,6 +686,15 @@ function replyBreakdown(
     modelMs: median(rows.flatMap((r) => (r.modelMs === null ? [] : [r.modelMs]))),
     sentenceMs: median(rows.flatMap((r) => (r.sentenceMs === null ? [] : [r.sentenceMs]))),
     voiceMs: median(rows.flatMap((r) => (r.voiceMs === null ? [] : [r.voiceMs]))),
+    // How much of each reply's input came from the cache, as a percentage: low
+    // means the model is reading the call afresh, which is what makes it slow.
+    cachedPercent: median(
+      rows.flatMap((r) => {
+        if (!r.tokens) return [];
+        const all = r.tokens.cacheRead + r.tokens.cacheWrite + r.tokens.uncached;
+        return all ? [Math.round((100 * r.tokens.cacheRead) / all)] : [];
+      })
+    ),
   });
   return { plain: of(parts.filter((p) => !p.lookup)), lookedUp: of(parts.filter((p) => p.lookup)) };
 }

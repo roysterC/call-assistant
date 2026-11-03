@@ -24,6 +24,8 @@ export interface StreamingClient {
       on(event: "text", listener: (delta: string) => void): unknown;
       finalMessage(): Promise<Anthropic.Message>;
     };
+    /** Only for pre-warming the cache (prewarm); a client without it skips that. */
+    create?(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message>;
   };
 }
 
@@ -114,6 +116,36 @@ export class ReceptionistEngine {
 
   constructor(private readonly cfg: EngineConfig) {}
 
+  /**
+   * Load the instructions and tools into the model's cache before anyone
+   * speaks, so the first reply does not wait for them to be read cold. Sent
+   * with no output (max_tokens 0) and the same settings as a real turn, while
+   * the greeting plays; a call's first reply was otherwise always a cache
+   * miss when calls are more than five minutes apart. Never throws: a failed
+   * warm-up only means the first reply is as slow as it was.
+   */
+  async prewarm(): Promise<{ cacheRead: number; cacheWrite: number } | null> {
+    const create = this.cfg.client.messages.create;
+    const first = this.messages[0];
+    if (!create || !first || first.role !== "user") return null;
+    try {
+      const m = await create.call(this.cfg.client.messages, {
+        model: this.cfg.model,
+        ...this.cfg.request,
+        max_tokens: 0,
+        system: this.cfg.system,
+        tools: this.cfg.tools,
+        // Up to the last user turn: a request may not end on the assistant.
+        messages: [first],
+        cache_control: { type: "ephemeral" },
+      });
+      return { cacheRead: m.usage.cache_read_input_tokens ?? 0, cacheWrite: m.usage.cache_creation_input_tokens ?? 0 };
+    } catch (err) {
+      console.warn("[RECEPTIONIST] cache warm-up failed:", err instanceof Error ? err.message : err);
+      return null;
+    }
+  }
+
   async respond(
     callerText: string,
     hooks: TurnHooks = {},
@@ -162,6 +194,10 @@ export class ReceptionistEngine {
           system: this.cfg.system,
           tools: this.cfg.tools,
           messages: [...this.messages, ...pending],
+          // The conversation so far is cached as well as the instructions, so
+          // each turn reads the turns before it from the cache instead of
+          // reading the whole call again. The marker goes on the last block.
+          cache_control: { type: "ephemeral" },
         },
         { signal }
       );

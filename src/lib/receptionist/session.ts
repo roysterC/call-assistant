@@ -151,6 +151,9 @@ export async function startReceptionist(
     { role: "user", content: "[The call has connected.]" },
     { role: "assistant", content: greeting }
   );
+  // While the greeting plays, so the caller's first reply finds the
+  // instructions already cached (engine.prewarm).
+  void engine.prewarm();
 
   return {
     engine,

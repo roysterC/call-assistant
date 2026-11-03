@@ -54,6 +54,8 @@ export type VoiceEvent =
       parts: { endOfTurnMs: number; modelMs: number | null; sentenceMs: number | null; voiceMs: number | null };
       /** A tool (a diary lookup, a booking) ran before anything was said. */
       lookup: boolean;
+      /** This turn's input tokens: read from the cache, written to it, and read uncached. */
+      tokens: { cacheRead: number; cacheWrite: number; uncached: number } | null;
       turnMs: number;
     }
   | { type: "ended"; by: "receptionist" }
@@ -382,6 +384,7 @@ export class VoiceCall {
     let firstOutputAt: number | null = null;
     let firstSpeakAt: number | null = null;
     let lookup = false;
+    let usage: { input: number; cacheRead: number; cacheWrite: number } | null = null;
     const output = () => {
       if (firstOutputAt === null) firstOutputAt = this.now();
     };
@@ -423,6 +426,7 @@ export class VoiceCall {
         ctl.signal
       );
       chunker.flush().forEach(speak);
+      usage = result.usage;
       this.turns.push(result);
       if (result.text.trim()) this.log.push({ who: "assistant", text: result.text.trim() });
       if (result.endCall) void this.hangUpAfterGoodbye(ctl);
@@ -448,6 +452,7 @@ export class VoiceCall {
             voiceMs: firstSpeakAt === null || firstAudio === null ? null : started + firstAudio - firstSpeakAt,
           },
           lookup,
+          tokens: usage && { cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite, uncached: usage.input },
           turnMs: this.now() - started,
         });
         if (this.turn === ctl) this.deps.out.event({ type: "state", state: "listening" });
