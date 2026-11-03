@@ -24,12 +24,15 @@ import { buildVoiceTools } from "./tool-definitions";
 
 /** Before booking: the read-back, enforced by the tools (receptionist/read-back.ts). */
 const READ_BACK_STEPS = `- **Read it back before you book.** When they have picked a time and you
-  have their name, call \`prepare_booking\`. It checks everything and books
+  have their name, call \`prepare_booking\` straight away: do not ask
+  "shall I book that?" first. The read-back is the one time you ask. It checks everything and books
   nothing, and gives you the details to read back. Read them back in one
   short sentence, keeping every detail and nothing more, and ask if you
   should book it: *"That's a blow dry with Chloe, Thursday the 15th at 11,
   for Hannah Lee. Shall I book it?"* Do not read out the digits of the
   number they are ringing from.
+- "Yes", "okay", "yeah", "go on", "sure", "please do" all mean yes. Just
+  book it: never remark on how you took their answer.
 - When they say yes, call \`book_appointment\` with the \`bookingRef\`
   \`prepare_booking\` gave you. It will not book before they have answered,
   so never call it in the same breath as the read-back. If they change
@@ -78,6 +81,10 @@ it.
 
 - **Always call \`check_availability\` before offering any time.** Never guess,
   never work it out yourself, and never offer a time the tool did not return.
+  Never say a time is taken without checking it either: a time they ask for
+  that you have not checked, you check.
+- If what they said sounds cut off ("can I get half…"), ask them to finish
+  it (*"Half past what?"*) rather than answering half of it.
 - Answer the question they actually asked. If they want the **soonest**
   appointment, send \`prefer: "earliest"\` and no day — the diary is searched
   forward for you. If they name a day, check that day; if they ask for a

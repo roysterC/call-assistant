@@ -338,6 +338,39 @@ To put a salon's number on it:
 4. Ring the number. The voice server's log shows `[VOICE] phone call CA...`,
    and the call appears in Call History when it ends.
 
+#### Moving the number to Twilio's Ireland region (pending)
+
+**Status, 3 November 2026: not done.** The Shogo number was moved to Ireland
+(IE1) to cut delay to the netcup box in Germany, then moved back to the US
+region (US1) because every call failed. It stays on US1 until the steps
+below are done.
+
+Why calls failed: Twilio keeps a number's settings per region, and each
+region signs its webhooks with its own auth token. On IE1 the number had no
+"A call comes in" webhook, and once that was set, the CRM refused the calls
+because they were signed with the Ireland token, not `TWILIO_AUTH_TOKEN`
+(Twilio then plays "We're sorry, an application error has occurred").
+
+To move it, in this order:
+
+1. Twilio console, switched to the Ireland (IE1) region: copy that region's
+   Auth Token (Account → API keys & tokens). It differs from the US one.
+2. On the box, add it to `/home/deploy/call-assistant/.env`:
+   `TWILIO_WEBHOOK_AUTH_TOKENS=<the IE1 auth token>` (comma-separated for
+   more than one). Leave `TWILIO_AUTH_TOKEN` alone: texts are sent with it.
+   Then `systemctl restart call-assistant.service`.
+3. Twilio console → move the number to IE1 → set "A call comes in" there:
+   Webhook, `https://89-58-45-110.nip.io/api/twilio/voice`, HTTP POST.
+4. Ring the number. If it fails, `journalctl -u call-assistant.service -n 50 | grep TWILIO`
+   says why: "refused an unsigned or mis-signed voice webhook" is the token;
+   "matched no salon's voice number" means IE1 sends the dialled number in
+   a different form from the one in Admin.
+5. Make a test booking and check the confirmation text arrives: texts still
+   go through Twilio's US API with `TWILIO_AUTH_TOKEN`, which may need
+   changing for a number that belongs to IE1.
+
+Then delete this section.
+
 ### The personal assistant
 
 Phase 3 of the Shogo proposal: a round assistant button on every signed-in

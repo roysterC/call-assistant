@@ -143,6 +143,39 @@ const BARGE_IN_WORDS = 2;
  */
 const START_EARLY_AFTER_MS = 150;
 
+/**
+ * How long to wait for the rest of a sentence the caller stopped part-way
+ * through ("I'm looking for…", "can I get half…"). The recogniser calls a
+ * turn over after 0.4s of silence, mid-phrase or not, and the receptionist
+ * answered half a question: "half" became "Sorry, I don't have half past
+ * today" when they meant half past four. Their words resuming cancels the
+ * wait; if none come, the turn goes ahead as it was.
+ */
+const UNFINISHED_HOLD_MS = 1200;
+
+/**
+ * Words a sentence does not end on: articles, prepositions, conjunctions,
+ * fillers, and the openings of a time or a request. "Can I get half" and
+ * "I'm looking for" end on one; "a men's cut" and "Thursday at 3" do not.
+ */
+const DANGLING = new Set([
+  "a", "an", "the", "my", "your", "his", "her", "our", "their", "some", "any",
+  "for", "to", "at", "on", "in", "of", "with", "from", "about", "by", "into", "after", "before", "around", "till", "until",
+  "and", "or", "but", "so", "because", "if", "then",
+  "um", "uh", "er", "erm", "hmm", "like",
+  "half", "quarter", "past",
+  "i'm", "i", "im", "can", "could", "would", "will", "is", "it's", "its", "get", "have", "need", "want", "looking", "book", "be",
+]);
+
+/** The caller's words stop part-way through a sentence. */
+export function soundsUnfinished(text: string): boolean {
+  const trimmed = text.trim();
+  // A full stop or question mark from the recogniser means it heard an end.
+  if (/[.?!]$/.test(trimmed)) return false;
+  const last = words(trimmed).at(-1);
+  return last !== undefined && DANGLING.has(last);
+}
+
 export class VoiceCall {
   private stt: SttStream | null = null;
   private readonly now: () => number;
@@ -184,6 +217,9 @@ export class VoiceCall {
   private modelTurns = 0;
   /** Turns whose reply has begun to be spoken: those always play out. */
   private readonly spoke = new WeakSet<AbortController>();
+  /** Waiting for the rest of an unfinished sentence: see UNFINISHED_HOLD_MS. */
+  private cancelHold: (() => void) | null = null;
+  private held = false;
 
   readonly log: Array<{ who: "caller" | "assistant"; text: string }> = [];
   turns: TurnResult[] = [];
@@ -322,6 +358,7 @@ export class VoiceCall {
     if (this.silenceTimer) clearInterval(this.silenceTimer);
     this.turn?.abort();
     this.dropEarly();
+    this.cancelHold?.();
     this.stt?.close();
   }
 
@@ -379,18 +416,28 @@ export class VoiceCall {
 
   /** New words: an early start on older ones is out of date; time a new one. */
   private wordsChanged() {
+    // They went on talking: whatever was being waited for has come.
+    if (this.cancelHold) {
+      this.cancelHold();
+      this.cancelHold = null;
+      this.held = false;
+    }
     this.cancelEarlyTimer?.();
     this.cancelEarlyTimer = null;
     if (this.early && !sameWords(this.early.callerText, this.callerSoFar())) this.dropEarly();
     const after = this.deps.startEarlyAfterMs === undefined ? START_EARLY_AFTER_MS : this.deps.startEarlyAfterMs;
     if (after === null || !this.deps.engine.speculate) return;
-    const schedule =
+    this.cancelEarlyTimer = this.scheduler()(() => this.startEarly(), after);
+  }
+
+  private scheduler(): (fn: () => void, ms: number) => () => void {
+    return (
       this.deps.schedule ??
-      ((fn: () => void, ms: number) => {
+      ((fn, ms) => {
         const t = setTimeout(fn, ms);
         return () => clearTimeout(t);
-      });
-    this.cancelEarlyTimer = schedule(() => this.startEarly(), after);
+      })
+    );
   }
 
   /**
@@ -435,6 +482,20 @@ export class VoiceCall {
   private onEndOfTurn() {
     const text = [...this.heard, this.interim].join(" ").replace(/\s+/g, " ").trim();
     if (!text || this.closed) return;
+    // Stopped part-way through a sentence: give them a moment to finish it,
+    // once. Their next words cancel the wait (wordsChanged), and the next end
+    // of turn is judged afresh on everything they said.
+    if (!this.held && soundsUnfinished(text)) {
+      this.held = true;
+      this.cancelHold = this.scheduler()(() => {
+        this.cancelHold = null;
+        this.onEndOfTurn();
+      }, UNFINISHED_HOLD_MS);
+      return;
+    }
+    this.cancelHold?.();
+    this.cancelHold = null;
+    this.held = false;
     this.heard = [];
     this.interim = "";
     // Interruptible: anything still playing is superseded by the new turn.
