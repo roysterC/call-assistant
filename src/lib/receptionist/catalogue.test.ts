@@ -173,6 +173,8 @@ const cases: Array<[string, () => Promise<unknown>, (() => void)?]> = [
   ["check: a day in the past", () => check({ date: "2020-01-01", service: "blow dry" })],
   ["check: a day with plenty free", () => check({ date: "Tuesday", service: "blow dry" })],
   ["check: the time asked for is free", () => check({ date: "Tuesday", service: "blow dry", time: "2pm" })],
+  ["check: one time asked for as a narrow window, free", () => check({ date: "Tuesday", service: "blow dry", after: "14:00", before: "14:30" })],
+  ["check: a window wider than an hour stays a window", () => check({ date: "Tuesday", service: "blow dry", after: "13:00", before: "16:00" })],
   ["check: the time asked for is taken", () => check({ date: "Tuesday", service: "blow dry", time: "1pm" })],
   ["check: an afternoon", () => check({ date: "Tuesday", service: "blow dry", timeOfDay: "afternoon" })],
   ["check: after six, which has nothing", () => check({ date: "Tuesday", service: "blow dry", after: "18:00" })],
