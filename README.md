@@ -346,15 +346,18 @@ region (US1) because every call failed. It stays on US1 until the steps
 below are done.
 
 Why calls failed: Twilio keeps a number's settings per region, and each
-region signs its webhooks with its own auth token. On IE1 the number had no
-"A call comes in" webhook, and once that was set, the CRM refused the calls
-because they were signed with the Ireland token, not `TWILIO_AUTH_TOKEN`
-(Twilio then plays "We're sorry, an application error has occurred").
+region has its own auth token, valid only there, which it signs webhooks
+with. On IE1 the number had no "A call comes in" webhook at first; once set,
+the CRM answered every call 403 (Twilio's error log) because they were
+signed with the IE1 token, not `TWILIO_AUTH_TOKEN`. The Console's token page
+shows one region at a time and opens on US1, so the IE1 token looks
+unchanged until the region is switched there.
 
 To move it, in this order:
 
-1. Twilio console, switched to the Ireland (IE1) region: copy that region's
-   Auth Token (Account → API keys & tokens). It differs from the US one.
+1. Twilio console → Builder tools → API Key & creds → API Keys & auth tokens
+   (legacy: Account → Keys & Credentials → API keys & tokens). Switch the
+   Region selector to IE1 first, then copy the Auth Token shown for IE1.
 2. On the box, add it to `/home/deploy/call-assistant/.env`:
    `TWILIO_WEBHOOK_AUTH_TOKENS=<the IE1 auth token>` (comma-separated for
    more than one). Leave `TWILIO_AUTH_TOKEN` alone: texts are sent with it.
@@ -365,9 +368,10 @@ To move it, in this order:
    says why: "refused an unsigned or mis-signed voice webhook" is the token;
    "matched no salon's voice number" means IE1 sends the dialled number in
    a different form from the one in Admin.
-5. Make a test booking and check the confirmation text arrives: texts still
-   go through Twilio's US API with `TWILIO_AUTH_TOKEN`, which may need
-   changing for a number that belongs to IE1.
+5. Make a test booking and check the confirmation text arrives. Texts go
+   through Twilio's US API with the US credentials, and Twilio's credentials
+   only work in their own region, so texts from a number on IE1 may need the
+   IE1 API and token (`src/lib/sms.ts`).
 
 Then delete this section.
 

@@ -18,6 +18,14 @@ export interface SttHandlers {
   onFinal(text: string): void;
   /** The caller has paused long enough to count as having finished. */
   onEndOfTurn(): void;
+  /**
+   * Probably finished, not yet certain (Flux's EagerEndOfTurn): a reply may
+   * be started on these words. If the turn does end, its words are exactly
+   * these.
+   */
+  onEagerEndOfTurn?(text: string): void;
+  /** They carried on after an eager end: whatever was started is out of date. */
+  onTurnResumed?(): void;
   onError(err: Error): void;
   /** The connection went down without being asked to. */
   onClose?(): void;
@@ -31,6 +39,12 @@ export interface SttStream {
 
 export interface SpeechToText {
   open(handlers: SttHandlers): Promise<SttStream>;
+  /**
+   * Ends turns by what was said, not only by silence, and says when a reply
+   * may start early (Flux). The call then leaves turn-taking to it, rather
+   * than waiting out unfinished sentences and timing early starts itself.
+   */
+  readonly detectsTurns?: boolean;
 }
 
 export type AudioEncoding =
@@ -149,6 +163,168 @@ export class DeepgramStt implements SpeechToText {
       });
     });
   }
+}
+
+// --- Flux: speech to text that knows when a turn has ended ----------------------
+
+export interface FluxOptions {
+  model?: string;
+  /** How sure it must be that they have finished before ending the turn (0.5 to 1). */
+  eotThreshold?: number;
+  /** How sure before a reply may be started early (0.3 to 1, and at most eotThreshold); null for never. */
+  eagerEotThreshold?: number | null;
+  /** Silence that ends a turn whatever was said, in ms (500 to 60000). */
+  eotTimeoutMs?: number;
+  keyterms?: string[];
+  /** Where to connect instead of Deepgram: a stand-in server, for tests. */
+  host?: string;
+}
+
+/**
+ * Settled for a salon's phone line: patient with someone thinking mid-
+ * sentence (a higher bar than Deepgram's default 0.7 before calling a turn
+ * over), and starting replies early when fairly sure. Deepgram's guide puts
+ * tool-calling agents at 0.4 / 0.85; these sit a little further from false
+ * starts and a little nearer to quick replies.
+ */
+export const FLUX_DEFAULTS = { eotThreshold: 0.8, eagerEotThreshold: 0.5, eotTimeoutMs: 6000 } as const;
+
+/** The streaming address for Flux, with everything it is told up front. */
+export function fluxListenUrl(encoding: AudioEncoding, opts: FluxOptions = {}): string {
+  const eot = opts.eotThreshold ?? FLUX_DEFAULTS.eotThreshold;
+  const eager = opts.eagerEotThreshold === undefined ? FLUX_DEFAULTS.eagerEotThreshold : opts.eagerEotThreshold;
+  const params = new URLSearchParams({
+    model: opts.model ?? "flux-general-en",
+    encoding: encoding.kind === "pcm16" ? "linear16" : "mulaw",
+    sample_rate: String(encoding.kind === "pcm16" ? encoding.sampleRate : 8000),
+    eot_threshold: String(eot),
+    eot_timeout_ms: String(opts.eotTimeoutMs ?? FLUX_DEFAULTS.eotTimeoutMs),
+    // Digits for numbers: phone numbers and times read back reliably.
+    numerals: "true",
+  });
+  // Above the end-of-turn bar Deepgram refuses the stream; capped there.
+  if (eager !== null) params.set("eager_eot_threshold", String(Math.min(eager, eot)));
+  for (const term of opts.keyterms ?? []) params.append("keyterm", term);
+  return `${opts.host ?? "wss://api.deepgram.com"}/v2/listen?${params}`;
+}
+
+/** Audio per message: Deepgram strongly recommends 80ms for Flux; the phone sends 20ms. */
+const FLUX_CHUNK_MS = 80;
+
+/**
+ * Deepgram's Flux, which ends a caller's turn when what they said, and how,
+ * says they have finished (EndOfTurn), and says earlier when they probably
+ * have (EagerEndOfTurn) or have carried on after all (TurnResumed). Its
+ * transcript is the whole turn so far each time.
+ */
+export class FluxStt implements SpeechToText {
+  readonly detectsTurns = true;
+  private readonly chunkBytes: number;
+
+  constructor(
+    private readonly apiKey: string,
+    private readonly encoding: AudioEncoding,
+    private readonly opts: FluxOptions = {}
+  ) {
+    const bytesPerSecond = encoding.kind === "pcm16" ? encoding.sampleRate * 2 : 8000;
+    this.chunkBytes = Math.round((bytesPerSecond * FLUX_CHUNK_MS) / 1000);
+  }
+
+  open(handlers: SttHandlers): Promise<SttStream> {
+    const ws = new WebSocket(fluxListenUrl(this.encoding, this.opts), {
+      headers: { Authorization: `Token ${this.apiKey}` },
+    });
+    const chunkBytes = this.chunkBytes;
+
+    return new Promise((resolve, reject) => {
+      let opened = false;
+      let closing = false;
+      let pending: Buffer[] = [];
+      let pendingBytes = 0;
+      const flush = () => {
+        if (!pendingBytes || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(pending.length === 1 ? pending[0] : Buffer.concat(pending));
+        pending = [];
+        pendingBytes = 0;
+      };
+
+      ws.on("open", () => {
+        opened = true;
+        resolve({
+          send(audio) {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            pending.push(audio);
+            pendingBytes += audio.length;
+            if (pendingBytes >= chunkBytes) flush();
+          },
+          close() {
+            closing = true;
+            flush();
+            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "CloseStream" }));
+            setTimeout(() => ws.terminate(), 1000).unref?.();
+          },
+        });
+      });
+      ws.on("message", (raw) => handleFluxMessage(raw.toString(), handlers));
+      ws.on("error", (err) => {
+        handlers.onError(err);
+        reject(err);
+      });
+      ws.on("close", () => {
+        if (opened && !closing) handlers.onClose?.();
+      });
+    });
+  }
+}
+
+/**
+ * One message from Flux, passed on as the call's recogniser events. The
+ * transcript is the whole turn so far each time, so it goes on as the words
+ * still coming until the turn ends, and then as what was said.
+ */
+export function handleFluxMessage(raw: string, handlers: SttHandlers): void {
+  let msg: { type?: string; event?: string; transcript?: string; description?: string };
+  try {
+    msg = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  if (msg.type === "TurnInfo") {
+    const text = msg.transcript?.trim() ?? "";
+    switch (msg.event) {
+      case "StartOfTurn":
+      case "Update":
+        if (text) handlers.onInterim(text);
+        break;
+      case "EagerEndOfTurn":
+        if (text) handlers.onEagerEndOfTurn?.(text);
+        break;
+      case "TurnResumed":
+        handlers.onTurnResumed?.();
+        if (text) handlers.onInterim(text);
+        break;
+      case "EndOfTurn":
+        if (text) handlers.onFinal(text);
+        handlers.onEndOfTurn();
+        break;
+    }
+  } else if (msg.type === "Error") {
+    handlers.onError(new Error(msg.description ?? "Flux error"));
+  }
+}
+
+/**
+ * The recogniser for a stream: Flux unless DEEPGRAM_MODEL names a Nova model
+ * (nova-3 brings back the silence-timed turns, as before Flux).
+ */
+export function speechToText(
+  apiKey: string,
+  encoding: AudioEncoding,
+  opts: DeepgramOptions & { flux?: Omit<FluxOptions, "model" | "keyterms"> } = {}
+): SpeechToText {
+  const model = opts.model ?? "flux-general-en";
+  if (model.startsWith("flux")) return new FluxStt(apiKey, encoding, { ...opts.flux, model, keyterms: opts.keyterms });
+  return new DeepgramStt(apiKey, encoding, { ...opts, model });
 }
 
 // --- Text to speech ------------------------------------------------------------

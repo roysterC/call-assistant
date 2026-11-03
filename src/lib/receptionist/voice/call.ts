@@ -271,6 +271,8 @@ export class VoiceCall {
       onInterim: (text) => this.onInterim(text),
       onFinal: (text) => this.onFinal(text),
       onEndOfTurn: () => this.onEndOfTurn(),
+      onEagerEndOfTurn: (text) => this.onEagerEndOfTurn(text),
+      onTurnResumed: () => this.dropEarly(),
       onError: (err) => this.deps.out.event({ type: "error", message: `Speech recognition: ${err.message}` }),
       onClose: () => void this.recoverStt(),
     });
@@ -434,7 +436,8 @@ export class VoiceCall {
     this.cancelEarlyTimer = null;
     if (this.early && !sameWords(this.early.callerText, this.callerSoFar())) this.dropEarly();
     const after = this.deps.startEarlyAfterMs === undefined ? START_EARLY_AFTER_MS : this.deps.startEarlyAfterMs;
-    if (after === null || !this.deps.engine.speculate) return;
+    // A recogniser that ends turns itself also says when to start early.
+    if (after === null || !this.deps.engine.speculate || this.deps.stt.detectsTurns) return;
     this.cancelEarlyTimer = this.scheduler()(() => this.startEarly(), after);
   }
 
@@ -460,6 +463,19 @@ export class VoiceCall {
     if (!text || (this.early && sameWords(this.early.callerText, text))) return;
     this.dropEarly();
     this.early = this.deps.engine.speculate?.(text) ?? null;
+  }
+
+  /**
+   * The recogniser thinks they have probably finished (Flux): start the reply
+   * on their words now. If the turn does end, it ends on exactly these words,
+   * and the reply carries on from here.
+   */
+  private onEagerEndOfTurn(text: string) {
+    if (this.isEcho(text)) return;
+    this.interim = text;
+    this.lastHeardAt = this.now();
+    if (this.deps.startEarlyAfterMs === null) return;
+    this.startEarly();
   }
 
   private dropEarly() {
@@ -497,7 +513,13 @@ export class VoiceCall {
     // backstop one about a second after the first, which cut the wait short
     // ("My name is" answered before "Roy").
     if (this.cancelHold) return;
-    const hold = this.deps.unfinishedHoldMs === undefined ? UNFINISHED_HOLD_MS : this.deps.unfinishedHoldMs;
+    // A recogniser that ends turns by what was said has already waited for
+    // the rest of the sentence; and its transcripts need not be punctuated.
+    const hold = this.deps.stt.detectsTurns
+      ? null
+      : this.deps.unfinishedHoldMs === undefined
+        ? UNFINISHED_HOLD_MS
+        : this.deps.unfinishedHoldMs;
     if (hold !== null && !this.held && soundsUnfinished(text)) {
       this.held = true;
       this.cancelHold = this.scheduler()(() => {

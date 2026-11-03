@@ -45,7 +45,7 @@ async function main() {
   const { verifyVoicePass } = await import("@/lib/receptionist/voice/token");
   const { VoiceCall } = await import("@/lib/receptionist/voice/call");
   const { recordUsage } = await import("@/lib/usage/record");
-  const { DeepgramStt, ElevenLabsTts, labVoiceRate } = await import("@/lib/receptionist/voice/providers");
+  const { speechToText, ElevenLabsTts, labVoiceRate } = await import("@/lib/receptionist/voice/providers");
   const { salonKeyterms } = await import("@/lib/receptionist/voice/keyterms");
   const { getSalonConfig } = await import("@/lib/booking");
   const { logCall, transcriptOf } = await import("@/lib/receptionist/call-log");
@@ -212,11 +212,13 @@ async function main() {
     const fakeStt = fakes ? new fakes.FakeStt() : null;
     const stt =
       fakeStt ??
-      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, encoding, {
+      speechToText(process.env.DEEPGRAM_API_KEY!, encoding, {
         model: process.env.DEEPGRAM_MODEL || undefined,
+        // More patient than on a call: someone dictating pauses to think
+        // between the name and the time, and that is not the end of what they
+        // want. Nothing is started early on a dictation, so no eager ends.
+        flux: { ...fluxSettings(), eotThreshold: fluxSettings().eotThreshold ?? 0.85, eagerEotThreshold: null },
         language: process.env.DEEPGRAM_LANGUAGE || undefined,
-        // Longer than on a call: someone dictating pauses to think between
-        // the name and the time, and that is not the end of what they want.
         endpointingMs: Number(process.env.DICTATION_ENDPOINTING_MS) || 700,
         keyterms: salonKeyterms({ businessName: settings?.businessName, stylists: cfg.stylists, services: cfg.services }),
       });
@@ -359,8 +361,9 @@ async function main() {
     const fakeStt = fakes ? new fakes.FakeStt() : null;
     const stt =
       fakeStt ??
-      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, micEncoding, {
+      speechToText(process.env.DEEPGRAM_API_KEY!, micEncoding, {
         model: process.env.DEEPGRAM_MODEL || undefined,
+        flux: fluxSettings(),
         language: process.env.DEEPGRAM_LANGUAGE || undefined,
         endpointingMs: process.env.DEEPGRAM_ENDPOINTING_MS ? Number(process.env.DEEPGRAM_ENDPOINTING_MS) : undefined,
         keyterms: session.keyterms,
@@ -529,8 +532,9 @@ async function main() {
     const fakeStt = fakes ? new fakes.FakeStt() : null;
     const stt =
       fakeStt ??
-      new DeepgramStt(process.env.DEEPGRAM_API_KEY!, encoding, {
+      speechToText(process.env.DEEPGRAM_API_KEY!, encoding, {
         model: process.env.DEEPGRAM_MODEL || undefined,
+        flux: fluxSettings(),
         language: process.env.DEEPGRAM_LANGUAGE || undefined,
         endpointingMs: process.env.DEEPGRAM_ENDPOINTING_MS ? Number(process.env.DEEPGRAM_ENDPOINTING_MS) : undefined,
         keyterms: session.keyterms,
@@ -735,6 +739,24 @@ function msSetting(name: string): number | null | undefined {
   if (v === "off") return null;
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+/**
+ * Flux's turn settings from the environment (receptionist/voice/providers.ts,
+ * FLUX_DEFAULTS): FLUX_EOT_THRESHOLD, FLUX_EAGER_EOT_THRESHOLD ("off" never
+ * starts a reply early) and FLUX_EOT_TIMEOUT_MS. Unset keeps the default.
+ */
+function fluxSettings() {
+  const num = (name: string) => {
+    const v = Number(process.env[name]);
+    return process.env[name]?.trim() && Number.isFinite(v) ? v : undefined;
+  };
+  const eager = process.env.FLUX_EAGER_EOT_THRESHOLD?.trim().toLowerCase();
+  return {
+    eotThreshold: num("FLUX_EOT_THRESHOLD"),
+    eagerEotThreshold: eager === "off" ? null : num("FLUX_EAGER_EOT_THRESHOLD"),
+    eotTimeoutMs: num("FLUX_EOT_TIMEOUT_MS"),
+  };
 }
 
 function median(values: number[]): number | null {
