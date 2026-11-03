@@ -26,6 +26,7 @@
 import { END_CALL, type ReceptionistEngine, type Speculation, type TurnResult } from "../engine";
 import { callOutcomes, type CallOutcome } from "../outcomes";
 import { SentenceChunker } from "./sentences";
+import { FillerPicker } from "./fillers";
 import type { SpeechToText, SttStream, TextToSpeech } from "./providers";
 
 export type VoiceEvent =
@@ -80,7 +81,10 @@ export interface VoiceCallDeps {
   out: VoiceOut;
   greeting: string;
   now?: () => number;
-  /** Said while a tool runs, if the reply has not started yet. */
+  /**
+   * Said while a tool runs, if the reply has not started yet. Unset varies it
+   * by tool (fillers.ts); a fixed line says that every time; "" says nothing.
+   */
   filler?: string;
   /**
    * Silence kept after the goodbye before the line goes down, so its last
@@ -215,6 +219,7 @@ export class VoiceCall {
   private cancelEarlyTimer: (() => void) | null = null;
   /** Turns the model is still working on; an early start waits for none. */
   private modelTurns = 0;
+  private readonly fillers = new FillerPicker();
   /** Turns whose reply has begun to be spoken: those always play out. */
   private readonly spoke = new WeakSet<AbortController>();
   /** Waiting for the rest of an unfinished sentence: see UNFINISHED_HOLD_MS. */
@@ -587,7 +592,7 @@ export class VoiceCall {
             // than silence.
             chunker.flush().forEach(speak);
             if (name !== END_CALL && !spokeThisTurn && this.deps.filler !== "") {
-              speak(this.deps.filler ?? "One moment.");
+              speak(this.deps.filler ?? this.fillers.pick(name));
             }
           },
         },
