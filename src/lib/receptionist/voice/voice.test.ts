@@ -135,7 +135,7 @@ describe("speaking speed", () => {
 
 function harness(
   respond: (text: string, hooks: TurnHooks, signal?: AbortSignal) => Promise<TurnResult>,
-  opts: { playbackSecondsPerPiece?: number } = {}
+  opts: { playbackSecondsPerPiece?: number; interruptible?: boolean } = {}
 ) {
   let clock = 0;
   let stt: SttHandlers | null = null;
@@ -169,6 +169,7 @@ function harness(
     greeting: "Thank you for calling Shogo.",
     now: () => clock,
     silence: null,
+    interruptible: opts.interruptible,
     sleep: (ms) =>
       new Promise<void>((resolve) =>
         waits.push(() => {
@@ -328,7 +329,7 @@ describe("VoiceCall", () => {
     expect(m.lookup).toBe(true);
   });
 
-  it("stops talking when the caller talks over it", async () => {
+  it("stops talking when the caller talks over it, when set to be interruptible", async () => {
     let seenSignal: AbortSignal | undefined;
     const h = harness(
       async (_t, hooks, signal) => {
@@ -336,7 +337,7 @@ describe("VoiceCall", () => {
         hooks.onText?.("We have nine o'clock or quarter past one on Tuesday. ");
         return done("…");
       },
-      { playbackSecondsPerPiece: 10 }
+      { playbackSecondsPerPiece: 10, interruptible: true }
     );
     await h.call.start();
     await tick();
@@ -352,6 +353,40 @@ describe("VoiceCall", () => {
     expect(h.clear).toHaveBeenCalledTimes(1);
     expect(seenSignal?.aborted).toBe(true);
     expect(h.events).toContainEqual({ type: "interrupted" });
+  });
+
+  it("finishes what it is saying when the caller talks over it, then answers them", async () => {
+    const seen: string[] = [];
+    const signals: AbortSignal[] = [];
+    const h = harness(
+      async (text, hooks, signal) => {
+        seen.push(text);
+        signals.push(signal!);
+        hooks.onText?.(seen.length === 1 ? "We have nine o'clock or quarter past one on Tuesday. " : "Wednesday, then. ");
+        return done("…");
+      },
+      { playbackSecondsPerPiece: 10 }
+    );
+    await h.call.start();
+    await tick();
+    h.advance(20_000);
+    h.stt().onFinal("Tuesday please");
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    // Mid-reply (ten seconds of audio queued), the caller talks over it.
+    h.advance(1_000);
+    h.stt().onInterim("actually Wednesday");
+    h.stt().onFinal("actually Wednesday");
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    expect(h.clear).not.toHaveBeenCalled();
+    expect(signals[0].aborted).toBe(false);
+    expect(h.events).not.toContainEqual({ type: "interrupted" });
+    // Heard all the same, and answered after.
+    expect(seen).toEqual(["Tuesday please", "actually Wednesday"]);
+    expect(h.spoken.slice(-2)).toEqual(["We have nine o'clock or quarter past one on Tuesday.", "Wednesday, then."]);
   });
 
   it("does not treat a single word as an interruption", async () => {
