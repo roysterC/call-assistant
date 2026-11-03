@@ -23,7 +23,7 @@
  * `out` callbacks. The browser lab and the phone line differ only there.
  */
 
-import { END_CALL, type ReceptionistEngine, type TurnResult } from "../engine";
+import { END_CALL, type ReceptionistEngine, type Speculation, type TurnResult } from "../engine";
 import { callOutcomes, type CallOutcome } from "../outcomes";
 import { SentenceChunker } from "./sentences";
 import type { SpeechToText, SttStream, TextToSpeech } from "./providers";
@@ -54,6 +54,8 @@ export type VoiceEvent =
       parts: { endOfTurnMs: number; modelMs: number | null; sentenceMs: number | null; voiceMs: number | null };
       /** A tool (a diary lookup, a booking) ran before anything was said. */
       lookup: boolean;
+      /** The reply was started early, before the caller's turn ended, and that start was used. */
+      startedEarly: boolean;
       /** This turn's input tokens: read from the cache, written to it, and read uncached. */
       tokens: { cacheRead: number; cacheWrite: number; uncached: number } | null;
       turnMs: number;
@@ -71,7 +73,8 @@ export interface VoiceOut {
 }
 
 export interface VoiceCallDeps {
-  engine: Pick<ReceptionistEngine, "respond">;
+  /** speculate is optional: without it, replies are never started early. */
+  engine: Pick<ReceptionistEngine, "respond"> & Partial<Pick<ReceptionistEngine, "speculate">>;
   stt: SpeechToText;
   tts: TextToSpeech;
   out: VoiceOut;
@@ -91,6 +94,14 @@ export interface VoiceCallDeps {
    * there, and then before the call is ended. Null turns the check off.
    */
   silence?: { promptMs: number; hangupMs: number } | null;
+  /**
+   * How long the caller's words must stay unchanged before the reply is
+   * started early, ahead of the recogniser deciding they have finished.
+   * Null never starts early.
+   */
+  startEarlyAfterMs?: number | null;
+  /** Runs fn after ms, returning a cancel; stood in for by tests. */
+  schedule?: (fn: () => void, ms: number) => () => void;
 }
 
 export const SILENCE_PROMPT = "Are you still there?";
@@ -115,6 +126,16 @@ const ECHO_TAIL_MS = 600;
  * a real attempt to speak.
  */
 const BARGE_IN_WORDS = 2;
+
+/**
+ * The early start. The recogniser only says a caller has finished after
+ * 400ms of silence, and the model only started then. Once their words have
+ * stood still this long, the model is started on them; if that was the end
+ * of their turn, the reply is that much further on when the turn ends. More
+ * words cancel it. Short, because a pause this long mid-sentence costs only a
+ * cancelled request, and Haiku requests are cheap.
+ */
+const START_EARLY_AFTER_MS = 150;
 
 export class VoiceCall {
   private stt: SttStream | null = null;
@@ -150,6 +171,11 @@ export class VoiceCall {
   private hangingUp = false;
   /** The receptionist put the phone down (after a goodbye), not the caller. */
   private endedByReceptionist = false;
+  /** A reply started early on the caller's words so far: see START_EARLY_AFTER_MS. */
+  private early: Speculation | null = null;
+  private cancelEarlyTimer: (() => void) | null = null;
+  /** Turns the model is still working on; an early start waits for none. */
+  private modelTurns = 0;
 
   readonly log: Array<{ who: "caller" | "assistant"; text: string }> = [];
   turns: TurnResult[] = [];
@@ -287,6 +313,7 @@ export class VoiceCall {
     this.closed = true;
     if (this.silenceTimer) clearInterval(this.silenceTimer);
     this.turn?.abort();
+    this.dropEarly();
     this.stt?.close();
   }
 
@@ -320,6 +347,7 @@ export class VoiceCall {
     this.callerSpoke();
     this.deps.out.event({ type: "caller", text: [...this.heard, text].join(" "), final: false });
     if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
+    this.wordsChanged();
   }
 
   private onFinal(text: string) {
@@ -333,6 +361,49 @@ export class VoiceCall {
     this.callerSpoke();
     this.deps.out.event({ type: "caller", text: this.heard.join(" "), final: false });
     if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
+    this.wordsChanged();
+  }
+
+  /** What the caller has said this turn, settled words and those still coming. */
+  private callerSoFar(): string {
+    return [...this.heard, this.interim].join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  /** New words: an early start on older ones is out of date; time a new one. */
+  private wordsChanged() {
+    this.cancelEarlyTimer?.();
+    this.cancelEarlyTimer = null;
+    if (this.early && !sameWords(this.early.callerText, this.callerSoFar())) this.dropEarly();
+    const after = this.deps.startEarlyAfterMs === undefined ? START_EARLY_AFTER_MS : this.deps.startEarlyAfterMs;
+    if (after === null || !this.deps.engine.speculate) return;
+    const schedule =
+      this.deps.schedule ??
+      ((fn: () => void, ms: number) => {
+        const t = setTimeout(fn, ms);
+        return () => clearTimeout(t);
+      });
+    this.cancelEarlyTimer = schedule(() => this.startEarly(), after);
+  }
+
+  /**
+   * The caller's words have stood still: start the reply on them. Not while
+   * the receptionist is talking or the model is still on an earlier turn, and
+   * not with words carried over from an overtaken turn: those go in first.
+   */
+  private startEarly() {
+    this.cancelEarlyTimer = null;
+    if (this.closed || this.hangingUp || this.busy || this.modelTurns > 0 || this.carry) return;
+    const text = this.callerSoFar();
+    if (!text || (this.early && sameWords(this.early.callerText, text))) return;
+    this.dropEarly();
+    this.early = this.deps.engine.speculate?.(text) ?? null;
+  }
+
+  private dropEarly() {
+    this.cancelEarlyTimer?.();
+    this.cancelEarlyTimer = null;
+    this.early?.cancel();
+    this.early = null;
   }
 
   private interrupt() {
@@ -355,10 +426,17 @@ export class VoiceCall {
     if (this.busy) this.interrupt();
     this.deps.out.event({ type: "caller", text, final: true });
     this.log.push({ who: "caller", text });
-    void this.runTurn(text, this.lastHeardAt);
+    // Started early on these same words: the reply carries on from there.
+    // The model is given the words it was started on (the final transcript
+    // can differ in a comma or a capital).
+    const early = this.early && sameWords(this.early.callerText, text) ? this.early : null;
+    if (early) this.early = null;
+    this.dropEarly();
+    void this.runTurn(early ? early.callerText : text, this.lastHeardAt, early);
   }
 
-  private async runTurn(text: string, heardAt: number) {
+  private async runTurn(text: string, heardAt: number, early: Speculation | null = null) {
+    this.modelTurns++;
     const ctl = new AbortController();
     this.turn = ctl;
     this.turnRunning = true;
@@ -370,6 +448,8 @@ export class VoiceCall {
     if (ctl.signal.aborted) {
       // Overtaken by a newer turn while waiting; its words go with that one.
       this.carry = `${this.carry} ${text}`.trim();
+      early?.cancel();
+      this.modelTurns--;
       settle();
       return;
     }
@@ -385,6 +465,7 @@ export class VoiceCall {
     let firstSpeakAt: number | null = null;
     let lookup = false;
     let usage: { input: number; cacheRead: number; cacheWrite: number } | null = null;
+    let startedEarly = false;
     const output = () => {
       if (firstOutputAt === null) firstOutputAt = this.now();
     };
@@ -423,10 +504,12 @@ export class VoiceCall {
             }
           },
         },
-        ctl.signal
+        ctl.signal,
+        ...(early ? [{ head: early }] : [])
       );
       chunker.flush().forEach(speak);
       usage = result.usage;
+      startedEarly = early !== null && !early.signal.aborted;
       this.turns.push(result);
       if (result.text.trim()) this.log.push({ who: "assistant", text: result.text.trim() });
       if (result.endCall) void this.hangUpAfterGoodbye(ctl);
@@ -436,6 +519,7 @@ export class VoiceCall {
         speak("Sorry, I'm having a little trouble. Someone from the salon will ring you back.");
       }
     } finally {
+      this.modelTurns--;
       settle();
       if (this.turn === ctl) this.turnRunning = false;
       // Metrics once the speech queue has caught up with this turn.
@@ -452,6 +536,7 @@ export class VoiceCall {
             voiceMs: firstSpeakAt === null || firstAudio === null ? null : started + firstAudio - firstSpeakAt,
           },
           lookup,
+          startedEarly,
           tokens: usage && { cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite, uncached: usage.input },
           turnMs: this.now() - started,
         });
@@ -518,6 +603,11 @@ function words(text: string): string[] {
     .replace(/[^\p{L}\p{N}' ]+/gu, " ")
     .split(/\s+/)
     .filter(Boolean);
+}
+
+/** The same words, whatever the punctuation or capitals: "Thursday at 3?" and "thursday at 3". */
+function sameWords(a: string, b: string): boolean {
+  return words(a).join(" ") === words(b).join(" ");
 }
 
 function wordCount(text: string): number {

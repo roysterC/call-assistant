@@ -100,6 +100,24 @@ export interface TurnResult {
 export const FALLBACK_REPLY =
   "Sorry, I'm having a little trouble with that. Someone from the salon will ring you back to sort it out.";
 
+/**
+ * A reply started before the caller has quite finished (VoiceCall's early
+ * start). Only the model's first request: no tool runs and nothing is added
+ * to the conversation until a turn adopts it (respond's `head`). Cancelled,
+ * it has changed nothing.
+ */
+export interface Speculation {
+  /** The words it was started on. */
+  readonly callerText: string;
+  cancel(): void;
+  /** The conversation's length when it started; adopted only if unchanged. */
+  readonly basedOn: number;
+  readonly deltas: string[];
+  listener: ((delta: string) => void) | null;
+  readonly signal: AbortSignal;
+  readonly finalMessage: Promise<Anthropic.Message>;
+}
+
 export class ReceptionistEngine {
   /**
    * The conversation so far, in the API's own shapes. Appended to, never
@@ -116,6 +134,52 @@ export class ReceptionistEngine {
 
   constructor(private readonly cfg: EngineConfig) {}
 
+  /** One request to the model, as every turn sends it. */
+  private params(messages: Anthropic.MessageParam[]): Anthropic.MessageCreateParamsNonStreaming {
+    return {
+      model: this.cfg.model,
+      ...this.cfg.request,
+      max_tokens: this.cfg.maxTokens ?? 2048,
+      system: this.cfg.system,
+      tools: this.cfg.tools,
+      messages,
+      // The conversation so far is cached as well as the instructions, so
+      // each turn reads the turns before it from the cache instead of
+      // reading the whole call again. The marker goes on the last block.
+      cache_control: { type: "ephemeral" },
+    };
+  }
+
+  /**
+   * Start the model on what the caller has said so far, before it is certain
+   * they have finished. Its text is held until a turn adopts it; nothing it
+   * asks for is done until then. See Speculation.
+   */
+  speculate(callerText: string): Speculation {
+    const ctl = new AbortController();
+    const stream = this.cfg.client.messages.stream(
+      this.params([...this.messages, { role: "user", content: callerText }]),
+      { signal: ctl.signal }
+    );
+    const deltas: string[] = [];
+    const spec: Speculation = {
+      callerText,
+      basedOn: this.messages.length,
+      deltas,
+      listener: null,
+      signal: ctl.signal,
+      cancel: () => ctl.abort(),
+      finalMessage: stream.finalMessage(),
+    };
+    stream.on("text", (d) => {
+      deltas.push(d);
+      spec.listener?.(d);
+    });
+    // A cancelled one rejects; nobody may be waiting on it.
+    spec.finalMessage.catch(() => {});
+    return spec;
+  }
+
   /**
    * Load the instructions and tools into the model's cache before anyone
    * speaks, so the first reply does not wait for them to be read cold. Sent
@@ -129,16 +193,8 @@ export class ReceptionistEngine {
     const first = this.messages[0];
     if (!create || !first || first.role !== "user") return null;
     try {
-      const m = await create.call(this.cfg.client.messages, {
-        model: this.cfg.model,
-        ...this.cfg.request,
-        max_tokens: 0,
-        system: this.cfg.system,
-        tools: this.cfg.tools,
-        // Up to the last user turn: a request may not end on the assistant.
-        messages: [first],
-        cache_control: { type: "ephemeral" },
-      });
+      // Up to the last user turn: a request may not end on the assistant.
+      const m = await create.call(this.cfg.client.messages, { ...this.params([first]), max_tokens: 0 });
       return { cacheRead: m.usage.cache_read_input_tokens ?? 0, cacheWrite: m.usage.cache_creation_input_tokens ?? 0 };
     } catch (err) {
       console.warn("[RECEPTIONIST] cache warm-up failed:", err instanceof Error ? err.message : err);
@@ -149,8 +205,19 @@ export class ReceptionistEngine {
   async respond(
     callerText: string,
     hooks: TurnHooks = {},
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    opts: { head?: Speculation | null } = {}
   ): Promise<TurnResult> {
+    // Taken over only if started on these very words and this conversation.
+    let head =
+      opts.head &&
+      !opts.head.signal.aborted &&
+      opts.head.callerText === callerText &&
+      opts.head.basedOn === this.messages.length
+        ? opts.head
+        : null;
+    if (opts.head && !head) opts.head.cancel();
+    if (head) signal?.addEventListener("abort", () => head?.cancel(), { once: true });
     this.turns++;
     const result: TurnResult = {
       text: "",
@@ -186,26 +253,22 @@ export class ReceptionistEngine {
     for (let trip = 0; trip < limit; trip++) {
       if (signal?.aborted) return aborted();
 
-      const stream = this.cfg.client.messages.stream(
-        {
-          model: this.cfg.model,
-          ...this.cfg.request,
-          max_tokens: this.cfg.maxTokens ?? 2048,
-          system: this.cfg.system,
-          tools: this.cfg.tools,
-          messages: [...this.messages, ...pending],
-          // The conversation so far is cached as well as the instructions, so
-          // each turn reads the turns before it from the cache instead of
-          // reading the whole call again. The marker goes on the last block.
-          cache_control: { type: "ephemeral" },
-        },
-        { signal }
-      );
-      stream.on("text", say);
+      let reply: Promise<Anthropic.Message>;
+      if (trip === 0 && head) {
+        // Already under way: what it has written so far, then the rest live.
+        head.deltas.forEach(say);
+        head.listener = say;
+        reply = head.finalMessage;
+        head = null;
+      } else {
+        const stream = this.cfg.client.messages.stream(this.params([...this.messages, ...pending]), { signal });
+        stream.on("text", say);
+        reply = stream.finalMessage();
+      }
 
       let message: Anthropic.Message;
       try {
-        message = await stream.finalMessage();
+        message = await reply;
       } catch (err) {
         if (signal?.aborted) return aborted();
         throw err;
