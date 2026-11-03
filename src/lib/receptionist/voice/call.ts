@@ -27,7 +27,7 @@ import { END_CALL, type ReceptionistEngine, type Speculation, type TurnResult } 
 import { callOutcomes, type CallOutcome } from "../outcomes";
 import { SentenceChunker } from "./sentences";
 import { FillerPicker } from "./fillers";
-import type { SpeechToText, SttStream, TextToSpeech } from "./providers";
+import type { Listening, SpeechToText, SttStream, TextToSpeech } from "./providers";
 
 export type VoiceEvent =
   | { type: "state"; state: "listening" | "thinking" | "speaking" }
@@ -111,6 +111,12 @@ export interface VoiceCallDeps {
   unfinishedHoldMs?: number | null;
   /** Runs fn after ms, returning a cancel; stood in for by tests. */
   schedule?: (fn: () => void, ms: number) => () => void;
+  /**
+   * How the recogniser listens normally, when it can be changed mid-call
+   * (Flux). Given, each reply then sets how to listen for its answer: see
+   * listeningFor.
+   */
+  listening?: Listening;
   /**
    * Whether the caller can cut the receptionist off by talking over it. Off
    * by default: it always finishes what it is saying, and whatever the caller
@@ -223,6 +229,8 @@ export class VoiceCall {
   /** Turns the model is still working on; an early start waits for none. */
   private modelTurns = 0;
   private readonly fillers = new FillerPicker();
+  /** The way of listening last sent to the recogniser, to send only changes. */
+  private listeningSent = "";
   /** Turns whose reply has begun to be spoken: those always play out. */
   private readonly spoke = new WeakSet<AbortController>();
   /** Waiting for the rest of an unfinished sentence: see UNFINISHED_HOLD_MS. */
@@ -478,6 +486,22 @@ export class VoiceCall {
     this.startEarly();
   }
 
+  /** Set the recogniser to listen for the answer to what was just asked. */
+  private listenForAnswerTo(reply: string) {
+    const base = this.deps.listening;
+    if (!base || !this.stt?.configure || !reply.trim()) return;
+    const next = listeningFor(reply, base);
+    const key = JSON.stringify(next);
+    if (key === this.listeningSent) return;
+    // The stream was opened listening the normal way.
+    if (!this.listeningSent && key === JSON.stringify(base)) {
+      this.listeningSent = key;
+      return;
+    }
+    this.listeningSent = key;
+    this.stt.configure(next);
+  }
+
   private dropEarly() {
     this.cancelEarlyTimer?.();
     this.cancelEarlyTimer = null;
@@ -627,6 +651,7 @@ export class VoiceCall {
       );
       chunker.flush().forEach(speak);
       usage = result.usage;
+      this.listenForAnswerTo(result.text);
       startedEarly = early !== null && !early.signal.aborted;
       this.turns.push(result);
       if (result.text.trim()) this.log.push({ who: "assistant", text: result.text.trim() });
@@ -721,6 +746,28 @@ function words(text: string): string[] {
     .replace(/[^\p{L}\p{N}' ]+/gu, " ")
     .split(/\s+/)
     .filter(Boolean);
+}
+
+/**
+ * How to listen for the answer to what the receptionist just said, as
+ * Deepgram advises for Flux: patient while someone gives a number or spells
+ * a name, so a pause between digit groups or letters is not the end of their
+ * turn, with digits on only for a number ("quarter to twelve" stays words
+ * otherwise); quick for a yes or no, which is short and clear; and the
+ * normal way for anything else.
+ */
+export function listeningFor(reply: string, base: Listening): Listening {
+  const asked = (reply.trim().split(/(?<=[.?!])\s+/).at(-1) ?? "").toLowerCase();
+  const patient = { eotThreshold: 0.9, eagerEotThreshold: 0.85, eotTimeoutMs: 8000 };
+  if (/\bspell\b/.test(asked)) return { ...patient, numerals: false };
+  if (/\b(number|phone|mobile|digits)\b/.test(asked)) return { ...patient, numerals: true };
+  // A name is asked as "can I take your name?" but answered with a pause
+  // ("My name is… Roy"): not a yes or no.
+  if (/\bname\b/.test(asked)) return base;
+  if (/\?$/.test(asked) && /^(shall|should|would|do|does|did|is|are|can|could|will|have|has)\b|\banything else\?$/.test(asked)) {
+    return { ...base, eotThreshold: Math.min(base.eotThreshold, 0.7), numerals: false };
+  }
+  return base;
 }
 
 /** The same words, whatever the punctuation or capitals: "Thursday at 3?" and "thursday at 3". */

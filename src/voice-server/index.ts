@@ -45,7 +45,7 @@ async function main() {
   const { verifyVoicePass } = await import("@/lib/receptionist/voice/token");
   const { VoiceCall } = await import("@/lib/receptionist/voice/call");
   const { recordUsage } = await import("@/lib/usage/record");
-  const { speechToText, ElevenLabsTts, labVoiceRate } = await import("@/lib/receptionist/voice/providers");
+  const { speechToText, ElevenLabsTts, labVoiceRate, FLUX_DEFAULTS } = await import("@/lib/receptionist/voice/providers");
   const { salonKeyterms } = await import("@/lib/receptionist/voice/keyterms");
   const { getSalonConfig } = await import("@/lib/booking");
   const { logCall, transcriptOf } = await import("@/lib/receptionist/call-log");
@@ -379,6 +379,7 @@ async function main() {
     const call = new VoiceCall({
       engine: session.engine,
       startEarlyAfterMs: startEarlyAfterMs(),
+      listening: normalListening(FLUX_DEFAULTS),
       unfinishedHoldMs: msSetting("RECEPTIONIST_UNFINISHED_HOLD_MS"),
       // RECEPTIONIST_INTERRUPTIBLE=on lets callers cut it off again.
       interruptible: process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase() === "on",
@@ -554,6 +555,7 @@ async function main() {
     const call = new VoiceCall({
       engine: session.engine,
       startEarlyAfterMs: startEarlyAfterMs(),
+      listening: normalListening(FLUX_DEFAULTS),
       unfinishedHoldMs: msSetting("RECEPTIONIST_UNFINISHED_HOLD_MS"),
       // RECEPTIONIST_INTERRUPTIBLE=on lets callers cut it off again.
       interruptible: process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase() === "on",
@@ -756,6 +758,24 @@ function fluxSettings() {
     eotThreshold: num("FLUX_EOT_THRESHOLD"),
     eagerEotThreshold: eager === "off" ? null : num("FLUX_EAGER_EOT_THRESHOLD"),
     eotTimeoutMs: num("FLUX_EOT_TIMEOUT_MS"),
+    host: process.env.DEEPGRAM_HOST?.trim().replace(/\/+$/, "") || undefined,
+  };
+}
+
+/**
+ * How a call listens normally, when it is on Flux, so each reply can set how
+ * to listen for its answer (VoiceCall's listeningFor). Undefined on Nova-3,
+ * which cannot be changed mid-call.
+ */
+function normalListening(defaults: { eotThreshold: number; eagerEotThreshold: number | null; eotTimeoutMs: number }) {
+  const model = process.env.DEEPGRAM_MODEL || "flux-general-en";
+  if (!model.startsWith("flux")) return undefined;
+  const f = fluxSettings();
+  return {
+    eotThreshold: f.eotThreshold ?? defaults.eotThreshold,
+    eagerEotThreshold: f.eagerEotThreshold === undefined ? defaults.eagerEotThreshold : f.eagerEotThreshold,
+    eotTimeoutMs: f.eotTimeoutMs ?? defaults.eotTimeoutMs,
+    numerals: false,
   };
 }
 

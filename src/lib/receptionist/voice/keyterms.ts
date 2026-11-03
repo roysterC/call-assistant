@@ -14,7 +14,9 @@
 
 import type { SalonService, Stylist } from "@/lib/salon-config";
 
-export const MAX_KEYTERMS = 60;
+// Deepgram advises the 20 to 50 terms that matter most: a longer list can
+// make it hear terms that were not said.
+export const MAX_KEYTERMS = 50;
 
 /**
  * Hairdressing words callers use that ordinary speech recognition mangles:
