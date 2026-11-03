@@ -12,6 +12,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 import { getSalonConfig } from "@/lib/booking";
 import { runAction } from "@/lib/receptionist/actions";
+import { spokenDay, spokenTime } from "@/lib/receptionist/action-helpers";
+import { zonedDateString } from "@/lib/business-hours";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
 import { upcomingDays } from "@/lib/receptionist/prompt";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
@@ -250,8 +252,11 @@ Doing things (every one of these only puts a card on screen):
   card: call the proposal again with the change.
 
 No lists or symbols, times as people say them ("half past two"), money in
-pounds. Never ask am or pm: "3" means the one inside opening hours. For a card, the card shows every detail, so say only who, when and
-"Save it?": "Sarah Jones, Thursday at 2 with Jo. Save it?"
+pounds. Never ask am or pm: "3" means the one inside opening hours.
+
+For a card, say the proposal's \`say\` line as it is, and nothing else: the
+card on screen shows every detail. "Sarah Jones, Thursday at 2pm with Jo.
+Save it?"
 
 Salon work only. Politely say so otherwise.
 
@@ -299,7 +304,7 @@ export async function startVoiceBooking(
   const propose = async (p: Proposal) => {
     if (!p.ok) return p;
     session.pending = p.draft;
-    return { ok: true, shownOnScreen: describeDraft(p.draft, cfg.timeZone) };
+    return { ok: true, shownOnScreen: describeDraft(p.draft, cfg.timeZone), say: sayDraft(p.draft, cfg.timeZone) };
   };
 
   session.engine = new ReceptionistEngine({
@@ -406,6 +411,33 @@ function str(v: string | boolean | number | undefined): string | undefined {
 }
 
 /** One line, as the assistant should read the card back. */
+/**
+ * What to say about a card, already short: who, when, and the question. The
+ * card on screen has every detail, so saying them all only took longer; left
+ * to shorten the full description itself, the model read most of it out.
+ */
+export function sayDraft(d: Draft, timeZone: string, now = new Date()): string {
+  const when = (iso: string) =>
+    `${spokenDay(zonedDateString(new Date(iso), timeZone), timeZone, now)} at ${spokenTime(iso, timeZone)}`;
+  const ask = d.kind !== "text" && "text" in d && d.text ? "Save and text?" : "Save it?";
+  switch (d.kind) {
+    case "book":
+      return `${d.clientName}, ${when(d.startsAt)} with ${d.stylist}.${d.patchTestRequired ? " Skin test needed." : ""} ${ask}`;
+    case "move":
+      return `Move ${d.clientName} to ${when(d.startsAt)} with ${d.stylist}? ${ask === "Save it?" ? "" : "And text them."}`.trim();
+    case "cancel":
+      return `Cancel ${d.clientName}, ${when(d.startsAt)}? ${ask === "Save it?" ? "" : "And text them."}`.trim();
+    case "note":
+      return `Add that to ${d.clientName}'s notes?`;
+    case "text":
+      return `Text ${d.clientName} that?`;
+    case "details": {
+      const label = { name: "name", phone: "number", email: "email", patchTest: "patch test" } as const;
+      return `Update ${d.clientName}'s ${d.changes.map((c) => label[c.field]).join(" and ")}?`;
+    }
+  }
+}
+
 export function describeDraft(d: Draft, timeZone: string): string {
   const when = (iso: string) =>
     new Date(iso).toLocaleString("en-GB", { timeZone, weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit", hour12: true });

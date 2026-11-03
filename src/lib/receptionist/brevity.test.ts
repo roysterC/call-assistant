@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SPOKEN_STYLE, buildSystem, greetingFor } from "./prompt";
 import { readBackSentence } from "./read-back";
-import { instructions as assistantInstructions } from "@/lib/voice-booking/assistant";
+import { instructions as assistantInstructions, sayDraft } from "@/lib/voice-booking/assistant";
 
 /**
  * The receptionist talks the way its examples do, whatever the rules say, so
@@ -84,5 +84,38 @@ describe("what the diary's assistant is shown to say", () => {
 
   it.each(said)("is short: %s", (line) => {
     expect(words(line)).toBeLessThanOrEqual(12);
+  });
+});
+
+describe("what the diary's assistant says about a card", () => {
+  // Saturday 26 September 2026, ten in the morning; the booking is Tuesday.
+  const now = new Date("2026-09-26T10:00:00+01:00");
+  const tz = "Europe/London";
+  const diary = {
+    id: "d",
+    leadId: "sarah",
+    clientName: "Sarah Jones",
+    service: "Ladies cut and blow dry",
+    stylist: "Jo",
+    startsAt: "2026-09-29T14:00:00+01:00",
+    endsAt: "2026-09-29T15:00:00+01:00",
+    text: null,
+  };
+  const cards = [
+    { ...diary, kind: "book", newClient: null, durationMinutes: 60, clientType: "returning", patchTestRequired: false, notes: null },
+    { ...diary, kind: "move", appointmentId: "a", from: { startsAt: diary.startsAt, stylist: "Jo" }, durationMinutes: 60 },
+    { ...diary, kind: "cancel", appointmentId: "a" },
+    { id: "n", kind: "note", leadId: "sarah", clientName: "Sarah Jones", note: "Prefers Jo" },
+  ] as unknown as Parameters<typeof sayDraft>[0][];
+
+  it("names who and when, and asks, in a few words", () => {
+    expect(sayDraft(cards[0], tz, now)).toBe("Sarah Jones, Tuesday at 2pm with Jo. Save it?");
+    expect(sayDraft(cards[1], tz, now)).toBe("Move Sarah Jones to Tuesday at 2pm with Jo?");
+    expect(sayDraft(cards[2], tz, now)).toBe("Cancel Sarah Jones, Tuesday at 2pm?");
+    expect(sayDraft(cards[3], tz, now)).toBe("Add that to Sarah Jones's notes?");
+  });
+
+  it.each(cards.map((c) => [c.kind, c] as const))("is short: %s", (_kind, card) => {
+    expect(words(sayDraft(card, tz, now))).toBeLessThanOrEqual(12);
   });
 });
