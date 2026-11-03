@@ -199,8 +199,8 @@ export function fluxListenUrl(encoding: AudioEncoding, opts: FluxOptions = {}): 
     sample_rate: String(encoding.kind === "pcm16" ? encoding.sampleRate : 8000),
     eot_threshold: String(eot),
     eot_timeout_ms: String(opts.eotTimeoutMs ?? FLUX_DEFAULTS.eotTimeoutMs),
-    // Digits for numbers: phone numbers and times read back reliably.
-    numerals: "true",
+    // No `numerals`: it turned "quarter to twelve" into "0.25 to 12" on the
+    // first Flux call. Times and numbers in words are read here already.
   });
   // Above the end-of-turn bar Deepgram refuses the stream; capped there.
   if (eager !== null) params.set("eager_eot_threshold", String(Math.min(eager, eot)));

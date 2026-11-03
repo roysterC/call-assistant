@@ -17,7 +17,7 @@ import {
 /** Deepgram's Flux: turns ended by what was said, and early starts it calls. */
 
 describe("the Flux stream address", () => {
-  it("asks for Flux on 8kHz phone audio, with the turn settings, digits and the salon's words", () => {
+  it("asks for Flux on 8kHz phone audio, with the turn settings and the salon's words", () => {
     const url = new URL(fluxListenUrl({ kind: "mulaw8k" }, { keyterms: ["Chloe", "balayage"] }));
     expect(url.origin + url.pathname).toBe("wss://api.deepgram.com/v2/listen");
     const p = url.searchParams;
@@ -27,7 +27,7 @@ describe("the Flux stream address", () => {
     expect(p.get("eot_threshold")).toBe("0.8");
     expect(p.get("eager_eot_threshold")).toBe("0.5");
     expect(p.get("eot_timeout_ms")).toBe("6000");
-    expect(p.get("numerals")).toBe("true");
+    expect(p.has("numerals")).toBe(false); // "quarter to 12" came out as "0.25 to 12"
     expect(p.getAll("keyterm")).toEqual(["Chloe", "balayage"]);
   });
 
