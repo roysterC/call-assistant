@@ -313,7 +313,7 @@ describe("VoiceCall", () => {
 
   it("marks a reply that looked something up before saying anything", async () => {
     const h = harness(async (text, hooks) => {
-      hooks.onToolStart?.("check_availability");
+      hooks.onToolStart?.("check_availability", {});
       hooks.onText?.("Yes, that's free. ");
       return done("Yes, that's free.");
     });
