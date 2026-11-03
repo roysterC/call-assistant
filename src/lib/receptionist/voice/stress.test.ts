@@ -115,7 +115,9 @@ describe("talking over the diary work", () => {
     expect(seenBy).toEqual(["book me in Tuesday at two please"]);
 
     booking.open();
-    await vi.advanceTimersByTimeAsync(10);
+    // Said over "Let me book that", so kept until it has played and a moment
+    // has passed with nothing more from the caller.
+    await vi.advanceTimersByTimeAsync(3000);
     expect(bookings).toBe(1);
     expect(seenBy).toEqual(["book me in Tuesday at two please", "actually make it three instead"]);
   });

@@ -154,6 +154,8 @@ function harness(
   };
   const engine = { respond: vi.fn(respond) };
   const hangup = vi.fn();
+  // Timed checks (kept words) wait for the test to run them.
+  const scheduled: Array<() => void> = [];
   // Waits (before hanging up) are held until the test lets them pass.
   const waits: Array<() => void> = [];
   const call = new VoiceCall({
@@ -173,6 +175,10 @@ function harness(
     // These callers speak in unpunctuated test phrases; the wait for an
     // unfinished sentence has tests of its own (early-start.test.ts).
     unfinishedHoldMs: null,
+    schedule: (fn) => {
+      scheduled.push(fn);
+      return () => scheduled.splice(scheduled.indexOf(fn), 1);
+    },
     sleep: (ms) =>
       new Promise<void>((resolve) =>
         waits.push(() => {
@@ -191,6 +197,8 @@ function harness(
     hangup,
     /** Let every pending wait run out. */
     wait: () => waits.splice(0).forEach((w) => w()),
+    /** Run the timed checks now due. */
+    runScheduled: () => scheduled.splice(0).forEach((f) => f()),
     stt: () => stt!,
     advance: (ms: number) => (clock += ms),
   };
@@ -323,6 +331,7 @@ describe("VoiceCall", () => {
     });
     await h.call.start();
     await tick();
+    h.advance(5_000); // past the greeting
     h.stt().onFinal("Thursday at 3?");
     h.stt().onEndOfTurn();
     await tick(10);
@@ -387,10 +396,52 @@ describe("VoiceCall", () => {
     expect(h.clear).not.toHaveBeenCalled();
     expect(signals[0].aborted).toBe(false);
     expect(h.events).not.toContainEqual({ type: "interrupted" });
-    // Heard all the same, and answered after.
+    // Kept, not answered over the reply still playing.
+    expect(seen).toEqual(["Tuesday please"]);
+
+    // It finishes; they say nothing more: answered then, on its own.
+    h.advance(20_000);
+    h.runScheduled();
+    await tick(10);
     expect(seen).toEqual(["Tuesday please", "actually Wednesday"]);
     expect(h.spoken.slice(-2)).toEqual(["We have nine o'clock or quarter past one on Tuesday.", "Wednesday, then."]);
   });
+
+  it("puts a word heard over its question in front of the answer that follows, answering once", async () => {
+    const seen: string[] = [];
+    const h = harness(
+      async (text, hooks) => {
+        seen.push(text);
+        hooks.onText?.(seen.length === 1 ? "Which day would suit you? " : "Tuesday it is. ");
+        return done("…");
+      },
+      { playbackSecondsPerPiece: 5 }
+    );
+    await h.call.start();
+    await tick();
+    h.advance(20_000);
+    h.stt().onFinal("I'd like a cut.");
+    h.stt().onEndOfTurn();
+    await tick(10);
+
+    // A stray word from the room while it asks.
+    h.advance(1_000);
+    h.stt().onFinal("Yeah.");
+    h.stt().onEndOfTurn();
+    await tick(10);
+    expect(seen).toEqual(["I'd like a cut."]);
+
+    // It finishes; the caller answers its question.
+    h.advance(10_000);
+    h.stt().onFinal("Tuesday, please.");
+    h.stt().onEndOfTurn();
+    await tick(10);
+    expect(seen).toEqual(["I'd like a cut.", "Yeah. Tuesday, please."]);
+    h.runScheduled(); // the check for kept words finds none left
+    await tick(10);
+    expect(seen).toHaveLength(2);
+  });
+
 
   it("does not treat a single word as an interruption", async () => {
     const h = harness(async () => done(""), { playbackSecondsPerPiece: 10 });

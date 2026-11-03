@@ -174,6 +174,7 @@ describe("a call on Flux", () => {
   it("starts the reply on Flux's early end, and the turn's end carries on from it", async () => {
     const t = onFlux(["Yes, we have tomorrow at ten."]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onInterim("Do you have anything tomorrow");
     expect(t.requests).toHaveLength(0); // no timer of our own
@@ -189,6 +190,7 @@ describe("a call on Flux", () => {
   it("drops the early start when Flux says they carried on", async () => {
     const t = onFlux(["Sorry?", "Yes, tomorrow at ten is free."]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onEagerEndOfTurn!("I was wondering");
     expect(t.requests).toHaveLength(1);
@@ -204,6 +206,7 @@ describe("a call on Flux", () => {
   it("answers an unpunctuated turn at once: Flux has already waited for the rest", async () => {
     const t = onFlux(["Thanks, Roy."]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onFinal("my name is Roy");
     t.stt().onEndOfTurn();

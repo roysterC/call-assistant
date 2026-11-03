@@ -110,6 +110,7 @@ describe("starting the reply early", () => {
   it("starts on the caller's words once they stand still, and the turn carries on from it", async () => {
     const t = setUp([{ text: "Yes, Thursday at three is free." }]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onInterim("Thursday at 3");
     t.still();
@@ -128,6 +129,7 @@ describe("starting the reply early", () => {
   it("is cancelled by more words, and the turn starts afresh on all of them", async () => {
     const t = setUp([{ text: "Sorry?" }, { text: "Yes, Thursday at three is free." }]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onInterim("Thursday");
     t.still();
@@ -152,6 +154,7 @@ describe("starting the reply early", () => {
       { text: "Friday then. What time?" },
     ]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onInterim("Book it");
     t.still();
@@ -179,6 +182,7 @@ describe("a caller who stops part-way through a sentence", () => {
   it("is given a moment to finish, and answered on the whole of it", async () => {
     const t = setUp([{ text: "Yes, half past four is free." }]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onFinal("Can I get half");
     t.stt().onEndOfTurn(); // the recogniser calls it over, mid-phrase
@@ -195,6 +199,7 @@ describe("a caller who stops part-way through a sentence", () => {
   it("is still waited for when the recogniser signals the end a second time", async () => {
     const t = setUp([{ text: "Thanks, Roy." }]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onFinal("My name is");
     t.stt().onEndOfTurn(); // after 0.4s of silence
@@ -212,6 +217,7 @@ describe("a caller who stops part-way through a sentence", () => {
   it("is answered on what they said when nothing more comes", async () => {
     const t = setUp([{ text: "What can I help you with?" }]);
     await t.call.start();
+    await tick(); // the greeting has gone out
     t.quiet();
     t.stt().onFinal("I'm looking for");
     t.stt().onEndOfTurn();

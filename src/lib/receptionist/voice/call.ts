@@ -170,6 +170,17 @@ const START_EARLY_AFTER_MS = 150;
 const UNFINISHED_HOLD_MS = 2000;
 
 /**
+ * Words heard while the receptionist is talking are kept, not answered at
+ * once: a cough, a word from the room or a stray "yeah" over its question
+ * became a turn, its answer queued behind the question, and played straight
+ * after it, over the caller's actual answer. Kept words go in front of
+ * whatever the caller says once it has finished; if they say nothing for
+ * this long after it stops, the kept words are answered on their own (a real
+ * "sorry, actually Wednesday" said over it).
+ */
+const KEPT_WORDS_GRACE_MS = 1500;
+
+/**
  * Words even a punctuated sentence does not end on: "I'm looking for." is
  * the recogniser guessing, not the caller finishing.
  */
@@ -233,6 +244,9 @@ export class VoiceCall {
   private listeningSent = "";
   /** Turns whose reply has begun to be spoken: those always play out. */
   private readonly spoke = new WeakSet<AbortController>();
+  /** Words heard while it was talking, waiting for it to finish: see KEPT_WORDS_GRACE_MS. */
+  private kept = "";
+  private cancelKept: (() => void) | null = null;
   /** Waiting for the rest of an unfinished sentence: see UNFINISHED_HOLD_MS. */
   private cancelHold: (() => void) | null = null;
   private held = false;
@@ -377,6 +391,7 @@ export class VoiceCall {
     this.turn?.abort();
     this.dropEarly();
     this.cancelHold?.();
+    this.cancelKept?.();
     this.stt?.close();
   }
 
@@ -486,6 +501,31 @@ export class VoiceCall {
     this.startEarly();
   }
 
+  /** Check on kept words once the receptionist has finished and the grace has passed. */
+  private scheduleKept() {
+    this.cancelKept?.();
+    const wait = Math.max(0, this.playbackEndsAt - this.now()) + KEPT_WORDS_GRACE_MS;
+    this.cancelKept = this.scheduler()(() => this.releaseKept(), wait);
+  }
+
+  /**
+   * The receptionist has finished and the grace has passed. Still talking
+   * (it went on to another sentence): wait again. The caller is answering:
+   * their turn's end takes the kept words with it. Otherwise answer the kept
+   * words on their own.
+   */
+  private releaseKept() {
+    this.cancelKept = null;
+    if (!this.kept || this.closed) return;
+    if (this.now() < this.playbackEndsAt) return this.scheduleKept();
+    if (this.heard.length || this.interim) return;
+    const text = this.kept;
+    this.kept = "";
+    this.deps.out.event({ type: "caller", text, final: true });
+    this.log.push({ who: "caller", text });
+    void this.runTurn(text, this.lastHeardAt);
+  }
+
   /** Set the recogniser to listen for the answer to what was just asked. */
   private listenForAnswerTo(reply: string) {
     const base = this.deps.listening;
@@ -528,7 +568,7 @@ export class VoiceCall {
   }
 
   private onEndOfTurn() {
-    const text = [...this.heard, this.interim].join(" ").replace(/\s+/g, " ").trim();
+    let text = [...this.heard, this.interim].join(" ").replace(/\s+/g, " ").trim();
     if (!text || this.closed) return;
     // Stopped part-way through a sentence: give them a moment to finish it,
     // once. Their next words cancel the wait (wordsChanged), and the next end
@@ -555,6 +595,21 @@ export class VoiceCall {
     this.held = false;
     this.heard = [];
     this.interim = "";
+    // Said over the receptionist while it was talking: kept until it has
+    // finished, then put in front of their answer, or answered on its own if
+    // no answer comes.
+    if (!this.deps.interruptible && this.now() < this.playbackEndsAt) {
+      this.kept = `${this.kept} ${text}`.trim();
+      this.dropEarly();
+      this.scheduleKept();
+      return;
+    }
+    if (this.kept) {
+      text = `${this.kept} ${text}`;
+      this.kept = "";
+      this.cancelKept?.();
+      this.cancelKept = null;
+    }
     // Interruptible: anything still playing is superseded by the new turn.
     // Otherwise what it has begun to say plays out, and the reply to this
     // turn follows it (speech is queued in order; the model waits for the last
