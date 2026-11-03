@@ -170,6 +170,9 @@ function harness(
     now: () => clock,
     silence: null,
     interruptible: opts.interruptible,
+    // These callers speak in unpunctuated test phrases; the wait for an
+    // unfinished sentence has tests of its own (early-start.test.ts).
+    unfinishedHoldMs: null,
     sleep: (ms) =>
       new Promise<void>((resolve) =>
         waits.push(() => {

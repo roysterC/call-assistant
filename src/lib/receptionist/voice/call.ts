@@ -104,6 +104,11 @@ export interface VoiceCallDeps {
    * Null never starts early.
    */
   startEarlyAfterMs?: number | null;
+  /**
+   * How long to wait for the rest of a sentence the caller stopped part-way
+   * through (see UNFINISHED_HOLD_MS); null answers at once.
+   */
+  unfinishedHoldMs?: number | null;
   /** Runs fn after ms, returning a cancel; stood in for by tests. */
   schedule?: (fn: () => void, ms: number) => () => void;
   /**
@@ -149,33 +154,31 @@ const START_EARLY_AFTER_MS = 150;
 
 /**
  * How long to wait for the rest of a sentence the caller stopped part-way
- * through ("I'm looking for…", "can I get half…"). The recogniser calls a
- * turn over after 0.4s of silence, mid-phrase or not, and the receptionist
- * answered half a question: "half" became "Sorry, I don't have half past
- * today" when they meant half past four. Their words resuming cancels the
- * wait; if none come, the turn goes ahead as it was.
+ * through ("I'm looking for…", "I was wondering… if we can…"). The recogniser
+ * calls a turn over after 0.4s of silence, mid-phrase or not, and the
+ * receptionist answered half a question ("Can I get half" got "Sorry, I don't
+ * have half past today") or kept asking new ones of a caller still thinking.
+ * Their words resuming cancels the wait; if none come, the turn goes ahead
+ * as it was. Long enough for someone thinking mid-sentence.
  */
-const UNFINISHED_HOLD_MS = 1200;
+const UNFINISHED_HOLD_MS = 2000;
 
 /**
- * Words a sentence does not end on: articles, prepositions, conjunctions,
- * fillers, and the openings of a time or a request. "Can I get half" and
- * "I'm looking for" end on one; "a men's cut" and "Thursday at 3" do not.
+ * Words even a punctuated sentence does not end on: "I'm looking for." is
+ * the recogniser guessing, not the caller finishing.
  */
-const DANGLING = new Set([
-  "a", "an", "the", "my", "your", "his", "her", "our", "their", "some", "any",
-  "for", "to", "at", "on", "in", "of", "with", "from", "about", "by", "into", "after", "before", "around", "till", "until",
-  "and", "or", "but", "so", "because", "if", "then",
-  "um", "uh", "er", "erm", "hmm", "like",
-  "half", "quarter", "past",
-  "i'm", "i", "im", "can", "could", "would", "will", "is", "it's", "its", "get", "have", "need", "want", "looking", "book", "be",
-]);
+const DANGLING = new Set(["a", "an", "the", "and", "or", "but", "for", "to", "with", "of", "um", "uh", "er", "erm"]);
 
-/** The caller's words stop part-way through a sentence. */
+/**
+ * The caller's words stop part-way through a sentence. The recogniser
+ * punctuates what it hears as a whole sentence ("I'm looking for a ladies
+ * cut.", "Roy.", "Yes, please.") and leaves a fragment bare ("I'm thinking",
+ * "Can I", "if we can"): in every call transcript so far, no closing full
+ * stop or question mark meant they had not finished.
+ */
 export function soundsUnfinished(text: string): boolean {
   const trimmed = text.trim();
-  // A full stop or question mark from the recogniser means it heard an end.
-  if (/[.?!]$/.test(trimmed)) return false;
+  if (!/[.?!]$/.test(trimmed)) return true;
   const last = words(trimmed).at(-1);
   return last !== undefined && DANGLING.has(last);
 }
@@ -494,12 +497,13 @@ export class VoiceCall {
     // backstop one about a second after the first, which cut the wait short
     // ("My name is" answered before "Roy").
     if (this.cancelHold) return;
-    if (!this.held && soundsUnfinished(text)) {
+    const hold = this.deps.unfinishedHoldMs === undefined ? UNFINISHED_HOLD_MS : this.deps.unfinishedHoldMs;
+    if (hold !== null && !this.held && soundsUnfinished(text)) {
       this.held = true;
       this.cancelHold = this.scheduler()(() => {
         this.cancelHold = null;
         this.onEndOfTurn();
-      }, UNFINISHED_HOLD_MS);
+      }, hold);
       return;
     }
     this.held = false;

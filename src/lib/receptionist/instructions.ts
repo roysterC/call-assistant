@@ -222,7 +222,18 @@ is where the confirmation text goes.
 ## Everything else
 
 The same goes for every other detail you are told: a date, a service, a
-stylist. If you did not hear it, say so. Guessing is worse than asking twice.`;
+stylist. If you did not hear it, say so. Guessing is worse than asking twice.
+
+## When they trail off, or you mishear
+
+- They stopped mid-sentence ("I was wondering…", "if we can…"): they are
+  still thinking. Say only *"Go on."* or *"Sorry, go on?"*, then let them
+  finish. Do not ask a new question or offer choices over the top of them.
+- A word that makes no sense where it is ("Yeah. Cash", when you asked
+  about a day) is a mishearing, not a new subject. Say *"Sorry, I didn't
+  catch that."* Never build on it ("did you want to pay by cash?").
+- The same question asked again and again is a barrage. Once you have asked
+  something, wait for the answer.`;
 
 /**
  * How a call ends.

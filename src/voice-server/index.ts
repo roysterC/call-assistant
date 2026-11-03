@@ -376,6 +376,7 @@ async function main() {
     const call = new VoiceCall({
       engine: session.engine,
       startEarlyAfterMs: startEarlyAfterMs(),
+      unfinishedHoldMs: msSetting("RECEPTIONIST_UNFINISHED_HOLD_MS"),
       // RECEPTIONIST_INTERRUPTIBLE=on lets callers cut it off again.
       interruptible: process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase() === "on",
       stt,
@@ -549,6 +550,7 @@ async function main() {
     const call = new VoiceCall({
       engine: session.engine,
       startEarlyAfterMs: startEarlyAfterMs(),
+      unfinishedHoldMs: msSetting("RECEPTIONIST_UNFINISHED_HOLD_MS"),
       // RECEPTIONIST_INTERRUPTIBLE=on lets callers cut it off again.
       interruptible: process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase() === "on",
       stt,
@@ -717,6 +719,18 @@ function replyBreakdown(
  */
 function startEarlyAfterMs(): number | null | undefined {
   const v = process.env.RECEPTIONIST_START_EARLY_MS?.trim().toLowerCase();
+  if (!v) return undefined;
+  if (v === "off") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+/**
+ * A wait in milliseconds from the environment: "off" for none, unset or
+ * unreadable for the call's own default.
+ */
+function msSetting(name: string): number | null | undefined {
+  const v = process.env[name]?.trim().toLowerCase();
   if (!v) return undefined;
   if (v === "off") return null;
   const n = Number(v);
