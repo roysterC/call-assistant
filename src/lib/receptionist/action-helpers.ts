@@ -187,6 +187,11 @@ export function serviceStaffedOnDate(
   return serviceIsStaffedOn(service, cfg.stylists, weekday);
 }
 
+/** A spoken day after a verb: "on Thursday", but "tomorrow" and "today" on their own. */
+export function onDay(day: string): string {
+  return day === "today" || day === "tomorrow" ? day : `on ${day}`;
+}
+
 /**
  * Name a day the way someone says it out loud.
  *

@@ -27,6 +27,7 @@ import {
 import { hasBeenBefore } from "@/lib/client-link";
 import {
   DAY_NAMES,
+  onDay,
   blankToUndefined,
   normaliseClientType,
   patchTestOnFile,
@@ -63,8 +64,8 @@ function staffAvailability(input: {
   durationMinutes: number;
 }) {
   const dayOf = (sl: TimeSlot) => zonedDateString(new Date(sl.start), input.timeZone);
-  const onDay = input.slots.filter((sl) => dayOf(sl) === input.date);
-  const shown = onDay.length ? onDay : input.slots.filter((sl) => dayOf(sl) > input.date || !input.named);
+  const thatDay = input.slots.filter((sl) => dayOf(sl) === input.date);
+  const shown = thatDay.length ? thatDay : input.slots.filter((sl) => dayOf(sl) > input.date || !input.named);
   const day = shown.length ? dayOf(shown[0]) : null;
   if (!day) {
     return {
@@ -72,7 +73,7 @@ function staffAvailability(input: {
       canCheck: true,
       today: input.today,
       date: input.date,
-      message: `Nothing free for ${input.service.toLowerCase()} on ${spokenDay(input.date, input.timeZone)} or in the weeks after.`,
+      message: `Nothing free for ${input.service.toLowerCase()} ${onDay(spokenDay(input.date, input.timeZone))} or in the weeks after.`,
     };
   }
   const options = shown
@@ -103,8 +104,8 @@ function staffAvailability(input: {
     durationMinutes: input.durationMinutes,
     options,
     message:
-      (movedOn && input.named ? `Nothing free on ${spokenDay(input.date, input.timeZone)}. ` : "") +
-      `Free on ${spokenDay(day, input.timeZone)}: ${list}.`,
+      (movedOn && input.named ? `Nothing free ${onDay(spokenDay(input.date, input.timeZone))}. ` : "") +
+      `Free ${onDay(spokenDay(day, input.timeZone))}: ${list}.`,
   };
 }
 
@@ -519,7 +520,7 @@ function availabilityReply(
       exact: true,
       options,
       message:
-        `${options[0].time} on ${options[0].day} is free. Offer just that one; do not read out ` +
+        `${options[0].time} ${onDay(options[0].day)} is free. Offer just that one; do not read out ` +
         "other times. If they take it, use the exact startsAt value." +
         noStylist,
     };
@@ -598,7 +599,7 @@ function whyDayIsOut(cfg: SalonConfig, req: AvailabilityRequest, windowEmpty: bo
       ? `${service.name} needs a skin patch test at least 48 hours beforehand for a new client, done ` +
         `at the salon while it is open, so the earliest is ${spokenDay(zonedDateString(floor.at, cfg.timeZone), cfg.timeZone)}.`
       : closed
-        ? `The salon is closed on ${theDay} — say that, not that it is booked up.`
+        ? `The salon is closed ${onDay(theDay)} — say that, not that it is booked up.`
         : overForToday
           ? "It is too late in the day for that today: the salon is closing or has closed. Say " +
             "that, not that it is booked up."
@@ -607,7 +608,7 @@ function whyDayIsOut(cfg: SalonConfig, req: AvailabilityRequest, windowEmpty: bo
               "day we offer it, not that it is booked up, so they do not ask again for the same " +
               "day next week."
             : windowEmpty
-              ? `Nothing free on ${theDay} in the window they asked for, nor in the next ${spokenRange}.`
-              : `Nothing free on ${theDay} for that service.`;
+              ? `Nothing free ${onDay(theDay)} in the window they asked for, nor in the next ${spokenRange}.`
+              : `Nothing free ${onDay(theDay)} for that service.`;
   return { why, closed, unstaffed, patchTest: floor.reason === "patch_test" };
 }

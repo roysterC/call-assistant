@@ -25,8 +25,8 @@ const SAVE_CUSTOMER_DETAILS: ToolDefinition = {
   function: {
     name: "save_customer_details",
     description:
-      "Save the caller's contact details and what they are calling about. " +
-      "Call this as soon as you have a name and number, before booking.",
+      "Save the caller's contact details and what they want, for the salon " +
+      "to ring them back about. Call this as soon as you have a name.",
     parameters: {
       type: "object",
       properties: {
@@ -510,7 +510,12 @@ const RESCHEDULE_APPOINTMENT: ToolDefinition = {
  * schema costs prefill tokens on every turn of the call.
  */
 export function buildVoiceTools(caps: BookingCapabilities): ToolDefinition[] {
-  const tools: ToolDefinition[] = [SAVE_CUSTOMER_DETAILS];
+  const tools: ToolDefinition[] = [];
+  // Only where nothing can be booked: a booking records the client itself.
+  // Offered beside booking, it was called "before booking" as its old
+  // description said, and on a shared phone it left a stray message on the
+  // other person's record.
+  if (!caps.createBooking) tools.push(SAVE_CUSTOMER_DETAILS);
   if (caps.readAvailability) tools.push(CHECK_AVAILABILITY);
   if (caps.createBooking) {
     tools.push(PREPARE_BOOKING, BOOK_PREPARED);
