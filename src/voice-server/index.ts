@@ -48,7 +48,7 @@ async function main() {
   const { DeepgramStt, ElevenLabsTts, labVoiceRate } = await import("@/lib/receptionist/voice/providers");
   const { salonKeyterms } = await import("@/lib/receptionist/voice/keyterms");
   const { getSalonConfig } = await import("@/lib/booking");
-  const { logCall } = await import("@/lib/receptionist/call-log");
+  const { logCall, transcriptOf } = await import("@/lib/receptionist/call-log");
   const { clearFrame, mediaFrames, parseTwilioFrame } = await import("@/lib/twilio-voice");
   const fakes = FAKES ? await import("./fakes") : null;
 
@@ -584,6 +584,7 @@ async function main() {
             startedAt: new Date(call.startedAt),
             endedAt,
             outcomes: call.outcomes(),
+            transcript: transcriptOf(session.engine.messages),
           });
         } catch (err) {
           console.error("[VOICE] could not log the call:", err);
