@@ -44,6 +44,16 @@ export type VoiceEvent =
        * recogniser's own lag and the line's.
        */
       sinceHeardMs: number | null;
+      /**
+       * Where sinceHeardMs went, in order; null where the turn never got
+       * that far. endOfTurn: from their last words to deciding they had
+       * finished (and any previous turn settling). model: to the model's
+       * first text or tool. sentence: to a whole first sentence (or the
+       * filler) being ready to speak. voice: to the voice's first audio.
+       */
+      parts: { endOfTurnMs: number; modelMs: number | null; sentenceMs: number | null; voiceMs: number | null };
+      /** A tool (a diary lookup, a booking) ran before anything was said. */
+      lookup: boolean;
       turnMs: number;
     }
   | { type: "ended"; by: "receptionist" }
@@ -368,11 +378,19 @@ export class VoiceCall {
     const started = this.now();
     let firstAudio: number | null = null;
     let spokeThisTurn = false;
+    // When each stage of the reply first happened, for the metrics.
+    let firstOutputAt: number | null = null;
+    let firstSpeakAt: number | null = null;
+    let lookup = false;
+    const output = () => {
+      if (firstOutputAt === null) firstOutputAt = this.now();
+    };
     const chunker = new SentenceChunker();
     this.deps.out.event({ type: "state", state: "thinking" });
 
     const speak = (piece: string) => {
       spokeThisTurn = true;
+      if (firstSpeakAt === null) firstSpeakAt = this.now();
       this.say(piece, ctl.signal, () => {
         if (firstAudio === null) firstAudio = this.now() - started;
       });
@@ -382,8 +400,13 @@ export class VoiceCall {
       const result = await this.deps.engine.respond(
         text,
         {
-          onText: (delta) => chunker.push(delta).forEach(speak),
+          onText: (delta) => {
+            output();
+            chunker.push(delta).forEach(speak);
+          },
           onToolStart: (name) => {
+            output();
+            if (firstSpeakAt === null && name !== END_CALL) lookup = true;
             // Hanging up is shown as the call ending, after the goodbye, not
             // as a tool ahead of it.
             if (name !== END_CALL) this.deps.out.event({ type: "tool", name });
@@ -418,6 +441,13 @@ export class VoiceCall {
           type: "metrics",
           firstAudioMs: firstAudio,
           sinceHeardMs: firstAudio === null ? null : started + firstAudio - heardAt,
+          parts: {
+            endOfTurnMs: started - heardAt,
+            modelMs: firstOutputAt === null ? null : firstOutputAt - started,
+            sentenceMs: firstOutputAt === null || firstSpeakAt === null ? null : firstSpeakAt - firstOutputAt,
+            voiceMs: firstSpeakAt === null || firstAudio === null ? null : started + firstAudio - firstSpeakAt,
+          },
+          lookup,
           turnMs: this.now() - started,
         });
         if (this.turn === ctl) this.deps.out.event({ type: "state", state: "listening" });

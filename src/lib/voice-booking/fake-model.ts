@@ -90,8 +90,8 @@ export function fakeBookingModel(): StreamingClient {
           } else if (data.stylists) {
             const n = data.stylists.reduce((t: number, st: { appointments: unknown[] }) => t + st.appointments.length, 0);
             message = say(`${data.date}: ${n} appointments in the diary.`);
-          } else if (data.shownOnScreen) {
-            message = say(`${data.shownOnScreen}. Save it?`);
+          } else if (data.say) {
+            message = say(data.say);
           } else {
             message = say(data.message ?? "That didn't work.");
           }

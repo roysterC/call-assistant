@@ -389,8 +389,16 @@ describe("receptionist prompt", () => {
     expect(tools.map((t) => t.function.name)).toEqual(expect.arrayContaining(["prepare_booking", "book_appointment"]));
     expect((fn("book_appointment").parameters as { required: string[] }).required).toEqual(["bookingRef"]);
     expect((fn("prepare_booking").parameters as { required: string[] }).required).toContain("time");
-    expect(Object.keys((fn("save_customer_details").parameters as { properties: object }).properties)).not.toContain("email");
     expect(composeVoicePrompt(bookable, null).toolNames).toContain("prepare_booking");
+    // A booking records the client: no separate "save their details" step to
+    // call first (it left a stray message on a shared phone's other person).
+    expect(tools.map((t) => t.function.name)).not.toContain("save_customer_details");
+  });
+
+  it("asks for no email where it saves a caller's details for a ring-back", () => {
+    const tools = buildVoiceTools({ ...selectProvider(bookable).capabilities, createBooking: false });
+    const save = tools.find((t) => t.function.name === "save_customer_details")!.function;
+    expect(Object.keys((save.parameters as { properties: object }).properties)).not.toContain("email");
   });
 
   it("caches the instructions and keeps the clock out of the cached part", () => {

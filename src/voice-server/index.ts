@@ -78,6 +78,17 @@ async function main() {
    * delay on top, a few hundred ms both ways, which no server can see.
    */
   const phoneReplyMs: number[] = [];
+  // Where those replies' time went (receptionist/voice/call.ts, "metrics"),
+  // the last 20 of each, so the slow part can be found before anything is
+  // tuned. Replies that looked something up first are counted apart: they
+  // wait on the diary, and would hide what an ordinary reply costs.
+  const phoneReplyParts: Array<{
+    endOfTurnMs: number;
+    modelMs: number | null;
+    sentenceMs: number | null;
+    voiceMs: number | null;
+    lookup: boolean;
+  }> = [];
   const notePhoneProblem = (message: string) => {
     lastPhoneProblem = { at: new Date().toISOString(), message: problemForHealth(message) };
   };
@@ -99,6 +110,7 @@ async function main() {
           lastPhoneProblem,
           phoneReplyMs,
           phoneReplyMedianMs: median(phoneReplyMs),
+          phoneReplyBreakdown: replyBreakdown(phoneReplyParts),
           fakes: FAKES,
         })
       );
@@ -550,6 +562,12 @@ async function main() {
             );
             phoneReplyMs.push(e.sinceHeardMs);
             if (phoneReplyMs.length > 20) phoneReplyMs.shift();
+            phoneReplyParts.push({ ...e.parts, lookup: e.lookup });
+            if (phoneReplyParts.length > 20) phoneReplyParts.shift();
+            console.log(
+              `[VOICE] phone call ${start.callSid}: end of turn ${e.parts.endOfTurnMs}ms, model ${e.parts.modelMs}ms, ` +
+                `sentence ${e.parts.sentenceMs}ms, voice ${e.parts.voiceMs}ms${e.lookup ? " (looked something up)" : ""}`
+            );
           }
           if (e.type !== "error") return;
           console.warn(`[VOICE] phone call ${start.callSid}: ${e.message}`);
@@ -642,6 +660,23 @@ async function main() {
  */
 function problemForHealth(message: string): string {
   return message.replace(/\+?\d[\d ]{6,}\d/g, "…").slice(0, 200);
+}
+
+/**
+ * The median of each part of a reply, for ordinary replies and for those that
+ * looked something up first, with how many of each the medians are from.
+ */
+function replyBreakdown(
+  parts: Array<{ endOfTurnMs: number; modelMs: number | null; sentenceMs: number | null; voiceMs: number | null; lookup: boolean }>
+) {
+  const of = (rows: typeof parts) => ({
+    replies: rows.length,
+    endOfTurnMs: median(rows.map((r) => r.endOfTurnMs)),
+    modelMs: median(rows.flatMap((r) => (r.modelMs === null ? [] : [r.modelMs]))),
+    sentenceMs: median(rows.flatMap((r) => (r.sentenceMs === null ? [] : [r.sentenceMs]))),
+    voiceMs: median(rows.flatMap((r) => (r.voiceMs === null ? [] : [r.voiceMs]))),
+  });
+  return { plain: of(parts.filter((p) => !p.lookup)), lookedUp: of(parts.filter((p) => p.lookup)) };
 }
 
 function median(values: number[]): number | null {
