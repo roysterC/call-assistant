@@ -510,9 +510,9 @@ export async function handleCancelAppointment(
     calendarCleared,
     message:
       `Cancelled: ${appt.lead.name ? `${appt.lead.name}'s ` : ""}${appt.serviceText} with ${appt.stylistName} ${whenText}. ` +
-      "Confirm that back to the caller" +
-      (sms.ok ? " and say a text is coming." : ", but do not promise a text.") +
-      " Offer to rebook if they want another time.",
+      "In one sentence, say it is cancelled" +
+      (sms.ok ? " and a text is coming" : " (do not promise a text)") +
+      `, and ask if they want another time: "That's cancelled${sms.ok ? ", and a text is on its way" : ""}. Would you like to rebook?"`,
   };
 }
 
@@ -696,8 +696,9 @@ async function writeMove(organizationId: string, m: CheckedMove) {
     textSent: sms.ok,
     oldSlotReleased: oldCleared,
     message:
-      `Moved${appt.lead.name ? ` ${appt.lead.name}'s booking` : ""} to ${whenText} with ${stylist.name}. Confirm that back to the ` +
-      "caller" +
-      (sms.ok ? " and say a text is coming." : ", but do not promise a text."),
+      `Moved${appt.lead.name ? ` ${appt.lead.name}'s booking` : ""} to ${whenText} with ${stylist.name}. In one sentence, ` +
+      "say it is moved to the new day and time" +
+      (sms.ok ? " and a text is coming" : " (do not promise a text)") +
+      ", then ask if there is anything else.",
   };
 }

@@ -239,11 +239,14 @@ export async function handleTakeMessage(
     success: true,
     message:
       `${recent ? "Added to their message" : "Message taken"} for ${stylist?.name ?? "the salon"}. ` +
-      `Tell the caller someone will ring them back as soon as they can, on ${speakablePhone(phone.e164)}` +
-      (phone.source === "callerId" ? " (the number they are ringing from; check it is the best one)." : ".") +
+      // On caller ID the number is the phone in their hand: reading it out
+      // and asking whether it is right only added a turn.
+      "In one sentence, tell the caller someone will ring them back as soon as they can" +
+      (phone.source === "callerId"
+        ? " on this number; do not read it out."
+        : `, on ${speakablePhone(phone.e164)}.`) +
       " Never say when: not today, not tomorrow, not when the salon opens, no time at all. Do not say " +
       "anyone will be put through. If they tell you anything more about it, call take_message again " +
-      "with the whole message, updated, before saying it is noted; otherwise nobody sees it. When they " +
-      "have nothing to add, thank them for calling.",
+      "with the whole message, updated, before saying it is noted; otherwise nobody sees it.",
   };
 }

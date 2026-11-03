@@ -15,7 +15,7 @@ exports[`the reply catalogue > book: a daughter on her mum's phone 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Amy Burns",
-    "message": "Booked: Blow dry for Amy Burns with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "message": "Booked: Blow dry for Amy Burns with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Blow dry",
     "startsAt": "2026-09-29T10:00:00+01:00",
@@ -78,7 +78,7 @@ exports[`the reply catalogue > book: a number read out 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Nina New",
-    "message": "Booked: Blow dry for Nina New with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way.",
+    "message": "Booked: Blow dry for Nina New with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details.",
     "patchTestRequired": false,
     "service": "Blow dry",
     "startsAt": "2026-09-29T10:00:00+01:00",
@@ -154,7 +154,7 @@ exports[`the reply catalogue > book: a patch test on record 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Sarah Friend",
-    "message": "Booked: Root tint for Sarah Friend with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. If it helps, they have a patch test on record from 1 September 2026, so no new one is needed. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "message": "Booked: Root tint for Sarah Friend with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestOnRecord": "1 September 2026",
     "patchTestRequired": false,
     "service": "Root tint",
@@ -218,7 +218,7 @@ exports[`the reply catalogue > book: a regular, returning from her record 1`] = 
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Sarah Friend",
-    "message": "Booked: Root tint for Sarah Friend with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "message": "Booked: Root tint for Sarah Friend with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Root tint",
     "startsAt": "2026-09-29T10:00:00+01:00",
@@ -347,7 +347,7 @@ exports[`the reply catalogue > book: colour for someone new, far enough ahead 1`
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Nina New",
-    "message": "Booked: Root tint for Nina New with Jo on Saturday the 3rd at 1pm. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. Also tell them, in one sentence: as a new colour client they need a quick skin test at the salon at least 48 hours before, which is separate and which the salon will be in touch to arrange. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "message": "Booked: Root tint for Nina New with Jo on Saturday the 3rd at 1pm. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right. The skin test was in the read-back; if they ask again, it is separate, at the salon, and the salon will arrange it.",
     "patchTestRequired": true,
     "service": "Root tint",
     "startsAt": "2026-10-03T13:00:00+01:00",
@@ -451,7 +451,7 @@ exports[`the reply catalogue > book: no stylist named, worked out from the slot 
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Nina New",
-    "message": "Booked: Blow dry for Nina New with Jo on Tuesday at 2pm. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "message": "Booked: Blow dry for Nina New with Jo on Tuesday at 2pm. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Blow dry",
     "startsAt": "2026-09-29T14:00:00+01:00",
@@ -514,7 +514,7 @@ exports[`the reply catalogue > book: on caller ID, text not sent 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Sarah Friend",
-    "message": "Booked: Blow dry for Sarah Friend with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking. Do NOT promise a text — one could not be sent. It is on the number they are ringing from. The booking still stands; do not read the number out.",
+    "message": "Booked: Blow dry for Sarah Friend with Jo on Tuesday at 10am. Say only that it is booked, then ask if there is anything else. Do NOT promise a text: one could not be sent. Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Blow dry",
     "startsAt": "2026-09-29T10:00:00+01:00",
@@ -577,7 +577,7 @@ exports[`the reply catalogue > book: on caller ID, text sent 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Sarah Friend",
-    "message": "Booked: Blow dry for Sarah Friend with Jo on Tuesday at 10am. Confirm that in one sentence, without repeating what you said before booking, and say a text is on its way. It is on the number they are ringing from, so say the text is on its way to this phone. Do not read the number out or ask whether it is right.",
+    "message": "Booked: Blow dry for Sarah Friend with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Blow dry",
     "startsAt": "2026-09-29T10:00:00+01:00",
@@ -631,7 +631,7 @@ exports[`the reply catalogue > cancel: her own booking 1`] = `
   "reply": {
     "calendarCleared": true,
     "cancelled": "Tuesday at 9am",
-    "message": "Cancelled: Sarah Friend's Blow dry with Jo Tuesday at 9am. Confirm that back to the caller and say a text is coming. Offer to rebook if they want another time.",
+    "message": "Cancelled: Sarah Friend's Blow dry with Jo Tuesday at 9am. In one sentence, say it is cancelled and a text is coming, and ask if they want another time: "That's cancelled, and a text is on its way. Would you like to rebook?"",
     "success": true,
     "textSent": true,
   },
@@ -1070,7 +1070,7 @@ exports[`the reply catalogue > check: colour for someone with a patch test on re
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 90,
-    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option. They have a patch test on record from 1 September 2026, so no new test is needed.",
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1347,7 +1347,7 @@ exports[`the reply catalogue > move: her own booking, to a free time 1`] = `
 {
   "noticed": [],
   "reply": {
-    "message": "Moved Sarah Friend's booking to Tuesday at 2pm with Jo. Confirm that back to the caller and say a text is coming.",
+    "message": "Moved Sarah Friend's booking to Tuesday at 2pm with Jo. In one sentence, say it is moved to the new day and time and a text is coming, then ask if there is anything else.",
     "movedTo": "Tuesday at 2pm",
     "oldSlotReleased": true,
     "stylist": "Jo",
@@ -1391,7 +1391,7 @@ exports[`the reply catalogue > move: to a time the diary did not offer (moves le
 {
   "noticed": [],
   "reply": {
-    "message": "Moved Sarah Friend's booking to Tuesday at 1pm with Jo. Confirm that back to the caller and say a text is coming.",
+    "message": "Moved Sarah Friend's booking to Tuesday at 1pm with Jo. In one sentence, say it is moved to the new day and time and a text is coming, then ask if there is anything else.",
     "movedTo": "Tuesday at 1pm",
     "oldSlotReleased": true,
     "stylist": "Jo",

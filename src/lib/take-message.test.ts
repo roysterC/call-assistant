@@ -57,8 +57,8 @@ describe("take_message", () => {
     expect(saved().scheduledAt.toISOString()).toBe("2026-09-29T13:00:00.000Z");
     expect(r.message).toMatch(/someone will ring them back as soon as they can/);
     expect(r.message).toMatch(/Never say when/);
-    // Their number came from caller ID: the receptionist is told to check it.
-    expect(r.message).toMatch(/ringing from; check it/);
+    // Their number came from caller ID: the phone in their hand, not read out or questioned.
+    expect(r.message).toMatch(/on this number; do not read it out/);
     expect(r.message).toMatch(/Do not say anyone will be put through/);
   });
 

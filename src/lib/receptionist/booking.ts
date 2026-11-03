@@ -684,28 +684,23 @@ async function writeBooking(organizationId: string, b: CheckedBooking) {
     patchTestRequired: needsSkinTest,
     ...(onFile ? { patchTestOnRecord: onFile } : {}),
     message:
-      `Booked: ${service.name} for ${clientName} with ${stylist.name} ${bookedWhen}. Confirm that ` +
-      "in one sentence, without repeating what you said before booking" +
-      (sms.ok ? ", and say a text is on its way." : ". Do NOT promise a text — one could not be sent.") +
-      (onFile ? ` If it helps, they have a patch test on record from ${onFile}, so no new one is needed.` : "") +
+      `Booked: ${service.name} for ${clientName} with ${stylist.name} ${bookedWhen}. Say only ` +
+      (sms.ok
+        ? `that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?"`
+        : // Why it failed is not the caller's business, and a guess ("a
+          // landline?") is wrong whenever it was our side that failed.
+          `that it is booked, then ask if there is anything else. Do NOT promise a text: one could not be sent.`) +
+      // Everything else was in the read-back: the details, and the skin test
+      // for a new colour client. Asking afterwards whether a caller-ID
+      // number is right questioned something they could not change and had
+      // just been told was done; it only sounded unsure.
+      " Do not repeat the details" +
+      (usedCallerId ? ", and do not read the number out or ask whether it is right" : "") +
+      "." +
       // A model left to explain the skin test invented one: "Jo will do it
       // as part of the colour appointment", which is the one thing it is not.
       (needsSkinTest
-        ? " Also tell them, in one sentence: as a new colour client they need a quick skin " +
-          "test at the salon at least 48 hours before, which is separate and which the salon " +
-          "will be in touch to arrange."
-        : "") +
-      // Booked on caller ID: the number is the phone in their hand, and the
-      // text has already gone to it. Asking afterwards whether the number is
-      // right put a question to the caller about something they could not
-      // change and had just been told was done; it only sounded unsure.
-      (usedCallerId
-        ? sms.ok
-          ? " It is on the number they are ringing from, so say the text is on its way to this phone. " +
-            "Do not read the number out or ask whether it is right."
-          : // Why it failed is not the caller's business, and a guess ("a
-            // landline?") is wrong whenever it was our side that failed.
-            " It is on the number they are ringing from. The booking still stands; do not read the number out."
+        ? " The skin test was in the read-back; if they ask again, it is separate, at the salon, and the salon will arrange it."
         : ""),
   };
 }

@@ -52,13 +52,14 @@ function isPrepared(r: unknown): r is PreparedBooking {
 
 /** The details in one sentence, for the receptionist to read back in its own words. */
 export function readBackSentence(p: PreparedBooking): string {
-  const textTo = p.usedCallerId
-    ? "the confirmation text goes to the phone they're calling from"
-    : `the confirmation text goes to ${speakablePhone(p.phone)}`;
+  // Their own phone needs no mention: "a text is on its way" says it after
+  // booking. A number they gave is read back, because only they can catch it.
+  const textTo = p.usedCallerId ? "" : `, with the text to ${speakablePhone(p.phone)}`;
+  // Said here, before they commit, and not again once it is booked.
   const skinTest = p.patchTestRequired
-    ? " As a new colour client they need a quick skin test at the salon at least 48 hours before, which the salon will arrange."
+    ? " They need a quick skin test at the salon 48 hours before, which the salon will arrange."
     : "";
-  return `${p.service} with ${p.stylist} on ${p.when}, for ${p.clientName}, and ${textTo}.${skinTest}`;
+  return `${p.service} with ${p.stylist} on ${p.when}, for ${p.clientName}${textTo}.${skinTest}`;
 }
 
 export class ReadBackGate {
@@ -89,8 +90,8 @@ export class ReadBackGate {
       bookingRef: ref,
       readBack: sentence,
       message:
-        "Nothing is booked yet. Read this back to the caller in your own words, keeping every detail, " +
-        "and ask if you should book it: " +
+        "Nothing is booked yet. Read this back to the caller in one short sentence, keeping every " +
+        "detail and adding nothing, and ask if you should book it: " +
         `"${sentence}" ` +
         (checked.usedCallerId ? "Do not read out the digits of the number they are calling from. " : "") +
         `When they say yes, call book_appointment with bookingRef ${ref}. If they change anything, ` +

@@ -159,11 +159,6 @@ export async function handleCheckAvailability(
     ? {
         ...checked,
         patchTestOnRecord: onFile,
-        ...(typeof (checked as { message?: unknown }).message === "string"
-          ? {
-              message: `${(checked as { message: string }).message} They have a patch test on record from ${onFile}, so no new test is needed.`,
-            }
-          : {}),
       }
     : checked;
   const asked = (params.date || params.day || "").trim().toLowerCase().replace(/^(this|on)\s+/, "");

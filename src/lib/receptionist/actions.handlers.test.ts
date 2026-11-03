@@ -432,7 +432,8 @@ describe("check_availability late on a Saturday", () => {
     db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
     const tested = await ask();
     expect(tested.patchTestOnRecord).toBe("1 September 2026");
-    expect(tested.message).toMatch(/patch test on record from 1 September 2026, so no new test is needed/);
+    // Booked as returning without a word about it: nothing to say to the caller.
+    expect(tested.message).not.toMatch(/patch test/);
   });
 
   it("checks a caller with a patch test on record as returning, so colour has no 48-hour wait", async () => {
@@ -540,8 +541,8 @@ describe("book_appointment", () => {
       callerNumber: "+447700900714",
     })) as { success: boolean; usedCallerId: boolean; textSent: boolean; message: string };
     expect(r).toMatchObject({ success: true, usedCallerId: true, textSent: true });
-    expect(r.message).toMatch(/on its way to this phone/);
-    expect(r.message).toMatch(/Do not read the number out or ask whether it is right/);
+    expect(r.message).toMatch(/a text is on its way/);
+    expect(r.message).toMatch(/do not read the number out or ask whether it is right/);
     // The digits are not handed over, so there is nothing to read out.
     expect(r.message).not.toMatch(/900|714/);
   });
@@ -557,7 +558,8 @@ describe("book_appointment", () => {
     })) as { success: boolean; textSent: boolean; message: string };
     expect(r).toMatchObject({ success: true, textSent: false });
     expect(r.message).toMatch(/Do NOT promise a text/);
-    expect(r.message).toMatch(/The booking still stands/);
+    expect(r.message).toMatch(/that it is booked/);
+    expect(r.message).toMatch(/do not read the number out/);
     // A failure on our side is not the caller's phone being a landline.
     expect(r.message).not.toMatch(/landline/);
     expect(r.message).not.toMatch(/431|7546/);
