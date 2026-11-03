@@ -39,7 +39,6 @@ export function ServicesEditor({
         name: "",
         durationMinutes: 45,
         requiresPatchTest: false,
-        bufferMinutes: 0,
         priceMinor: null,
       },
     ]);
@@ -96,21 +95,6 @@ export function ServicesEditor({
             />
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <Input
-              type="number"
-              min={0}
-              step={5}
-              value={service.bufferMinutes}
-              onChange={(e) =>
-                update(i, { bufferMinutes: Number(e.target.value) })
-              }
-              className="h-8 w-20"
-              aria-label="Tidy-up buffer in minutes"
-            />
-            <span className="text-xs text-muted-foreground">tidy-up</span>
-          </div>
-
           <button
             type="button"
             onClick={() =>
@@ -146,8 +130,7 @@ export function ServicesEditor({
       </Button>
 
       <p className="text-xs text-muted-foreground">
-        Duration decides how much of the stylist&apos;s day is blocked. Tidy-up
-        time is kept free afterwards but may run past closing. Colour services
+        Duration decides how much of the stylist&apos;s day is blocked. Colour services
         should be marked as needing a patch test — that forces a 48-hour gap
         for anyone new. The price is a starting figure: the desk starts from it,
         and the receptionist and chat bots quote it as &ldquo;from&rdquo;. What

@@ -41,8 +41,8 @@ const salon = vi.hoisted(() => ({
     { day: 6, closed: false, open: "08:30", close: "17:00" },
   ],
   services: [
-    { name: "Blow dry", durationMinutes: 45, bufferMinutes: 0, requiresPatchTest: false, priceMinor: 3000 },
-    { name: "Root tint", durationMinutes: 90, bufferMinutes: 15, requiresPatchTest: true, priceMinor: 6500 },
+    { name: "Blow dry", durationMinutes: 45, requiresPatchTest: false, priceMinor: 3000 },
+    { name: "Root tint", durationMinutes: 90, requiresPatchTest: true, priceMinor: 6500 },
   ],
   stylists: [
     { name: "Jo", workingDays: [2, 6], services: [], bookable: true },

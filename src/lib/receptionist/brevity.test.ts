@@ -12,7 +12,7 @@ const cfg = {
   diary: "native",
   timeZone: "Europe/London",
   hours: [{ day: 2, closed: false, open: "09:00", close: "18:00" }],
-  services: [{ name: "Blow dry", durationMinutes: 45, bufferMinutes: 0, requiresPatchTest: false, priceMinor: 3000 }],
+  services: [{ name: "Blow dry", durationMinutes: 45, requiresPatchTest: false, priceMinor: 3000 }],
   stylists: [{ name: "Jo", workingDays: [2], services: [], bookable: true }],
 } as unknown as Parameters<typeof buildSystem>[0];
 

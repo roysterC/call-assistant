@@ -80,7 +80,7 @@ export async function slotProblem(
   stylist: Stylist,
   opts: { clientType?: ClientType; offeredOnly: boolean }
 ): Promise<string | null> {
-  const endsAt = new Date(startsAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60_000);
+  const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
   const start = zonedParts(startsAt, cfg.timeZone);
   const end = zonedParts(endsAt, cfg.timeZone);
   const dayName = DAY_NAMES_LONG[start.weekday];
@@ -151,7 +151,7 @@ export async function staffSlotProblem(
   if (pairing) return pairing.replace(/ Offer that, or ask whether they wanted a different service\.$/, "");
   const hours = await slotProblem(provider, organizationId, cfg, startsAt, service, stylist, { offeredOnly: false });
   if (hours) return hours.replace(/ (Offer|Call) .*$/, "");
-  const endsAt = new Date(startsAt.getTime() + (service.durationMinutes + service.bufferMinutes) * 60_000);
+  const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
   const clash = await findClash(prisma, organizationId, stylist.name, startsAt, endsAt, excludeAppointmentId);
   if (clash) {
     return `${stylist.name} already has ${clash.serviceText.toLowerCase()} at ${clockTime(clash.startsAt, cfg.timeZone)}.`;

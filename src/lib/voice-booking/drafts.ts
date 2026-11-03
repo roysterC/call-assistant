@@ -463,7 +463,7 @@ export async function proposeMove(
   const svc = resolveBookedService(appt.serviceText, cfg.services);
   const service: SalonService = svc.ok
     ? svc.service
-    : { name: appt.serviceText, durationMinutes: appt.durationMinutes, bufferMinutes: 0, requiresPatchTest: false, priceMinor: null };
+    : { name: appt.serviceText, durationMinutes: appt.durationMinutes, requiresPatchTest: false, priceMinor: null };
 
   // "Move it to half two" keeps the day; "move it to Friday" keeps the time.
   const sameDay = zonedDateString(appt.startsAt, cfg.timeZone);

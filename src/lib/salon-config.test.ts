@@ -14,12 +14,12 @@ import {
 } from "./salon-config";
 
 const SERVICES = parseServices([
-  { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false, bufferMinutes: 0 },
-  { name: "Fringe trim", durationMinutes: 15, requiresPatchTest: false, bufferMinutes: 0 },
-  { name: "Gents cut", durationMinutes: 30, requiresPatchTest: false, bufferMinutes: 0 },
-  { name: "Half head highlights", durationMinutes: 120, requiresPatchTest: true, bufferMinutes: 15 },
-  { name: "Full head highlights", durationMinutes: 150, requiresPatchTest: true, bufferMinutes: 15 },
-  { name: "Balayage", durationMinutes: 180, requiresPatchTest: true, bufferMinutes: 15 },
+  { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false },
+  { name: "Fringe trim", durationMinutes: 15, requiresPatchTest: false },
+  { name: "Gents cut", durationMinutes: 30, requiresPatchTest: false },
+  { name: "Half head highlights", durationMinutes: 120, requiresPatchTest: true },
+  { name: "Full head highlights", durationMinutes: 150, requiresPatchTest: true },
+  { name: "Balayage", durationMinutes: 180, requiresPatchTest: true },
 ]);
 
 const name = (spoken: string) => matchService(spoken, SERVICES)?.name ?? null;
@@ -74,8 +74,8 @@ describe("matchStylist", () => {
 
 describe("describeTeamForPrompt", () => {
   const SERVICES_2 = parseServices([
-    { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false, bufferMinutes: 0 },
-    { name: "Balayage", durationMinutes: 180, requiresPatchTest: true, bufferMinutes: 0 },
+    { name: "Cut and finish", durationMinutes: 45, requiresPatchTest: false },
+    { name: "Balayage", durationMinutes: 180, requiresPatchTest: true },
   ]);
 
   const team = (raw: unknown[]) => parseStylists(raw);
@@ -350,8 +350,10 @@ describe("combineServices", () => {
     expect(combined("gents cut and a fringe trim").requiresPatchTest).toBe(false);
   });
 
-  it("leaves one tidy-up at the end rather than one per service", () => {
-    expect(combined("gents cut and balayage").bufferMinutes).toBe(15);
+  it("drops the tidy-up minutes a service was saved with: there is no tidy-up", () => {
+    const [cut] = parseServices([{ name: "Cut", durationMinutes: 45, bufferMinutes: 15 }]);
+    expect(cut).not.toHaveProperty("bufferMinutes");
+    expect(cut.durationMinutes).toBe(45);
   });
 
   it("passes a single service through untouched", () => {
@@ -363,9 +365,9 @@ describe("combineServices", () => {
 
   it("adds prices up, but only when every part has one", () => {
     const priced = parseServices([
-      { name: "Gents cut", durationMinutes: 30, requiresPatchTest: false, bufferMinutes: 0, priceMinor: 2500 },
-      { name: "Balayage", durationMinutes: 180, requiresPatchTest: true, bufferMinutes: 15, priceMinor: 12000 },
-      { name: "Fringe trim", durationMinutes: 15, requiresPatchTest: false, bufferMinutes: 0 },
+      { name: "Gents cut", durationMinutes: 30, requiresPatchTest: false, priceMinor: 2500 },
+      { name: "Balayage", durationMinutes: 180, requiresPatchTest: true, priceMinor: 12000 },
+      { name: "Fringe trim", durationMinutes: 15, requiresPatchTest: false },
     ]);
     const both = matchServices("gents cut and balayage", priced).matched;
     expect(combineServices(both).priceMinor).toBe(14500);
@@ -425,9 +427,9 @@ describe("resolveBookedService", () => {
  */
 describe("the booking that went wrong", () => {
   const SHOGO = parseServices([
-    { name: "Haircut", durationMinutes: 45, requiresPatchTest: false, bufferMinutes: 0, priceMinor: 4500 },
-    { name: "Full head colour", durationMinutes: 120, requiresPatchTest: true, bufferMinutes: 15, priceMinor: 9500 },
-    { name: "Blow dry", durationMinutes: 30, requiresPatchTest: false, bufferMinutes: 0, priceMinor: 3000 },
+    { name: "Haircut", durationMinutes: 45, requiresPatchTest: false, priceMinor: 4500 },
+    { name: "Full head colour", durationMinutes: 120, requiresPatchTest: true, priceMinor: 9500 },
+    { name: "Blow dry", durationMinutes: 30, requiresPatchTest: false, priceMinor: 3000 },
   ]);
 
   it("books both, however the caller ordered them", () => {

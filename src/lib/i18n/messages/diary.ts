@@ -27,6 +27,23 @@ export const diary = {
   "grid.client": ["Client", "Khách"],
   "grid.deletedClient": ["Deleted client", "Khách đã xóa"],
   "grid.free": ["{len} free", "Trống {len}"],
+  "grid.refusePast": [
+    "That time has already passed. Pick a time from {time} onwards.",
+    "Giờ này đã qua. Hãy chọn từ {time} trở đi.",
+  ],
+  "grid.refusePastDay": [
+    "This day has already passed. New bookings can start from today.",
+    "Ngày này đã qua. Chỉ đặt lịch mới từ hôm nay trở đi.",
+  ],
+  "grid.refuseNotIn": ["{name} isn't working this day.", "{name} không làm việc ngày này."],
+  "grid.refuseNoCalendar": [
+    "{name} has no calendar shared yet, so can't be booked.",
+    "{name} chưa được chia sẻ lịch nên chưa thể đặt lịch.",
+  ],
+  "grid.refuseFormer": [
+    "{name} is no longer on the team, so can't take new bookings.",
+    "{name} không còn trong nhóm nên không thể nhận lịch mới.",
+  ],
   "grid.lenMin": ["{n} min", "{n} phút"],
   "grid.lenHours": ["{h} h", "{h} giờ"],
   "grid.lenHoursMin": ["{h} h {m}", "{h} giờ {m} phút"],
