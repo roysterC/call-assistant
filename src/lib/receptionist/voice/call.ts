@@ -102,6 +102,12 @@ export interface VoiceCallDeps {
   startEarlyAfterMs?: number | null;
   /** Runs fn after ms, returning a cancel; stood in for by tests. */
   schedule?: (fn: () => void, ms: number) => () => void;
+  /**
+   * Whether the caller can cut the receptionist off by talking over it. Off
+   * by default: it always finishes what it is saying, and whatever the caller
+   * said meanwhile is the next turn, answered once it has finished.
+   */
+  interruptible?: boolean;
 }
 
 export const SILENCE_PROMPT = "Are you still there?";
@@ -176,6 +182,8 @@ export class VoiceCall {
   private cancelEarlyTimer: (() => void) | null = null;
   /** Turns the model is still working on; an early start waits for none. */
   private modelTurns = 0;
+  /** Turns whose reply has begun to be spoken: those always play out. */
+  private readonly spoke = new WeakSet<AbortController>();
 
   readonly log: Array<{ who: "caller" | "assistant"; text: string }> = [];
   turns: TurnResult[] = [];
@@ -346,7 +354,7 @@ export class VoiceCall {
     this.lastHeardAt = this.now();
     this.callerSpoke();
     this.deps.out.event({ type: "caller", text: [...this.heard, text].join(" "), final: false });
-    if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
+    if (this.deps.interruptible && this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
     this.wordsChanged();
   }
 
@@ -360,7 +368,7 @@ export class VoiceCall {
     this.lastHeardAt = this.now();
     this.callerSpoke();
     this.deps.out.event({ type: "caller", text: this.heard.join(" "), final: false });
-    if (this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
+    if (this.deps.interruptible && this.busy && wordCount(text) >= BARGE_IN_WORDS) this.interrupt();
     this.wordsChanged();
   }
 
@@ -406,6 +414,13 @@ export class VoiceCall {
     this.early = null;
   }
 
+  /** Drop the reply being worked on, before any of it is said: nothing to cut off. */
+  private overtake() {
+    this.turn?.abort();
+    this.turn = null;
+    this.turnRunning = false;
+  }
+
   private interrupt() {
     if (!this.turn) return;
     this.turn.abort();
@@ -422,8 +437,16 @@ export class VoiceCall {
     if (!text || this.closed) return;
     this.heard = [];
     this.interim = "";
-    // Anything still playing from before is superseded by the new turn.
-    if (this.busy) this.interrupt();
+    // Interruptible: anything still playing is superseded by the new turn.
+    // Otherwise what it has begun to say plays out, and the reply to this
+    // turn follows it (speech is queued in order; the model waits for the last
+    // turn to settle). A reply not yet begun is replaced, unheard, so the
+    // caller gets one answer to everything they said, not one per breath.
+    if (this.deps.interruptible) {
+      if (this.busy) this.interrupt();
+    } else if (this.turn && this.turnRunning && !this.spoke.has(this.turn)) {
+      this.overtake();
+    }
     this.deps.out.event({ type: "caller", text, final: true });
     this.log.push({ who: "caller", text });
     // Started early on these same words: the reply carries on from there.
@@ -474,6 +497,7 @@ export class VoiceCall {
 
     const speak = (piece: string) => {
       spokeThisTurn = true;
+      this.spoke.add(ctl);
       if (firstSpeakAt === null) firstSpeakAt = this.now();
       this.say(piece, ctl.signal, () => {
         if (firstAudio === null) firstAudio = this.now() - started;

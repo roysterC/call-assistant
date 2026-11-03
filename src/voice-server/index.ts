@@ -376,6 +376,8 @@ async function main() {
     const call = new VoiceCall({
       engine: session.engine,
       startEarlyAfterMs: startEarlyAfterMs(),
+      // RECEPTIONIST_INTERRUPTIBLE=on lets callers cut it off again.
+      interruptible: process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase() === "on",
       stt,
       tts,
       greeting: session.greeting,
@@ -547,6 +549,8 @@ async function main() {
     const call = new VoiceCall({
       engine: session.engine,
       startEarlyAfterMs: startEarlyAfterMs(),
+      // RECEPTIONIST_INTERRUPTIBLE=on lets callers cut it off again.
+      interruptible: process.env.RECEPTIONIST_INTERRUPTIBLE?.trim().toLowerCase() === "on",
       stt,
       tts,
       greeting: session.greeting,

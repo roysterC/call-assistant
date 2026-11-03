@@ -36,6 +36,7 @@ function harness(
     silence?: { promptMs: number; hangupMs: number } | null;
     openStt?: () => Promise<void>;
     tts?: TextToSpeech;
+    interruptible?: boolean;
   } = {}
 ) {
   const handlers: SttHandlers[] = [];
@@ -66,6 +67,7 @@ function harness(
     greeting: "Thank you for calling Shogo.",
     silence: opts.silence === undefined ? null : opts.silence,
     hangupGraceMs: 0,
+    interruptible: opts.interruptible,
   });
   const stt = () => handlers[handlers.length - 1];
   /** The caller says something and pauses. */
@@ -217,7 +219,7 @@ describe("speakerphone echo", () => {
         hooks.onText?.("We have nine o'clock or quarter past one on Tuesday. ");
         return done("We have nine o'clock or quarter past one on Tuesday.");
       },
-      { playbackMs: 5000 }
+      { playbackMs: 5000, interruptible: true }
     );
     await h.call.start();
     await vi.advanceTimersByTimeAsync(6000);
