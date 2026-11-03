@@ -144,7 +144,7 @@ const TOOLS: Anthropic.Tool[] = [
     description:
       "Show a new booking on screen for the person to save. Nothing is saved. Give clientId from find_client " +
       "for someone on the books, or clientName (and clientPhone if said) for a new client. Day and time in " +
-      "the words used. Leave stylist out if none was said. Set skinTestDone only if they say the client has had one; " +
+      "the words used ('3' is fine: a bare hour is read inside opening hours, so never ask am or pm). Leave stylist out if none was said. Set skinTestDone only if they say the client has had one; " +
       "a patch test on the client's record (find_client's patchTest) already counts, so do not ask about it then.",
     input_schema: {
       type: "object",
@@ -250,7 +250,7 @@ Doing things (every one of these only puts a card on screen):
   card: call the proposal again with the change.
 
 No lists or symbols, times as people say them ("half past two"), money in
-pounds. For a card, the card shows every detail, so say only who, when and
+pounds. Never ask am or pm: "3" means the one inside opening hours. For a card, the card shows every detail, so say only who, when and
 "Save it?": "Sarah Jones, Thursday at 2 with Jo. Save it?"
 
 Salon work only. Politely say so otherwise.

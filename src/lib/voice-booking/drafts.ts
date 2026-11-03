@@ -32,7 +32,7 @@ import type { BookingProvider } from "@/lib/booking/types";
 import {
   describeAppointmentWhen,
   parseDateOnly,
-  parseSpokenTime,
+  parseSpokenTimeOn,
   resolveSpokenDate,
   resolveSpokenPastDate,
   zonedDateString,
@@ -240,7 +240,7 @@ function resolveWhen(
 ): { ok: true; at: Date } | { ok: false; message: string } {
   const day = date ? resolveSpokenDate(date, cfg.timeZone) : defaultDate ?? null;
   if (!day) return { ok: false, message: `Which day? "${date ?? ""}" is not a day I can place.` };
-  const clock = parseSpokenTime(time);
+  const clock = parseSpokenTimeOn(time, cfg.hours, day);
   if (!clock) return { ok: false, message: `What time? "${time ?? ""}" is not a time I can read.` };
   const d = parseDateOnly(day);
   const [h, m] = clock.split(":").map(Number);

@@ -117,9 +117,10 @@ const CHECK_AVAILABILITY: ToolDefinition = {
         time: {
           type: "string",
           description:
-            "The one time they asked for, if they asked for one ('2pm', " +
-            "'14:00'). If it is free it is offered on its own; if not, the " +
-            "nearest times are.",
+            "The one time they asked for, if they asked for one, as they " +
+            "said it ('3', '2pm', 'half two'). A bare hour is read inside " +
+            "opening hours, so never ask am or pm. If it is free it is offered " +
+            "on its own; if not, the nearest times are.",
         },
         lookFurther: {
           type: "boolean",
@@ -180,8 +181,9 @@ const BOOKING_DETAILS: ToolDefinition = {
         time: {
           type: "string",
           description:
-            "The exact startsAt value from check_availability, or HH:MM " +
-            "in 24-hour format.",
+            "The exact startsAt value from check_availability, " +
+            "or the time as they said it ('3', 'half two'). A bare hour is read " +
+            "inside opening hours, so never ask am or pm.",
         },
         service: {
           type: "string",
@@ -484,8 +486,9 @@ const RESCHEDULE_APPOINTMENT: ToolDefinition = {
         time: {
           type: "string",
           description:
-            "The exact startsAt from check_availability, or HH:MM in " +
-            "24-hour format.",
+            "The exact startsAt from check_availability, " +
+            "or the time as they said it ('3', 'half two'). A bare hour is read " +
+            "inside opening hours, so never ask am or pm.",
         },
         stylist: {
           type: "string",

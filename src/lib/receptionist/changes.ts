@@ -19,7 +19,7 @@ import {
 import {
   describeAppointmentWhen,
   parseDateOnly,
-  parseSpokenTime,
+  parseSpokenTimeOn,
   resolveSpokenDate,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
@@ -565,7 +565,7 @@ async function checkMove(organizationId: string, params: MoveParams) {
         message: "Which day did they want to move to? Ask, then call again.",
       };
     }
-    const clock = parseSpokenTime(params.time);
+    const clock = parseSpokenTimeOn(params.time, cfg.hours, newDate);
     const m = clock ? /^(\d{2}):(\d{2})$/.exec(clock) : null;
     if (!m) {
       return { success: false, message: `That time did not parse ("${params.time}").` };

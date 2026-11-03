@@ -19,7 +19,7 @@ import { matchStylist, resolveBookedService, type SalonService } from "@/lib/sal
 import { normaliseCallerName } from "@/lib/caller-name";
 import {
   openWindowFor,
-  parseSpokenTime,
+  parseSpokenTimeOn,
   resolveSpokenDate,
   zonedDateString,
   zonedIsoString,
@@ -426,7 +426,7 @@ async function availabilityRequest(
     preference,
     hasPreference: Boolean(preference.timeOfDay || preference.after || preference.before),
     // "Can I have 2 o'clock?": the one time they asked for.
-    askedTime: parseSpokenTime(blankToUndefined(params.time) ?? "") ?? null,
+    askedTime: parseSpokenTimeOn(blankToUndefined(params.time) ?? "", cfg.hours, date) ?? null,
     lookFurther: params.lookFurther === true || params.lookFurther === "true",
   };
 }

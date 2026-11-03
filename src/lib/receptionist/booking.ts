@@ -23,6 +23,7 @@ import {
   describeAppointmentWhen,
   parseDateOnly,
   parseSpokenTime,
+  parseSpokenTimeOn,
   resolveSpokenDate,
   zonedDateString,
   zonedIsoString,
@@ -312,8 +313,8 @@ async function checkBooking(organizationId: string, params: BookingParams) {
     startsAt = new Date(time);
   } else {
     // "14:00", or however it was said: "2pm", "half two", "quarter to four".
-    const clock = parseSpokenTime(time);
-    const m = clock ? /^(\d{2}):(\d{2})$/.exec(clock) : null;
+    const said = parseSpokenTime(time);
+    let m = said ? /^(\d{2}):(\d{2})$/.exec(said) : null;
     if (!m) {
       return {
         success: false,
@@ -327,6 +328,8 @@ async function checkBooking(organizationId: string, params: BookingParams) {
         message: "Which day did they mean? Ask for a specific day or date.",
       };
     }
+    // "3" is three in the afternoon: a bare hour is read inside that day's hours.
+    m = /^(\d{2}):(\d{2})$/.exec(parseSpokenTimeOn(time, cfg.hours, resolved) ?? "") ?? m;
     const d = parseDateOnly(resolved);
     startsAt = zonedWallTimeToUtc(
       d.year,
