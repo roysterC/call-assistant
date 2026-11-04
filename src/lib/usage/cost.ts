@@ -57,8 +57,9 @@ export function rates() {
   return {
     // Deepgram Nova-3 streaming, list price per minute.
     sttPerMinute: envNumber("USAGE_RATE_STT_PER_MIN", 0.0077),
-    // ElevenLabs Flash v2.5 via the API, per thousand characters.
-    ttsPer1kChars: envNumber("USAGE_RATE_TTS_PER_1K_CHARS", 0.05),
+    // ElevenLabs v4 Turbo (or Flash v2.5, the same price) via the API, per
+    // thousand characters: ElevenLabs' API pricing page, November 2026.
+    ttsPer1kChars: envNumber("USAGE_RATE_TTS_PER_1K_CHARS", 0.04),
     // The phone line itself, per minute; set when step 3 connects Twilio.
     telephonyPerMinute: envNumber("USAGE_RATE_TELEPHONY_PER_MIN", 0),
   };

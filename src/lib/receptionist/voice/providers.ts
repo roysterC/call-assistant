@@ -382,6 +382,9 @@ export interface TextToSpeech {
   readonly bytesPerSecond: number;
 }
 
+/** The ElevenLabs voice model used unless ELEVENLABS_MODEL says otherwise. */
+export const DEFAULT_TTS_MODEL = "eleven_v4_turbo";
+
 export class ElevenLabsTts implements TextToSpeech {
   readonly bytesPerSecond: number;
   private readonly format: string;
@@ -410,7 +413,10 @@ export class ElevenLabsTts implements TextToSpeech {
         headers: { "xi-api-key": this.apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
           text,
-          model_id: this.opts.model ?? "eleven_flash_v2_5",
+          // v4 Turbo: ElevenLabs' most expressive real-time voice, at the
+          // same price per character as Flash v2.5 and, in testing, as quick
+          // to start. ELEVENLABS_MODEL=eleven_flash_v2_5 goes back to Flash.
+          model_id: this.opts.model ?? DEFAULT_TTS_MODEL,
           voice_settings: { speed: speakingSpeed(this.opts.speed) },
         }),
         signal,

@@ -15,13 +15,13 @@ describe("costOf", () => {
       cacheReadTokens: 50_000, // $0.005
       cacheWriteTokens: 4_000, // $0.005
       sttSeconds: 120, // 2 min × $0.0077
-      ttsCharacters: 1_200, // 1.2k × $0.05
+      ttsCharacters: 1_200, // 1.2k × $0.04
     });
     expect(c.llm).toBe(35_000);
     expect(c.stt).toBe(15_400);
-    expect(c.tts).toBe(60_000);
+    expect(c.tts).toBe(48_000);
     expect(c.telephony).toBe(0);
-    expect(c.total).toBe(110_400); // 11 cents
+    expect(c.total).toBe(98_400); // just under 10 cents
   });
 
   it("prices Haiku 5.5 at a tenth of Haiku 4.5", () => {
