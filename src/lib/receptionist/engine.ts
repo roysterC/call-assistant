@@ -45,8 +45,10 @@ export const END_CALL = "end_call";
 export const END_CALL_TOOL: Anthropic.Tool = {
   name: END_CALL,
   description:
-    "Hang up the phone. Use this only when the call is finished: everything is settled, you have asked if " +
-    "there is anything else, and the caller has nothing more. Say your goodbye in the same reply, before " +
+    "Hang up the phone. Use this only when the call is finished: everything is settled, you have asked " +
+    "\"Is there anything else I can help you with?\" in an earlier reply, and they answered that there is " +
+    "nothing more. Even if they decline or say they are done, ask that first and wait for the answer. Say " +
+    "your goodbye in the same reply, before " +
     "using this; the line is put down once your goodbye has been heard. Never use it while a question is " +
     "unanswered or right after the caller has spoken without replying to them.",
   input_schema: { type: "object", properties: {} },
@@ -133,6 +135,30 @@ export class ReceptionistEngine {
   turns = 0;
 
   constructor(private readonly cfg: EngineConfig) {}
+
+  /**
+   * A hang-up is turned back unless the receptionist's last reply before the
+   * caller spoke asked whether there was anything else: a caller who said
+   * "let's leave it then" was thanked and hung up on, never asked. The
+   * caller has answered it, since this turn is theirs.
+   */
+  private notAskedAnythingElse(): string | null {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const m = this.messages[i];
+      if (m.role !== "assistant") continue;
+      const text =
+        typeof m.content === "string"
+          ? m.content
+          : m.content.map((b) => (b.type === "text" ? b.text : "")).join(" ");
+      if (!text.trim()) continue;
+      if (ASKED_ANYTHING_ELSE.test(text)) return null;
+      break;
+    }
+    return (
+      "Not hung up: you have not asked whether there is anything else. Ask now, in a few words, carrying on " +
+      'naturally: "Before you go, is there anything else I can help with?" Then wait for their answer.'
+    );
+  }
 
   /** One request to the model, as every turn sends it. */
   private params(messages: Anthropic.MessageParam[]): Anthropic.MessageCreateParamsNonStreaming {
@@ -322,7 +348,7 @@ export class ReceptionistEngine {
         let output: unknown;
         let isError = false;
         if (use.name === END_CALL) {
-          const refusal = endCallRefusal(message, toolUses.length);
+          const refusal = endCallRefusal(message, toolUses.length) ?? this.notAskedAnythingElse();
           if (refusal) {
             isError = true;
             output = { error: refusal };
@@ -370,6 +396,12 @@ export class ReceptionistEngine {
     return { ...result, stopReason: "round_trip_limit" };
   }
 }
+
+/**
+ * "Is there anything else I can help you with?", however it was put. The
+ * receptionist always asks before ending a call, and waits for the answer.
+ */
+const ASKED_ANYTHING_ELSE = /\b(anything|something) (else|more)\b|\belse I can (help|do)\b/i;
 
 /** Why a hang-up is turned back, or null when it can go ahead. */
 function endCallRefusal(message: Anthropic.Message, toolCount: number): string | null {

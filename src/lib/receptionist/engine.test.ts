@@ -258,6 +258,10 @@ describe("ReceptionistEngine", () => {
       { text: ["Thanks for calling, see you Wednesday at one. Bye!"], tools: [{ name: END_CALL, input: {} }] },
     ]);
     const { engine, execute } = engineWith(client);
+    engine.messages.push(
+      { role: "user", content: "Book it please" },
+      { role: "assistant", content: "That's booked, and a text is on its way. Anything else?" }
+    );
     const turn = await engine.respond("No that's everything, thanks");
 
     expect(turn.endCall).toBe(true);
@@ -268,12 +272,37 @@ describe("ReceptionistEngine", () => {
     expectValidHistory(engine.messages);
   });
 
+  it("will not hang up before asking whether there is anything else, however done they sound", async () => {
+    const { client, sent } = fakeClient([
+      { text: ["No problem. Thanks for calling, Roy. Bye."], tools: [{ name: END_CALL, input: {} }] },
+      { text: ["Before you go, is there anything else I can help with?"] },
+    ]);
+    const { engine } = engineWith(client);
+    engine.messages.push(
+      { role: "user", content: "Anything today?" },
+      { role: "assistant", content: "Today at quarter to 11, or at quarter to 1?" }
+    );
+    const turn = await engine.respond("No. Let's leave it then.");
+
+    expect(sent).toHaveLength(2);
+    const refused = sent[1].messages.at(-1)!.content as Anthropic.ToolResultBlockParam[];
+    expect(refused[0].is_error).toBe(true);
+    expect(String(refused[0].content)).toContain("not asked whether there is anything else");
+    expect(turn.endCall).toBe(false);
+    expect(turn.text).toContain("anything else I can help with?");
+    expectValidHistory(engine.messages);
+  });
+
   it("will not hang up without a goodbye, and says why", async () => {
     const { client, sent } = fakeClient([
       { tools: [{ name: END_CALL, input: {} }] },
       { text: ["Lovely, thanks for calling. Bye now!"], tools: [{ name: END_CALL, input: {} }] },
     ]);
     const { engine } = engineWith(client);
+    engine.messages.push(
+      { role: "user", content: "Book it please" },
+      { role: "assistant", content: "That's booked. Is there anything else I can help you with?" }
+    );
     const turn = await engine.respond("That's correct");
 
     expect(sent).toHaveLength(2);

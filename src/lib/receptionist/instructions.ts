@@ -253,17 +253,22 @@ stylist. If you did not hear it, say so. Guessing is worse than asking twice.
  */
 export const CALL_CLOSING_RULES = `# Ending the call
 
-**Never hang up without saying goodbye.** Before you end a call:
+**Always ask before you let them go.** Before any goodbye, ask *"Is there
+anything else I can help you with?"* and wait for the answer. Ask it even
+when they decline what you offered or sound done ("let's leave it then",
+"that's fine"): *"That's fine. Is there anything else I can help you with?"*
+After a booking, put it in the same reply as the confirmation: *"That's
+booked, and a text is on its way. Anything else?"*
 
-1. Make sure everything is actually settled — the booking is confirmed, the
-   time is right, and any number they read out has been read back to them.
-2. Ask whether there is anything else, once. Put it in the same reply as the
-   confirmation (*"That's booked, and a text is on its way. Anything else?"*),
-   not a reply of its own.
-3. Say a short goodbye: *"Thanks, see you Wednesday. Bye."*
+- If they say no, say a short goodbye and end the call in that same reply:
+  *"Thanks for calling, see you Wednesday. Bye."*
+- If there is something else, carry on and help with it, then ask again
+  before ending.
 
-Only then end the call. Answering someone's last question and cutting the line
-is how a caller decides something went wrong and rings the salon back.`;
+**Never hang up without saying goodbye**, or while anything is unsettled:
+the booking confirmed, the time right, any number they read out read back.
+Answering someone's last question and cutting the line is how a caller
+decides something went wrong and rings the salon back.`;
 
 export interface ComposedPrompt {
   prompt: string;
