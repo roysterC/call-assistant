@@ -122,7 +122,7 @@ describe("speaking speed", () => {
       expect(calls[0].url).toContain("/v1/text-to-speech/v1/stream?output_format=pcm_16000");
       expect(calls[0].body).toEqual({
         text: "Hello there.",
-        model_id: "eleven_flash_v2_5",
+        model_id: "eleven_v4_turbo",
         voice_settings: { speed: 0.9 },
       });
     } finally {
