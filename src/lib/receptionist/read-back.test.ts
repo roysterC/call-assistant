@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { ReadBackGate, readBackSentence, type PreparedBooking } from "./read-back";
+import { ReadBackGate, readBackSentence, spokenLength, type PreparedBooking } from "./read-back";
 
 const checked: PreparedBooking = {
   success: true,
   ready: true,
   service: "Wash and blow dry, medium hair",
+  durationMinutes: 45,
   stylist: "Chloe",
   startsAt: "2026-10-15T11:00:00+01:00",
   when: "Thursday 15 October at 11am",
@@ -114,5 +115,25 @@ describe("the read-back sentence", () => {
       /need a quick skin test at the salon 48 hours before/
     );
     expect(readBackSentence(checked)).not.toMatch(/skin test/);
+  });
+
+  it("says how long a long appointment takes, and not a short one", () => {
+    const cutAndColour = { ...checked, service: "Ladies cut and blow dry, full colour short hair", durationMinutes: 150 };
+    expect(readBackSentence(cutAndColour)).toMatch(/full colour short hair, two and a half hours, with Chloe/);
+    expect(readBackSentence(checked)).not.toMatch(/hour/);
+  });
+});
+
+describe("how long, as said", () => {
+  it.each([
+    [30, "half an hour"],
+    [60, "an hour"],
+    [90, "an hour and a half"],
+    [100, "about an hour and a half"],
+    [120, "two hours"],
+    [150, "two and a half hours"],
+    [165, "about three hours"],
+  ])("%i minutes: %s", (minutes, said) => {
+    expect(spokenLength(minutes)).toBe(said);
   });
 });

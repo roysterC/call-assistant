@@ -62,6 +62,7 @@ describe("what the caller hears unprompted", () => {
       success: true,
       ready: true,
       service: "Wash and blow dry, medium hair",
+      durationMinutes: 45,
       stylist: "Chloe",
       startsAt: "2026-10-15T11:00:00+01:00",
       when: "Thursday 15 October at 11am",

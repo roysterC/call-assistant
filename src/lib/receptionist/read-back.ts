@@ -26,6 +26,8 @@ export interface PreparedBooking {
   success: true;
   ready: true;
   service: string;
+  /** How long it takes, every service in it together. */
+  durationMinutes: number;
   stylist: string;
   startsAt: string;
   /** Weekday, date and time, as said: "Thursday 15 October at 11am". */
@@ -59,7 +61,27 @@ export function readBackSentence(p: PreparedBooking): string {
   const skinTest = p.patchTestRequired
     ? " They need a quick skin test at the salon 48 hours before, which the salon will arrange."
     : "";
-  return `${p.service} with ${p.stylist} on ${p.when}, for ${p.clientName}${textTo}.${skinTest}`;
+  // A long appointment says how long: a caller booking cut and colour had
+  // to ask, and it is what they plan the day around.
+  const length = p.durationMinutes >= LONG_MINUTES ? `, ${spokenLength(p.durationMinutes)},` : "";
+  return `${p.service}${length} with ${p.stylist} on ${p.when}, for ${p.clientName}${textTo}.${skinTest}`;
+}
+
+/** From an hour and a half, the read-back says how long it takes. */
+const LONG_MINUTES = 90;
+
+/** "about two and a half hours": to the nearest half hour, as said. */
+export function spokenLength(minutes: number): string {
+  const halves = Math.max(1, Math.round(minutes / 30));
+  const hours = Math.floor(halves / 2);
+  const half = halves % 2 === 1;
+  const words = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+  const exact = halves * 30 === minutes;
+  const about = exact ? "" : "about ";
+  if (hours === 0) return `${about}half an hour`;
+  if (hours === 1) return `${about}${half ? "an hour and a half" : "an hour"}`;
+  const h = words[hours] ?? String(hours);
+  return `${about}${h}${half ? " and a half" : ""} hours`;
 }
 
 export class ReadBackGate {
