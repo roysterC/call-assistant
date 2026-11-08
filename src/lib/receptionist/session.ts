@@ -13,6 +13,7 @@ import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { buildVoiceTools } from "@/lib/receptionist/tool-definitions";
 import { runAction, handleBookAppointment, isActionName, normaliseParameters } from "@/lib/receptionist/actions";
 import { ReadBackGate } from "./read-back";
+import { ClientTypeMemory } from "./client-type-memory";
 import { END_CALL_TOOL, ReceptionistEngine, type StreamingClient } from "./engine";
 import { buildSystem, greetingFor } from "./prompt";
 import { toClaudeTools, withCallerContext } from "./tools";
@@ -101,6 +102,9 @@ export async function startReceptionist(
   const allowed = new Set(tools.map((t) => t.name));
   const businessName = settings?.businessName ?? "";
 
+  // Whether they have been before, once they have said (client-type-memory.ts).
+  const clientTypes = new ClientTypeMemory();
+
   // Bookings are read back before they are made: see read-back.ts.
   const readBack = new ReadBackGate({
     turn: () => engine.turns,
@@ -134,7 +138,8 @@ export async function startReceptionist(
     tools: [...tools, END_CALL_TOOL],
     // Only the tools this salon was given. The model cannot name its way
     // into one it was not offered.
-    execute: async (name, input) => {
+    execute: async (name, said) => {
+      const input = clientTypes.apply(name, said);
       if (name === "prepare_booking" && allowed.has(name)) return readBack.prepare(input);
       if (name === "book_appointment" && allowed.has(name)) return readBack.book(input);
       if (!allowed.has(name) || !isActionName(name)) {

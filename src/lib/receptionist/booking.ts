@@ -498,6 +498,7 @@ function readBackDetails(b: CheckedBooking) {
     success: true,
     ready: true,
     service: b.service.name,
+    durationMinutes: b.service.durationMinutes,
     stylist: b.stylist.name,
     startsAt: zonedIsoString(startsAt, cfg.timeZone),
     // Weekday and date, always: what is read back is checked against a

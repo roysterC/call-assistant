@@ -297,6 +297,7 @@ exports[`the reply catalogue > book: checked only, a new colour client 1`] = `
   "noticed": [],
   "reply": {
     "clientName": "Nina New",
+    "durationMinutes": 90,
     "patchTestRequired": true,
     "phone": "+447700900799",
     "ready": true,
@@ -317,6 +318,7 @@ exports[`the reply catalogue > book: checked only, for the read-back 1`] = `
   "noticed": [],
   "reply": {
     "clientName": "Nina New",
+    "durationMinutes": 45,
     "patchTestRequired": false,
     "phone": "+447700900799",
     "ready": true,
