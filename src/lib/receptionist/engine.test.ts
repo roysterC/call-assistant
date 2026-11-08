@@ -402,6 +402,23 @@ describe("receptionist prompt", () => {
     stylists: [{ name: "Chloe", workingDays: [4], services: [] }],
   } as unknown as SalonConfig;
 
+  it("says nothing of colour or skin tests to a salon that lists no colour", () => {
+    const none = composeVoicePrompt(bookable, null).prompt;
+    expect(none).not.toMatch(/patch test|had colour|colour service/i);
+    expect(none).toContain("find it in the Services list");
+    const colour = composeVoicePrompt(
+      {
+        ...bookable,
+        services: [
+          ...bookable.services,
+          { name: "Root tint", durationMinutes: 90, requiresPatchTest: true, priceMinor: null },
+        ],
+      } as unknown as SalonConfig,
+      null
+    ).prompt;
+    expect(colour).toContain("skin patch test 48 hours beforehand");
+  });
+
   it("has our own line read every booking back before it is made, and never ask for an email", () => {
     const [stable] = buildSystem(bookable, "Shogo", null, new Date("2026-09-25T17:05:00Z"), "+447700900123");
     expect(stable.text).toContain("Read it back before you book");
