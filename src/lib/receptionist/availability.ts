@@ -24,6 +24,7 @@ import {
   zonedDateString,
   toMinutes,
   zonedIsoString,
+  zonedParts,
 } from "@/lib/business-hours";
 import { hasBeenBefore } from "@/lib/client-link";
 import {
@@ -598,9 +599,41 @@ function availabilityReply(
     options,
     message:
       (ctx.windowEmpty ? "Nothing free in the window they asked for. Say so plainly, then: " : "") +
-      (askedTime && named ? `${spokenTime(`${date}T${askedTime}:00Z`, "UTC")} is taken. Say so, then: ` : "") +
+      (askedTime && named ? askedTimeLine(cfg, service, date, askedTime) : "") +
       howToOffer,
   };
+}
+
+/**
+ * Why the one time they asked for is not offered. Taken is not shut: "seven
+ * is taken" for a salon that closes at six had the caller thinking it was
+ * only busy.
+ */
+function askedTimeLine(cfg: SalonConfig, service: SalonService, date: string, askedTime: string): string {
+  const asked = spokenTime(`${date}T${askedTime}:00Z`, "UTC");
+  const window = openWindowFor(cfg.hours, cfg.timeZone, date);
+  if (window) {
+    const startMinutes = toMinutes(askedTime);
+    const opens = zonedParts(window.start, cfg.timeZone);
+    const closes = zonedParts(window.end, cfg.timeZone);
+    const openMinutes = opens.hour * 60 + opens.minute;
+    const closeMinutes = closes.hour * 60 + closes.minute;
+    const theDay = spokenDay(date, cfg.timeZone);
+    if (startMinutes < openMinutes) {
+      return (
+        `${asked} is before the salon opens: it opens at ${spokenTime(window.start.toISOString(), cfg.timeZone)} ` +
+        `${onDay(theDay)}. Say that, not that it is taken, then: `
+      );
+    }
+    if (startMinutes + service.durationMinutes > closeMinutes) {
+      const closing = spokenTime(window.end.toISOString(), cfg.timeZone);
+      return startMinutes >= closeMinutes
+        ? `${asked} is after closing: the salon closes at ${closing} ${onDay(theDay)}. Say that, not that it is taken, then: `
+        : `${asked} is too late for ${service.name.toLowerCase()}, which takes ${service.durationMinutes} minutes: ` +
+            `the salon closes at ${closing} ${onDay(theDay)}. Say that, not that it is taken, then: `;
+    }
+  }
+  return `${asked} is taken. Say so, then: `;
 }
 
 /**

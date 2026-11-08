@@ -1308,6 +1308,68 @@ exports[`the reply catalogue > check: the soonest 1`] = `
 }
 `;
 
+exports[`the reply catalogue > check: the time asked for is after closing 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "7pm is after closing: the salon closes at 6pm on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T14:00:00+01:00",
+        "time": "2pm",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T15:30:00+01:00",
+        "time": "half past 3",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: the time asked for is before opening 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "8am is before the salon opens: it opens at 9am on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 10am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T09:00:00+01:00",
+        "time": "9am",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T10:00:00+01:00",
+        "time": "10am",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
 exports[`the reply catalogue > check: the time asked for is free 1`] = `
 {
   "noticed": [],
@@ -1355,6 +1417,37 @@ exports[`the reply catalogue > check: the time asked for is taken 1`] = `
         "day": "Tuesday",
         "startsAt": "2026-09-29T14:00:00+01:00",
         "time": "2pm",
+      },
+    ],
+    "service": "Blow dry",
+    "today": "2026-09-26",
+  },
+  "texted": [],
+  "written": [],
+}
+`;
+
+exports[`the reply catalogue > check: the time asked for runs past closing 1`] = `
+{
+  "noticed": [],
+  "reply": {
+    "available": true,
+    "canCheck": true,
+    "date": "2026-09-29",
+    "durationMinutes": 45,
+    "message": "half past 5 is too late for blow dry, which takes 45 minutes: the salon closes at 6pm on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "options": [
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T14:00:00+01:00",
+        "time": "2pm",
+      },
+      {
+        "date": "2026-09-29",
+        "day": "Tuesday",
+        "startsAt": "2026-09-29T15:30:00+01:00",
+        "time": "half past 3",
       },
     ],
     "service": "Blow dry",
