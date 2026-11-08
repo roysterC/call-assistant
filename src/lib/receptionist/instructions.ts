@@ -39,12 +39,38 @@ const READ_BACK_STEPS = `- **Read it back before you book.** When they have pick
   anything instead, sort it out and call \`prepare_booking\` again. Once it
   is booked, say so in one sentence and do not repeat any of the details.`;
 
+/** For a salon that lists colour: whether they have been before, and the skin test. */
+const COLOUR_RULES = `- **Do not ask whether they have been before.** The tools work it out from
+  their name and number: someone who has visited, or who has a patch test on
+  the salon's records, is booked as a returning client without a word about
+  it. The one time to ask is when a tool tells you it needs to know, which is
+  a colour service for someone with neither on record; then ask whether they
+  have had colour here before.
+- For a colour service, get their name before you check the diary, and pass
+  it to \`check_availability\`: whether they have been before decides the
+  earliest times. New clients need a skin patch test 48 hours beforehand, so
+  the earliest colour appointment for them is two days after the salon is
+  next open. Say that in a few words when it moves the date; do not treat it
+  as negotiable. The skin test is not part of the colour appointment and you
+  cannot book it: the salon arranges it.`;
+
+/** For a salon that lists no colour. */
+const NO_COLOUR_RULE = `- **Do not ask whether they have been before.** The tools work it out
+  from their name and number.`;
+
 /**
  * The availability stance, generated rather than written by hand.
  *
  * Three cases, and they must match the tools exactly.
  */
-export function buildAvailabilityStance(caps: BookingCapabilities): string {
+export function buildAvailabilityStance(
+  caps: BookingCapabilities,
+  // Whether the salon lists any service that needs a skin test. Without one,
+  // the colour rules are left out: told them anyway, the receptionist said a
+  // salon with no colour on its list could do colour, and explained the skin
+  // test, before ever looking at the list.
+  opts: { colour: boolean } = { colour: true }
+): string {
   if (!caps.readAvailability) {
     return `# The one thing you must never do
 
@@ -87,8 +113,9 @@ it.
   offers the nearest free times. Never suggest other days yourself.
 - If what they said sounds cut off ("can I get half…"), ask them to finish
   it (*"Half past what?"*) rather than answering half of it.
-- **Check the diary before asking for their name**, except for colour
-  (below). Ask only what the check needs (which service, if it is not
+- **Before you say the salon does something, find it in the Services list.**
+  If it is not there, say plainly that the salon does not do it.
+- **Check the diary before asking for their name**${opts.colour ? ", except for colour\n  (below)" : ""}. Ask only what the check needs (which service, if it is not
   clear), offer the times, and ask their name once they have picked one.
   Do not ask who the appointment is for; they will say if it is for
   someone else.
@@ -112,26 +139,14 @@ ${READ_BACK_STEPS}
   reports a clash, apologise and offer another time. If it fails any other way,
   say the salon will ring to confirm — **do not** tell them they are booked.
 - **If they ask for more than one thing, book it as more than one thing.**
-  Someone who wants a cut and a colour needs a slot long enough for both, so
-  send every service in the same \`service\` value — "haircut and balayage" —
+  Someone who wants a cut and a beard trim needs a slot long enough for both, so
+  send every service in the same \`service\` value — "haircut and beard trim" —
   to \`check_availability\` and then the same value to \`book_appointment\`.
   Picking the bigger one and ignoring the rest leaves the stylist short of
   time and the client expecting work nobody wrote down. If one of the things
   they asked for is not on the list, say which and ask what it is rather than
   quietly booking the rest.
-- **Do not ask whether they have been before.** The tools work it out from
-  their name and number: someone who has visited, or who has a patch test on
-  the salon's records, is booked as a returning client without a word about
-  it. The one time to ask is when a tool tells you it needs to know, which is
-  a colour service for someone with neither on record; then ask whether they
-  have had colour here before.
-- For a colour service, get their name before you check the diary, and pass
-  it to \`check_availability\`: whether they have been before decides the
-  earliest times. New clients need a skin patch test 48 hours beforehand, so
-  the earliest colour appointment for them is two days after the salon is
-  next open. Say that in a few words when it moves the date; do not treat it
-  as negotiable. The skin test is not part of the colour appointment and you
-  cannot book it: the salon arranges it.
+${opts.colour ? COLOUR_RULES : NO_COLOUR_RULE}
 
 ## Changing an existing appointment
 
@@ -301,7 +316,7 @@ export function composeVoicePrompt(
   const caps = provider.capabilities;
 
   const sections = [
-    buildAvailabilityStance(caps),
+    buildAvailabilityStance(caps, { colour: cfg.services.some((sv) => sv.requiresPatchTest) }),
     `${CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`,
     CALL_CLOSING_RULES,
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
