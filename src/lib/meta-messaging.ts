@@ -137,7 +137,10 @@ async function fetchSocialProfile(
 ): Promise<SocialProfile> {
   try {
     if (channel === "instagram") {
-      const url = `https://graph.instagram.com/v21.0/${externalUserId}?fields=name,username,profile_pic`;
+      // The host goes with the token, as for sending: Instagram Login tokens
+      // (IGAA) on graph.instagram.com; Unified Login and Facebook Login tokens
+      // (EAA), which graph.instagram.com refuses, on graph.facebook.com.
+      const url = `${instagramHost(ctx.accessToken)}/${externalUserId}?fields=name,username,profile_pic`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${ctx.accessToken}` },
       });
@@ -191,6 +194,16 @@ async function fetchSocialProfile(
 // Outbound — channel-specific send-message bodies
 // ─────────────────────────────────────────────────────────────
 
+/** Instagram Login tokens start IGAA; Unified Login and Facebook Login ones, EAA. */
+export function isInstagramLoginToken(token: string): boolean {
+  return token.startsWith("IGAA");
+}
+
+/** Where an Instagram token is read against: see sendText. */
+export function instagramHost(token: string): string {
+  return isInstagramLoginToken(token) ? "https://graph.instagram.com/v21.0" : GRAPH_API_BASE;
+}
+
 async function sendText(
   ctx: OrgContext,
   channel: SocialChannel,
@@ -208,9 +221,12 @@ async function sendText(
   // We detect the IGAA token prefix to pick the right host. If a caller
   // later switches Instagram to the Facebook-Login flow and gets an EAA
   // Page token, this same code handles it automatically.
-  const isInstagramLoginToken = ctx.accessToken.startsWith("IGAA");
+  //
+  // Unified Login (the only Instagram setup Meta offers new apps from late
+  // 2026) gives EAA tokens: those send from the Instagram account's own id on
+  // graph.facebook.com, the second branch.
   const url =
-    channel === "instagram" && isInstagramLoginToken
+    channel === "instagram" && isInstagramLoginToken(ctx.accessToken)
       ? `https://graph.instagram.com/v21.0/me/messages`
       : `${GRAPH_API_BASE}/${ctx.accountId}/messages`;
 
