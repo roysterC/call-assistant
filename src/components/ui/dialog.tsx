@@ -44,14 +44,45 @@ function DialogOverlay({
  * the diary showing round its edges. Pass as `className` to DialogContent.
  */
 const PHONE_FULL_SCREEN =
-  "max-md:inset-0 max-md:top-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-w-none max-md:h-[100dvh] max-md:rounded-none max-md:content-start max-md:overflow-y-auto max-md:pb-[max(1rem,env(safe-area-inset-bottom))]"
+  "max-md:inset-0 max-md:m-0 max-md:top-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-w-none max-md:h-[100dvh] max-md:rounded-none max-md:content-start max-md:overflow-y-auto max-md:pb-[max(1rem,env(safe-area-inset-bottom))]"
 
 /**
  * On a phone, something to look at and act on (a booking) comes up from the
  * bottom of the screen, where a thumb can reach its buttons.
  */
 const PHONE_SHEET =
-  "max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-w-none max-md:max-h-[88dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:pb-[max(1rem,env(safe-area-inset-bottom))]"
+  "max-md:m-0 max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-w-none max-md:max-h-[88dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:pb-[max(1rem,env(safe-area-inset-bottom))]"
+
+/**
+ * Marks the card `data-settled` once its opening animation has finished, so
+ * globals.css can take off what the animation leaves behind: a 3D transform
+ * ("perspective(500px) rotateX(0deg) scale(1)") and "blur(0px)". Left on,
+ * they had the browser draw the open card as an image, at half a pixel when
+ * its size was odd, and every word in it came out soft. The card is checked
+ * each frame until it is upright, fully shown and unblurred, or for two
+ * seconds at most.
+ */
+function useSettled(): (el: HTMLDivElement | null) => void {
+  // A callback ref, not useRef: the card only exists once the dialog opens,
+  // well after this component first renders.
+  return React.useCallback((el: HTMLDivElement | null) => {
+    if (!el) return
+    const started = performance.now()
+    const check = () => {
+      if (!el.isConnected) return
+      const s = el.style
+      const upright = !s.transform || /rotate[XY]\(0deg\) scale\(1\)/.test(s.transform)
+      const shown = !s.opacity || s.opacity === "1"
+      const sharp = !s.filter || s.filter === "blur(0px)" || s.filter === "none"
+      if ((upright && shown && sharp) || performance.now() - started > 2000) {
+        el.setAttribute("data-settled", "")
+      } else {
+        requestAnimationFrame(check)
+      }
+    }
+    requestAnimationFrame(check)
+  }, [])
+}
 
 function DialogContent({
   className,
@@ -61,13 +92,17 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
+  const settledRef = useSettled()
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
+        ref={settledRef}
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-5 text-sm text-popover-foreground shadow-raised ring-1 ring-border outline-none sm:max-w-sm",
+          // Centred by margins, not by moving it back half its own size,
+          // which put the card on half a pixel. See useSettled for the rest.
+          "fixed inset-0 m-auto h-fit max-h-[calc(100dvh-2rem)] overflow-y-auto z-50 grid w-full max-w-[calc(100%-2rem)] gap-4 rounded-2xl bg-popover p-5 text-sm text-popover-foreground shadow-raised ring-1 ring-border outline-none sm:max-w-sm",
           className
         )}
         {...props}
