@@ -47,6 +47,7 @@ async function main() {
   const { recordUsage } = await import("@/lib/usage/record");
   const { speechToText, ElevenLabsTts, labVoiceRate, FLUX_DEFAULTS } = await import("@/lib/receptionist/voice/providers");
   const { salonKeyterms } = await import("@/lib/receptionist/voice/keyterms");
+  const { tradeFor } = await import("@/lib/business-types");
   const { getSalonConfig } = await import("@/lib/booking");
   const { logCall, transcriptOf } = await import("@/lib/receptionist/call-log");
   const { clearFrame, mediaFrames, parseTwilioFrame } = await import("@/lib/twilio-voice");
@@ -220,7 +221,7 @@ async function main() {
         flux: { ...fluxSettings(), eotThreshold: fluxSettings().eotThreshold ?? 0.85, eagerEotThreshold: null },
         language: process.env.DEEPGRAM_LANGUAGE || undefined,
         endpointingMs: Number(process.env.DICTATION_ENDPOINTING_MS) || 700,
-        keyterms: salonKeyterms({ businessName: settings?.businessName, stylists: cfg.stylists, services: cfg.services }),
+        keyterms: salonKeyterms({ businessName: settings?.businessName, stylists: cfg.stylists, services: cfg.services, trade: tradeFor(cfg.businessTypes) }),
       });
     if (ws.readyState !== ws.OPEN) return;
 

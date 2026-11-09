@@ -14,6 +14,7 @@
  */
 
 import type { SalonService, Stylist } from "@/lib/salon-config";
+import type { Trade } from "@/lib/business-types";
 
 // Deepgram advises the 20 to 50 terms that matter most: a longer list can
 // make it hear terms that were not said.
@@ -85,10 +86,10 @@ const EVERYDAY = new Set(
 );
 
 /** The words of a service name worth listening for: see EVERYDAY. */
-export function serviceWords(name: string): string[] {
+export function serviceWords(name: string, everyday: ReadonlySet<string> = EVERYDAY): string[] {
   return tidy(name)
     .split(" ")
-    .filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !EVERYDAY.has(w.toLowerCase()));
+    .filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !everyday.has(w.toLowerCase()));
 }
 
 /** Deepgram counts the list in tokens; this keeps well inside its limit. */
@@ -99,7 +100,12 @@ export function salonKeyterms(input: {
   businessName?: string | null;
   stylists?: Pick<Stylist, "name">[];
   services?: Pick<SalonService, "name">[];
+  /** The salon's trade (business-types.ts): its words, and its everyday ones. Hair when unset. */
+  trade?: Pick<Trade, "keyterms" | "everyday">;
 }): string[] {
+  const everyday = input.trade?.everyday.length
+    ? new Set([...EVERYDAY, ...input.trade.everyday.map((w) => w.toLowerCase())])
+    : EVERYDAY;
   const candidates: string[] = [];
   if (input.businessName) candidates.push(input.businessName);
   for (const s of input.stylists ?? []) {
@@ -108,8 +114,8 @@ export function salonKeyterms(input: {
     const first = tidy(s.name).split(" ")[0];
     if (first) candidates.push(first);
   }
-  for (const s of input.services ?? []) candidates.push(...serviceWords(s.name));
-  candidates.push(...HAIRDRESSING_TERMS);
+  for (const s of input.services ?? []) candidates.push(...serviceWords(s.name, everyday));
+  candidates.push(...(input.trade?.keyterms ?? HAIRDRESSING_TERMS));
 
   const seen = new Set<string>();
   const out: string[] = [];

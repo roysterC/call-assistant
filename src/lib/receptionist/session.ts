@@ -18,6 +18,7 @@ import { END_CALL_TOOL, ReceptionistEngine, type StreamingClient } from "./engin
 import { buildSystem, greetingFor } from "./prompt";
 import { toClaudeTools, withCallerContext } from "./tools";
 import { salonKeyterms } from "./voice/keyterms";
+import { tradeFor } from "@/lib/business-types";
 
 /**
  * Claude Haiku 5.5 by default: a receptionist's turns are short and the rules
@@ -166,6 +167,6 @@ export async function startReceptionist(
     model: receptionistModel(),
     toolNames: [...allowed, END_CALL_TOOL.name],
     keySource: key?.source ?? "shared",
-    keyterms: salonKeyterms({ businessName, stylists: cfg.stylists, services: cfg.services }),
+    keyterms: salonKeyterms({ businessName, stylists: cfg.stylists, services: cfg.services, trade: tradeFor(cfg.businessTypes) }),
   };
 }

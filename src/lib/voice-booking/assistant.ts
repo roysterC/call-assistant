@@ -16,6 +16,7 @@ import { spokenDay, spokenTime } from "@/lib/receptionist/action-helpers";
 import { zonedDateString } from "@/lib/business-hours";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
 import { upcomingDays } from "@/lib/receptionist/prompt";
+import { inTradeWords, PROFILES, tradeFor, type Trade } from "@/lib/business-types";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
 import {
   findClients,
@@ -196,7 +197,17 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-export function instructions(business: string, speaker: string): string {
+export function instructions(business: string, speaker: string, trade: Trade = tradeFor(["hair"])): string {
+  if (trade.staff === "stylist" && trade.types.length === 1) return hairInstructions(business, speaker);
+  const kinds = trade.types.map((t) => PROFILES[t].kind).join(" and ");
+  return (
+    inTradeWords(hairInstructions(business, speaker), trade) +
+    `\n\nThe business is a ${kinds}. The examples above are from hairdressing; use this trade's own services and words. ` +
+    (trade.staff === "stylist" ? "" : `The team are ${trade.staff}s; the tools' "stylist" means the same person.`)
+  ).trimEnd();
+}
+
+function hairInstructions(business: string, speaker: string): string {
   return `# You are the personal assistant in ${business}'s salon system
 
 Salon staff talk to you at the desk or on their phone, often with their hands
@@ -323,7 +334,7 @@ export async function startVoiceBooking(
       {
         type: "text",
         text: [
-          instructions(settings?.businessName || "the salon", opts.speaker),
+          instructions(settings?.businessName || "the salon", opts.speaker, tradeFor(cfg.businessTypes)),
           `# The salon\n\nTeam: ${cfg.stylists.map((s) => s.name).join(", ")}.\nServices: ${cfg.services
             .map((s) => `${s.name} (${s.durationMinutes} min${s.requiresPatchTest ? ", skin test for new clients" : ""})`)
             .join("; ")}.`,

@@ -1,3 +1,5 @@
+import { businessTypesOf, starterServices } from "@/lib/business-types";
+import type { Prisma } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
@@ -38,6 +40,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, slug, planTier } = body;
+    // Main type first; hair when not given (business-types.ts).
+    const types = businessTypesOf(body.businessType, body.alsoOffers);
 
     if (!name || !slug) {
       return NextResponse.json(
@@ -58,9 +62,14 @@ export async function POST(req: NextRequest) {
         name,
         slug,
         planTier: planTier || "starter",
+        businessType: types[0],
+        alsoOffers: types.slice(1),
         settings: {
           create: {
             businessName: name,
+            // A starting price list for its trades, unpriced: the salon
+            // edits it in Settings before the receptionist goes live.
+            services: starterServices(types) as unknown as Prisma.InputJsonValue,
           },
         },
       },
