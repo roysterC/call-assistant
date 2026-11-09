@@ -1,3 +1,4 @@
+import { bookingReply } from "@/lib/chat-booking";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
@@ -265,12 +266,25 @@ async function processMessage(
     select: { role: true, content: true },
   });
 
+  // A salon whose chats book: the receptionist answers, with the diary
+  // (chat-booking.ts). Anything going wrong there falls back to the plain
+  // chat reply below rather than leaving them unanswered.
+  const booked = await bookingReply({
+    organizationId,
+    channel: "whatsapp",
+    conversationId: conversation.id,
+    earlier: history.slice(0, -1),
+    text: textBody,
+    phone,
+    resetAt: conversation.personaResetAt,
+  });
+
   const { messages: chatMessages, systemPrompt } = buildChatContext(
     history,
     await buildSystemPrompt(organizationId)
   );
 
-  const aiResponse = await getChatResponse(chatMessages, systemPrompt, {
+  const aiResponse = booked ?? await getChatResponse(chatMessages, systemPrompt, {
     organizationId,
     channel: "whatsapp",
     allowCLI: true,

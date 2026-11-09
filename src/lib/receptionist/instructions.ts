@@ -193,6 +193,36 @@ Plenty of people ring after hours to cancel or move something, not to book.
  * for a name and given silence, a model will say "Thanks!" and carry on,
  * because that is the likeliest thing to come next. It has to be told not to.
  */
+/**
+ * The same as CALLER_IDENTITY_RULES, for someone typing: nothing is misheard,
+ * so nothing is read back digit by digit, but a name and a number are still
+ * needed before anything is booked, and never invented.
+ */
+export const CHAT_IDENTITY_RULES = `# Getting their details
+
+The tools call the person you are messaging "the caller", and the number
+their messages come from (on WhatsApp) their caller ID.
+
+## Their name
+
+You must have their name before you can book anything; \`book_appointment\`
+refuses without one. Ask for it once they have picked a time. Never invent a
+name, never send a placeholder such as "Unknown" or "Customer", and never use
+their number or their profile name in place of one unless they say it is
+their name.
+
+## Their number
+
+On WhatsApp the tools already have the number they are messaging from: do
+not ask for it. On Instagram and Messenger there is no number, so ask for a
+mobile number for the confirmation text before you book. Typed numbers need
+no reading back digit by digit: the read-back shows it.
+
+## Everything else
+
+A detail that does not make sense (a day that does not exist, a time the
+salon is shut): ask, rather than guess.`;
+
 export const CALLER_IDENTITY_RULES = `# Getting the caller's details
 
 ## Their name
@@ -331,8 +361,12 @@ function tradeSection(trade: Trade): string | null {
 export function composeVoicePrompt(
   cfg: SalonConfig,
   body: string | null,
-  faq: string | null = null
+  faq: string | null = null,
+  // "chat": the same rules for a booking by message (chat-booking.ts): the
+  // typed version of getting their details, and no call to end.
+  opts: { channel?: "phone" | "chat" } = {}
 ): ComposedPrompt {
+  const chat = opts.channel === "chat";
   const provider = selectProvider(cfg);
   const caps = provider.capabilities;
   const trade = tradeFor(cfg.businessTypes);
@@ -341,8 +375,8 @@ export function composeVoicePrompt(
   // "stylist"); the salon's own prompt, below, is left as they wrote it.
   const generated = [
     buildAvailabilityStance(caps, { colour: cfg.services.some((sv) => sv.requiresPatchTest) }),
-    `${CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`,
-    CALL_CLOSING_RULES,
+    `${chat ? CHAT_IDENTITY_RULES : CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`,
+    ...(chat ? [] : [CALL_CLOSING_RULES]),
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
     `# Services\n\n${notListed(trade)}\n\n${describeServicesForPrompt(cfg.services)}`,
     `# The team\n\n${describeTeamForPrompt(cfg.stylists, cfg.services)}`,

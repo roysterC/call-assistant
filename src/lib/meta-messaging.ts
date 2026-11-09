@@ -19,6 +19,7 @@
  * acts on entries for the salons that check proved.
  */
 
+import { bookingReply } from "@/lib/chat-booking";
 import { prisma } from "@/lib/prisma";
 import {
   buildChatContext,
@@ -403,12 +404,24 @@ async function processMessageEvent(
     orderBy: { createdAt: "asc" },
     select: { role: true, content: true },
   });
+  // As on WhatsApp: the receptionist, with the diary, where the salon's
+  // chats book (chat-booking.ts); otherwise, or if that fails, the plain reply.
+  const booked = await bookingReply({
+    organizationId: ctx.organizationId,
+    channel,
+    conversationId: conversation.id,
+    earlier: history.slice(0, -1),
+    text,
+    phone: null,
+    resetAt: conversation.personaResetAt,
+  });
+
   const { messages: chatMessages, systemPrompt } = buildChatContext(
     history,
     await buildSystemPrompt(ctx.organizationId, channel)
   );
 
-  const aiResponse = await getChatResponse(chatMessages, systemPrompt, {
+  const aiResponse = booked ?? await getChatResponse(chatMessages, systemPrompt, {
     organizationId: ctx.organizationId,
     channel,
     allowCLI: true,

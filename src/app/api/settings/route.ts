@@ -45,6 +45,7 @@ const WRITABLE_FIELDS = [
   "salonFaq",
   "whatsappSystemPrompt",
   "whatsappEnabled",
+  "chatBookingEnabled",
   "chatbotEnabled",
   "voiceEnabled",
   "calComApiKey",
@@ -97,6 +98,7 @@ function sanitiseSettingsPayload(
 const SUPER_ADMIN_ONLY_FIELDS = [
   "whatsappSystemPrompt",
   "whatsappEnabled",
+  "chatBookingEnabled",
   "chatbotEnabled",
   "voiceEnabled",
   "calComApiKey",

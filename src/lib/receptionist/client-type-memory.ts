@@ -20,7 +20,17 @@ import { blankToUndefined, normaliseClientType } from "./action-helpers";
 const TAKES_CLIENT_TYPE = new Set(["check_availability", "prepare_booking", "book_appointment"]);
 
 export class ClientTypeMemory {
-  private readonly said = new Map<string, "new" | "returning">();
+  private readonly said: Map<string, "new" | "returning">;
+
+  /** `saved`: what a chat's earlier messages had said (chat-booking.ts). */
+  constructor(saved: Record<string, "new" | "returning"> = {}) {
+    this.said = new Map(Object.entries(saved));
+  }
+
+  /** What has been said, by name, to save between messages. */
+  entries(): Record<string, "new" | "returning"> {
+    return Object.fromEntries(this.said);
+  }
 
   /**
    * Notes what this input says, and returns it with the client type filled
