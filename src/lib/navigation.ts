@@ -11,14 +11,46 @@
 
 import type { MessageKey } from "@/lib/i18n";
 
-export type FeatureKey = "voice" | "chatbot" | "whatsapp" | "instagram" | "facebook";
+export type FeatureKey = "voice" | "diary" | "chatbot" | "whatsapp" | "instagram" | "facebook";
 
 export interface FeatureFlags {
   chatbotEnabled: boolean;
   whatsappEnabled: boolean;
   voiceEnabled: boolean;
+  /** The diary, clients, sales and callbacks: see hasDiary. */
+  diaryEnabled: boolean;
   instagramEnabled: boolean;
   facebookEnabled: boolean;
+}
+
+/**
+ * Whether the salon has the diary: switched on by itself, or by what books
+ * into it, the phone receptionist or booking by message. Without this the
+ * diary came only with the phone, and a salon booking only by Instagram had
+ * nowhere to set up its services and team.
+ */
+export function hasDiary(s: { diaryEnabled?: boolean | null; voiceEnabled?: boolean | null; chatBookingEnabled?: boolean | null }): boolean {
+  return Boolean(s.diaryEnabled || s.voiceEnabled || s.chatBookingEnabled);
+}
+
+/** The features a salon's settings switch on, as the menu reads them. */
+export function featureFlags(s: {
+  chatbotEnabled?: boolean | null;
+  whatsappEnabled?: boolean | null;
+  voiceEnabled?: boolean | null;
+  diaryEnabled?: boolean | null;
+  chatBookingEnabled?: boolean | null;
+  instagramEnabled?: boolean | null;
+  facebookEnabled?: boolean | null;
+}): FeatureFlags {
+  return {
+    chatbotEnabled: Boolean(s.chatbotEnabled),
+    whatsappEnabled: Boolean(s.whatsappEnabled),
+    voiceEnabled: Boolean(s.voiceEnabled),
+    diaryEnabled: hasDiary(s),
+    instagramEnabled: Boolean(s.instagramEnabled),
+    facebookEnabled: Boolean(s.facebookEnabled),
+  };
 }
 
 export interface NavPage {
@@ -66,11 +98,12 @@ export const NAV_PAGES: NavPage[] = [
   { href: "/insights", label: "Insights", labelKey: "nav.insights", requires: ["voice", "chatbot"], ownerOnly: true },
   // A salon's people are its clients, with their bookings and patch tests;
   // Leads stays for an organisation without the diary (chat, WhatsApp).
-  { href: "/leads", label: "Leads", labelKey: "nav.leads", hiddenWhen: "voice", superAdminAlways: true },
-  { href: DIARY, label: "Diary", labelKey: "nav.diary", requires: "voice" },
-  { href: "/clients", label: "Clients", labelKey: "nav.clients", requires: "voice" },
-  { href: "/sales", label: "Sales", labelKey: "nav.sales", requires: "voice" },
-  { href: "/callbacks", label: "Callbacks", labelKey: "nav.callbacks", requires: "voice" },
+  { href: "/leads", label: "Leads", labelKey: "nav.leads", hiddenWhen: "diary", superAdminAlways: true },
+  { href: DIARY, label: "Diary", labelKey: "nav.diary", requires: "diary" },
+  { href: "/clients", label: "Clients", labelKey: "nav.clients", requires: "diary" },
+  { href: "/sales", label: "Sales", labelKey: "nav.sales", requires: "diary" },
+  // Messages taken by the receptionist or by a booking chat.
+  { href: "/callbacks", label: "Callbacks", labelKey: "nav.callbacks", requires: "diary" },
   // Where we test the receptionist before a salon hears it. It books into the
   // real diary and spends on the AI and voice accounts, so it is ours.
   { href: "/receptionist", label: "Receptionist lab", labelKey: "nav.receptionist", requires: "voice", superAdminOnly: true },

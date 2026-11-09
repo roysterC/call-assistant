@@ -14,7 +14,7 @@ import {
   type Stylist,
 } from "@/lib/salon-config";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
-import { isStartPageChoice, resolveStartPage } from "@/lib/navigation";
+import { featureFlags, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
 
@@ -46,6 +46,7 @@ const WRITABLE_FIELDS = [
   "whatsappSystemPrompt",
   "whatsappEnabled",
   "chatBookingEnabled",
+  "diaryEnabled",
   "chatbotEnabled",
   "voiceEnabled",
   "calComApiKey",
@@ -100,6 +101,7 @@ const SUPER_ADMIN_ONLY_FIELDS = [
   "whatsappSystemPrompt",
   "whatsappEnabled",
   "chatBookingEnabled",
+  "diaryEnabled",
   "chatbotEnabled",
   "voiceEnabled",
   "calComApiKey",
@@ -168,7 +170,7 @@ export async function GET(req: NextRequest) {
     const cfg = await getSalonConfig(ctx.organizationId);
     const startPage = resolveStartPage({
       chosen: settings.startPage,
-      flags: settings,
+      flags: featureFlags(settings),
       diaryTakesBookings: selectProvider(cfg).capabilities.createBooking,
       isOwner: ctx.role !== "member",
     });

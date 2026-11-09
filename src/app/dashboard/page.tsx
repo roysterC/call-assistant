@@ -1,5 +1,6 @@
 "use client";
 
+import { hasDiary } from "@/lib/navigation";
 import { useEffect, useState } from "react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { SalonOverview } from "@/components/dashboard/salon-overview";
@@ -66,7 +67,8 @@ export default function DashboardPage() {
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null);
         const flags: Features = {
-          voice: !!settings?.settings?.voiceEnabled,
+          // The salon's day: shown for any salon with the diary, phone or not.
+          voice: settings?.settings ? hasDiary(settings.settings) : false,
           chatbot: !!settings?.settings?.chatbotEnabled,
         };
         setFeatures(flags);

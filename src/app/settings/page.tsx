@@ -1,5 +1,6 @@
 "use client";
 
+import { hasDiary } from "@/lib/navigation";
 import { useTradeWords } from "@/components/providers/language-provider";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +46,8 @@ interface Settings {
   chatbotEnabled: boolean;
   whatsappEnabled: boolean;
   voiceEnabled: boolean;
+  /** The diary, by itself or by what books into it (hasDiary). */
+  hasDiary: boolean;
   instagramEnabled: boolean;
   instagramBusinessId: string | null;
   facebookEnabled: boolean;
@@ -99,6 +102,7 @@ export default function SettingsPage() {
           chatbotEnabled: !!data.settings?.chatbotEnabled,
           whatsappEnabled: !!data.settings?.whatsappEnabled,
           voiceEnabled: !!data.settings?.voiceEnabled,
+          hasDiary: data.settings ? hasDiary(data.settings) : false,
           instagramEnabled: !!data.settings?.instagramEnabled,
           instagramBusinessId: data.settings?.instagramBusinessId ?? null,
           facebookEnabled: !!data.settings?.facebookEnabled,
@@ -308,7 +312,7 @@ export default function SettingsPage() {
                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 <option value="">Automatic ({labelFor(automaticStart)})</option>
-                {NAV_PAGES.filter((p) => isStartPageChoice(p.href) && isNavVisible(p, settings)).map((p) => (
+                {NAV_PAGES.filter((p) => isStartPageChoice(p.href) && isNavVisible(p, { ...settings, diaryEnabled: settings.hasDiary })).map((p) => (
                   <option key={p.href} value={p.href}>
                     {p.label}
                   </option>
@@ -376,7 +380,7 @@ export default function SettingsPage() {
             All three feed the same place: the availability algorithm enforces
             them, and the voice prompt is generated from them, so what the agent
             says and what it will actually do cannot drift apart. */}
-        {settings.voiceEnabled && (
+        {settings.hasDiary && (
           <>
             <Card className="gap-0">
               <CardHeader className="border-b pb-3">

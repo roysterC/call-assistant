@@ -2,6 +2,7 @@
 
 import { BusinessTypePicker } from "@/components/admin/business-type-picker";
 import { businessTypesOf, PROFILES } from "@/lib/business-types";
+import { hasDiary } from "@/lib/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +68,7 @@ interface Org {
     chatbotEnabled: boolean;
     whatsappEnabled: boolean;
     chatBookingEnabled: boolean;
+    diaryEnabled: boolean;
     voiceEnabled: boolean;
     whatsappSystemPrompt: string | null;
     calComApiKey: string | null;
@@ -294,6 +296,7 @@ export default function OrganizationDetailPage() {
               chatbotEnabled: org.settings.chatbotEnabled,
               whatsappEnabled: org.settings.whatsappEnabled,
               chatBookingEnabled: org.settings.chatBookingEnabled,
+              diaryEnabled: org.settings.diaryEnabled,
               voiceEnabled: org.settings.voiceEnabled,
               whatsappSystemPrompt: org.settings.whatsappSystemPrompt,
               instagramEnabled: org.settings.instagramEnabled,
@@ -448,6 +451,19 @@ export default function OrganizationDetailPage() {
   // Note: feature/prompt saving was previously a separate `saveFeatures`
   // function with its own button. It's now folded into `save()` above so
   // a single click at the top of the page persists everything.
+
+  /**
+   * The phone or booking by message, which book into the diary: switching
+   * one on switches the diary on too, and it stays on if they are later
+   * switched off, so a salon does not lose its diary with its receptionist.
+   */
+  function switchOnWithDiary(key: "voiceEnabled" | "chatBookingEnabled", on: boolean) {
+    if (!org?.settings) return;
+    setOrg({
+      ...org,
+      settings: { ...org.settings, [key]: on, ...(on ? { diaryEnabled: true } : {}) },
+    });
+  }
 
   function updateFeature<K extends keyof NonNullable<Org["settings"]>>(
     key: K,
@@ -802,16 +818,27 @@ export default function OrganizationDetailPage() {
                 onToggle={(v) => updateFeature("facebookEnabled", v)}
               />
               <FeatureToggle
+                label="Diary"
+                description={
+                  org.settings.voiceEnabled || org.settings.chatBookingEnabled
+                    ? "Diary, clients, sales and callbacks. On while the phone receptionist or booking from messages is: they book into it."
+                    : "Diary, clients, sales and callbacks, for a salon running its book on Kikai, with or without the receptionist."
+                }
+                enabled={hasDiary(org.settings)}
+                locked={org.settings.voiceEnabled || org.settings.chatBookingEnabled}
+                onToggle={(v) => updateFeature("diaryEnabled", v)}
+              />
+              <FeatureToggle
                 label="Book from messages"
                 description="WhatsApp, Instagram and Messenger book into the diary, read back and confirmed like the phone. Needs the salon's diary set up."
                 enabled={org.settings.chatBookingEnabled}
-                onToggle={(v) => updateFeature("chatBookingEnabled", v)}
+                onToggle={(v) => switchOnWithDiary("chatBookingEnabled", v)}
               />
               <FeatureToggle
                 label="Phone receptionist"
                 description="Calls to the salon's Voice numbers answered by our receptionist"
                 enabled={org.settings.voiceEnabled}
-                onToggle={(v) => updateFeature("voiceEnabled", v)}
+                onToggle={(v) => switchOnWithDiary("voiceEnabled", v)}
               />
             </div>
 
@@ -1623,11 +1650,14 @@ function FeatureToggle({
   description,
   enabled,
   onToggle,
+  locked = false,
 }: {
   label: string;
   description: string;
   enabled: boolean;
   onToggle: (v: boolean) => void;
+  /** On because something else needs it: shown, not switchable. */
+  locked?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
@@ -1638,6 +1668,7 @@ function FeatureToggle({
       <Button
         variant={enabled ? "default" : "outline"}
         size="sm"
+        disabled={locked}
         onClick={() => onToggle(!enabled)}
       >
         {enabled ? "Enabled" : "Disabled"}
