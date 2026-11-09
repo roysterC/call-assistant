@@ -80,6 +80,7 @@ interface Org {
     facebookPageId: string | null;
     facebookPageAccessToken: string | null;
     metaAppSecret: string | null;
+    instagramAppSecret: string | null;
     metaVerifyToken: string | null;
     whatsappAccessToken: string | null;
   } | null;
@@ -304,6 +305,7 @@ export default function OrganizationDetailPage() {
               facebookPageId: org.settings.facebookPageId,
               facebookPageAccessToken: org.settings.facebookPageAccessToken,
               metaAppSecret: org.settings.metaAppSecret,
+              instagramAppSecret: org.settings.instagramAppSecret,
               metaVerifyToken: org.settings.metaVerifyToken,
               whatsappAccessToken: org.settings.whatsappAccessToken,
               calComApiKey: org.settings.calComApiKey,
@@ -950,6 +952,20 @@ export default function OrganizationDetailPage() {
                     }
                     className="mt-1"
                   />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Instagram app secret</label>
+                  <Input
+                    type="password"
+                    autoComplete="off"
+                    placeholder="From Instagram → API setup with Instagram login"
+                    value={org.settings.instagramAppSecret || ""}
+                    onChange={(e) => updateFeature("instagramAppSecret", e.target.value || null)}
+                    className="mt-1"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Not the Meta app secret above: Instagram has its own, and signs its messages with it.
+                  </p>
                 </div>
               </div>
               <label className="text-xs font-medium mt-3 block">

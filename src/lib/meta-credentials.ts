@@ -98,18 +98,28 @@ export async function verifiedOrganizations(
 
   const rows = await prisma.organizationSettings.findMany({
     where: { organizationId: { in: claimed } },
-    select: { organizationId: true, metaAppSecret: true },
+    select: { organizationId: true, metaAppSecret: true, instagramAppSecret: true },
   });
-  const own = new Map(rows.map((r) => [r.organizationId, r.metaAppSecret?.trim() || null]));
+  // A salon's own secrets: the Meta app's, and for Instagram and Messenger
+  // also Instagram's own, which Meta signs Instagram Login webhooks with.
+  const own = new Map(
+    rows.map((r) => [
+      r.organizationId,
+      [r.metaAppSecret, product === "messenger" ? r.instagramAppSecret : null]
+        .map((s) => s?.trim())
+        .filter((s): s is string => Boolean(s)),
+    ])
+  );
   const shared = fallback(FALLBACK_ENV[product].secret);
 
   let anySecret = false;
   for (const orgId of claimed) {
-    const secret = own.get(orgId) ?? shared;
-    if (!secret) continue;
+    const mine = own.get(orgId) ?? [];
+    const secrets = mine.length ? mine : shared ? [shared] : [];
+    if (!secrets.length) continue;
     anySecret = true;
-    if (signatureMatches(rawBody, signature, secret)) {
-      if (!own.get(orgId)) {
+    if (secrets.some((secret) => signatureMatches(rawBody, signature, secret))) {
+      if (!mine.length) {
         console.warn(
           `[META ${product}] ${orgId} has no Meta app secret of its own; used the shared ${FALLBACK_ENV[product].secret}. Set one in Admin.`
         );

@@ -60,6 +60,7 @@ const WRITABLE_FIELDS = [
   "facebookPageAccessToken",
   // The salon's own Meta app (meta-credentials.ts).
   "metaAppSecret",
+  "instagramAppSecret",
   "metaVerifyToken",
   "whatsappAccessToken",
   "startPage",
@@ -114,6 +115,7 @@ const SUPER_ADMIN_ONLY_FIELDS = [
   "facebookPageId",
   "facebookPageAccessToken",
   "metaAppSecret",
+  "instagramAppSecret",
   "metaVerifyToken",
   "whatsappAccessToken",
 ];
@@ -127,6 +129,7 @@ const SECRET_FIELDS = [
   "instagramAccessToken",
   "facebookPageAccessToken",
   "metaAppSecret",
+  "instagramAppSecret",
   "metaVerifyToken",
   "whatsappAccessToken",
 ] as const;
