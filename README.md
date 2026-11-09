@@ -509,6 +509,26 @@ A chat bot's hand-written prompt keeps working; the facts are added after it.
 A business with no services and no FAQ (the agency's own site) gets its
 prompt unchanged.
 
+### Price lists from a photo or file
+
+Settings → Services → **Fill from a photo or file**: the owner adds up to five
+photos, PDFs or CSV/text files of their price list, and gets a list to check
+before anything is added (`src/lib/price-import.ts`, route
+`api/settings/services/import`). Read by Claude Opus 5.5 with structured
+output, then checked like the services editor checks a row. Flagged for the
+owner: a price it could not read (left blank, never guessed), a length it
+suggested because the menu gives none, a name already on the list (its price
+is updated), a tint or colour that may need the skin test (never switched on
+for them). Per-nail extras, deposits and the like are shown as "not added".
+Nothing is saved until Settings is saved; no menu is stored. Photos are
+shrunk to 1600px JPEG on the device first. Each read is a few pence, counted
+in usage with the lab's (source `setup`). Ten reads an hour per salon.
+
+**nginx upload size:** nginx refuses request bodies over 1 MB by default,
+which a few photos can pass even shrunk. If the owner sees "Those are too big
+to send together", add `client_max_body_size 25m;` to the site's `server`
+block and reload nginx. (Caddy has no limit by default.)
+
 ### Business types (hair, nails, beauty, barbers)
 
 Each salon has a main **business type** and any others it **also offers**

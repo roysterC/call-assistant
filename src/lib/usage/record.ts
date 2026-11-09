@@ -9,8 +9,11 @@
 import { prisma } from "@/lib/prisma";
 import { costOf, type UsageCounts } from "./cost";
 
-/** desk_voice: booking by voice from the diary; part of the plan, never charged separately. */
-export type UsageSource = "lab_voice" | "lab_chat" | "phone" | "desk_voice";
+/**
+ * desk_voice: booking by voice from the diary; part of the plan, never charged separately.
+ * setup: reading a price list into Settings (price-import.ts); ours, like the lab.
+ */
+export type UsageSource = "lab_voice" | "lab_chat" | "phone" | "desk_voice" | "setup";
 
 export async function recordUsage(
   organizationId: string,

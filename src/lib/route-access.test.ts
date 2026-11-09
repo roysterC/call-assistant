@@ -54,6 +54,7 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "voice-booking": { POST: "members", DELETE: "members" },
   "voice-booking/token": { POST: "members" },
   "voice-booking/speech": { GET: "members" },
+  "settings/services/import": { POST: "owner" },
   "website-chat/analytics": { GET: "owner" },
   // DELETE is requireSuperAdmin, so not listed here.
   "websites/[id]": { GET: "owner", PUT: "owner" },
@@ -104,6 +105,7 @@ describe("signed-in API routes", () => {
 
   it("keep the salon's setup, websites, chatbot and charges from members", () => {
     expect(actual.settings.PUT).toBe("owner");
+    expect(actual["settings/services/import"].POST).toBe("owner");
     expect(actual.usage.GET).toBe("owner");
     expect(Object.values(actual.websites)).not.toContain("members");
     expect(Object.values(actual["websites/[id]"])).not.toContain("members");

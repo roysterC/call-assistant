@@ -1,0 +1,38 @@
+/** Setting the salon up: the price list read from a photo or file. [English, Vietnamese]. */
+
+export const setup = {
+  "import.button": ["Fill from a photo or file", "Điền từ ảnh hoặc tệp"],
+  "import.title": ["Fill your price list from a photo or file", "Điền bảng giá từ ảnh hoặc tệp"],
+  "import.intro": [
+    "Take a photo of your price list, or add a PDF or CSV: up to 5, front and back. Nothing is saved until you have checked it.",
+    "Chụp ảnh bảng giá, hoặc thêm tệp PDF hay CSV: tối đa 5 tệp, cả mặt trước và mặt sau. Chưa lưu gì cho đến khi bạn kiểm tra.",
+  ],
+  "import.choose": ["Choose photos or files", "Chọn ảnh hoặc tệp"],
+  "import.remove": ["Remove {name}", "Bỏ {name}"],
+  "import.read": ["Read price list", "Đọc bảng giá"],
+  "import.reading": ["Reading your price list. This takes about 20 seconds.", "Đang đọc bảng giá. Mất khoảng 20 giây."],
+  "import.tooMany": ["Up to 5 at a time.", "Tối đa 5 tệp mỗi lần."],
+  "import.tooBig": ["Those are too big to send together. Try fewer at a time.", "Các tệp quá lớn để gửi cùng lúc. Hãy gửi ít tệp hơn."],
+  "import.unreadable": ["{name} couldn't be opened. Save it as a JPEG or PDF.", "Không mở được {name}. Hãy lưu dưới dạng JPEG hoặc PDF."],
+  "import.failed": ["It couldn't read that. Try again.", "Không đọc được. Hãy thử lại."],
+  "import.reviewIntro": [
+    "Check each one, and untick any you don't want. The length decides how much of the diary a booking takes up.",
+    "Kiểm tra từng dịch vụ, bỏ chọn những gì không cần. Thời lượng quyết định một lịch hẹn chiếm bao nhiêu thời gian trong sổ hẹn.",
+  ],
+  "import.none": ["No services found. Try a clearer photo.", "Không tìm thấy dịch vụ nào. Hãy thử ảnh rõ hơn."],
+  "import.keep": ["Keep {name}", "Giữ {name}"],
+  "import.name": ["Service name", "Tên dịch vụ"],
+  "import.price": ["Price in pounds", "Giá (bảng Anh)"],
+  "import.minutes": ["Length in minutes", "Thời lượng (phút)"],
+  "import.min": ["min", "phút"],
+  "import.flagPrice": ["Price unclear", "Giá chưa rõ"],
+  "import.flagLength": ["Length suggested: check it", "Thời lượng ước tính: hãy kiểm tra"],
+  "import.flagExisting": ["On your list: updates it", "Đã có trong danh sách: sẽ cập nhật"],
+  "import.flagFrom": ["From price", "Giá khởi điểm"],
+  "import.flagSkinTest": ["Skin test? Set it on the list", "Cần thử dị ứng? Bật trong danh sách"],
+  "import.skipped": ["Not added ({n})", "Không thêm ({n})"],
+  "import.add": ["Add {n} to the price list", "Thêm {n} vào bảng giá"],
+  "import.again": ["Start again", "Làm lại"],
+  "import.cancel": ["Cancel", "Huỷ"],
+  "import.added": ["Added. Check the list, then save.", "Đã thêm. Kiểm tra danh sách rồi bấm lưu."],
+} as const;

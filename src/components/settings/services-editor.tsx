@@ -84,6 +84,9 @@ export function ServicesEditor({
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">£</span>
             <Input
+              // Keyed by the price, so one filled in from a price list
+              // (services-import.tsx) shows instead of the old one.
+              key={`${i}-${service.priceMinor}`}
               inputMode="decimal"
               placeholder="—"
               defaultValue={minorToInput(service.priceMinor)}

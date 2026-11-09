@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
 import { ServicesEditor } from "@/components/settings/services-editor";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
+import { ServicesImport } from "@/components/settings/services-import";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
@@ -400,6 +401,10 @@ export default function SettingsPage() {
               description="What you offer and how long each takes."
               summary={plural(settings.services.length, "service")}
             >
+              <ServicesImport
+                services={settings.services}
+                onApply={(services) => setSettings({ ...settings, services })}
+              />
               <ServicesEditor
                 value={settings.services}
                 onChange={(services) => setSettings({ ...settings, services })}
