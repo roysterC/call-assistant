@@ -104,6 +104,17 @@ describe("verifiedOrganizations", () => {
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("no Meta app secret of its own"));
   });
 
+  it("accepts Instagram signed with the salon's Instagram app secret, and only for Instagram and Messenger", async () => {
+    const ig = JSON.stringify({ object: "instagram", entry: [{ id: "17841" }] });
+    db.organizationSettings.findMany.mockResolvedValue([
+      { organizationId: "shogo", metaAppSecret: "meta-secret", instagramAppSecret: "ig-secret" },
+    ]);
+    expect([...(await verifiedOrganizations("messenger", ig, sign(ig, "ig-secret"), ["shogo"]))]).toEqual(["shogo"]);
+    expect([...(await verifiedOrganizations("messenger", ig, sign(ig, "meta-secret"), ["shogo"]))]).toEqual(["shogo"]);
+    expect((await verifiedOrganizations("messenger", ig, sign(ig, "someone-else"), ["shogo"])).size).toBe(0);
+    expect((await verifiedOrganizations("whatsapp", body, sign(body, "ig-secret"), ["shogo"])).size).toBe(0);
+  });
+
   it("refuses everything in production when there is no secret at all", async () => {
     db.organizationSettings.findMany.mockResolvedValue([{ organizationId: "shogo", metaAppSecret: null }]);
     expect((await verifiedOrganizations("whatsapp", body, null, ["shogo"])).size).toBe(0);

@@ -587,6 +587,12 @@ verify token) and "WhatsApp (Cloud API)" (access token). Instagram and
 Messenger tokens sit beside their own settings. Only a super-admin can set or
 see them.
 
+Instagram, set up with Instagram Login (tokens starting `IGAA`), has an app
+secret of its own (Instagram → API setup with Instagram login), which Meta
+signs Instagram webhooks with. It goes in the salon's "Instagram app secret";
+an Instagram or Messenger delivery signed with either that or the Meta app
+secret is accepted.
+
 Both webhooks (`/api/whatsapp/webhook`, `/api/meta/webhook`) work out which
 salon a delivery is for from the number, account or Page it names, check the
 signature with that salon's app secret, and act only on what that salon's key

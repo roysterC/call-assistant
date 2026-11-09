@@ -204,6 +204,10 @@ model OrganizationSettings {
   // settings. Per salon, so no salon's messages can be forged with another's
   // keys (src/lib/meta-credentials.ts).
   metaAppSecret           String?
+  // Instagram's own app secret (Instagram → API setup with Instagram login),
+  // which Meta signs Instagram webhooks with instead of the app secret above.
+  // Either one vouches for an Instagram or Messenger delivery.
+  instagramAppSecret      String?
   metaVerifyToken         String?
   // WhatsApp Cloud API token for sending; the number it sends from is the
   // PhoneNumber row the customer wrote to.
