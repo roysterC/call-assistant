@@ -53,6 +53,8 @@ export interface CalendarAppointment {
   amountMinor: number | null;
   clientType: string;
   notes: string | null;
+  /** Photos the client sent when booking by message: ids for /api/chat-photos/[id]. */
+  photos?: { id: string }[];
   /** Booked by the receptionist and not yet opened by whoever is looking. */
   unseen?: boolean;
   lead: {

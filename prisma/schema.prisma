@@ -40,6 +40,8 @@ model Organization {
   leads                 Lead[]
   calls                 Call[]
   assistantSessions     AssistantSession[]
+  chatSessions          ChatSession[]
+  chatPhotos            ChatPhoto[]
   usageRecords          UsageRecord[]
   callbacks             Callback[]
   settings              OrganizationSettings?
@@ -139,6 +141,10 @@ model OrganizationSettings {
   teamMembers             Json         @default("[]")
   whatsappSystemPrompt    String?
   whatsappEnabled         Boolean      @default(false)
+  // WhatsApp, Instagram and Messenger may book into the diary, with the same
+  // checks and read-back as the phone (src/lib/chat-booking.ts). Off until
+  // Kikai switches it on; the salon's own diary must be set up as well.
+  chatBookingEnabled      Boolean      @default(false)
   chatbotEnabled          Boolean      @default(false)
   voiceEnabled            Boolean      @default(false)
   // Cal.com v2 integration (opt-in). When both are set, callbacks created
@@ -258,6 +264,49 @@ model Call {
   @@index([phoneNumber])
   @@index([createdAt])
   @@map("ca_calls")
+}
+
+// A photo a client sent on WhatsApp, Instagram or Messenger, usually of the
+// nails they want (src/lib/chat-photos.ts). Kept for the salon, and linked
+// to the booking made in that conversation so the technician sees it with
+// the appointment. The bytes are kept here: a few hundred kilobytes each.
+model ChatPhoto {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel        String
+  conversationId String
+  mediaType      String
+  data           Bytes
+  caption        String?
+  appointmentId  String?
+  appointment    Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([channel, conversationId])
+  @@index([appointmentId])
+  @@map("ca_chat_photos")
+}
+
+// Where a booking conversation on WhatsApp, Instagram or Messenger stands
+// between messages (src/lib/chat-booking.ts): the model's history with its
+// diary checks, and what was last read back, so a "yes" in the next message
+// books what was read back. The messages themselves stay in the channel's
+// own tables. Started afresh after a quiet spell.
+model ChatSession {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel        String
+  conversationId String
+  messages       Json
+  state          Json
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([channel, conversationId])
+  @@index([organizationId])
+  @@map("ca_chat_sessions")
 }
 
 // A conversation with the personal assistant (src/lib/voice-booking), kept
@@ -444,6 +493,9 @@ model Appointment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Photos the client sent when booking by message.
+  photos         ChatPhoto[]
 
   @@unique([organizationId, bookingNumber])
   @@index([organizationId, startsAt])

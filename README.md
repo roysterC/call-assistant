@@ -529,6 +529,33 @@ which a few photos can pass even shrunk. If the owner sees "Those are too big
 to send together", add `client_max_body_size 25m;` to the site's `server`
 block and reload nginx. (Caddy has no limit by default.)
 
+### Booking by message (WhatsApp, Instagram, Messenger)
+
+Switched on per salon in Admin → Organizations → **Book from messages**
+(`OrganizationSettings.chatBookingEnabled`, off by default), and only where
+the salon's own diary takes bookings. The chats then answer with the phone
+receptionist's engine, tools and rules (`src/lib/chat-booking.ts`): they
+check the diary, read the booking back, and book only on a yes in a later
+message. Instructions: the phone's booking rules with a chat style
+(`buildChatSystem` in `receptionist/prompt.ts`). WhatsApp uses the number
+they message from; Instagram and Messenger ask for a mobile number.
+
+Between messages the receptionist's history (with its diary checks) and
+what it last read back are kept in `ChatSession`; after twelve quiet hours
+or a prompt reset it starts again from the messages. If anything fails, the
+chat falls back to the plain chat reply. The booking's notes say "Booked by
+WhatsApp message." (the diary shows "booked by WhatsApp message"), and it
+counts with the receptionist's bookings on the dashboard (source `voice`).
+
+**Photos.** Photos sent on any of the three (usually the nails they want)
+are downloaded and kept in `ChatPhoto` (`src/lib/chat-photos.ts`), shown in
+the conversation as "[Sent a photo] …". The bot does not look at them: the
+technician prices a design. When the conversation books, its photos from
+the last week go with the booking and show in the diary's booking panel
+(`/api/chat-photos/[id]`, the salon's team only). They are kept
+indefinitely for now: a retention period belongs with the transcript one,
+before real clients.
+
 ### Business types (hair, nails, beauty, barbers)
 
 Each salon has a main **business type** and any others it **also offers**

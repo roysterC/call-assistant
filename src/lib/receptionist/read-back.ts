@@ -84,11 +84,30 @@ export function spokenLength(minutes: number): string {
   return `${about}${h}${half ? " and a half" : ""} hours`;
 }
 
+/** Where a gate stands: what was read back, if anything. Saved between messages in a chat. */
+export interface ReadBackState {
+  prepared: { ref: string; input: Record<string, unknown>; turn: number } | null;
+  count: number;
+}
+
 export class ReadBackGate {
-  private prepared: { ref: string; input: Record<string, unknown>; turn: number } | null = null;
+  private prepared: ReadBackState["prepared"] = null;
   private count = 0;
 
-  constructor(private readonly deps: ReadBackDeps) {}
+  constructor(
+    private readonly deps: ReadBackDeps,
+    // A chat picks up where its last message left off (chat-booking.ts); a call starts empty.
+    saved?: ReadBackState | null
+  ) {
+    if (saved) {
+      this.prepared = saved.prepared;
+      this.count = saved.count;
+    }
+  }
+
+  state(): ReadBackState {
+    return { prepared: this.prepared, count: this.count };
+  }
 
   async prepare(input: Record<string, unknown>): Promise<unknown> {
     const checked = await this.deps.check(input);

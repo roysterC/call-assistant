@@ -23,7 +23,8 @@ export function apiFetch(
   });
 }
 
-function withAsOrg(input: string): string {
+/** An /api path with the super-admin's ?asOrg kept on it: for links and images, which do not go through apiFetch. */
+export function withAsOrg(input: string): string {
   const asOrg = new URLSearchParams(window.location.search).get("asOrg");
   if (!asOrg) return input;
 

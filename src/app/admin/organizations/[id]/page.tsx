@@ -66,6 +66,7 @@ interface Org {
     businessName: string;
     chatbotEnabled: boolean;
     whatsappEnabled: boolean;
+    chatBookingEnabled: boolean;
     voiceEnabled: boolean;
     whatsappSystemPrompt: string | null;
     calComApiKey: string | null;
@@ -291,6 +292,7 @@ export default function OrganizationDetailPage() {
             body: JSON.stringify({
               chatbotEnabled: org.settings.chatbotEnabled,
               whatsappEnabled: org.settings.whatsappEnabled,
+              chatBookingEnabled: org.settings.chatBookingEnabled,
               voiceEnabled: org.settings.voiceEnabled,
               whatsappSystemPrompt: org.settings.whatsappSystemPrompt,
               instagramEnabled: org.settings.instagramEnabled,
@@ -796,6 +798,12 @@ export default function OrganizationDetailPage() {
                 description="Inbound Messenger DMs via Meta Graph API"
                 enabled={org.settings.facebookEnabled}
                 onToggle={(v) => updateFeature("facebookEnabled", v)}
+              />
+              <FeatureToggle
+                label="Book from messages"
+                description="WhatsApp, Instagram and Messenger book into the diary, read back and confirmed like the phone. Needs the salon's diary set up."
+                enabled={org.settings.chatBookingEnabled}
+                onToggle={(v) => updateFeature("chatBookingEnabled", v)}
               />
               <FeatureToggle
                 label="Phone receptionist"
