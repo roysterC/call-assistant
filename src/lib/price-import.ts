@@ -19,8 +19,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { SalonService } from "@/lib/salon-config";
 import { PROFILES, type BusinessType } from "@/lib/business-types";
 
-/** The strongest current model: menus are dense and photos are messy. One import is a few pence. */
-export const PRICE_IMPORT_MODEL = "claude-opus-5-5";
+/** Sonnet 5.5: reads photos and small print well, at about half Opus's price. One import is a few pence. */
+export const PRICE_IMPORT_MODEL = "claude-sonnet-5-5";
 
 export const IMPORT_LIMITS = {
   files: 5,

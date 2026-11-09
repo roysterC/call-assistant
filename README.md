@@ -514,7 +514,7 @@ prompt unchanged.
 Settings → Services → **Fill from a photo or file**: the owner adds up to five
 photos, PDFs or CSV/text files of their price list, and gets a list to check
 before anything is added (`src/lib/price-import.ts`, route
-`api/settings/services/import`). Read by Claude Opus 5.5 with structured
+`api/settings/services/import`). Read by Claude Sonnet 5.5 with structured
 output, then checked like the services editor checks a row. Flagged for the
 owner: a price it could not read (left blank, never guessed), a length it
 suggested because the menu gives none, a name already on the list (its price
