@@ -1,3 +1,4 @@
+import { businessTypesOf } from "@/lib/business-types";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
@@ -66,6 +67,21 @@ export async function PUT(
         }
         data.usageMarkupPercent = n;
       }
+    }
+
+    // The business type and what else it offers, validated together: an
+    // unknown type reads as hair, the main type never also in alsoOffers.
+    if ("businessType" in body || "alsoOffers" in body) {
+      const current = await prisma.organization.findUnique({
+        where: { id },
+        select: { businessType: true, alsoOffers: true },
+      });
+      const types = businessTypesOf(
+        "businessType" in body ? body.businessType : current?.businessType,
+        "alsoOffers" in body ? body.alsoOffers : current?.alsoOffers
+      );
+      data.businessType = types[0];
+      data.alsoOffers = types.slice(1);
     }
 
     const org = await prisma.organization.update({

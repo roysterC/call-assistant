@@ -509,6 +509,49 @@ A chat bot's hand-written prompt keeps working; the facts are added after it.
 A business with no services and no FAQ (the agency's own site) gets its
 prompt unchanged.
 
+### Price lists from a photo or file
+
+Settings → Services → **Fill from a photo or file**: the owner adds up to five
+photos, PDFs or CSV/text files of their price list, and gets a list to check
+before anything is added (`src/lib/price-import.ts`, route
+`api/settings/services/import`). Read by Claude Sonnet 5.5 with structured
+output, then checked like the services editor checks a row. Flagged for the
+owner: a price it could not read (left blank, never guessed), a length it
+suggested because the menu gives none, a name already on the list (its price
+is updated), a tint or colour that may need the skin test (never switched on
+for them). Per-nail extras, deposits and the like are shown as "not added".
+Nothing is saved until Settings is saved; no menu is stored. Photos are
+shrunk to 1600px JPEG on the device first. Each read is a few pence, counted
+in usage with the lab's (source `setup`). Ten reads an hour per salon.
+
+**nginx upload size:** nginx refuses request bodies over 1 MB by default,
+which a few photos can pass even shrunk. If the owner sees "Those are too big
+to send together", add `client_max_body_size 25m;` to the site's `server`
+block and reload nginx. (Caddy has no limit by default.)
+
+### Business types (hair, nails, beauty, barbers)
+
+Each salon has a main **business type** and any others it **also offers**
+(`Organization.businessType` and `alsoOffers`), set by Kikai in Admin →
+Organizations, not by the salon. The profiles are in
+`src/lib/business-types.ts`. A type changes what the bots know about the
+trade, never how the diary works:
+
+- what the team are called (stylist, nail technician, therapist, barber),
+  in our own instructions only; a salon's own prompt is left as written;
+- the examples in the rules above (what to ask about, what "not on the list"
+  looks like), why a price is a "from" price, and which health questions go
+  to the team;
+- the trade's words the phone listens for (`keyterms.ts`);
+- extra phone rules: nails, beauty and barbers answer "can I come in now?"
+  from today's diary, and never suggest walking in otherwise;
+- the starter price list a new salon is created with (unpriced).
+
+A salon with several types gets the main type's word for the team and every
+type's examples and rules. Hair is the default, and a hair-only salon's
+instructions are held to exactly what they were before types existed
+(`business-types.test.ts`).
+
 ### WhatsApp, Instagram and Messenger keys
 
 Each salon brings its own Meta app, and its keys are kept with the salon:

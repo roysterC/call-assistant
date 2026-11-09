@@ -23,6 +23,8 @@ export interface Me {
   language: string | null;
   /** Their chosen clock ("12h", "24h"), or null to follow the language. */
   clock: string | null;
+  /** What the salon calls one of its team: "stylist", "nail technician" (business-types.ts). */
+  staff?: string;
 }
 
 const MeContext = createContext<Me | null>(null);

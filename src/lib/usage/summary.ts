@@ -63,7 +63,8 @@ export async function summariseUsage(
     // A typed lab conversation is several rows, one per turn.
     prisma.usageRecord.groupBy({
       by: ["organizationId", "sessionKey"],
-      where: { organizationId: { in: organizationIds }, startedAt: within, source: "lab_chat" },
+      // Price lists read into Settings are ours too, so they count with the lab.
+      where: { organizationId: { in: organizationIds }, startedAt: within, source: { in: ["lab_chat", "setup"] } },
       _sum: { costMicros: true },
     }),
     // Voice booking: the words (one row per dictation) and the assistant

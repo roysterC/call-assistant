@@ -16,6 +16,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { SalonConfig } from "@/lib/booking";
 import { composeVoicePrompt } from "@/lib/receptionist/instructions";
 import { hoursForWeekday, zonedParts } from "@/lib/business-hours";
+import { inTradeWords, tradeFor } from "@/lib/business-types";
 
 export const SPOKEN_STYLE = `# You are on the phone
 
@@ -101,7 +102,7 @@ export function buildSystem(
   // Our own line: bookings are read back before they are made, and no email.
   const composed = composeVoicePrompt(cfg, body, faq);
   const stable = [
-    SPOKEN_STYLE.replace("{{business}}", businessName || "the salon"),
+    inTradeWords(SPOKEN_STYLE.replace("{{business}}", businessName || "the salon"), tradeFor(cfg.businessTypes)),
     composed.prompt,
   ].join("\n\n---\n\n");
 

@@ -19,7 +19,8 @@ import {
   type BookingCapabilities,
   type SalonConfig,
 } from "@/lib/booking";
-import { NOT_LISTED, salonQuestionsSection } from "@/lib/salon-knowledge";
+import { notListed, salonQuestionsSection } from "@/lib/salon-knowledge";
+import { inTradeWords, tradeFor, type Trade } from "@/lib/business-types";
 import { buildVoiceTools } from "./tool-definitions";
 
 /** Before booking: the read-back, enforced by the tools (receptionist/read-back.ts). */
@@ -301,6 +302,23 @@ export interface ComposedPrompt {
 }
 
 /**
+ * What only some trades need: who the team are, when the main type does not
+ * call them stylists, and the trade's own phone rules (business-types.ts).
+ * Nothing for a hair-only salon.
+ */
+function tradeSection(trade: Trade): string | null {
+  const lines = [
+    ...(trade.staff === "stylist"
+      ? []
+      : [
+          `- The team are ${trade.staff}s: call them that, never stylists. The tools' "stylist" means the same person.`,
+        ]),
+    ...trade.phoneRules,
+  ];
+  return lines.length ? `# This salon's trade\n\n${lines.join("\n")}` : null;
+}
+
+/**
  * Compose the live system prompt.
  *
  * Generated blocks (stance, hours, services) come first and are derived from
@@ -317,16 +335,23 @@ export function composeVoicePrompt(
 ): ComposedPrompt {
   const provider = selectProvider(cfg);
   const caps = provider.capabilities;
+  const trade = tradeFor(cfg.businessTypes);
 
-  const sections = [
+  // Written by Kikai, so in the trade's own words ("nail technician", not
+  // "stylist"); the salon's own prompt, below, is left as they wrote it.
+  const generated = [
     buildAvailabilityStance(caps, { colour: cfg.services.some((sv) => sv.requiresPatchTest) }),
     `${CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`,
     CALL_CLOSING_RULES,
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
-    `# Services\n\n${NOT_LISTED}\n\n${describeServicesForPrompt(cfg.services)}`,
+    `# Services\n\n${notListed(trade)}\n\n${describeServicesForPrompt(cfg.services)}`,
     `# The team\n\n${describeTeamForPrompt(cfg.stylists, cfg.services)}`,
-    salonQuestionsSection(faq, "phone"),
+    salonQuestionsSection(faq, "phone", trade),
   ];
+  const sections = generated.map((x) => inTradeWords(x, trade));
+  // Not reworded: it names "stylist" on purpose, to say it is not used.
+  const own = tradeSection(trade);
+  if (own) sections.push(own);
 
   if (body && body.trim()) sections.push(body.trim());
 

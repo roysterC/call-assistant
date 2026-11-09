@@ -1,5 +1,7 @@
 "use client";
 
+import { BusinessTypePicker } from "@/components/admin/business-type-picker";
+import type { BusinessType } from "@/lib/business-types";
 import { useEffect, useState } from "react";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { useRouter } from "next/navigation";
@@ -51,7 +53,8 @@ export default function OrganizationsPage() {
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", slug: "", planTier: "starter" });
+  const blank = { name: "", slug: "", planTier: "starter", businessType: "hair" as BusinessType, alsoOffers: [] as BusinessType[] };
+  const [form, setForm] = useState(blank);
 
   async function load() {
     setLoading(true);
@@ -82,7 +85,7 @@ export default function OrganizationsPage() {
         return;
       }
       setDialogOpen(false);
-      setForm({ name: "", slug: "", planTier: "starter" });
+      setForm(blank);
       await load();
     } finally {
       setCreating(false);
@@ -210,6 +213,14 @@ export default function OrganizationsPage() {
                 Lowercase alphanumeric with dashes
               </p>
             </div>
+            <BusinessTypePicker
+              main={form.businessType}
+              also={form.alsoOffers}
+              onChange={(businessType, alsoOffers) => setForm({ ...form, businessType, alsoOffers })}
+            />
+            <p className="text-xs text-muted-foreground">
+              It starts with a price list for these types, without prices, to edit in Settings.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>

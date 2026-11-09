@@ -6,6 +6,7 @@
  * itself, so adding a provider does not mean auditing call sites.
  */
 
+import { businessTypesOf, type BusinessType } from "@/lib/business-types";
 import { prisma } from "@/lib/prisma";
 import {
   parseBusinessHours,
@@ -41,6 +42,8 @@ export interface SalonConfig {
   stylists: Stylist[];
   calComApiKey: string | null;
   calComEventTypeId: string | null;
+  /** Main type first (business-types.ts). Unset reads as hair. */
+  businessTypes?: BusinessType[];
 }
 
 /**
@@ -63,6 +66,7 @@ export async function getSalonConfig(
       calComApiKey: true,
       calComEventTypeId: true,
       diaryProvider: true,
+      organization: { select: { businessType: true, alsoOffers: true } },
     },
   });
 
@@ -82,6 +86,7 @@ export async function getSalonConfig(
     })),
     calComApiKey: settings?.calComApiKey ?? null,
     calComEventTypeId: settings?.calComEventTypeId ?? null,
+    businessTypes: businessTypesOf(settings?.organization.businessType, settings?.organization.alsoOffers),
   };
 }
 

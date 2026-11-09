@@ -16,6 +16,12 @@ model Organization {
   name                    String
   slug                    String   @unique
   planTier                String   @default("starter")
+  // What kind of business it is (src/lib/business-types.ts): "hair",
+  // "nails", "beauty" or "barber". Set by Kikai, not the salon. Changes what
+  // the receptionist and chat bots know about the trade, never the diary.
+  businessType            String   @default("hair")
+  // Other types it also offers, e.g. ["beauty"] for a hair and beauty salon.
+  alsoOffers              String[] @default([])
   anthropicApiKeyOverride String?
   // What owners are charged for AI calls, as a percentage on top of what the
   // calls cost us: 100 means they see double our cost. Null hides charges from

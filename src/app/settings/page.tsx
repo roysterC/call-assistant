@@ -1,5 +1,6 @@
 "use client";
 
+import { useTradeWords } from "@/components/providers/language-provider";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
 import { ServicesEditor } from "@/components/settings/services-editor";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
+import { ServicesImport } from "@/components/settings/services-import";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
@@ -65,6 +67,7 @@ interface PhoneNumber {
 }
 
 export default function SettingsPage() {
+  const w = useTradeWords();
   const [settings, setSettings] = useState<Settings | null>(null);
   // Members see the settings but cannot change them; the API refuses them
   // too. Locked until the role has loaded, so nobody edits what they cannot
@@ -398,6 +401,10 @@ export default function SettingsPage() {
               description="What you offer and how long each takes."
               summary={plural(settings.services.length, "service")}
             >
+              <ServicesImport
+                services={settings.services}
+                onApply={(services) => setSettings({ ...settings, services })}
+              />
               <ServicesEditor
                 value={settings.services}
                 onChange={(services) => setSettings({ ...settings, services })}
@@ -405,19 +412,19 @@ export default function SettingsPage() {
             </ExpandableSection>
 
             <ExpandableSection
-              title="Stylists"
+              title={w("Stylists")}
               description={
                 settings.diaryProvider === "google"
                   ? "Each needs a Google calendar shared with the service account before they can be booked."
                   : undefined
               }
-              summary={plural(settings.teamMembers.length, "stylist")}
+              summary={plural(settings.teamMembers.length, w("stylist"))}
             >
               {settings.teamMembers.length === 0 ? (
                 <EmptyState
                   icon={Users}
                   title="No one added yet"
-                  hint="Add a stylist so the receptionist has someone to book with."
+                  hint={w("Add a stylist so the receptionist has someone to book with.")}
                 />
               ) : null}
               <StylistsEditor

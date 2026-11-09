@@ -1,5 +1,7 @@
 "use client";
 
+import { BusinessTypePicker } from "@/components/admin/business-type-picker";
+import { businessTypesOf, PROFILES } from "@/lib/business-types";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +57,8 @@ interface Org {
   name: string;
   slug: string;
   planTier: string;
+  businessType: string;
+  alsoOffers: string[];
   anthropicApiKeyOverride: string | null;
   usageMarkupPercent: number | null;
   enabled: boolean;
@@ -272,6 +276,8 @@ export default function OrganizationDetailPage() {
         body: JSON.stringify({
           name: org.name,
           planTier: org.planTier,
+          businessType: org.businessType,
+          alsoOffers: org.alsoOffers,
           anthropicApiKeyOverride: org.anthropicApiKeyOverride,
           usageMarkupPercent: org.usageMarkupPercent,
           enabled: org.enabled,
@@ -667,6 +673,7 @@ export default function OrganizationDetailPage() {
         <span>
           <span className="capitalize">{org.planTier}</span> plan
         </span>
+        <span>{businessTypesOf(org.businessType, org.alsoOffers).map((t) => PROFILES[t].label).join(" + ")}</span>
         <span>{plural(org._count.leads, "lead")}</span>
         <span>{plural(org._count.calls, "call")}</span>
         <span>{plural(org._count.websites, "site")}</span>
@@ -688,6 +695,11 @@ export default function OrganizationDetailPage() {
               className="mt-1"
             />
           </div>
+          <BusinessTypePicker
+            main={businessTypesOf(org.businessType)[0]}
+            also={businessTypesOf(org.businessType, org.alsoOffers).slice(1)}
+            onChange={(businessType, alsoOffers) => setOrg({ ...org, businessType, alsoOffers })}
+          />
           <div>
             <label className="text-sm font-medium">Plan tier</label>
             <Input

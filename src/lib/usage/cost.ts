@@ -45,6 +45,9 @@ const MODEL_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
   "claude-sonnet-5": { input: 2, output: 10 },
   "claude-sonnet-4-6": { input: 3, output: 15 },
   "claude-opus-5": { input: 5, output: 25 },
+  // Reading price lists (price-import.ts).
+  "claude-sonnet-5-5": { input: 2, output: 10 },
+  "claude-opus-5-5": { input: 4, output: 20 },
 };
 
 function envNumber(name: string, fallback: number): number {
