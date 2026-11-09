@@ -33,6 +33,7 @@ model Organization {
   users                 User[]
   leads                 Lead[]
   calls                 Call[]
+  assistantSessions     AssistantSession[]
   usageRecords          UsageRecord[]
   callbacks             Callback[]
   settings              OrganizationSettings?
@@ -251,6 +252,26 @@ model Call {
   @@index([phoneNumber])
   @@index([createdAt])
   @@map("ca_calls")
+}
+
+// A conversation with the personal assistant (src/lib/voice-booking), kept
+// for review while it is in testing, as the receptionist's calls are on Call.
+// Written after every turn, so a session the server forgets is still kept.
+// Text only: what was said or typed, the replies, and each tool with its
+// answer. Kept indefinitely for now, like call transcripts.
+model AssistantSession {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  speaker        String?
+  transcript     Json
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("ca_assistant_sessions")
 }
 
 model Lead {

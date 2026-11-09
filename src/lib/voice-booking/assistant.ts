@@ -267,12 +267,16 @@ export interface VoiceBookingSession {
   id: string;
   asker: Asker;
   userId: string;
+  /** Who is speaking, as the assistant is told. */
+  speaker: string;
   engine: ReceptionistEngine;
   model: string;
   /** The card on screen, waiting for yes or no. */
   pending: Draft | null;
   lastUsed: number;
   busy: boolean;
+  /** Replies waiting to be spoken, by id, each taken once (keepSpeech). */
+  speech: Map<string, string>;
 }
 
 export async function startVoiceBooking(
@@ -294,10 +298,12 @@ export async function startVoiceBooking(
     id: randomUUID(),
     asker,
     userId,
+    speaker: opts.speaker,
     model: receptionistModel(),
     pending: null,
     lastUsed: Date.now(),
     busy: false,
+    speech: new Map(),
     engine: null as unknown as ReceptionistEngine,
   };
 
@@ -480,4 +486,22 @@ export function findSession(id: string | undefined, organizationId: string, user
 
 export function endSession(id: string) {
   store.delete(id);
+}
+
+/**
+ * A reply kept for the speech endpoint to read aloud, and the id it is
+ * fetched by: the reply's words never go in a URL, and only what the
+ * assistant said can be spoken, once. Only the last few are kept.
+ */
+export function keepSpeech(session: VoiceBookingSession, text: string): string {
+  const id = randomUUID();
+  session.speech.set(id, text.slice(0, 1000));
+  while (session.speech.size > 3) session.speech.delete(session.speech.keys().next().value!);
+  return id;
+}
+
+export function takeSpeech(session: VoiceBookingSession, id: string): string | null {
+  const text = session.speech.get(id) ?? null;
+  session.speech.delete(id);
+  return text;
 }

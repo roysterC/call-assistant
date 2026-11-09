@@ -78,6 +78,8 @@ type Line = { who: "you" | "assistant"; text: string };
 interface Reply {
   sessionId?: string;
   reply?: string;
+  /** Set when the salon's voice is set up: the id the reply's speech is fetched by. */
+  speech?: string;
   draft?: VoiceDraft | null;
   saved?: boolean;
   result?: { kind: string; appointmentId: string; startsAt: string; stylist: string };
@@ -103,6 +105,10 @@ const SAVE_LABEL = {
 
 const SPEAK_KEY = "kikai.assistant.speak";
 
+/** A tenth of a second of silence: played from a tap, it lets the player speak later. */
+const SILENCE =
+  "data:audio/wav;base64,UklGRnQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
+
 export function Assistant() {
   const { t, lang } = useT();
   const [open, setOpen] = useState(false);
@@ -126,6 +132,8 @@ export function Assistant() {
   /** The utterance the pause belongs to, so an older one's timers cannot lift a newer one's. */
   const speech = useRef(0);
   const unlocked = useRef(false);
+  /** Plays the salon's voice (speech/route.ts); made, and unlocked, inside a tap. */
+  const player = useRef<HTMLAudioElement | null>(null);
   const [silent, setSilent] = useState(false);
 
   // Opened by /assistant (Siri, Google Assistant, the app icon): start
@@ -181,6 +189,13 @@ export function Assistant() {
    * A silent utterance here is that first time.
    */
   function unlockSpeech() {
+    // The salon's voice plays through one audio player, which a phone lets
+    // play later only once it has played from a tap: a moment of silence.
+    if (!player.current && typeof Audio !== "undefined") {
+      const a = new Audio(SILENCE);
+      a.play().catch(() => {});
+      player.current = a;
+    }
     if (unlocked.current || typeof window === "undefined" || !("speechSynthesis" in window)) return;
     unlocked.current = true;
     const u = new SpeechSynthesisUtterance(" ");
@@ -188,9 +203,57 @@ export function Assistant() {
     window.speechSynthesis.speak(u);
   }
 
-  /** Read a reply aloud, with the microphone paused so it does not hear itself. */
-  function speak(text: string) {
-    if (!speakRepliesRef.current || typeof window === "undefined" || !("speechSynthesis" in window) || !text) return;
+  /**
+   * Read a reply aloud, with the microphone paused so it does not hear itself:
+   * in the salon's voice when the server sent one to fetch, otherwise, or if
+   * it will not play, in the device's own.
+   */
+  function speak(text: string, speechId?: string) {
+    if (!speakRepliesRef.current || !text) return;
+    if (speechId && player.current && session.current) return speakInVoice(text, speechId, player.current);
+    speakOnDevice(text);
+  }
+
+  function speakInVoice(text: string, speechId: string, a: HTMLAudioElement) {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    const id = ++speech.current;
+    speaking.current = true;
+    let started = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const lift = (graceMs: number) => {
+      timers.forEach(clearTimeout);
+      setTimeout(() => {
+        if (speech.current === id) speaking.current = false;
+      }, graceMs);
+    };
+    // The voice did not come: say it on the device instead, rather than not at all.
+    const instead = () => {
+      if (speech.current !== id || started) return;
+      timers.forEach(clearTimeout);
+      a.onplaying = a.onended = a.onerror = null;
+      a.pause();
+      speakOnDevice(text);
+    };
+    a.onplaying = () => {
+      started = true;
+      setSilent(false);
+    };
+    a.onended = () => lift(300);
+    a.onerror = () => (started ? lift(0) : instead());
+    timers.push(
+      setTimeout(instead, 5000),
+      // The pause must always lift, whatever the player does.
+      setTimeout(() => lift(0), 8000 + text.length * 90)
+    );
+    const q = new URLSearchParams({ sessionId: session.current!, id: speechId });
+    const asOrg = new URLSearchParams(window.location.search).get("asOrg");
+    if (asOrg) q.set("asOrg", asOrg);
+    a.src = `/api/voice-booking/speech?${q}`;
+    a.play().catch(instead);
+  }
+
+  function speakOnDevice(text: string) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     synth.cancel();
     // A phone can leave speech paused after the page was in the background.
@@ -234,6 +297,7 @@ export function Assistant() {
   }
   function stopSpeaking() {
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    player.current?.pause();
     speech.current++;
     speaking.current = false;
   }
@@ -254,6 +318,22 @@ export function Assistant() {
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+  // Opened: have the server start the conversation and warm the model while
+  // they think what to say, so the first answer is not the slow one. Once
+  // per conversation; a failure only means the first answer is slower.
+  useEffect(() => {
+    if (!open || session.current) return;
+    void apiFetch("/api/voice-booking", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ warm: true }),
+    })
+      .then((r) => r.json())
+      .then((d: { sessionId?: string }) => {
+        if (d.sessionId && !session.current) session.current = d.sessionId;
+      })
+      .catch(() => {});
+  }, [open]);
 
   async function send(text: string, action?: "save" | "discard") {
     setError(null);
@@ -273,7 +353,7 @@ export function Assistant() {
       }
       if (data.reply) {
         setLines((l) => [...l, { who: "assistant", text: data.reply! }]);
-        speak(data.reply);
+        speak(data.reply, data.speech);
       }
       const saving = draftRef.current;
       setDraft(data.draft ?? null);

@@ -385,6 +385,61 @@ export interface TextToSpeech {
 /** The ElevenLabs voice model used unless ELEVENLABS_MODEL says otherwise. */
 export const DEFAULT_TTS_MODEL = "eleven_v4_turbo";
 
+/**
+ * A reply as ElevenLabs speech, streamed: the response once it is coming, or
+ * null if `signal` gave up first. Shared by the phone line and the diary's
+ * assistant, so both speak in the same voice, model and pace.
+ */
+export async function elevenLabsStream(
+  apiKey: string,
+  text: string,
+  format: string,
+  opts: { voiceId?: string; model?: string; speed?: number },
+  signal: AbortSignal
+): Promise<Response | null> {
+  // A British voice from ElevenLabs' standard library by default; any voice
+  // on the account can be set instead.
+  const voice = opts.voiceId ?? "Xb7hH8MSUJpSbSDYk0k2";
+  const request = () =>
+    fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}/stream?output_format=${format}`, {
+      method: "POST",
+      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        // v4 Turbo: ElevenLabs' most expressive real-time voice, at the
+        // same price per character as Flash v2.5 and, in testing, as quick
+        // to start. ELEVENLABS_MODEL=eleven_flash_v2_5 goes back to Flash.
+        model_id: opts.model ?? DEFAULT_TTS_MODEL,
+        voice_settings: { speed: speakingSpeed(opts.speed) },
+      }),
+      signal,
+    });
+  // Busy (too many requests at once: the free plan allows very few) or a
+  // passing fault on their side: try again shortly rather than lose the
+  // sentence. A refusal that will not change — a bad key, a used-up plan,
+  // a voice not on the plan — is not retried.
+  let res = await request();
+  for (let attempt = 1; attempt <= 2 && (res.status === 429 || res.status >= 500); attempt++) {
+    await res.body?.cancel().catch(() => {});
+    await new Promise((r) => setTimeout(r, 250 * attempt));
+    if (signal.aborted) return null;
+    res = await request();
+  }
+  if (!res.ok || !res.body) {
+    throw new Error(`ElevenLabs ${res.status}: ${await res.text().catch(() => "")}`);
+  }
+  return res;
+}
+
+/** The ElevenLabs settings in .env, as both the phone line and the assistant read them. */
+export function elevenLabsSettings(env: Record<string, string | undefined> = process.env) {
+  return {
+    voiceId: env.ELEVENLABS_VOICE_ID || undefined,
+    model: env.ELEVENLABS_MODEL || undefined,
+    speed: env.ELEVENLABS_SPEED ? Number(env.ELEVENLABS_SPEED) : undefined,
+  };
+}
+
 export class ElevenLabsTts implements TextToSpeech {
   readonly bytesPerSecond: number;
   private readonly format: string;
@@ -404,38 +459,9 @@ export class ElevenLabsTts implements TextToSpeech {
   }
 
   async *synth(text: string, signal: AbortSignal): AsyncIterable<Buffer> {
-    // A British voice from ElevenLabs' standard library by default; any voice
-    // on the account can be set instead.
-    const voice = this.opts.voiceId ?? "Xb7hH8MSUJpSbSDYk0k2";
-    const request = () =>
-      fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}/stream?output_format=${this.format}`, {
-        method: "POST",
-        headers: { "xi-api-key": this.apiKey, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          // v4 Turbo: ElevenLabs' most expressive real-time voice, at the
-          // same price per character as Flash v2.5 and, in testing, as quick
-          // to start. ELEVENLABS_MODEL=eleven_flash_v2_5 goes back to Flash.
-          model_id: this.opts.model ?? DEFAULT_TTS_MODEL,
-          voice_settings: { speed: speakingSpeed(this.opts.speed) },
-        }),
-        signal,
-      });
-    // Busy (too many requests at once: the free plan allows very few) or a
-    // passing fault on their side: try again shortly rather than lose the
-    // sentence. A refusal that will not change — a bad key, a used-up plan,
-    // a voice not on the plan — is not retried.
-    let res = await request();
-    for (let attempt = 1; attempt <= 2 && (res.status === 429 || res.status >= 500); attempt++) {
-      await res.body?.cancel().catch(() => {});
-      await new Promise((r) => setTimeout(r, 250 * attempt));
-      if (signal.aborted) return;
-      res = await request();
-    }
-    if (!res.ok || !res.body) {
-      throw new Error(`ElevenLabs ${res.status}: ${await res.text().catch(() => "")}`);
-    }
-    yield* evenChunks(res.body, this.format.startsWith("pcm") ? 2 : 1);
+    const res = await elevenLabsStream(this.apiKey, text, this.format, this.opts, signal);
+    if (!res) return;
+    yield* evenChunks(res.body!, this.format.startsWith("pcm") ? 2 : 1);
   }
 }
 

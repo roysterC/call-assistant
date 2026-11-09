@@ -19,11 +19,29 @@ export function transcriptText(call: {
     `=== ${call.salon}, ${when}, ${call.phoneNumber}, ${call.duration}s` +
     (call.outcomes.length ? `, ${call.outcomes.join(", ")}` : "") +
     ` (call ${call.id})`;
-  return [head, ...call.lines.map(lineText)].join("\n");
+  return [head, ...call.lines.map((l) => lineText(l, CALL_LABELS))].join("\n");
 }
 
-function lineText(l: TranscriptLine): string {
-  if (l.who !== "tool") return `${l.who === "caller" ? "Caller" : "Receptionist"}: ${l.text}`;
+const CALL_LABELS = { caller: "Caller", receptionist: "Receptionist" };
+
+/** A session with the personal assistant: the same, with the desk speaking. */
+export function assistantTranscriptText(s: {
+  id: string;
+  salon: string;
+  at: Date;
+  speaker: string | null;
+  lines: TranscriptLine[];
+}): string {
+  const head = `=== ${s.salon}, ${londonTime(s.at)}, ${s.speaker ?? "staff"} (assistant ${s.id})`;
+  return [head, ...s.lines.map((l) => lineText(l, { caller: "Staff", receptionist: "Assistant" }))].join("\n");
+}
+
+function londonTime(at: Date): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", dateStyle: "medium", timeStyle: "short" }).format(at);
+}
+
+function lineText(l: TranscriptLine, labels: { caller: string; receptionist: string }): string {
+  if (l.who !== "tool") return `${l.who === "caller" ? labels.caller : labels.receptionist}: ${l.text}`;
   const r = l.result as { message?: unknown } | null;
   const answer = r && typeof r === "object" && typeof r.message === "string" ? r.message : JSON.stringify(l.result);
   return `    [${l.name} ${JSON.stringify(l.input)}]\n    -> ${clip(answer ?? "", 400)}`;

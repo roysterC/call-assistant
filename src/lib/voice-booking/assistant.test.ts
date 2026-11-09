@@ -47,7 +47,7 @@ vi.mock("@/lib/receptionist/session", () => ({
   receptionistRequestOptions: () => ({ thinking: { type: "disabled" }, output_config: { effort: "medium" } }),
 }));
 
-import { findSession, keepSession, startVoiceBooking, type VoiceBookingSession } from "./assistant";
+import { findSession, keepSession, keepSpeech, startVoiceBooking, takeSpeech, type VoiceBookingSession } from "./assistant";
 
 /** A model that asks for one tool, then says a line. */
 function asks(name: string, input: object): StreamingClient {
@@ -114,5 +114,18 @@ describe("the assistant behind the diary's microphone", () => {
     expect(s.pending?.id).toBe("d1");
     expect(JSON.stringify(turn.tools[0].result)).toContain("Sarah Jones, Cut and finish");
     expect(drafts.commitDraft).not.toHaveBeenCalled();
+  });
+});
+
+describe("a reply kept to be spoken", () => {
+  it("is spoken once, by its id, and only the last few are kept", async () => {
+    const s = await startVoiceBooking(owner, "u", { speaker: "x", client: asks("find_client", { name: "x" }) });
+    const first = keepSpeech(s, "One.");
+    expect(takeSpeech(s, first)).toBe("One.");
+    expect(takeSpeech(s, first)).toBeNull();
+    const ids = ["a", "b", "c", "d"].map((t) => keepSpeech(s, t));
+    expect(takeSpeech(s, ids[0])).toBeNull();
+    expect(takeSpeech(s, ids[3])).toBe("d");
+    expect(takeSpeech(s, "made-up")).toBeNull();
   });
 });

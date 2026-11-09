@@ -216,8 +216,11 @@ export class ReceptionistEngine {
    */
   async prewarm(): Promise<{ cacheRead: number; cacheWrite: number } | null> {
     const create = this.cfg.client.messages.create;
-    const first = this.messages[0];
-    if (!create || !first || first.role !== "user") return null;
+    // A conversation not yet begun (the diary's assistant, opened and not yet
+    // spoken to) warms on a stand-in: what is cached is the instructions and
+    // tools in front of it.
+    const first = this.messages[0] ?? { role: "user" as const, content: "Hello." };
+    if (!create || first.role !== "user") return null;
     try {
       // Up to the last user turn: a request may not end on the assistant.
       const m = await create.call(this.cfg.client.messages, { ...this.params([first]), max_tokens: 0 });

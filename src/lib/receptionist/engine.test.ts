@@ -540,6 +540,19 @@ describe("the model's cache", () => {
     });
   });
 
+  it("warms a conversation nobody has spoken in yet on a stand-in, and adds nothing to it", async () => {
+    const created: Anthropic.MessageCreateParamsNonStreaming[] = [];
+    const { client } = fakeClient([{ text: ["Hello."] }]);
+    client.messages.create = async (params) => {
+      created.push(params);
+      return { usage: { cache_read_input_tokens: 0, cache_creation_input_tokens: 1800 } } as Anthropic.Message;
+    };
+    const { engine } = engineWith(client);
+    expect(await engine.prewarm()).toEqual({ cacheRead: 0, cacheWrite: 1800 });
+    expect(created[0].messages).toEqual([{ role: "user", content: "Hello." }]);
+    expect(engine.messages).toEqual([]);
+  });
+
   it("skips the warm-up without a client that can do it, and survives one that fails", async () => {
     const { client } = fakeClient([{ text: ["Hello."] }]);
     const { engine } = engineWith(client);
