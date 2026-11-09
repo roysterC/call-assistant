@@ -1286,7 +1286,7 @@ exports[`the reply catalogue > check: the soonest 1`] = `
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 11am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Offer just the soonest, with its day, and nothing else: Tuesday at 9am. If it does not suit, offer the next: Tuesday at 11am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
