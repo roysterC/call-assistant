@@ -13,6 +13,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
+import { inTradeWords } from "@/lib/business-types";
 import {
   CLOCK_COOKIE,
   DEFAULT_LANG,
@@ -136,8 +137,26 @@ export function useLanguage(): LanguageState {
  */
 export function useT(): { t: Translate; lang: Lang; locale: string; clock: Clock } {
   const { lang, clock } = useContext(LanguageContext);
+  const words = useTradeWords();
   return useMemo(
-    () => ({ t: (key, vars) => translate(lang, key, vars), lang, locale: INTL_LOCALE[lang], clock }),
-    [lang, clock]
+    () => ({
+      // The English says "Stylist"; a nail salon reads "Nail technician". The
+      // Vietnamese "thợ" already fits every trade.
+      t: (key, vars) => (lang === "en" ? words(translate(lang, key, vars)) : translate(lang, key, vars)),
+      lang,
+      locale: INTL_LOCALE[lang],
+      clock,
+    }),
+    [lang, clock, words]
   );
+}
+
+/**
+ * The screens' own word "stylist" in this salon's word for its team
+ * ("nail technician", "therapist", "barber"), for English text that does not
+ * go through t(). Unchanged for a hair salon, and before the salon is known.
+ */
+export function useTradeWords(): (text: string) => string {
+  const staff = useMe()?.staff;
+  return useCallback((text: string) => (staff ? inTradeWords(text, { staff }) : text), [staff]);
 }

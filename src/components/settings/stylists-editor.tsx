@@ -1,5 +1,6 @@
 "use client";
 
+import { useTradeWords } from "@/components/providers/language-provider";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export function StylistsEditor({
   usesGoogle?: boolean;
   onChange: (next: Stylist[]) => void;
 }) {
+  const w = useTradeWords();
   // Nobody works a day the salon is shut. With hours unconfigured every day
   // stays selectable — the alternative is an editor that silently refuses
   // every button before opening hours have been filled in.
@@ -116,7 +118,7 @@ export function StylistsEditor({
                 placeholder="Name"
                 onChange={(e) => update(i, { name: e.target.value })}
                 className="h-8 w-40"
-                aria-label="Stylist name"
+                aria-label={w("Stylist name")}
               />
               <Input
                 value={stylist.role ?? ""}
@@ -131,7 +133,7 @@ export function StylistsEditor({
                 size="sm"
                 onClick={() => void askToRemove(i)}
                 disabled={checking === i}
-                aria-label={`Remove ${stylist.name || "stylist"}`}
+                aria-label={`Remove ${stylist.name || w("stylist")}`}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -254,7 +256,7 @@ export function StylistsEditor({
         }
       >
         <Plus className="h-4 w-4 mr-1" />
-        Add stylist
+        {w("Add stylist")}
       </Button>
     </div>
   );

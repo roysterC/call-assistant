@@ -9,6 +9,7 @@
  * that sums them is how a salon ends up arguing with its own accountant.
  */
 
+import { useTradeWords } from "@/components/providers/language-provider";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,7 @@ function todayIn(tz: string): string {
 }
 
 export default function SalesPage() {
+  const w = useTradeWords();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [kind, setKind] = useState<PeriodKind>("month");
   const [anchor, setAnchor] = useState(() => todayIn(DEFAULT_TZ));
@@ -305,7 +307,7 @@ export default function SalesPage() {
 
       {totals && totals.byStylist.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Breakdown title="By stylist" noun="stylist" items={totals.byStylist} />
+          <Breakdown title={w("By stylist")} noun={w("stylist")} items={totals.byStylist} />
           <Breakdown title="By service" noun="service" items={totals.byService.slice(0, 8)} />
         </div>
       )}

@@ -4,6 +4,7 @@
  * that got this wrong would show an error, not someone else's data.
  */
 
+import { businessTypesOf, PROFILES } from "@/lib/business-types";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
@@ -21,8 +22,15 @@ export async function GET(req: NextRequest) {
           select: { name: true, email: true, language: true, clock: true },
         });
 
+  // What the salon calls its team, for the screens' own words.
+  const org = await prisma.organization.findUnique({
+    where: { id: ctx.organizationId },
+    select: { businessType: true },
+  });
+
   return NextResponse.json({
     role: ctx.role,
+    staff: PROFILES[businessTypesOf(org?.businessType)[0]].staff,
     name: user?.name ?? null,
     email: user?.email ?? null,
     language: user?.language ?? null,
