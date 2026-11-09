@@ -31,6 +31,8 @@ const READ_BACK_STEPS = `- **Read it back before you book.** When they have pick
   should book it: *"That's a blow dry with Chloe, Thursday the 15th at 11,
   for Hannah Lee. Shall I book it?"* Do not read out the digits of the
   number they are ringing from.
+- Nothing before the read-back may sound as if it is being booked ("Let me
+  get that booked"): it is not booked until they say yes.
 - "Yes", "okay", "yeah", "go on", "sure", "please do" all mean yes. Just
   book it: never remark on how you took their answer.
 - When they say yes, call \`book_appointment\` with the \`bookingRef\`
@@ -145,7 +147,8 @@ ${READ_BACK_STEPS}
   Picking the bigger one and ignoring the rest leaves the stylist short of
   time and the client expecting work nobody wrote down. If one of the things
   they asked for is not on the list, say which and ask what it is rather than
-  quietly booking the rest.
+  quietly booking the rest. Do not ask whether they want them in the same
+  appointment: they do.
 ${opts.colour ? COLOUR_RULES : NO_COLOUR_RULE}
 
 ## Changing an existing appointment
