@@ -23,13 +23,15 @@ import {
   endSession,
   findSession,
   keepSession,
+  keepSpeech,
   startVoiceBooking,
   type VoiceBookingSession,
 } from "@/lib/voice-booking/assistant";
 import { recordUsage } from "@/lib/usage/record";
 import { fakeBookingModel } from "@/lib/voice-booking/fake-model";
+import { logAssistantSession } from "@/lib/voice-booking/session-log";
 
-type Body = { text?: unknown; sessionId?: unknown; action?: unknown };
+type Body = { text?: unknown; sessionId?: unknown; action?: unknown; warm?: unknown };
 
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req, { members: true });
@@ -41,7 +43,21 @@ export async function POST(req: NextRequest) {
   // --- The buttons ------------------------------------------------------------------
   if (body.action === "save" || body.action === "discard") {
     if (!session?.pending) return NextResponse.json({ error: "There is nothing waiting to be saved." }, { status: 409 });
-    return NextResponse.json(body.action === "save" ? await save(session) : discard(session));
+    return out(session, body.action === "save" ? await save(session) : discard(session));
+  }
+
+  // --- Opened -----------------------------------------------------------------------
+  // The panel is open and nothing is said yet: start the session and load its
+  // instructions into the model's cache, so the first answer is as quick as
+  // the rest.
+  if (body.warm === true) {
+    if (!session) {
+      const started = await newSession(ctx);
+      if (started instanceof NextResponse) return started;
+      session = started;
+    }
+    void session.engine.prewarm();
+    return NextResponse.json({ sessionId: session.id });
   }
 
   // --- Something said -----------------------------------------------------------------
@@ -54,30 +70,21 @@ export async function POST(req: NextRequest) {
   let ask = text;
   if (session?.pending) {
     const answer = answerTo(text);
-    if (answer === "yes") return NextResponse.json(await save(session));
-    if (answer === "no") return NextResponse.json(discard(session));
+    if (answer === "yes") return out(session, await save(session));
+    if (answer === "no") return out(session, discard(session));
     // "Yes. And how much did we take last week?": save, then answer.
     const question = yesThenQuestion(text);
     if (question) {
       savedFirst = await save(session);
-      if (!savedFirst.saved) return NextResponse.json(savedFirst);
+      if (!savedFirst.saved) return out(session, savedFirst);
       ask = question;
     }
   }
 
   if (!session) {
-    const fake = process.env.VOICE_BOOKING_FAKE_MODEL === "1" && process.env.NODE_ENV !== "production";
-    if (!fake && !(await receptionistApiKey(ctx.organizationId))) {
-      return NextResponse.json(
-        { error: "No Anthropic API key: set one for this salon (Admin → Organizations) or ANTHROPIC_API_KEY on the server." },
-        { status: 503 }
-      );
-    }
-    session = await startVoiceBooking(ctx, ctx.userId, {
-      speaker: await speakerName(ctx),
-      client: fake ? fakeBookingModel() : undefined,
-    });
-    keepSession(session);
+    const started = await newSession(ctx);
+    if (started instanceof NextResponse) return started;
+    session = started;
   }
   if (session.busy) return NextResponse.json({ error: "Still working on the last one." }, { status: 409 });
 
@@ -98,7 +105,8 @@ export async function POST(req: NextRequest) {
         cacheWriteTokens: turn.usage.cacheWrite,
       },
     });
-    return NextResponse.json({
+    void logAssistantSession(session);
+    return out(session, {
       sessionId: session.id,
       reply: savedFirst ? `${savedFirst.reply} ${turn.text}` : turn.text,
       draft: await view(session),
@@ -114,10 +122,9 @@ export async function POST(req: NextRequest) {
         : err instanceof Anthropic.RateLimitError
           ? "Busy just now. Try again in a moment."
           : "Something went wrong. Try again, or book it by hand.";
-    return NextResponse.json(
-      savedFirst ? { ...savedFirst, reply: `${savedFirst.reply} ${detail}` } : { error: detail, sessionId: session.id },
-      { status: savedFirst ? 200 : 502 }
-    );
+    return savedFirst
+      ? out(session, { ...savedFirst, reply: `${savedFirst.reply} ${detail}` })
+      : NextResponse.json({ error: detail, sessionId: session.id }, { status: 502 });
   } finally {
     session.busy = false;
   }
@@ -133,6 +140,16 @@ export async function DELETE(req: NextRequest) {
 
 // --- Helpers ------------------------------------------------------------------------------
 
+/**
+ * A reply, with the id its speech is fetched by when the salon's voice is
+ * set up (speech/route.ts). Without one the screen reads it in the device's
+ * own voice, as it always did.
+ */
+function out<T extends { reply?: string }>(session: VoiceBookingSession, payload: T) {
+  const speech = payload.reply && process.env.ELEVENLABS_API_KEY ? keepSpeech(session, payload.reply) : undefined;
+  return NextResponse.json(speech ? { ...payload, speech } : payload);
+}
+
 type Saved = Awaited<ReturnType<typeof save>>;
 
 async function save(session: VoiceBookingSession) {
@@ -146,12 +163,14 @@ async function save(session: VoiceBookingSession) {
   const reply = done(draft, result);
   // The assistant hears how it ended, so "and book her again next month" follows on.
   remember(session, `[Saved: ${describeDraft(draft, await timeZone(session))}.]`, reply);
+  void logAssistantSession(session);
   return { sessionId: session.id, saved: true as const, reply, result, draft: null };
 }
 
 function discard(session: VoiceBookingSession) {
   session.pending = null;
   remember(session, "[They said no; nothing was saved.]", "Okay, not saved.");
+  void logAssistantSession(session);
   return { sessionId: session.id, saved: false, reply: "Okay, not saved.", draft: null };
 }
 
@@ -217,6 +236,23 @@ async function view(session: VoiceBookingSession) {
     from: d.kind === "move" ? { day: day(d.from.startsAt), time: time(d.from.startsAt), stylist: d.from.stylist } : null,
     textTo: d.text ? { number: d.text.to, name: d.text.greet } : null,
   };
+}
+
+/** A new conversation for this person, or the reason there cannot be one. */
+async function newSession(ctx: TenantContext): Promise<VoiceBookingSession | NextResponse> {
+  const fake = process.env.VOICE_BOOKING_FAKE_MODEL === "1" && process.env.NODE_ENV !== "production";
+  if (!fake && !(await receptionistApiKey(ctx.organizationId))) {
+    return NextResponse.json(
+      { error: "No Anthropic API key: set one for this salon (Admin → Organizations) or ANTHROPIC_API_KEY on the server." },
+      { status: 503 }
+    );
+  }
+  const session = await startVoiceBooking(ctx, ctx.userId, {
+    speaker: await speakerName(ctx),
+    client: fake ? fakeBookingModel() : undefined,
+  });
+  keepSession(session);
+  return session;
 }
 
 async function speakerName(ctx: TenantContext): Promise<string> {

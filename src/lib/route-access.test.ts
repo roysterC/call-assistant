@@ -53,6 +53,7 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   usage: { GET: "owner" },
   "voice-booking": { POST: "members", DELETE: "members" },
   "voice-booking/token": { POST: "members" },
+  "voice-booking/speech": { GET: "members" },
   "website-chat/analytics": { GET: "owner" },
   // DELETE is requireSuperAdmin, so not listed here.
   "websites/[id]": { GET: "owner", PUT: "owner" },
