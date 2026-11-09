@@ -521,11 +521,18 @@ function availabilityReply(
         ? said(options[0])
         : "";
   const noStylist = stylistName ? "" : " Do not name a stylist; who it is with is read back before it is booked.";
+  // Asked for the soonest, they hear the soonest: one time, not a choice of
+  // two. The next is kept back for if it does not suit.
   const howToOffer =
-    (options.length === 2 ? "Offer these two, each with its day, and nothing else: " : "Offer this: ") +
-    `${offerLine}.` +
-    noStylist +
-    " When they choose, use the exact startsAt value for that option.";
+    !named && options.length === 2
+      ? `Offer just the soonest, with its day, and nothing else: ${said(options[0])}. If it does not ` +
+        `suit, offer the next: ${said(options[1])}.` +
+        noStylist +
+        " When they choose, use the exact startsAt value for that option."
+      : (options.length === 2 ? "Offer these two, each with its day, and nothing else: " : "Offer this: ") +
+        `${offerLine}.` +
+        noStylist +
+        " When they choose, use the exact startsAt value for that option.";
 
   const dayHasAny = offer.picks.some((sl) => zonedDateString(new Date(sl.start), cfg.timeZone) === date);
   const firstDate = options[0]?.date ?? date;
