@@ -64,8 +64,11 @@ vi.mock("@/lib/booking", () => ({
   explainProviderSelection: () => [],
 }));
 
+const photos = vi.hoisted(() => ({ attachPhotosToBooking: vi.fn(async () => 1) }));
+vi.mock("@/lib/chat-photos", () => photos);
+
 const actions = vi.hoisted(() => ({
-  runAction: vi.fn(async () => ({ success: true, message: "Booked. A text has gone." })),
+  runAction: vi.fn(async () => ({ success: true, bookingNumber: 1043, message: "Booked. A text has gone." })),
   handleBookAppointment: vi.fn(async () => ({
     success: true,
     ready: true,
@@ -170,7 +173,18 @@ describe("booking by message", () => {
     expect(actions.runAction).toHaveBeenCalledWith(
       "book_appointment",
       "org",
-      expect.objectContaining({ customerName: "Roy", stylist: "Lan", time: "2026-11-12T15:00:00+00:00", callerNumber: "+447700900123" })
+      expect.objectContaining({
+        customerName: "Roy",
+        stylist: "Lan",
+        time: "2026-11-12T15:00:00+00:00",
+        callerNumber: "+447700900123",
+        // The diary would otherwise say it was booked by phone.
+        notes: "Booked by WhatsApp message.",
+      })
+    );
+    // A photo they sent goes with the booking.
+    expect(photos.attachPhotosToBooking).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org", channel: "whatsapp", conversationId: "c1", bookingNumber: 1043 })
     );
     // The second message carried on from the first, diary checks and all.
     const history = second.requests[0];

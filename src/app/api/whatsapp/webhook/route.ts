@@ -1,3 +1,4 @@
+import { downloadWhatsAppPhoto, photoLine, savePhoto } from "@/lib/chat-photos";
 import { bookingReply } from "@/lib/chat-booking";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -176,17 +177,23 @@ async function processMessage(
     return;
   }
 
-  if (messageType !== "text") {
+  // A photo (usually the nails they want) is kept for the salon and shown in
+  // the conversation as a line of text (chat-photos.ts).
+  const image = messageType === "image" ? (message.image as { id?: string; caption?: string } | undefined) : undefined;
+  if (messageType !== "text" && !image?.id) {
     if (!sender) return;
     await sendTextMessage(
       sender,
       waId,
-      "Thanks for your message! I can currently only process text messages. Please send your question as text."
+      "Thanks for your message! I can only read text and photos here. Please send your question as text."
     );
     return;
   }
+  const photo = image?.id && sender ? await downloadWhatsAppPhoto(sender, image.id) : null;
 
-  const textBody = (message.text as Record<string, unknown>)?.body as string;
+  const textBody = image
+    ? photoLine(image.caption, Boolean(photo))
+    : ((message.text as Record<string, unknown>)?.body as string);
   if (!textBody) return;
 
   const phone = waIdToPhone(waId);
@@ -241,6 +248,9 @@ async function processMessage(
       waMessageId,
     },
   });
+  if (photo) {
+    await savePhoto({ organizationId, channel: "whatsapp", conversationId: conversation.id, photo, caption: image?.caption });
+  }
 
   if (!sender) {
     await prisma.whatsAppConversation.update({

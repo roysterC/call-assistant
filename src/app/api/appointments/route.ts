@@ -77,7 +77,11 @@ export async function GET(req: NextRequest) {
 
     const appointments = await prisma.appointment.findMany({
       where,
-      include: { lead: { include: { contactLead: { select: { id: true, name: true, phone: true } } } } },
+      include: {
+        lead: { include: { contactLead: { select: { id: true, name: true, phone: true } } } },
+        // Photos the client sent when booking by message (chat-photos.ts): ids only.
+        photos: { select: { id: true }, orderBy: { createdAt: "asc" } },
+      },
       orderBy: { startsAt: scope === "past" ? "desc" : "asc" },
       take: 200,
     });

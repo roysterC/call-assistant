@@ -31,6 +31,8 @@ import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/eng
 import { buildChatSystem, type ChatChannel } from "@/lib/receptionist/prompt";
 import { toClaudeTools, withCallerContext } from "@/lib/receptionist/tools";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
+import { attachPhotosToBooking } from "@/lib/chat-photos";
+import { bookedByMessageNote } from "@/lib/booked-by";
 
 /** After this long without a message, the conversation starts afresh from its messages. */
 export const CHAT_SESSION_IDLE_MS = 12 * 60 * 60_000;
@@ -143,7 +145,21 @@ async function reply(turn: ChatTurn): Promise<string> {
           >[1],
           { dryRun: true }
         ),
-      book: (input) => runAction("book_appointment", organizationId, withCallerContext("book_appointment", input, phone)),
+      book: async (input) => {
+        const result = await runAction(
+          "book_appointment",
+          organizationId,
+          withCallerContext("book_appointment", { ...input, notes: withChannelNote(input.notes, channel) }, phone)
+        );
+        // Any photo they sent (the design they want) goes with the booking.
+        const n = (result as { success?: boolean; bookingNumber?: unknown } | null) ?? null;
+        if (n?.success && typeof n.bookingNumber === "number") {
+          await attachPhotosToBooking({ organizationId, channel, conversationId, bookingNumber: n.bookingNumber, now }).catch(
+            (err) => console.error("[CHAT BOOKING] photos not linked to the booking:", err)
+          );
+        }
+        return result;
+      },
     },
     state.readBack
   );
@@ -188,6 +204,12 @@ async function reply(turn: ChatTurn): Promise<string> {
     update: fresh ? { ...data, createdAt: now } : data,
   });
   return text;
+}
+
+/** The booking's notes, saying where it was booked: the diary otherwise shows "booked by phone". */
+export function withChannelNote(notes: unknown, channel: ChatChannel): string {
+  const own = typeof notes === "string" ? notes.trim() : "";
+  return [own, bookedByMessageNote(channel)].filter(Boolean).join(" ");
 }
 
 /**

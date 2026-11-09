@@ -41,6 +41,7 @@ model Organization {
   calls                 Call[]
   assistantSessions     AssistantSession[]
   chatSessions          ChatSession[]
+  chatPhotos            ChatPhoto[]
   usageRecords          UsageRecord[]
   callbacks             Callback[]
   settings              OrganizationSettings?
@@ -265,6 +266,28 @@ model Call {
   @@map("ca_calls")
 }
 
+// A photo a client sent on WhatsApp, Instagram or Messenger, usually of the
+// nails they want (src/lib/chat-photos.ts). Kept for the salon, and linked
+// to the booking made in that conversation so the technician sees it with
+// the appointment. The bytes are kept here: a few hundred kilobytes each.
+model ChatPhoto {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel        String
+  conversationId String
+  mediaType      String
+  data           Bytes
+  caption        String?
+  appointmentId  String?
+  appointment    Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([channel, conversationId])
+  @@index([appointmentId])
+  @@map("ca_chat_photos")
+}
+
 // Where a booking conversation on WhatsApp, Instagram or Messenger stands
 // between messages (src/lib/chat-booking.ts): the model's history with its
 // diary checks, and what was last read back, so a "yes" in the next message
@@ -470,6 +493,9 @@ model Appointment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Photos the client sent when booking by message.
+  photos         ChatPhoto[]
 
   @@unique([organizationId, bookingNumber])
   @@index([organizationId, startsAt])

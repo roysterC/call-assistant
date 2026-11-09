@@ -4,7 +4,7 @@
  * webhook signatures are checked there too.
  */
 
-const GRAPH_API_BASE = "https://graph.facebook.com/v21.0";
+export const GRAPH_API_BASE = "https://graph.facebook.com/v21.0";
 
 /** The salon's number (Meta's phone number id) and its token. */
 export interface WhatsAppSender {

@@ -19,6 +19,7 @@
  * acts on entries for the salons that check proved.
  */
 
+import { downloadLinkedPhoto, photoLine, savePhoto } from "@/lib/chat-photos";
 import { bookingReply } from "@/lib/chat-booking";
 import { prisma } from "@/lib/prisma";
 import {
@@ -313,18 +314,28 @@ async function processMessageEvent(
     return;
   }
 
-  // Non-text messages: reply with a polite fallback so the sender knows
-  // we got it but can't process media yet. Matches WhatsApp's UX today.
-  const text = message.text?.trim();
-  if (!text) {
+  // Photos (usually the nails they want) are kept for the salon and shown in
+  // the conversation as a line of text (chat-photos.ts). Anything else that
+  // is not text gets a polite fallback.
+  const imageUrls = (message.attachments ?? [])
+    .map((a) => a as { type?: string; payload?: { url?: string } })
+    .filter((a) => a.type === "image" && typeof a.payload?.url === "string")
+    .map((a) => a.payload!.url!)
+    .slice(0, 3);
+  const caption = message.text?.trim();
+  if (!caption && imageUrls.length === 0) {
     await sendText(
       ctx,
       channel,
       senderId,
-      "Thanks for your message! I can currently only process text messages. Please send your question as text."
+      "Thanks for your message! I can only read text and photos here. Please send your question as text."
     );
     return;
   }
+  const photos = (await Promise.all(imageUrls.map((u) => downloadLinkedPhoto(u)))).filter(
+    (p): p is NonNullable<typeof p> => p !== null
+  );
+  const text = imageUrls.length ? photoLine(caption, photos.length > 0) : caption!;
 
   // Upsert SocialConversation.
   let conversation = await prisma.socialConversation.findUnique({
@@ -389,6 +400,9 @@ async function processMessageEvent(
       externalMessageId: message.mid,
     },
   });
+  for (const photo of photos) {
+    await savePhoto({ organizationId: ctx.organizationId, channel, conversationId: conversation.id, photo, caption });
+  }
 
   // Build conversation history for Claude. Honour per-conversation
   // persona reset (see WhatsApp handler for full rationale): if the

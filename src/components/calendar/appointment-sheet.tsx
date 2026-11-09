@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Phone, TriangleAlert } from "lucide-react";
-import { apiFetch } from "@/lib/api-fetch";
+import { apiFetch, withAsOrg } from "@/lib/api-fetch";
+import { bookedByMessage } from "@/lib/booked-by";
 import { formatMoney, minorToInput, parseMoney } from "@/lib/money";
 import { Input } from "@/components/ui/input";
 import { APPOINTMENT_STATUS } from "@/lib/status-styles";
@@ -144,7 +145,11 @@ export function AppointmentSheet({
                 {STATUS_KEY[a.status] ? t(STATUS_KEY[a.status]) : (tone?.label ?? a.status)}
               </span>
               <span className="text-muted-foreground text-xs">
-                {a.source === "voice" ? t("sheet.bookedByPhone") : t("sheet.bookedAtDesk")}
+                {bookedByMessage(a.notes)
+                  ? t("sheet.bookedByMessage", { channel: bookedByMessage(a.notes)! })
+                  : a.source === "voice"
+                    ? t("sheet.bookedByPhone")
+                    : t("sheet.bookedAtDesk")}
               </span>
               {a.bookingNumber !== null && (
                 <span className="ml-auto text-xs tabular-nums text-muted-foreground">
@@ -177,6 +182,38 @@ export function AppointmentSheet({
 
               <dt className="text-muted-foreground text-xs pt-0.5">{t("sheet.stylist")}</dt>
               <dd>{a.stylistName}</dd>
+
+              {a.photos && a.photos.length > 0 && (
+                <>
+                  <dt className="text-muted-foreground text-xs pt-0.5">{t("sheet.photos")}</dt>
+                  <dd className="flex flex-wrap gap-2">
+                    {a.photos.map((p, i) => (
+                      <a
+                        key={p.id}
+                        href={withAsOrg(`/api/chat-photos/${p.id}`)}
+                        target="_blank"
+                        rel="noopener"
+                        className="block overflow-hidden rounded-md border"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image */}
+                        <img
+                          src={withAsOrg(`/api/chat-photos/${p.id}`)}
+                          alt={t("sheet.photoAlt", { n: i + 1 })}
+                          className="h-20 w-20 object-cover"
+                          loading="lazy"
+                        />
+                      </a>
+                    ))}
+                  </dd>
+                </>
+              )}
+
+              {a.notes?.trim() && (
+                <>
+                  <dt className="text-muted-foreground text-xs pt-0.5">{t("form.notes")}</dt>
+                  <dd className="whitespace-pre-wrap">{a.notes}</dd>
+                </>
+              )}
 
               {a.lead.phone && (
                 <>
