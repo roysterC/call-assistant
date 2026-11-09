@@ -905,10 +905,12 @@ export default function OrganizationDetailPage() {
                 Instagram (Meta Graph API)
               </label>
               <p className="text-xs text-muted-foreground mt-1">
-                Requires a Meta app with the Instagram Graph API product
-                enabled, an Instagram Business account linked to a Facebook
-                Page, and the webhook subscription pointing at{" "}
-                <code className="text-[10px]">/api/meta/webhook</code>.
+                The salon&apos;s Instagram professional account, added in the Meta app&apos;s
+                Instagram API setup (no Facebook Page needed). The account ID and token
+                come from &quot;Generate access tokens&quot;; the webhook points at{" "}
+                <code className="text-[10px]">/api/meta/webhook</code>, subscribed to{" "}
+                <code className="text-[10px]">messages</code>. Unified Login apps sign with the
+                Meta app secret above; only Instagram Login apps need their own below.
               </p>
               <a
                 href="https://developers.facebook.com/docs/messenger-platform/instagram/"
@@ -964,7 +966,7 @@ export default function OrganizationDetailPage() {
                     className="mt-1"
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Not the Meta app secret above: Instagram has its own, and signs its messages with it.
+                    Only for apps on Instagram Login (IGAA tokens), which sign with Instagram&apos;s own secret. Unified Login (EAA tokens): leave blank.
                   </p>
                 </div>
               </div>
