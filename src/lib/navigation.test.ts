@@ -10,17 +10,20 @@ import {
   orderForStartPage,
   splitNav,
   resolveStartPage,
+  featureFlags,
+  hasDiary,
   type FeatureFlags,
 } from "./navigation";
 
 const salon: FeatureFlags = {
   voiceEnabled: true,
+  diaryEnabled: true,
   chatbotEnabled: false,
   whatsappEnabled: false,
   instagramEnabled: false,
   facebookEnabled: false,
 };
-const chatOnly: FeatureFlags = { ...salon, voiceEnabled: false, chatbotEnabled: true };
+const chatOnly: FeatureFlags = { ...salon, voiceEnabled: false, diaryEnabled: false, chatbotEnabled: true };
 
 describe("isNavVisible", () => {
   it("shows no feature page until the organisation's features have loaded", () => {
@@ -28,6 +31,31 @@ describe("isNavVisible", () => {
     expect(isNavVisible(diary, null)).toBe(false);
     expect(isNavVisible(diary, salon)).toBe(true);
     expect(isNavVisible(diary, chatOnly)).toBe(false);
+  });
+});
+
+describe("the diary", () => {
+  const diary = NAV_PAGES.find((p) => p.href === DIARY)!;
+  const flags = (s: Parameters<typeof featureFlags>[0]) => featureFlags(s);
+
+  it("comes with the phone receptionist, with booking by message, or on its own", () => {
+    expect(hasDiary({ voiceEnabled: true })).toBe(true);
+    expect(hasDiary({ chatBookingEnabled: true })).toBe(true);
+    expect(hasDiary({ diaryEnabled: true })).toBe(true);
+    expect(hasDiary({ instagramEnabled: true } as never)).toBe(false);
+  });
+
+  it("shows the diary, clients, sales and callbacks to a salon booking only by Instagram", () => {
+    const instagramOnly = flags({ instagramEnabled: true, chatBookingEnabled: true });
+    for (const href of [DIARY, "/clients", "/sales", "/callbacks"]) {
+      expect(isNavVisible(NAV_PAGES.find((p) => p.href === href)!, instagramOnly)).toBe(true);
+    }
+    expect(isNavVisible(NAV_PAGES.find((p) => p.href === "/calls")!, instagramOnly)).toBe(false);
+    expect(isNavVisible(NAV_PAGES.find((p) => p.href === "/leads")!, instagramOnly)).toBe(false);
+  });
+
+  it("and to a salon that only wants the diary", () => {
+    expect(isNavVisible(diary, flags({ diaryEnabled: true }))).toBe(true);
   });
 });
 

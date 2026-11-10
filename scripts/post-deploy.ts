@@ -88,6 +88,13 @@ async function main() {
     console.log(`  ✓ Client names split: ${names}`);
     const numbers = await numberAppointments(prisma);
     console.log(`  ✓ Appointments numbered: ${numbers}`);
+    // The diary became a switch of its own; a salon that has it through the
+    // phone or booking by message keeps it if those are switched off.
+    const diaries = await prisma.organizationSettings.updateMany({
+      where: { diaryEnabled: false, OR: [{ voiceEnabled: true }, { chatBookingEnabled: true }] },
+      data: { diaryEnabled: true },
+    });
+    console.log(`  ✓ Diaries switched on for salons that had one through the phone or messages: ${diaries.count}`);
     // Shogo's official price list, exactly once: after it is in (here or by
     // hand) it is recorded, and the salon's own edits in Settings are never
     // overwritten. A failure is reported, not fatal: the CRM is already live

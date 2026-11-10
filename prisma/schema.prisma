@@ -141,6 +141,11 @@ model OrganizationSettings {
   teamMembers             Json         @default("[]")
   whatsappSystemPrompt    String?
   whatsappEnabled         Boolean      @default(false)
+  // The salon's diary, clients, sales and callbacks, on their own: a salon
+  // can run its book on Kikai with no receptionist at all. On whenever the
+  // phone receptionist or booking by message is, which need it (hasDiary in
+  // src/lib/navigation.ts).
+  diaryEnabled            Boolean      @default(false)
   // WhatsApp, Instagram and Messenger may book into the diary, with the same
   // checks and read-back as the phone (src/lib/chat-booking.ts). Off until
   // Kikai switches it on; the salon's own diary must be set up as well.

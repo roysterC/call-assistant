@@ -1,13 +1,12 @@
 "use client";
 
+import { hasDiary } from "@/lib/navigation";
 import { useTradeWords } from "@/components/providers/language-provider";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Save,
   Users,
   MessageSquare,
   MessageCircle,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
+import { SaveBar, useLeaveGuard } from "@/components/ui/unsaved-changes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Textarea } from "@/components/ui/textarea";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
@@ -45,6 +45,8 @@ interface Settings {
   chatbotEnabled: boolean;
   whatsappEnabled: boolean;
   voiceEnabled: boolean;
+  /** The diary, by itself or by what books into it (hasDiary). */
+  hasDiary: boolean;
   instagramEnabled: boolean;
   instagramBusinessId: string | null;
   facebookEnabled: boolean;
@@ -55,6 +57,25 @@ interface Settings {
   startPage: string | null;
   /** The salon's own answers to common questions, for the bots. */
   salonFaq: string;
+}
+
+/** The fields this page edits and saves: what "unsaved changes" compares. */
+type Editable = Pick<
+  Settings,
+  "businessName" | "contactPhone" | "timezone" | "businessHours" | "services" | "teamMembers" | "startPage" | "salonFaq"
+>;
+
+function editable(s: Settings): Editable {
+  return {
+    businessName: s.businessName,
+    contactPhone: s.contactPhone,
+    timezone: s.timezone,
+    businessHours: s.businessHours,
+    services: s.services,
+    teamMembers: s.teamMembers,
+    startPage: s.startPage,
+    salonFaq: s.salonFaq,
+  };
 }
 
 interface PhoneNumber {
@@ -78,6 +99,9 @@ export default function SettingsPage() {
   const [voiceNumbers, setVoiceNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // What was last loaded or saved: the page has unsaved changes while what is
+  // on screen differs from it (see the save bar and the leave guard below).
+  const [saved, setSaved] = useState<Editable | null>(null);
   // What a save did, as a snack bar. It used to say nothing either way, which
   // is how a contact number that never saved went unnoticed.
   const { notify } = useDialogs();
@@ -99,6 +123,7 @@ export default function SettingsPage() {
           chatbotEnabled: !!data.settings?.chatbotEnabled,
           whatsappEnabled: !!data.settings?.whatsappEnabled,
           voiceEnabled: !!data.settings?.voiceEnabled,
+          hasDiary: data.settings ? hasDiary(data.settings) : false,
           instagramEnabled: !!data.settings?.instagramEnabled,
           instagramBusinessId: data.settings?.instagramBusinessId ?? null,
           facebookEnabled: !!data.settings?.facebookEnabled,
@@ -107,6 +132,7 @@ export default function SettingsPage() {
           salonFaq: data.settings?.salonFaq ?? "",
         };
         setSettings(s);
+        setSaved(editable(s));
         if (!s.startPage && data.startPage) setAutomaticStart(data.startPage);
 
         // Parallel phone-number fetches (only for enabled features)
@@ -137,8 +163,9 @@ export default function SettingsPage() {
     fetchAll();
   }, []);
 
-  async function handleSave() {
-    if (!settings) return;
+  /** Whether it saved: a page is only left after a save that worked. */
+  async function handleSave(): Promise<boolean> {
+    if (!settings) return false;
     setSaving(true);
     try {
       // Only send the fields the settings page actually edits. The API
@@ -161,23 +188,34 @@ export default function SettingsPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         notify(data.error || "Could not save your changes.");
-        return;
+        return false;
       }
       // Show what was stored, e.g. the contact number as texts will print it.
-      setSettings({
+      const stored = {
         ...settings,
         contactPhone: data.settings?.contactPhone ?? null,
         startPage: data.settings?.startPage ?? null,
         salonFaq: data.settings?.salonFaq ?? "",
-      });
+      };
+      setSettings(stored);
+      setSaved(editable(stored));
       notify("Settings saved", "success");
+      return true;
     } catch (error) {
       console.error("Failed to save settings:", error);
       notify("Could not reach the server. Your changes are not saved.");
+      return false;
     } finally {
       setSaving(false);
     }
   }
+
+  // Hooks before the early return below, so they run on every render.
+  const dirty = Boolean(canEdit && settings && saved && JSON.stringify(editable(settings)) !== JSON.stringify(saved));
+  const discard = () => {
+    if (settings && saved) setSettings({ ...settings, ...saved });
+  };
+  const { dialog: leaveGuard } = useLeaveGuard({ dirty, save: handleSave, discard });
 
   if (loading || !settings) {
     return (
@@ -243,18 +281,11 @@ export default function SettingsPage() {
       <PageHeader
         title="Settings"
         actions={
-          <div className="flex items-center gap-3">
-            {me?.role === "member" ? (
-              <span className="text-sm text-muted-foreground">
-                Only the salon&apos;s owner can change these.
-              </span>
-            ) : (
-              <Button onClick={handleSave} disabled={saving || !canEdit}>
-                <Save className="w-4 h-4 mr-2" />
-                {saving ? "Saving…" : "Save changes"}
-              </Button>
-            )}
-          </div>
+          me?.role === "member" ? (
+            <span className="text-sm text-muted-foreground">
+              Only the salon&apos;s owner can change these.
+            </span>
+          ) : undefined
         }
       />
 
@@ -308,7 +339,7 @@ export default function SettingsPage() {
                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 <option value="">Automatic ({labelFor(automaticStart)})</option>
-                {NAV_PAGES.filter((p) => isStartPageChoice(p.href) && isNavVisible(p, settings)).map((p) => (
+                {NAV_PAGES.filter((p) => isStartPageChoice(p.href) && isNavVisible(p, { ...settings, diaryEnabled: settings.hasDiary })).map((p) => (
                   <option key={p.href} value={p.href}>
                     {p.label}
                   </option>
@@ -376,7 +407,7 @@ export default function SettingsPage() {
             All three feed the same place: the availability algorithm enforces
             them, and the voice prompt is generated from them, so what the agent
             says and what it will actually do cannot drift apart. */}
-        {settings.voiceEnabled && (
+        {settings.hasDiary && (
           <>
             <Card className="gap-0">
               <CardHeader className="border-b pb-3">
@@ -487,6 +518,10 @@ export default function SettingsPage() {
           </ExpandableSection>
         )}
       </fieldset>
+
+      {/* Comes up once something is changed; see unsaved-changes.tsx. */}
+      {canEdit && <SaveBar dirty={dirty} saving={saving} onSave={() => void handleSave()} onDiscard={discard} />}
+      {leaveGuard}
     </div>
   );
 }

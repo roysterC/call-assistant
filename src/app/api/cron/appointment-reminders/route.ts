@@ -57,7 +57,8 @@ export async function POST(req: NextRequest) {
   const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
 
   const orgs = await prisma.organizationSettings.findMany({
-    where: { voiceEnabled: true },
+    // Every salon with the diary, whatever books into it (hasDiary).
+    where: { OR: [{ diaryEnabled: true }, { voiceEnabled: true }, { chatBookingEnabled: true }] },
     select: {
       organizationId: true,
       businessName: true,

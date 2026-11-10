@@ -2,7 +2,8 @@
 
 import { BusinessTypePicker } from "@/components/admin/business-type-picker";
 import { businessTypesOf, PROFILES } from "@/lib/business-types";
-import { useCallback, useEffect, useState } from "react";
+import { hasDiary } from "@/lib/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,6 @@ import {
   MoreHorizontal,
   KeyRound,
   UserCog,
-  Save,
   Trash2,
   Plus,
   ExternalLink,
@@ -46,6 +46,7 @@ import {
   Check,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { SaveBar, useLeaveGuard } from "@/components/ui/unsaved-changes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { plural } from "@/lib/plural";
 import { VOICE_CHANNEL, WHATSAPP_CHANNEL, channelLabel } from "@/lib/phone-channels";
@@ -67,6 +68,7 @@ interface Org {
     chatbotEnabled: boolean;
     whatsappEnabled: boolean;
     chatBookingEnabled: boolean;
+    diaryEnabled: boolean;
     voiceEnabled: boolean;
     whatsappSystemPrompt: string | null;
     calComApiKey: string | null;
@@ -101,6 +103,59 @@ interface Org {
   _count: { leads: number; calls: number; websites: number };
 }
 
+/** The organisation's own fields this page saves (PUT /api/admin/organizations/[id]). */
+function orgBody(o: Org) {
+  return {
+    name: o.name,
+    planTier: o.planTier,
+    businessType: o.businessType,
+    alsoOffers: o.alsoOffers,
+    anthropicApiKeyOverride: o.anthropicApiKeyOverride,
+    usageMarkupPercent: o.usageMarkupPercent,
+    enabled: o.enabled,
+  };
+}
+
+/** The settings this page saves (PUT /api/settings): features, keys and prompts. */
+function settingsBody(s: NonNullable<Org["settings"]>) {
+  return {
+    chatbotEnabled: s.chatbotEnabled,
+    whatsappEnabled: s.whatsappEnabled,
+    chatBookingEnabled: s.chatBookingEnabled,
+    diaryEnabled: s.diaryEnabled,
+    voiceEnabled: s.voiceEnabled,
+    whatsappSystemPrompt: s.whatsappSystemPrompt,
+    instagramEnabled: s.instagramEnabled,
+    instagramSystemPrompt: s.instagramSystemPrompt,
+    instagramBusinessId: s.instagramBusinessId,
+    instagramAccessToken: s.instagramAccessToken,
+    facebookEnabled: s.facebookEnabled,
+    facebookSystemPrompt: s.facebookSystemPrompt,
+    facebookPageId: s.facebookPageId,
+    facebookPageAccessToken: s.facebookPageAccessToken,
+    metaAppSecret: s.metaAppSecret,
+    instagramAppSecret: s.instagramAppSecret,
+    metaVerifyToken: s.metaVerifyToken,
+    whatsappAccessToken: s.whatsappAccessToken,
+    calComApiKey: s.calComApiKey,
+    calComEventTypeId: s.calComEventTypeId,
+  };
+}
+
+/** Everything Save sends, to compare with what was last loaded. */
+function snapshot(o: Org): string {
+  return JSON.stringify({ org: orgBody(o), settings: o.settings ? settingsBody(o.settings) : null });
+}
+
+/** What Save would send from `edited`, laid over freshly loaded `fresh`. */
+function withEdits(fresh: Org, edited: Org): Org {
+  return {
+    ...fresh,
+    ...orgBody(edited),
+    settings: fresh.settings && edited.settings ? { ...fresh.settings, ...settingsBody(edited.settings) } : fresh.settings,
+  };
+}
+
 export default function OrganizationDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -108,6 +163,15 @@ export default function OrganizationDetailPage() {
   const [org, setOrg] = useState<Org | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // As last loaded from the server: the page has unsaved changes while what
+  // Save would send differs from it (the save bar and the leave guard).
+  const [savedOrg, setSavedOrg] = useState<Org | null>(null);
+  const orgRef = useRef<Org | null>(null);
+  const savedRef = useRef<Org | null>(null);
+  useEffect(() => {
+    orgRef.current = org;
+    savedRef.current = savedOrg;
+  }, [org, savedOrg]);
 
   const [phoneDialog, setPhoneDialog] = useState(false);
   const [phoneForm, setPhoneForm] = useState({
@@ -177,13 +241,20 @@ export default function OrganizationDetailPage() {
     }
   }, []);
 
-  const load = useCallback(async () => {
+  // Reloaded after adding a number, a website or a login too: unsaved edits
+  // to the form are kept through those (they used to vanish), and dropped
+  // only after a save.
+  const load = useCallback(async (opts: { keepEdits?: boolean } = {}) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/organizations/${params.id}`);
       if (!res.ok) throw new Error("Not found");
-      const data = await res.json();
-      setOrg(data);
+      const data: Org = await res.json();
+      const current = orgRef.current;
+      const edited =
+        opts.keepEdits !== false && current && savedRef.current && snapshot(current) !== snapshot(savedRef.current);
+      setSavedOrg(data);
+      setOrg(edited && current ? withEdits(data, current) : data);
       await loadWebsites(data.id);
     } finally {
       setLoading(false);
@@ -268,49 +339,22 @@ export default function OrganizationDetailPage() {
   // feature/prompt settings. Previously the page had two save buttons that
   // hit different endpoints, which was easy to miss and led to people
   // editing IG/FB prompts and walking away without saving them.
-  async function save() {
-    if (!org) return;
+  /** Whether it saved: the page is only left after a save that worked. */
+  async function save(): Promise<boolean> {
+    if (!org) return false;
     setSaving(true);
     try {
       const orgPut = fetch(`/api/admin/organizations/${org.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: org.name,
-          planTier: org.planTier,
-          businessType: org.businessType,
-          alsoOffers: org.alsoOffers,
-          anthropicApiKeyOverride: org.anthropicApiKeyOverride,
-          usageMarkupPercent: org.usageMarkupPercent,
-          enabled: org.enabled,
-        }),
+        body: JSON.stringify(orgBody(org)),
       });
 
       const settingsPut = org.settings
         ? fetch(`/api/settings?asOrg=${org.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chatbotEnabled: org.settings.chatbotEnabled,
-              whatsappEnabled: org.settings.whatsappEnabled,
-              chatBookingEnabled: org.settings.chatBookingEnabled,
-              voiceEnabled: org.settings.voiceEnabled,
-              whatsappSystemPrompt: org.settings.whatsappSystemPrompt,
-              instagramEnabled: org.settings.instagramEnabled,
-              instagramSystemPrompt: org.settings.instagramSystemPrompt,
-              instagramBusinessId: org.settings.instagramBusinessId,
-              instagramAccessToken: org.settings.instagramAccessToken,
-              facebookEnabled: org.settings.facebookEnabled,
-              facebookSystemPrompt: org.settings.facebookSystemPrompt,
-              facebookPageId: org.settings.facebookPageId,
-              facebookPageAccessToken: org.settings.facebookPageAccessToken,
-              metaAppSecret: org.settings.metaAppSecret,
-              instagramAppSecret: org.settings.instagramAppSecret,
-              metaVerifyToken: org.settings.metaVerifyToken,
-              whatsappAccessToken: org.settings.whatsappAccessToken,
-              calComApiKey: org.settings.calComApiKey,
-              calComEventTypeId: org.settings.calComEventTypeId,
-            }),
+            body: JSON.stringify(settingsBody(org.settings)),
           })
         : Promise.resolve(null);
 
@@ -319,14 +363,16 @@ export default function OrganizationDetailPage() {
         const which = !orgRes.ok ? orgRes : settingsRes!;
         const err = await which.json().catch(() => ({}));
         notify(err.error || "Failed to save");
-        return;
+        return false;
       }
-      await load();
+      await load({ keepEdits: false });
       // A save that worked used to say nothing, which left a new API key
       // looking as if it might not have taken.
       notify("Organisation saved", "success");
+      return true;
     } catch {
       notify("Could not reach the server. Nothing was saved.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -449,6 +495,19 @@ export default function OrganizationDetailPage() {
   // function with its own button. It's now folded into `save()` above so
   // a single click at the top of the page persists everything.
 
+  /**
+   * The phone or booking by message, which book into the diary: switching
+   * one on switches the diary on too, and it stays on if they are later
+   * switched off, so a salon does not lose its diary with its receptionist.
+   */
+  function switchOnWithDiary(key: "voiceEnabled" | "chatBookingEnabled", on: boolean) {
+    if (!org?.settings) return;
+    setOrg({
+      ...org,
+      settings: { ...org.settings, [key]: on, ...(on ? { diaryEnabled: true } : {}) },
+    });
+  }
+
   function updateFeature<K extends keyof NonNullable<Org["settings"]>>(
     key: K,
     value: NonNullable<Org["settings"]>[K]
@@ -476,6 +535,13 @@ export default function OrganizationDetailPage() {
     }
     router.push("/admin/organizations");
   }
+
+  // Before the early returns below, so they run on every render.
+  const dirty = Boolean(org && savedOrg && snapshot(org) !== snapshot(savedOrg));
+  const discard = () => {
+    if (org && savedOrg) setOrg(withEdits(org, savedOrg));
+  };
+  const { dialog: leaveDialog, leave } = useLeaveGuard({ dirty, save, discard });
 
   if (loading) {
     return (
@@ -635,7 +701,7 @@ export default function OrganizationDetailPage() {
           size="sm"
           aria-label="Back to organisations"
           className="mt-0.5"
-          onClick={() => router.push("/admin/organizations")}
+          onClick={() => leave("/admin/organizations")}
         >
           <ArrowLeft className="w-4 h-4" />
         </Button>
@@ -646,7 +712,7 @@ export default function OrganizationDetailPage() {
             <>
               <Button
                 variant="outline"
-                onClick={() => router.push(`/start?asOrg=${org.id}`)}
+                onClick={() => leave(`/start?asOrg=${org.id}`)}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 View as org
@@ -654,10 +720,6 @@ export default function OrganizationDetailPage() {
               <Button variant="outline" onClick={deleteOrg}>
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
-              </Button>
-              <Button onClick={save} disabled={saving}>
-                <Save className="w-4 h-4 mr-2" />
-                {saving ? "Saving…" : "Save"}
               </Button>
             </>
           }
@@ -802,16 +864,27 @@ export default function OrganizationDetailPage() {
                 onToggle={(v) => updateFeature("facebookEnabled", v)}
               />
               <FeatureToggle
+                label="Diary"
+                description={
+                  org.settings.voiceEnabled || org.settings.chatBookingEnabled
+                    ? "Diary, clients, sales and callbacks. On while the phone receptionist or booking from messages is: they book into it."
+                    : "Diary, clients, sales and callbacks, for a salon running its book on Kikai, with or without the receptionist."
+                }
+                enabled={hasDiary(org.settings)}
+                locked={org.settings.voiceEnabled || org.settings.chatBookingEnabled}
+                onToggle={(v) => updateFeature("diaryEnabled", v)}
+              />
+              <FeatureToggle
                 label="Book from messages"
                 description="WhatsApp, Instagram and Messenger book into the diary, read back and confirmed like the phone. Needs the salon's diary set up."
                 enabled={org.settings.chatBookingEnabled}
-                onToggle={(v) => updateFeature("chatBookingEnabled", v)}
+                onToggle={(v) => switchOnWithDiary("chatBookingEnabled", v)}
               />
               <FeatureToggle
                 label="Phone receptionist"
                 description="Calls to the salon's Voice numbers answered by our receptionist"
                 enabled={org.settings.voiceEnabled}
-                onToggle={(v) => updateFeature("voiceEnabled", v)}
+                onToggle={(v) => switchOnWithDiary("voiceEnabled", v)}
               />
             </div>
 
@@ -1599,6 +1672,10 @@ export default function OrganizationDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Comes up once something is changed; see unsaved-changes.tsx. */}
+      <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onDiscard={discard} />
+      {leaveDialog}
     </div>
   );
 }
@@ -1623,11 +1700,14 @@ function FeatureToggle({
   description,
   enabled,
   onToggle,
+  locked = false,
 }: {
   label: string;
   description: string;
   enabled: boolean;
   onToggle: (v: boolean) => void;
+  /** On because something else needs it: shown, not switchable. */
+  locked?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
@@ -1638,6 +1718,7 @@ function FeatureToggle({
       <Button
         variant={enabled ? "default" : "outline"}
         size="sm"
+        disabled={locked}
         onClick={() => onToggle(!enabled)}
       >
         {enabled ? "Enabled" : "Disabled"}

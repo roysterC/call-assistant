@@ -57,6 +57,7 @@ import {
   NAV_PAGES,
   isNavShown,
   splitNav,
+  featureFlags,
   type FeatureFlags,
   type NavPage,
 } from "@/lib/navigation";
@@ -110,7 +111,7 @@ function useNavModel() {
 
   const [features, setFeatures] = useState<FeatureFlags | null>(null);
   // The counter beside Callbacks.
-  const pending = usePendingCallbacks(Boolean(features?.voiceEnabled));
+  const pending = usePendingCallbacks(Boolean(features?.diaryEnabled));
   useEffect(() => {
     // Another organisation (super-admin switcher): its own count.
     callbacksChanged();
@@ -150,13 +151,7 @@ function useNavModel() {
         setOrgName(d?.organizationName || session?.user?.organizationName || "Call Assistant");
         if (!d?.settings) return;
         setChosenStart(d.settings.startPage ?? null);
-        setFeatures({
-          chatbotEnabled: !!d.settings.chatbotEnabled,
-          whatsappEnabled: !!d.settings.whatsappEnabled,
-          voiceEnabled: !!d.settings.voiceEnabled,
-          instagramEnabled: !!d.settings.instagramEnabled,
-          facebookEnabled: !!d.settings.facebookEnabled,
-        });
+        setFeatures(featureFlags(d.settings));
       })
       .catch(() => setOrgName(session?.user?.organizationName || "Call Assistant"));
   }, [session?.user?.id, session?.user?.organizationName, asOrg]);
