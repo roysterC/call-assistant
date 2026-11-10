@@ -245,7 +245,10 @@ export default function OrganizationDetailPage() {
   // to the form are kept through those (they used to vanish), and dropped
   // only after a save.
   const load = useCallback(async (opts: { keepEdits?: boolean } = {}) => {
-    setLoading(true);
+    // The spinner is for the first load only. Reloading after a save used to
+    // put it up too, which took the whole page away and brought it back at
+    // the top; now the page updates where it stands.
+    if (!orgRef.current) setLoading(true);
     try {
       const res = await fetch(`/api/admin/organizations/${params.id}`);
       if (!res.ok) throw new Error("Not found");
