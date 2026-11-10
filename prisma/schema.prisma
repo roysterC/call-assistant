@@ -33,6 +33,11 @@ model Organization {
   // increment in the same transaction as the appointment it numbers, so two
   // bookings saved at once (desk and phone) can never share one.
   nextBookingNumber       Int      @default(1001)
+  // On for a salon made with an owner invite (src/lib/invitations.ts):
+  // its owner is taken through /onboarding (name, type, hours, services,
+  // team) before anything else, and finishing turns it off. Off by default,
+  // so salons set up by hand never see onboarding.
+  needsOnboarding         Boolean  @default(false)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -53,6 +58,7 @@ model Organization {
   phoneNumbers          PhoneNumber[]
   appointments          Appointment[]
   timeBlocks            TimeBlock[]
+  invitations           Invitation[]
 
   @@map("ca_organizations")
 }
@@ -94,6 +100,29 @@ model User {
   updatedAt          DateTime           @updatedAt
 
   @@map("ca_users")
+}
+
+/// A link that lets someone make their own login for a salon: Kikai creates
+/// the salon, invites its owner, and sends them the link. Only a SHA-256 of
+/// the link's token is kept, so a copy of the database cannot be used to sign
+/// up. Works once, until `expiresAt`. See src/lib/invitations.ts.
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  /// The role the new login gets: "admin" (owner) or "member" (staff).
+  role           String       @default("admin")
+  tokenHash      String       @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  /// The super-admin who sent it.
+  createdById    String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@map("ca_invitations")
 }
 
 model Account {

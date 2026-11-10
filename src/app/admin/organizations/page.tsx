@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AdminUsageTable } from "@/components/usage/admin-usage-table";
+import { InviteLinkDialog, inviteLink } from "@/components/admin/invitations";
 
 interface Organization {
   id: string;
@@ -53,8 +54,10 @@ export default function OrganizationsPage() {
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const blank = { name: "", slug: "", planTier: "starter", businessType: "hair" as BusinessType, alsoOffers: [] as BusinessType[] };
+  const blank = { name: "", slug: "", planTier: "starter", businessType: "hair" as BusinessType, alsoOffers: [] as BusinessType[], ownerEmail: "" };
   const [form, setForm] = useState(blank);
+  // The owner's invite link, shown once after the salon is made with one.
+  const [invite, setInvite] = useState<{ link: string; email: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -84,8 +87,11 @@ export default function OrganizationsPage() {
         notify(err.error || "Couldn't create the organisation. Try again.");
         return;
       }
+      const made = await res.json();
       setDialogOpen(false);
       setForm(blank);
+      if (made.inviteToken) setInvite({ link: inviteLink(made.inviteToken), email: made.invitation.email });
+      else if (made.inviteError) notify(`The salon is made, but the invite wasn't: ${made.inviteError}`);
       await load();
     } finally {
       setCreating(false);
@@ -221,6 +227,21 @@ export default function OrganizationsPage() {
             <p className="text-xs text-muted-foreground">
               It starts with a price list for these types, without prices, to edit in Settings.
             </p>
+            <div>
+              <label htmlFor="owner-email" className="text-xs font-medium">Owner&apos;s email (optional)</label>
+              <Input
+                id="owner-email"
+                type="email"
+                value={form.ownerEmail}
+                onChange={(e) => setForm({ ...form, ownerEmail: e.target.value })}
+                placeholder="owner@salon.co.uk"
+                className="mt-1"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                You&apos;ll get a link to send them. They make their own login, then set up their salon:
+                its hours, services and team.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -235,6 +256,8 @@ export default function OrganizationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InviteLinkDialog link={invite?.link ?? null} email={invite?.email ?? ""} onClose={() => setInvite(null)} />
     </div>
   );
 }

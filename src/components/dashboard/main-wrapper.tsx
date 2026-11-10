@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api-fetch";
 import { BrandMark, Navigation } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
 import { BookingAlerts } from "@/components/notifications/booking-alerts";
@@ -21,6 +22,9 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
     "/privacy-policy",
     "/terms-of-service",
     "/data-deletion",
+    // An owner's invite link, and setting the salon up (src/app/onboarding).
+    "/invite/",
+    "/onboarding",
   ].some((p) => pathname?.startsWith(p));
   if (chromeless) {
     return <>{children}</>;
@@ -33,6 +37,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="h-full flex flex-col w-full">
+      <OnboardingGate />
       {/* A phone's header: who this is. The menu is the tab bar along the
           bottom (Navigation). */}
       <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -61,6 +66,28 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+}
+
+/**
+ * A salon not set up yet goes to onboarding, whichever page was opened: a
+ * bookmark or a link must not land the owner in an empty diary. Asked once
+ * per load of the app; the onboarding page's Finish clears it.
+ */
+function OnboardingGate() {
+  const router = useRouter();
+  useEffect(() => {
+    let live = true;
+    apiFetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (live && d?.needsOnboarding) router.replace("/onboarding");
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [router]);
+  return null;
 }
 
 function SidebarFallback({ collapsed }: { collapsed: boolean }) {

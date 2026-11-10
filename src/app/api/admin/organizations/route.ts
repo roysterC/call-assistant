@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
+import { createInvitation, normaliseEmail } from "@/lib/invitations";
 
 export async function GET() {
   const ctx = await requireSuperAdmin();
@@ -57,9 +58,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // With an owner's email, the salon is made ready for them to set up
+    // themselves: they get an invite link and land on onboarding. Checked
+    // before the salon is made, so a bad address leaves nothing behind.
+    const ownerEmail = body.ownerEmail ? normaliseEmail(body.ownerEmail) : null;
+    if (body.ownerEmail && !ownerEmail) {
+      return NextResponse.json({ error: "The owner's email address does not look right." }, { status: 400 });
+    }
+    if (ownerEmail && (await prisma.user.findUnique({ where: { email: ownerEmail }, select: { id: true } }))) {
+      return NextResponse.json(
+        { error: "The owner's email already has a login. Use a different address." },
+        { status: 409 }
+      );
+    }
+
     const org = await prisma.organization.create({
       data: {
         name,
+        needsOnboarding: Boolean(ownerEmail),
         slug,
         planTier: planTier || "starter",
         businessType: types[0],
@@ -76,6 +92,12 @@ export async function POST(req: NextRequest) {
       include: { settings: true },
     });
 
+    if (ownerEmail) {
+      const invite = await createInvitation({ organizationId: org.id, email: ownerEmail, role: "admin", createdById: ctx.userId });
+      if (invite.ok) return NextResponse.json({ ...org, invitation: invite.invitation, inviteToken: invite.token });
+      // The salon is made; the invite can be sent again from its page.
+      return NextResponse.json({ ...org, inviteError: invite.error });
+    }
     return NextResponse.json(org);
   } catch (error) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

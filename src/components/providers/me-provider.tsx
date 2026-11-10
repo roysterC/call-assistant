@@ -42,12 +42,23 @@ export function isOwnerPage(path: string): boolean {
   return OWNER_PAGES.some((href) => path === href || path.startsWith(`${href}/`));
 }
 
+/** Fire on window after changing something /api/me reports, to have it read again. */
+export const ME_CHANGED = "kikai:me-changed";
+
 export function MeProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
   const [me, setMe] = useState<Me | null>(null);
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const isPublic = PUBLIC.some((p) => pathname.startsWith(p));
+  // Raised by a screen that changed what this answers without a navigation:
+  // onboarding choosing the salon's type, and so its word for the team.
+  const [changed, setChanged] = useState(0);
+  useEffect(() => {
+    const bump = () => setChanged((n) => n + 1);
+    window.addEventListener(ME_CHANGED, bump);
+    return () => window.removeEventListener(ME_CHANGED, bump);
+  }, []);
 
   useEffect(() => {
     if (status !== "authenticated" || isPublic) return;
@@ -63,7 +74,7 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
     };
     // Re-read on navigation, so a permission just changed is reflected
     // without signing out and in.
-  }, [status, isPublic, pathname]);
+  }, [status, isPublic, pathname, changed]);
 
   useEffect(() => {
     if (me?.role === "member" && !isPublic && isOwnerPage(pathname)) router.replace(START);

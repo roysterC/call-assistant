@@ -38,6 +38,8 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "insights/receptionist": { GET: "owner" },
   leads: { GET: "members" },
   me: { GET: "members", PUT: "members" },
+  // Staff see the salon is being set up; only the owner sets it up.
+  onboarding: { GET: "members", PUT: "owner", POST: "owner" },
   "phone-numbers": { GET: "members" },
   // Booking alerts on this person's own phone or computer.
   push: { DELETE: "members", GET: "members", POST: "members" },
