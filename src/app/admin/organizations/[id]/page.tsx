@@ -3,6 +3,7 @@
 import { BusinessTypePicker } from "@/components/admin/business-type-picker";
 import { businessTypesOf, PROFILES } from "@/lib/business-types";
 import { hasDiary } from "@/lib/navigation";
+import { bookingReadiness, missingText } from "@/lib/booking/readiness";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,8 @@ import {
   Globe,
   Copy,
   Check,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { SaveBar, useLeaveGuard } from "@/components/ui/unsaved-changes";
@@ -65,6 +68,12 @@ interface Org {
   enabled: boolean;
   settings: {
     businessName: string;
+    // The salon's diary set-up, edited on its own Settings page; read here
+    // only to say whether it can take bookings (bookingReadiness).
+    services?: unknown;
+    teamMembers?: unknown;
+    businessHours?: unknown;
+    diaryProvider?: string | null;
     chatbotEnabled: boolean;
     whatsappEnabled: boolean;
     chatBookingEnabled: boolean;
@@ -886,6 +895,7 @@ export default function OrganizationDetailPage() {
                 enabled={org.settings.voiceEnabled}
                 onToggle={(v) => switchOnWithDiary("voiceEnabled", v)}
               />
+              <BookingStatus org={org} />
             </div>
 
             {/* The salon's own Meta app: signs WhatsApp, Instagram and Messenger webhooks */}
@@ -1693,6 +1703,44 @@ function randomPassword(): string {
   const arr = new Uint32Array(12);
   crypto.getRandomValues(arr);
   return Array.from(arr, (n) => chars[n % chars.length]).join("");
+}
+
+/**
+ * Whether the salon's diary can take bookings, under the switches that book
+ * into it. Read from its saved Settings (services, team, hours), which this
+ * page does not edit. Until it can, the phone and the chats take messages
+ * instead, and nothing else says so.
+ */
+function BookingStatus({ org }: { org: Org }) {
+  const s = org.settings;
+  if (!s || !hasDiary(s)) return null;
+  const staff = PROFILES[businessTypesOf(org.businessType)[0]].staff;
+  const r = bookingReadiness({
+    services: s.services,
+    teamMembers: s.teamMembers,
+    businessHours: s.businessHours,
+    diaryProvider: s.diaryProvider,
+    staff,
+  });
+  const books = s.voiceEnabled || s.chatBookingEnabled;
+  return r.ready ? (
+    <p className="flex items-start gap-2 rounded-md border border-tea-green-600 bg-tea-green-900 px-3 py-2 text-xs text-tea-green-200">
+      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        The diary is ready to take bookings
+        {books ? ": the phone and chats switched on above book into it." : "."}
+      </span>
+    </p>
+  ) : (
+    <p className="flex items-start gap-2 rounded-md border border-papaya-whip-400 bg-papaya-whip-700 px-3 py-2 text-xs text-papaya-whip-100">
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        Not taking bookings yet: {missingText(r)}.{" "}
+        {books && "Until then the phone and chats take messages instead. "}
+        Set these up in the salon&apos;s own Settings (View as org).
+      </span>
+    </p>
+  );
 }
 
 function FeatureToggle({

@@ -1,6 +1,7 @@
 "use client";
 
 import { hasDiary } from "@/lib/navigation";
+import { bookingReadiness, missingText } from "@/lib/booking/readiness";
 import { useTradeWords } from "@/components/providers/language-provider";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import {
   Phone,
   Camera,
   Send,
+  AlertTriangle,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
@@ -47,6 +49,8 @@ interface Settings {
   voiceEnabled: boolean;
   /** The diary, by itself or by what books into it (hasDiary). */
   hasDiary: boolean;
+  /** WhatsApp, Instagram and Messenger book into the diary (chat-booking.ts). */
+  chatBookingEnabled: boolean;
   instagramEnabled: boolean;
   instagramBusinessId: string | null;
   facebookEnabled: boolean;
@@ -124,6 +128,7 @@ export default function SettingsPage() {
           whatsappEnabled: !!data.settings?.whatsappEnabled,
           voiceEnabled: !!data.settings?.voiceEnabled,
           hasDiary: data.settings ? hasDiary(data.settings) : false,
+          chatBookingEnabled: !!data.settings?.chatBookingEnabled,
           instagramEnabled: !!data.settings?.instagramEnabled,
           instagramBusinessId: data.settings?.instagramBusinessId ?? null,
           facebookEnabled: !!data.settings?.facebookEnabled,
@@ -225,6 +230,14 @@ export default function SettingsPage() {
     );
   }
 
+  const readiness = bookingReadiness({
+    services: settings.services,
+    teamMembers: settings.teamMembers,
+    businessHours: settings.businessHours,
+    diaryProvider: settings.diaryProvider,
+    staff: w("stylist"),
+  });
+
   // Built here rather than inline in the JSX so the five channels are declared
   // once, in one shape, instead of five hand-written blocks that drifted apart.
   const numberList = (nums: PhoneNumber[]) =>
@@ -288,6 +301,24 @@ export default function SettingsPage() {
           ) : undefined
         }
       />
+
+      {/* What the diary still needs before the phone and chats can book,
+          worked out from what is on screen, so it clears as they fill it in
+          (booking/readiness.ts). Until then those take messages instead. */}
+      {settings.hasDiary && !readiness.ready && (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-lg border border-papaya-whip-400 bg-papaya-whip-700 px-4 py-3 text-sm text-papaya-whip-100"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>
+            <span className="font-medium">Not taking bookings yet:</span> {missingText(readiness)}.{" "}
+            {canEdit ? "Add them below, then save." : "The salon's owner can add them here."}
+            {(settings.voiceEnabled || settings.chatBookingEnabled) &&
+              " Until then the receptionist and chats take messages instead of booking."}
+          </p>
+        </div>
+      )}
 
       {/* Everything a save changes. Disabled as one, so a member sees the
           salon's setup but no control in it works. */}
