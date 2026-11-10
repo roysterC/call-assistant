@@ -55,6 +55,9 @@ function Snacks() {
         toast={toast}
         swipeDirection={["down", "right"]}
         data-testid="snackbar"
+        // Rises in sharp. Animate UI blurs it on the way in, and blurred
+        // text reads as something gone wrong; this wins over its style.
+        style={{ filter: "none" }}
         className={cn(
           "absolute inset-x-0 bottom-0 select-none overflow-hidden rounded-2xl",
           "bg-sidebar text-sidebar-accent-foreground shadow-raised ring-1 ring-sidebar-border",

@@ -245,15 +245,3 @@
     background: transparent;
   }
 }
-/*
- * A dialog that has finished opening (data-settled, set in
- * components/ui/dialog.tsx) drops what its opening animation leaves on it: a
- * 3D transform and "blur(0px)". With them the browser draws the card as an
- * image, often at half a pixel, and its text came out soft. Only while it is
- * open, so the closing animation still plays. Inline styles from the
- * animation, hence !important.
- */
-[data-slot="dialog-content"][data-settled][data-open] {
-  transform: none !important;
-  filter: none !important;
-}

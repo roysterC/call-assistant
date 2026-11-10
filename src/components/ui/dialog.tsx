@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@animate-ui/react/primitives/base-ui/dialog"
+import { Dialog as BaseDialog } from "@base-ui/react/dialog"
+import { motion, useIsPresent, type Transition } from "motion/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -54,59 +56,60 @@ const PHONE_SHEET =
   "max-md:m-0 max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-w-none max-md:max-h-[88dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:pb-[max(1rem,env(safe-area-inset-bottom))]"
 
 /**
- * Marks the card `data-settled` once its opening animation has finished, so
- * globals.css can take off what the animation leaves behind: a 3D transform
- * ("perspective(500px) rotateX(0deg) scale(1)") and "blur(0px)". Left on,
- * they had the browser draw the open card as an image, at half a pixel when
- * its size was odd, and every word in it came out soft. The card is checked
- * each frame until it is upright, fully shown and unblurred, or for two
- * seconds at most.
+ * How the card comes and goes: a quick fade while it grows from just under
+ * full size, flat and never blurred, so its text is sharp from the first
+ * frame it can be read in.
+ *
+ * Animate UI's own dialog tips the card back in 3D, blurs it, and eases it in
+ * on a slow spring. The browser draws a card like that as an image, so its
+ * words stayed soft until the spring came to rest, most of a second after the
+ * card looked open. Hence Base UI's popup here, animated by us. Someone who
+ * asks for less motion gets the fade alone (MotionProvider in the root
+ * layout).
  */
-function useSettled(): (el: HTMLDivElement | null) => void {
-  // A callback ref, not useRef: the card only exists once the dialog opens,
-  // well after this component first renders.
-  return React.useCallback((el: HTMLDivElement | null) => {
-    if (!el) return
-    const started = performance.now()
-    const check = () => {
-      if (!el.isConnected) return
-      const s = el.style
-      const upright = !s.transform || /rotate[XY]\(0deg\) scale\(1\)/.test(s.transform)
-      const shown = !s.opacity || s.opacity === "1"
-      const sharp = !s.filter || s.filter === "blur(0px)" || s.filter === "none"
-      if ((upright && shown && sharp) || performance.now() - started > 2000) {
-        el.setAttribute("data-settled", "")
-      } else {
-        requestAnimationFrame(check)
+const SHOWN = { opacity: 1, scale: 1 }
+const HIDDEN = { opacity: 0, scale: 0.96 }
+const ENTER: Transition = { duration: 0.2, ease: [0.16, 1, 0.3, 1] }
+const LEAVE: Transition = { duration: 0.15, ease: [0.4, 0, 1, 1] }
+
+function DialogCard({ className, ...props }: BaseDialog.Popup.Props) {
+  // Still on screen while it plays its way out: Base UI would otherwise hide
+  // it at once, and it must not catch clicks meant for the page.
+  const leaving = !useIsPresent()
+  return (
+    <BaseDialog.Popup
+      data-slot="dialog-content"
+      className={cn(
+        // Centred by margins, not by moving it back half its own size,
+        // which put the card on half a pixel.
+        "fixed inset-0 m-auto h-fit max-h-[calc(100dvh-2rem)] overflow-y-auto z-50 grid w-full max-w-[calc(100%-2rem)] gap-4 rounded-2xl bg-popover p-5 text-sm text-popover-foreground shadow-raised ring-1 ring-border outline-none sm:max-w-sm",
+        className
+      )}
+      render={
+        <motion.div
+          initial={HIDDEN}
+          animate={SHOWN}
+          exit={{ ...HIDDEN, transition: LEAVE }}
+          transition={ENTER}
+          {...(leaving && { hidden: false, style: { pointerEvents: "none" } })}
+        />
       }
-    }
-    requestAnimationFrame(check)
-  }, [])
+      {...props}
+    />
+  )
 }
 
 function DialogContent({
-  className,
   children,
   showCloseButton = true,
   ...props
-}: DialogPrimitive.Popup.Props & {
+}: BaseDialog.Popup.Props & {
   showCloseButton?: boolean
 }) {
-  const settledRef = useSettled()
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        ref={settledRef}
-        data-slot="dialog-content"
-        className={cn(
-          // Centred by margins, not by moving it back half its own size,
-          // which put the card on half a pixel. See useSettled for the rest.
-          "fixed inset-0 m-auto h-fit max-h-[calc(100dvh-2rem)] overflow-y-auto z-50 grid w-full max-w-[calc(100%-2rem)] gap-4 rounded-2xl bg-popover p-5 text-sm text-popover-foreground shadow-raised ring-1 ring-border outline-none sm:max-w-sm",
-          className
-        )}
-        {...props}
-      >
+      <DialogCard {...props}>
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close
@@ -124,7 +127,7 @@ function DialogContent({
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
-      </DialogPrimitive.Popup>
+      </DialogCard>
     </DialogPortal>
   )
 }
