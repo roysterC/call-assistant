@@ -75,7 +75,9 @@ export function SaveBar({
 
 /**
  * Asks before the page is left with changes unsaved. `save` reports whether
- * it worked: the page is left only if it did. Render the returned dialog.
+ * it worked: the page is left only if it did. Render the returned `dialog`;
+ * a button that navigates in code (a back arrow) calls `leave(href)` instead
+ * of router.push, so it asks too. Links are caught by themselves.
  */
 export function useLeaveGuard({
   dirty,
@@ -180,5 +182,14 @@ export function useLeaveGuard({
     </Dialog>
   );
 
-  return dialog;
+  /** Go to `href`, asking first if there are changes unsaved. */
+  const leave = useCallback(
+    (href: string) => {
+      if (dirtyRef.current) setLeavingTo(href);
+      else router.push(href);
+    },
+    [router]
+  );
+
+  return { dialog, leave };
 }

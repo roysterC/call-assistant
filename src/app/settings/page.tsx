@@ -215,7 +215,7 @@ export default function SettingsPage() {
   const discard = () => {
     if (settings && saved) setSettings({ ...settings, ...saved });
   };
-  const leaveGuard = useLeaveGuard({ dirty, save: handleSave, discard });
+  const { dialog: leaveGuard } = useLeaveGuard({ dirty, save: handleSave, discard });
 
   if (loading || !settings) {
     return (
