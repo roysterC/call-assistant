@@ -42,6 +42,7 @@ model Organization {
   assistantSessions     AssistantSession[]
   chatSessions          ChatSession[]
   chatPhotos            ChatPhoto[]
+  rebookTexts           RebookText[]
   usageRecords          UsageRecord[]
   callbacks             Callback[]
   settings              OrganizationSettings?
@@ -146,6 +147,13 @@ model OrganizationSettings {
   // phone receptionist or booking by message is, which need it (hasDiary in
   // src/lib/navigation.ts).
   diaryEnabled            Boolean      @default(false)
+  // Clients due back for a service (its rebookWeeks) get a text with a link
+  // into the salon's WhatsApp or Instagram chat to book (src/lib/rebook.ts).
+  // The salon's own choice, in Settings; off until switched on.
+  rebookTextsEnabled      Boolean      @default(false)
+  // The salon's Instagram @username, for the link in a rebooking text when it
+  // has no WhatsApp: ig.me/m/<username>. Without the @.
+  instagramUsername       String?
   // WhatsApp, Instagram and Messenger may book into the diary, with the same
   // checks and read-back as the phone (src/lib/chat-booking.ts). Off until
   // Kikai switches it on; the salon's own diary must be set up as well.
@@ -297,6 +305,32 @@ model ChatPhoto {
   @@map("ca_chat_photos")
 }
 
+// A rebooking text: "your infill is due, Thursday 3pm is free", with a short
+// link (/r/<id>) into the salon's WhatsApp or Instagram chat to book it
+// (src/lib/rebook.ts). Kept so a client is not texted twice for one visit,
+// and so the salon can see how many were opened and led to a booking.
+model RebookText {
+  // Short and unguessable: it is the link in the text.
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String
+  // The visit it follows on from; one text per visit.
+  appointmentId  String       @unique
+  service        String
+  stylist        String?
+  // The free time it offered, if one was found.
+  slotStartsAt   DateTime?
+  sentAt         DateTime     @default(now())
+  sendError      String?
+  openedAt       DateTime?
+  stoppedAt      DateTime?
+
+  @@index([organizationId, sentAt])
+  @@index([leadId])
+  @@map("ca_rebook_texts")
+}
+
 // Where a booking conversation on WhatsApp, Instagram or Messenger stands
 // between messages (src/lib/chat-booking.ts): the model's history with its
 // diary checks, and what was last read back, so a "yes" in the next message
@@ -372,6 +406,8 @@ model Lead {
   // takings on them, still have a client to belong to; screens show them as
   // "Deleted client" and leave them out of every list (lib/client-delete).
   anonymisedAt          DateTime?
+  // Asked to stop rebooking texts (the stop link in each one, src/lib/rebook.ts).
+  rebookTextsOff        Boolean                @default(false)
   // Reached through another client's number: a child booked on a parent's
   // phone has a record of their own, with their own history, but no number.
   // Their texts go to the contact's number, and a call from that number can

@@ -85,6 +85,8 @@ interface Org {
     instagramEnabled: boolean;
     instagramSystemPrompt: string | null;
     instagramBusinessId: string | null;
+    /** The handle, for ig.me links in rebooking texts (src/lib/rebook.ts). */
+    instagramUsername: string | null;
     instagramAccessToken: string | null;
     facebookEnabled: boolean;
     facebookSystemPrompt: string | null;
@@ -137,6 +139,7 @@ function settingsBody(s: NonNullable<Org["settings"]>) {
     instagramEnabled: s.instagramEnabled,
     instagramSystemPrompt: s.instagramSystemPrompt,
     instagramBusinessId: s.instagramBusinessId,
+    instagramUsername: s.instagramUsername,
     instagramAccessToken: s.instagramAccessToken,
     facebookEnabled: s.facebookEnabled,
     facebookSystemPrompt: s.facebookSystemPrompt,
@@ -1020,6 +1023,22 @@ export default function OrganizationDetailPage() {
                     }
                     className="mt-1"
                   />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">
+                    Instagram username
+                  </label>
+                  <Input
+                    placeholder="hoangnails"
+                    value={org.settings.instagramUsername || ""}
+                    onChange={(e) =>
+                      updateFeature("instagramUsername", e.target.value.replace(/^@/, "") || null)
+                    }
+                    className="mt-1"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Without the @. Rebooking texts link to ig.me/m/ this.
+                  </p>
                 </div>
                 <div>
                   <label className="text-xs font-medium">

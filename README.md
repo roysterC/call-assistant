@@ -193,6 +193,45 @@ Before sending for real, `?dryRun=1` lists who would get one, and
 `?date=YYYY-MM-DD` targets another day. A booking confirmed or moved in the
 24 hours before the run gets no reminder: the confirmation is still fresh.
 
+### Rebooking texts
+
+The same timer then posts to `/api/cron/rebook-texts`
+(`src/lib/rebook.ts`). A client whose last visit was for a service with a
+"due again after N weeks" (Settings → Services) gets a text from three days
+before that date to two weeks after, offering a free time, with their last
+stylist and nearest their usual time of day where the diary has one:
+
+> Hi Mai, your BIAB infill is due. Lan has Thursday at 3pm free. Book:
+> https://…/r/Ab3kQ9xYz2 Stop these: https://…/r/Ab3kQ9xYz2/stop Hoang Nail Salon
+
+Salon texts come from a one-way sender, so the booking happens in a chat:
+`/r/<id>` opens the salon's WhatsApp with the booking request written, or,
+for Instagram (which cannot be handed a message), shows it with a button that
+copies it and opens `ig.me/m/<username>`. The booking chat books it from there.
+
+A salon sends them only when all of these hold; the run's summary says which
+one is missing:
+
+- the owner switched **Rebooking texts** on in Settings;
+- **Book from messages** is on (admin);
+- an active WhatsApp number, or Instagram on with its **Instagram username**
+  set (admin, without the @);
+- the diary can take bookings, and at least one service has a rebook time.
+
+Nobody is texted who has something booked, asked to stop (the stop page sets
+`Lead.rebookTextsOff`), was already texted about that visit, or had one in
+the last 14 days; at most 40 a salon a run. Each text is recorded in
+`ca_rebook_texts` before it is sent, with `openedAt` when the link is opened
+and `stoppedAt` when they stop them.
+
+```bash
+# who would be texted today, and what, without sending
+printf 'Authorization: Bearer %s\n' "$CRON_SECRET" | curl -sS -X POST -H @- \
+  "http://127.0.0.1:3000/api/cron/rebook-texts?dryRun=1"
+```
+
+`&org=<id>` runs one salon only.
+
 ### Texts and what they cost
 
 Twilio bills per segment. A text in plain characters (GSM-7) fits 160

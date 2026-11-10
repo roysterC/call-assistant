@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { textRecipient } from "@/lib/client-link";
-import { timingSafeEqual, createHash } from "crypto";
+import { cronAuthorised } from "@/lib/cron-auth";
 import {
   addCalendarDays,
   describeAppointmentWhen,
@@ -26,20 +26,8 @@ import { reminderBody, sendSms, smsConfigured } from "@/lib/sms";
  * disorganised and invites a phone call.
  */
 
-const CRON_SECRET = process.env.CRON_SECRET;
-
-function authorised(req: NextRequest): boolean {
-  if (!CRON_SECRET) return false;
-  const header = req.headers.get("authorization") ?? "";
-  const token = header.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return false;
-  const a = createHash("sha256").update(token).digest();
-  const b = createHash("sha256").update(CRON_SECRET).digest();
-  return timingSafeEqual(a, b);
-}
-
 export async function POST(req: NextRequest) {
-  if (!authorised(req)) {
+  if (!cronAuthorised(req)) {
     console.warn("[CRON] Rejected reminder run: bad or missing CRON_SECRET");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -168,6 +156,6 @@ export async function GET() {
   return NextResponse.json({
     status: "ok",
     smsConfigured: smsConfigured(),
-    cronSecretSet: Boolean(CRON_SECRET),
+    cronSecretSet: Boolean(process.env.CRON_SECRET),
   });
 }

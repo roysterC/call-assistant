@@ -136,12 +136,12 @@ const NAILS: BusinessProfile = {
     ),
   phoneRules: [WALK_INS],
   starterServices: [
-    { name: "Gel manicure", durationMinutes: 45, requiresPatchTest: false },
-    { name: "Gel pedicure", durationMinutes: 60, requiresPatchTest: false },
-    { name: "BIAB new set", durationMinutes: 60, requiresPatchTest: false },
-    { name: "BIAB infill", durationMinutes: 60, requiresPatchTest: false },
-    { name: "Acrylic full set", durationMinutes: 75, requiresPatchTest: false },
-    { name: "Acrylic infill", durationMinutes: 60, requiresPatchTest: false },
+    { name: "Gel manicure", durationMinutes: 45, requiresPatchTest: false, rebookWeeks: 3 },
+    { name: "Gel pedicure", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 4 },
+    { name: "BIAB new set", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "BIAB infill" },
+    { name: "BIAB infill", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3 },
+    { name: "Acrylic full set", durationMinutes: 75, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill" },
+    { name: "Acrylic infill", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3 },
     { name: "Gel removal", durationMinutes: 20, requiresPatchTest: false },
   ],
 };
