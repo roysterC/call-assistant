@@ -275,4 +275,28 @@ export const diary = {
   "family.finishing": ["Finishing", "Tạo kiểu"],
   "family.treatment": ["Treatments", "Phục hồi"],
   "family.other": ["Other", "Khác"],
+
+  // --- Who's free now (who-is-free.tsx) -------------------------------------------------
+  "free.button": ["Who's free", "Ai đang rảnh"],
+  "free.title": ["Who's free now", "Ai đang rảnh"],
+  "free.for": ["For", "Cho dịch vụ"],
+  "free.anyService": ["Any service", "Dịch vụ bất kỳ"],
+  "free.freeNow": ["Free now until {time}", "Đang rảnh đến {time}"],
+  "free.nextFree": ["Free {from} to {to}", "Rảnh từ {from} đến {to}"],
+  "free.with": ["With {what} until {time}", "Đang làm cho {what} đến {time}"],
+  "free.busyUntil": ["Busy until {time}", "Bận đến {time}"],
+  "free.bookedUp": ["Booked up for the rest of today", "Kín lịch đến hết hôm nay"],
+  "free.notIn": ["Not in today", "Hôm nay nghỉ"],
+  "free.canStartNow": ["Can start now", "Có thể bắt đầu ngay"],
+  "free.canStart": ["Can start at {time}", "Có thể bắt đầu lúc {time}"],
+  "free.noRoom": ["No room for it today", "Hôm nay không còn chỗ"],
+  "free.book": ["Book", "Đặt lịch"],
+  "free.closedToday": ["The salon is closed today.", "Hôm nay tiệm nghỉ."],
+  "free.closedNow": ["The salon is closed for the rest of today.", "Tiệm đã đóng cửa hôm nay."],
+  "free.nobody": ["Nobody on the team does this.", "Không ai trong nhóm làm dịch vụ này."],
+  "free.failed": ["Could not load the diary. Try again.", "Không tải được lịch hẹn. Hãy thử lại."],
+  "free.hint": [
+    "Updates every minute. Book starts a booking at that time.",
+    "Tự cập nhật mỗi phút. Bấm Đặt lịch để tạo lịch hẹn vào giờ đó.",
+  ],
 } as const;

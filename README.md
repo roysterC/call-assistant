@@ -423,7 +423,8 @@ page. Staff talk to it (or type) at the desk or on their phone:
   like", "who's first in tomorrow", who is free when), a client ("when was
   Sarah last in, and what colour did we use?"), the phone's messages, and
   takings by day, week, month or year, by person and service, with no-shows
-  (the same figures as the Sales report, `src/lib/takings.ts`).
+  (the same figures as the Sales report, `src/lib/takings.ts`), and who is
+  free right now (below).
 - **Things to do** become a card, and nothing happens until "yes" or a tap:
   book, move or cancel (with "and text her" for the client's text), add a
   note to a client's page, send a client a text (owners only), or change a
@@ -455,6 +456,24 @@ How it is built:
   Assistant routine, or the home-screen icon's long-press shortcut (in the
   manifest). A phone that wants a touch before it uses the microphone gets one
   big "Tap to talk" instead.
+
+### Who's free now
+
+For a walk-in at the desk, or a call asking to come in now. On today's
+Diary, **Who's free** lists each of the team: free now and until when, or
+who they are with and when they are next free, or booked up, or not in.
+Choosing a service narrows it to those who do it, with when each could
+start it; **Book** opens a new booking at that time. It refreshes every
+minute while open. The assistant answers the same question with
+`who_is_free_now` ("who's free?", "can anyone take a walk-in for a gel
+manicure?").
+
+Unlike the free times a booking is offered, there is no two-hour notice:
+the client is already there. Only booked appointments count as busy, so
+marking one done early frees that person, and a gap under 15 minutes is not
+offered. On a Google diary their calendars count too. Built in
+`src/lib/booking/free-now.ts` (the arithmetic) and `who-is-free.ts` (loading
+today's diary), served by `GET /api/appointments/free-now?service=`.
 
 ### Languages (English and Vietnamese)
 

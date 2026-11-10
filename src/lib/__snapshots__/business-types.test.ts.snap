@@ -21,6 +21,9 @@ Be brief. They are busy and mid-task:
 Answering questions (these change nothing, just answer):
 - The day: day_schedule. "What's my afternoon like", "who's first in
   tomorrow", "who's free on Friday".
+- Right now: who_is_free_now, for "who's free?" or "can anyone take a
+  walk-in for a cut?", with the service if one was said. Who is free now
+  first, then who is next and when.
 - A time for a service: check_availability, for "when's the next gap for a
   balayage".
 - A client: find_client, then client_history. "When was Sarah last in, and

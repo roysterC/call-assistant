@@ -77,7 +77,16 @@ describe("the assistant behind the diary's microphone", () => {
     const s = await startVoiceBooking(owner, "u", { speaker: "x", client: asks("find_client", { name: "x" }) });
     const names = (s.engine as unknown as { cfg: { tools: Anthropic.Tool[] } }).cfg.tools.map((t) => t.name);
     // Lookups that change nothing, and proposals that only draw a card.
-    const readOnly = ["find_client", "find_bookings", "check_availability", "day_schedule", "client_history", "phone_messages", "takings"];
+    const readOnly = [
+      "find_client",
+      "find_bookings",
+      "check_availability",
+      "day_schedule",
+      "who_is_free_now",
+      "client_history",
+      "phone_messages",
+      "takings",
+    ];
     expect(names.filter((n) => !readOnly.includes(n)).every((n) => n.startsWith("propose_"))).toBe(true);
     expect(names).toEqual(expect.arrayContaining(readOnly));
   });

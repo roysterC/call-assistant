@@ -9,7 +9,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, UserCheck } from "lucide-react";
+import { WhoIsFree } from "@/components/calendar/who-is-free";
 import { Button } from "@/components/ui/button";
 import { clockTime } from "@/lib/i18n";
 import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
@@ -183,6 +184,8 @@ export default function CalendarPage() {
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
   const [slot, setSlot] = useState<BookingSlot | null>(null);
+  // The "Who's free" panel (who-is-free.tsx), today only.
+  const [showFree, setShowFree] = useState(false);
   const [openAppointment, setOpenAppointment] =
     useState<CalendarAppointment | null>(null);
   // A booking asked for by a pop-up or an alert, opened once its day has
@@ -471,6 +474,12 @@ export default function CalendarPage() {
           >
             {t("diary.today")}
           </Button>
+          {selected === today && open && (
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowFree(true)}>
+              <UserCheck className="h-3.5 w-3.5" />
+              {t("free.button")}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -606,6 +615,18 @@ export default function CalendarPage() {
         onChanged={() => {
           loadDay();
           loadMonth();
+        }}
+      />
+
+      <WhoIsFree
+        open={showFree}
+        onClose={() => setShowFree(false)}
+        services={services}
+        columns={columns}
+        timeZone={timeZone}
+        onBook={(stylistName, time) => {
+          setShowFree(false);
+          setSlot({ stylistName, time, date: today });
         }}
       />
 
