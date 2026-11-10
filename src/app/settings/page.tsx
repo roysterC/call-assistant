@@ -61,12 +61,24 @@ interface Settings {
   startPage: string | null;
   /** The salon's own answers to common questions, for the bots. */
   salonFaq: string;
+  /** Texts to clients due back for a service (src/lib/rebook.ts). */
+  rebookTextsEnabled: boolean;
+  /** Where a rebooking text's link opens the chat, if not WhatsApp. */
+  instagramUsername: string | null;
 }
 
 /** The fields this page edits and saves: what "unsaved changes" compares. */
 type Editable = Pick<
   Settings,
-  "businessName" | "contactPhone" | "timezone" | "businessHours" | "services" | "teamMembers" | "startPage" | "salonFaq"
+  | "businessName"
+  | "contactPhone"
+  | "timezone"
+  | "businessHours"
+  | "services"
+  | "teamMembers"
+  | "startPage"
+  | "salonFaq"
+  | "rebookTextsEnabled"
 >;
 
 function editable(s: Settings): Editable {
@@ -79,6 +91,7 @@ function editable(s: Settings): Editable {
     teamMembers: s.teamMembers,
     startPage: s.startPage,
     salonFaq: s.salonFaq,
+    rebookTextsEnabled: s.rebookTextsEnabled,
   };
 }
 
@@ -135,6 +148,8 @@ export default function SettingsPage() {
           facebookPageId: data.settings?.facebookPageId ?? null,
           startPage: data.settings?.startPage ?? null,
           salonFaq: data.settings?.salonFaq ?? "",
+          rebookTextsEnabled: !!data.settings?.rebookTextsEnabled,
+          instagramUsername: data.settings?.instagramUsername ?? null,
         };
         setSettings(s);
         setSaved(editable(s));
@@ -188,6 +203,7 @@ export default function SettingsPage() {
           teamMembers: settings.teamMembers,
           startPage: settings.startPage ?? "",
           salonFaq: settings.salonFaq,
+          rebookTextsEnabled: settings.rebookTextsEnabled,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -237,6 +253,20 @@ export default function SettingsPage() {
     diaryProvider: settings.diaryProvider,
     staff: w("stylist"),
   });
+
+  // What rebooking texts still need, from what is on screen (the same tests
+  // as salonCannotSend in src/lib/rebook.ts, but the switch itself).
+  const rebookChat =
+    settings.whatsappEnabled && whatsappNumbers.some((n) => n.active)
+      ? "WhatsApp"
+      : settings.instagramEnabled && settings.instagramUsername
+        ? "Instagram"
+        : null;
+  const rebookNeeds = [
+    !rebookChat && "a WhatsApp number or your Instagram username, which Kikai sets up",
+    !readiness.ready && `the diary cannot take bookings yet (${missingText(readiness)})`,
+    !settings.services.some((s) => s.rebookWeeks) && "no service has a \"due again after\" yet",
+  ].filter((x): x is string => Boolean(x));
 
   // Built here rather than inline in the JSX so the five channels are declared
   // once, in one shape, instead of five hand-written blocks that drifted apart.
@@ -470,6 +500,7 @@ export default function SettingsPage() {
               <ServicesEditor
                 value={settings.services}
                 onChange={(services) => setSettings({ ...settings, services })}
+                rebook={settings.rebookTextsEnabled}
               />
             </ExpandableSection>
 
@@ -500,6 +531,51 @@ export default function SettingsPage() {
               />
             </ExpandableSection>
           </>
+        )}
+
+        {/* Rebooking texts (src/lib/rebook.ts): the salon's own choice, since
+            they go to its clients in its name. Only where chats book, as the
+            text's link opens one. */}
+        {settings.chatBookingEnabled && (
+          <ExpandableSection
+            title="Rebooking texts"
+            description="A text to clients when they are due back, offering a free time."
+            summary={settings.rebookTextsEnabled ? "On" : "Off"}
+          >
+            <div className="space-y-3">
+              <label className="flex items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                  checked={settings.rebookTextsEnabled}
+                  onChange={(e) => setSettings({ ...settings, rebookTextsEnabled: e.target.checked })}
+                />
+                <span>
+                  <span className="font-medium">Text clients when they are due back</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Sent in the morning, a few days before, to clients with nothing booked. It
+                    offers a free time with the same {w("stylist")} where there is one, and a
+                    link that opens your {rebookChat ?? "WhatsApp or Instagram"} chat with the
+                    booking written for them. Each text has a link to stop them.
+                  </span>
+                </span>
+              </label>
+              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                &ldquo;Hi Mai, your BIAB infill is due. Lan has Thursday at 3pm free. Book:
+                https://…/r/Ab3kQ9 Stop these: https://…/r/Ab3kQ9/stop {settings.businessName || "Your salon"}&rdquo;
+              </p>
+              {settings.rebookTextsEnabled && rebookNeeds.length > 0 && (
+                <p role="status" className="flex items-start gap-2 text-xs text-papaya-whip-100">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>Not sending yet: {rebookNeeds.join("; ")}.</span>
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Set when each service is due again under Services, e.g. an infill after 3
+                weeks. A new set can be rebooked as an infill.
+              </p>
+            </div>
+          </ExpandableSection>
         )}
 
         {/* What the bots may tell customers about the salon beyond the hours,

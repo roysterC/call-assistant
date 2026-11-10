@@ -116,6 +116,21 @@ async function fetchBusy(
   return out;
 }
 
+/**
+ * Busy time from each stylist's Google calendar, keyed by name in lower
+ * case: for "who is free now" (free-now.ts), which reads the day rather than
+ * asking for slots. Throws when a calendar cannot be read, as fetchBusy does.
+ */
+export async function googleBusyByStylist(
+  stylists: Stylist[],
+  from: Date,
+  to: Date
+): Promise<Map<string, BusyBlock[]>> {
+  const withCalendar = stylists.filter((s) => s.googleCalendarId);
+  const busy = await fetchBusy(withCalendar.map((s) => s.googleCalendarId as string), from, to);
+  return new Map(withCalendar.map((s) => [s.name.toLowerCase(), busy.get(s.googleCalendarId as string) ?? []]));
+}
+
 // -------------------------------------------------------------------------
 // Provider
 // -------------------------------------------------------------------------

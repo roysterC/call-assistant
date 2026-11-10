@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { STATUS_BADGE, PATCH_TEST_BADGE } from "@/lib/status-styles";
 import type { SalonService } from "@/lib/salon-config";
 import { minorToInput, parseMoney } from "@/lib/money";
+import { REBOOK_WEEKS_MAX, REBOOK_WEEKS_MIN } from "@/lib/salon-config";
 
 /**
  * Services and how long each takes.
@@ -22,9 +23,12 @@ import { minorToInput, parseMoney } from "@/lib/money";
 export function ServicesEditor({
   value,
   onChange,
+  rebook = false,
 }: {
   value: SalonService[];
   onChange: (next: SalonService[]) => void;
+  /** Show when each is due again, for rebooking texts (src/lib/rebook.ts). */
+  rebook?: boolean;
 }) {
   function update(index: number, patch: Partial<SalonService>) {
     const next = [...value];
@@ -124,6 +128,43 @@ export function ServicesEditor({
           >
             <Trash2 className="h-4 w-4" />
           </Button>
+
+          {rebook && (
+            <div className="flex w-full flex-wrap items-center gap-1.5 pl-0.5 text-xs text-muted-foreground">
+              <span>Due again after</span>
+              <Input
+                type="number"
+                min={REBOOK_WEEKS_MIN}
+                max={REBOOK_WEEKS_MAX}
+                placeholder="—"
+                value={service.rebookWeeks ?? ""}
+                onChange={(e) => {
+                  const n = Math.round(Number(e.target.value));
+                  update(i, {
+                    rebookWeeks: n >= REBOOK_WEEKS_MIN ? Math.min(n, REBOOK_WEEKS_MAX) : undefined,
+                  });
+                }}
+                className="h-7 w-16"
+                aria-label={`Weeks until ${service.name || "this service"} is due again`}
+              />
+              <span>weeks</span>
+              {service.rebookWeeks ? (
+                <>
+                  <span>as</span>
+                  <Input
+                    value={service.rebookAs ?? ""}
+                    placeholder={service.name || "the same"}
+                    maxLength={120}
+                    onChange={(e) => update(i, { rebookAs: e.target.value || undefined })}
+                    className="h-7 min-w-[8rem] flex-1"
+                    aria-label={`What ${service.name || "this service"} is rebooked as`}
+                  />
+                </>
+              ) : (
+                <span>(blank: no rebooking text)</span>
+              )}
+            </div>
+          )}
         </div>
       ))}
 

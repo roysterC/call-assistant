@@ -17,6 +17,7 @@ type Access = "members" | "owner";
 
 const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "appointments/[id]": { PATCH: "members" },
+  "appointments/free-now": { GET: "members" },
   appointments: { GET: "members", PATCH: "members", POST: "members" },
   // Each person's own pop-ups and "new" colours.
   "booking-notices": { GET: "members", POST: "members" },

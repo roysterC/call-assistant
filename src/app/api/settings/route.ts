@@ -43,6 +43,8 @@ const WRITABLE_FIELDS = [
   "voiceSystemPrompt",
   // The salon's FAQ, read by the receptionist and the chat bots.
   "salonFaq",
+  // Rebooking texts: the salon's own choice (src/lib/rebook.ts).
+  "rebookTextsEnabled",
   "whatsappSystemPrompt",
   "whatsappEnabled",
   "chatBookingEnabled",
@@ -54,6 +56,7 @@ const WRITABLE_FIELDS = [
   "instagramEnabled",
   "instagramSystemPrompt",
   "instagramBusinessId",
+  "instagramUsername",
   "instagramAccessToken",
   "facebookEnabled",
   "facebookSystemPrompt",
@@ -91,6 +94,12 @@ function sanitiseSettingsPayload(
   // Only a page the CRM has; anything else (or empty) is "automatic".
   if ("salonFaq" in out) out.salonFaq = parseSalonFaq(out.salonFaq);
   if ("startPage" in out) out.startPage = isStartPageChoice(out.startPage) ? out.startPage : null;
+  if ("rebookTextsEnabled" in out) out.rebookTextsEnabled = out.rebookTextsEnabled === true;
+  // As in ig.me/m/<username>: letters, digits, dots and underscores, no @.
+  if ("instagramUsername" in out) {
+    const u = typeof out.instagramUsername === "string" ? out.instagramUsername.trim().replace(/^@/, "") : "";
+    out.instagramUsername = /^[A-Za-z0-9._]{1,30}$/.test(u) ? u : null;
+  }
 
   return out;
 }
@@ -111,6 +120,7 @@ const SUPER_ADMIN_ONLY_FIELDS = [
   "instagramEnabled",
   "instagramSystemPrompt",
   "instagramBusinessId",
+  "instagramUsername",
   "instagramAccessToken",
   "facebookEnabled",
   "facebookSystemPrompt",

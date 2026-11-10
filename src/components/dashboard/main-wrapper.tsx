@@ -16,6 +16,8 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
     "/embed",
     "/login",
     "/meet",
+    // Rebooking text links, opened by clients (src/app/r).
+    "/r/",
     "/privacy-policy",
     "/terms-of-service",
     "/data-deletion",
