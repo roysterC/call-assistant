@@ -31,7 +31,7 @@ import {
   type Draft,
   type Proposal,
 } from "./drafts";
-import { clientHistory, daySchedule, phoneMessages, takings } from "./knowledge";
+import { clientHistory, daySchedule, phoneMessages, takings, whoIsFreeNow } from "./knowledge";
 
 const TOOLS: Anthropic.Tool[] = [
   {
@@ -70,6 +70,17 @@ const TOOLS: Anthropic.Tool[] = [
         date: { type: "string", description: "The day in the words used; today if not said" },
         stylist: { type: "string", description: "One person only, if asked about one" },
       },
+    },
+  },
+  {
+    name: "who_is_free_now",
+    description:
+      "Who is free this minute and when each of the team is next free today, with no notice needed: for a " +
+      "walk-in, or someone on the phone asking to come in now. With a service, only those who do it, and when " +
+      "each could start it.",
+    input_schema: {
+      type: "object",
+      properties: { service: { type: "string", description: "The service, if one was said" } },
     },
   },
   {
@@ -228,6 +239,9 @@ Be brief. They are busy and mid-task:
 Answering questions (these change nothing, just answer):
 - The day: day_schedule. "What's my afternoon like", "who's first in
   tomorrow", "who's free on Friday".
+- Right now: who_is_free_now, for "who's free?" or "can anyone take a
+  walk-in for a cut?", with the service if one was said. Who is free now
+  first, then who is next and when.
 - A time for a service: check_availability, for "when's the next gap for a
   balayage".
 - A client: find_client, then client_history. "When was Sarah last in, and
@@ -365,6 +379,8 @@ export async function startVoiceBooking(
           });
         case "day_schedule":
           return daySchedule(asker, { date: str(i.date), stylist: str(i.stylist) });
+        case "who_is_free_now":
+          return whoIsFreeNow(asker, { service: str(i.service) });
         case "client_history":
           return clientHistory(asker, String(i.clientId ?? ""));
         case "phone_messages":

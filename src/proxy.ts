@@ -46,6 +46,9 @@ export async function proxy(req: NextRequest) {
     // The in-person lead funnel and where it sends; no login by design.
     "/meet",
     "/api/funnel",
+    // The links in rebooking texts (src/lib/rebook.ts), opened by clients.
+    "/r/",
+    "/api/rebook/stop",
     "/robots.txt",
     "/widget.js",
     "/test-widget.html",

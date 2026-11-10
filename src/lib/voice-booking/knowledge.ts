@@ -19,6 +19,7 @@ import { describePeriod, resolvePeriod, shiftPeriod, type PeriodKind } from "@/l
 import { computeTakings } from "@/lib/takings";
 import type { Asker } from "./drafts";
 import { spokenPatchTest } from "@/lib/patch-test";
+import { whoIsFreeAt } from "@/lib/booking/who-is-free";
 
 const clock = (at: Date, tz: string) =>
   at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: tz });
@@ -97,6 +98,39 @@ export async function daySchedule(asker: Asker, input: { date?: string; stylist?
           .filter((b) => b.stylistName === null || b.stylistName.toLowerCase() === s.name.toLowerCase())
           .map((b) => (b.allDay ? "all day" : `${clock(b.start, tz)} to ${clock(b.end, tz)}`)),
         freeForAnHourOrMore: free,
+      };
+    }),
+  };
+}
+
+/**
+ * Who is free this minute, and when everyone else is next today: "who's
+ * free?", "can anyone fit in a walk-in for a gel manicure?" (free-now.ts).
+ */
+export async function whoIsFreeNow(asker: Asker, input: { service?: string }) {
+  const now = new Date();
+  const r = await whoIsFreeAt(asker.organizationId, { service: input.service, now });
+  if ("error" in r) return r;
+  if (r.closedToday) return { closedToday: true };
+  if (r.closedNow) return { closedForTheRestOfToday: true };
+  const tz = r.timeZone;
+  const soon = (at: Date) => at.getTime() - now.getTime() <= 5 * 60_000;
+  return {
+    ...(r.service ? { service: `${r.service.name} (${r.service.durationMinutes} min)` } : {}),
+    ...(r.warning ? { warning: r.warning } : {}),
+    people: r.people.map((p) => {
+      if (!p.working) return { name: p.name, today: "not in" };
+      return {
+        name: p.name,
+        ...(p.busyNow
+          ? { busyNow: `${p.busyNow.what ? `with ${p.busyNow.what} ` : ""}until ${clock(p.busyNow.until, tz)}` }
+          : {}),
+        nextFree: !p.nextFree
+          ? "booked up for the rest of today"
+          : `${soon(p.nextFree.start) ? "now" : clock(p.nextFree.start, tz)} until ${clock(p.nextFree.end, tz)}`,
+        ...(r.service
+          ? { canStartIt: p.canStartAt ? (soon(p.canStartAt) ? "now" : clock(p.canStartAt, tz)) : "no room today" }
+          : {}),
       };
     }),
   };

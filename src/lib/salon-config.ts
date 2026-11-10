@@ -27,7 +27,19 @@ export interface SalonService {
    * what was actually taken on the appointment; this is what it starts from.
    */
   priceMinor: number | null;
+  /**
+   * Weeks after a visit for this that the client is due again, for the
+   * rebooking text (src/lib/rebook.ts): 3 for an infill, 6 for a cut. Unset:
+   * no rebooking text for it.
+   */
+  rebookWeeks?: number;
+  /** What they are due for instead, when not this again: a new set's infill. */
+  rebookAs?: string;
 }
+
+/** The weeks a rebooking text can be set to: a fortnight to six months. */
+export const REBOOK_WEEKS_MIN = 1;
+export const REBOOK_WEEKS_MAX = 26;
 
 export interface Stylist {
   name: string;
@@ -92,12 +104,20 @@ export function parseServices(raw: unknown): SalonService[] {
     const priceMinor =
       Number.isFinite(priceRaw) && priceRaw >= 0 ? Math.round(priceRaw) : null;
 
+    // Kept only when set, so a service without them reads as before.
+    const weeks = Number(e.rebookWeeks);
+    const rebookWeeks =
+      Number.isInteger(weeks) && weeks >= REBOOK_WEEKS_MIN && weeks <= REBOOK_WEEKS_MAX ? weeks : undefined;
+    const rebookAs = typeof e.rebookAs === "string" && e.rebookAs.trim() ? e.rebookAs.trim().slice(0, 120) : undefined;
+
     seen.add(key);
     out.push({
       name,
       durationMinutes: Math.round(durationMinutes),
       requiresPatchTest: Boolean(e.requiresPatchTest),
       priceMinor,
+      ...(rebookWeeks ? { rebookWeeks } : {}),
+      ...(rebookWeeks && rebookAs ? { rebookAs } : {}),
     });
   }
 
