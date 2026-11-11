@@ -1,10 +1,9 @@
 import { downloadWhatsAppPhoto, photoLine, savePhoto } from "@/lib/chat-photos";
-import { bookingReply } from "@/lib/chat-booking";
+import { replyWhenQuiet } from "@/lib/whatsapp-reply";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   sendTextMessage,
-  markAsRead,
   waIdToPhone,
   type WhatsAppSender,
 } from "@/lib/whatsapp";
@@ -14,11 +13,6 @@ import {
   verifiedOrganizations,
   whatsappSender,
 } from "@/lib/meta-credentials";
-import {
-  buildChatContext,
-  buildSystemPrompt,
-  getChatResponse,
-} from "@/lib/claude";
 import { rateLimit } from "@/lib/rate-limit";
 
 // GET - Meta webhook verification
@@ -252,75 +246,12 @@ async function processMessage(
     await savePhoto({ organizationId, channel: "whatsapp", conversationId: conversation.id, photo, caption: image?.caption });
   }
 
-  if (!sender) {
-    await prisma.whatsAppConversation.update({
-      where: { id: conversation.id },
-      data: { lastMessageAt: new Date(), isRead: false },
-    });
-    return;
-  }
-
-  // Honour per-conversation persona reset: the admin can flip
-  // personaResetAt to NOW() after changing the org's system prompt, so the
-  // AI ignores history that referenced the old persona. Customer-facing
-  // inbox still shows the full history — only this prompt-construction
-  // path filters. NULL = no reset → feed all history (default).
-  const history = await prisma.whatsAppMessage.findMany({
-    where: {
-      conversationId: conversation.id,
-      ...(conversation.personaResetAt
-        ? { createdAt: { gte: conversation.personaResetAt } }
-        : {}),
-    },
-    orderBy: { createdAt: "asc" },
-    select: { role: true, content: true },
-  });
-
-  // A salon whose chats book: the receptionist answers, with the diary
-  // (chat-booking.ts). Anything going wrong there falls back to the plain
-  // chat reply below rather than leaving them unanswered.
-  const booked = await bookingReply({
-    organizationId,
-    channel: "whatsapp",
-    conversationId: conversation.id,
-    earlier: history.slice(0, -1),
-    text: textBody,
-    phone,
-    resetAt: conversation.personaResetAt,
-  });
-
-  const { messages: chatMessages, systemPrompt } = buildChatContext(
-    history,
-    await buildSystemPrompt(organizationId)
-  );
-
-  const aiResponse = booked ?? await getChatResponse(chatMessages, systemPrompt, {
-    organizationId,
-    channel: "whatsapp",
-    allowCLI: true,
-    // Let Claude extract issue / name / email / company onto the lead
-    // when the customer shares them. Mirrors the phone receptionist.
-    extractToLead: conversation.leadId
-      ? { leadId: conversation.leadId }
-      : undefined,
-  });
-
-  const sendResult = await sendTextMessage(sender, waId, aiResponse);
-
-  await prisma.whatsAppMessage.create({
-    data: {
-      conversationId: conversation.id,
-      role: "assistant",
-      content: aiResponse,
-      waMessageId: sendResult.messageId,
-      status: sendResult.success ? "sent" : "failed",
-    },
-  });
-
   await prisma.whatsAppConversation.update({
     where: { id: conversation.id },
     data: { lastMessageAt: new Date(), isRead: false },
   });
 
-  markAsRead(sender, waMessageId);
+  // Without a token the message is kept for the inbox, unanswered. With one,
+  // the reply goes once they have stopped sending (whatsapp-reply.ts).
+  if (sender) replyWhenQuiet(organizationId, conversation.id, sender);
 }

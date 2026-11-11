@@ -11,6 +11,12 @@ interface ChatMessage {
 }
 
 /** Marks turns a human operator typed, not the bot. See buildChatContext(). */
+/**
+ * What a client is sent when no reply could be written: never an error
+ * message, which is for us and is logged.
+ */
+export const CHAT_UNAVAILABLE = "Sorry, I can't reply just now. Please try again in a few minutes.";
+
 const AGENT_PREFIX = "[Human colleague]";
 
 /**
@@ -261,11 +267,12 @@ export async function buildSystemPrompt(
     `You are a helpful ${label} assistant for ${businessName}.
 
 Guidelines:
-- Be friendly, professional, and concise (${label} messages should be brief).
+- Be friendly and brief: one to three short sentences. This is a ${label} chat,
+  read on a phone.
+- One question per message, at the end. No headings, bullet points or emojis.
 - Answer what you can. If you can't, say so honestly — don't make up information
   about pricing, availability, or services.
-- If someone needs to speak to a person, let them know the team will follow up.
-- Keep responses under 500 words.`
+- If someone needs to speak to a person, let them know the team will follow up.`
   );
 }
 
@@ -361,12 +368,12 @@ async function getChatResponseCLI(
           console.error("[CLAUDE CLI] Error:", error.message);
           if (stderr) console.error("[CLAUDE CLI] Stderr:", stderr);
           resolve(
-            "Sorry, I was unable to generate a response right now. Please try again."
+            CHAT_UNAVAILABLE
           );
           return;
         }
         const response = stdout.trim();
-        resolve(response || "Sorry, I was unable to generate a response.");
+        resolve(response || CHAT_UNAVAILABLE);
       }
     );
   });
@@ -615,13 +622,13 @@ async function getChatResponseAPI(
         `used=${followText?.text ? "follow-up" : firstText?.text ? "first-turn" : "none"}`
     );
 
-    return resolved || "Sorry, I was unable to generate a response.";
+    return resolved || CHAT_UNAVAILABLE;
   }
 
   const textBlock = firstContent.find(
     (b): b is TextBlock => b.type === "text"
   );
-  return textBlock?.text || "Sorry, I was unable to generate a response.";
+  return textBlock?.text || CHAT_UNAVAILABLE;
 }
 
 // --- Public entry point: routes between API and CLI based on org config ---
@@ -676,5 +683,7 @@ export async function getChatResponse(
     return getChatResponseCLI(messages, systemPrompt, options.channel);
   }
 
-  return "Sorry, the AI service isn't configured yet. Please contact support.";
+  // Never "not configured" to a client: that is for us, in the log.
+  console.error("[CLAUDE] No Anthropic key for this chat; sent the client a short apology.");
+  return CHAT_UNAVAILABLE;
 }

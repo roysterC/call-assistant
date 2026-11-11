@@ -628,12 +628,42 @@ message. Instructions: the phone's booking rules with a chat style
 (`buildChatSystem` in `receptionist/prompt.ts`). WhatsApp uses the number
 they message from; Instagram and Messenger ask for a mobile number.
 
-Between messages the receptionist's history (with its diary checks) and
-what it last read back are kept in `ChatSession`; after twelve quiet hours
-or a prompt reset it starts again from the messages. If anything fails, the
-chat falls back to the plain chat reply. The booking's notes say "Booked by
-WhatsApp message." (the diary shows "booked by WhatsApp message"), and it
-counts with the receptionist's bookings on the dashboard (source `voice`).
+**Salons that cannot book by message.** Every salon using the diary (diary,
+phone receptionist or Book from messages switched on) is answered by the
+receptionist on all three, in the same chat style. Where booking by message
+is off, or the diary cannot take bookings yet, it cannot see the diary or
+book: it offers the salon's contact number and to have the salon ring them,
+and records that as a callback (`book_callback`, shown under Callbacks).
+Only a business not using the diary at all (Kikai's own chats) gets the
+plain chat bot (`src/lib/claude.ts`), now told to keep to one to three short
+sentences and one question.
+
+**Replies come once they stop sending** (`src/lib/chat-burst.ts`). A message
+starts a four-second wait, restarted by each new one, at most ten seconds
+from the first; then one reply answers everything they sent since the last
+reply. Instagram and Messenger show "typing…" meanwhile. One conversation's
+replies run one at a time. The wait is held in memory, so on start-up the
+server answers any chat from the last ten minutes left unanswered by a
+restart (`src/lib/chat-recovery.ts`, from `instrumentation.ts`).
+
+**When a reply fails** it is tried once more. If a booking was made before
+it failed, the client is told exactly what was booked; otherwise they get a
+short apology with the salon's number. A conversation is never handed to the
+plain bot half way, and no client is ever sent an error message (the plain
+bot's own failures send a one-line apology too; the detail is in the log).
+
+**Memory.** Between messages the receptionist's history (with its diary
+checks) and what it last read back are kept in `ChatSession`. After twelve
+quiet hours, or a prompt reset, it starts again from the conversation's own
+messages: the last ten, from the past fortnight at most, and it is told how
+old they are, to confirm the service and day rather than assume them. What
+the salon's staff type in the inbox is shown to it as the salon's, both
+when starting again and when written since its last reply; it keeps
+answering after staff have replied, and never contradicts them.
+
+The booking's notes say "Booked by WhatsApp message." (the diary shows
+"booked by WhatsApp message"), and it counts with the receptionist's
+bookings on the dashboard (source `voice`).
 
 **Photos.** Photos sent on any of the three (usually the nails they want)
 are downloaded and kept in `ChatPhoto` (`src/lib/chat-photos.ts`), shown in
@@ -657,6 +687,10 @@ trade, never how the diary works:
 - the examples in the rules above (what to ask about, what "not on the list"
   looks like), why a price is a "from" price, and which health questions go
   to the team;
+- the example lines in the phone's, the chats' and the assistant's
+  instructions, which are written with hair examples and swapped for the
+  main type's own as they are put together (`src/lib/trade-examples.ts`):
+  a nail salon's read-back example is a BIAB infill, not a blow dry;
 - the trade's words the phone listens for (`keyterms.ts`);
 - extra phone rules: nails, beauty and barbers answer "can I come in now?"
   from today's diary, and never suggest walking in otherwise;

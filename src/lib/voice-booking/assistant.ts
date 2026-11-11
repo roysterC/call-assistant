@@ -17,6 +17,7 @@ import { zonedDateString } from "@/lib/business-hours";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
 import { upcomingDays } from "@/lib/receptionist/prompt";
 import { inTradeWords, PROFILES, tradeFor, type Trade } from "@/lib/business-types";
+import { inTradeExamples } from "@/lib/trade-examples";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
 import {
   findClients,
@@ -212,8 +213,8 @@ export function instructions(business: string, speaker: string, trade: Trade = t
   if (trade.staff === "stylist" && trade.types.length === 1) return hairInstructions(business, speaker);
   const kinds = trade.types.map((t) => PROFILES[t].kind).join(" and ");
   return (
-    inTradeWords(hairInstructions(business, speaker), trade) +
-    `\n\nThe business is a ${kinds}. The examples above are from hairdressing; use this trade's own services and words. ` +
+    inTradeExamples(inTradeWords(hairInstructions(business, speaker), trade), trade.types[0]) +
+    `\n\nThe business is a ${kinds}. Use this trade's own services and words. ` +
     (trade.staff === "stylist" ? "" : `The team are ${trade.staff}s; the tools' "stylist" means the same person.`)
   ).trimEnd();
 }

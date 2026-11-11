@@ -20,11 +20,13 @@
  */
 
 import { downloadLinkedPhoto, photoLine, savePhoto } from "@/lib/chat-photos";
-import { bookingReply } from "@/lib/chat-booking";
+import { chatReply, splitPending } from "@/lib/chat-booking";
+import { afterQuiet } from "@/lib/chat-burst";
 import { prisma } from "@/lib/prisma";
 import {
   buildChatContext,
   buildSystemPrompt,
+  CHAT_UNAVAILABLE,
   getChatResponse,
 } from "@/lib/claude";
 
@@ -102,6 +104,16 @@ async function resolveOrgFor(
 
   if (!accessToken || !accountId) return null;
   return { organizationId: settings.organizationId, accessToken, accountId };
+}
+
+/** The same, found by the salon rather than by the account Meta names. */
+async function orgContextFor(organizationId: string, channel: SocialChannel): Promise<OrgContext | null> {
+  const settings = await prisma.organizationSettings.findUnique({
+    where: { organizationId },
+    select: { instagramBusinessId: true, facebookPageId: true },
+  });
+  const accountId = channel === "instagram" ? settings?.instagramBusinessId : settings?.facebookPageId;
+  return accountId ? resolveOrgFor(channel, accountId) : null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -204,6 +216,13 @@ export function instagramHost(token: string): string {
   return isInstagramLoginToken(token) ? "https://graph.instagram.com/v21.0" : GRAPH_API_BASE;
 }
 
+/** Where a message (or "typing…") is sent: Instagram Login tokens have their own host. */
+function messagesUrl(ctx: OrgContext, channel: SocialChannel): string {
+  return channel === "instagram" && isInstagramLoginToken(ctx.accessToken)
+    ? `https://graph.instagram.com/v21.0/me/messages`
+    : `${GRAPH_API_BASE}/${ctx.accountId}/messages`;
+}
+
 async function sendText(
   ctx: OrgContext,
   channel: SocialChannel,
@@ -225,10 +244,7 @@ async function sendText(
   // Unified Login (the only Instagram setup Meta offers new apps from late
   // 2026) gives EAA tokens: those send from the Instagram account's own id on
   // graph.facebook.com, the second branch.
-  const url =
-    channel === "instagram" && isInstagramLoginToken(ctx.accessToken)
-      ? `https://graph.instagram.com/v21.0/me/messages`
-      : `${GRAPH_API_BASE}/${ctx.accountId}/messages`;
+  const url = messagesUrl(ctx, channel);
 
   const payload: Record<string, unknown> = {
     recipient: { id: recipientId },
@@ -420,53 +436,80 @@ async function processMessageEvent(
     await savePhoto({ organizationId: ctx.organizationId, channel, conversationId: conversation.id, photo, caption });
   }
 
-  // Build conversation history for Claude. Honour per-conversation
-  // persona reset (see WhatsApp handler for full rationale): if the
-  // admin set personaResetAt after changing the org prompt, only feed
-  // messages from that point onward.
-  const history = await prisma.socialMessage.findMany({
+  await prisma.socialConversation.update({
+    where: { id: conversation.id },
+    data: { lastMessageAt: new Date(), isRead: false },
+  });
+
+  // "typing…" while they may still be sending, then one reply to it all
+  // once they have stopped (chat-burst.ts).
+  void sendTyping(ctx, channel, senderId);
+  const conversationId = conversation.id;
+  afterQuiet(`${channel}:${conversationId}`, () => answerSocial(ctx, channel, conversationId, senderId));
+}
+
+/**
+ * Reply to whatever in a conversation is still unanswered: the receptionist
+ * for a salon using the diary (chat-booking.ts), the plain chat otherwise.
+ */
+export async function answerSocial(
+  ctx: OrgContext,
+  channel: SocialChannel,
+  conversationId: string,
+  senderId: string
+): Promise<void> {
+  const conversation = await prisma.socialConversation.findUnique({ where: { id: conversationId } });
+  if (!conversation) return;
+
+  // Honour the per-conversation persona reset (see the WhatsApp handler):
+  // only messages since then are read.
+  const rows = await prisma.socialMessage.findMany({
     where: {
-      conversationId: conversation.id,
-      ...(conversation.personaResetAt
-        ? { createdAt: { gte: conversation.personaResetAt } }
-        : {}),
+      conversationId,
+      ...(conversation.personaResetAt ? { createdAt: { gte: conversation.personaResetAt } } : {}),
     },
     orderBy: { createdAt: "asc" },
-    select: { role: true, content: true },
+    select: { role: true, content: true, createdAt: true },
   });
-  // As on WhatsApp: the receptionist, with the diary, where the salon's
-  // chats book (chat-booking.ts); otherwise, or if that fails, the plain reply.
-  const booked = await bookingReply({
+  const { earlier, pending } = splitPending(rows);
+  if (pending.length === 0) return;
+
+  void sendTyping(ctx, channel, senderId);
+  const booked = await chatReply({
     organizationId: ctx.organizationId,
     channel,
-    conversationId: conversation.id,
-    earlier: history.slice(0, -1),
-    text,
+    conversationId,
+    earlier,
+    text: pending.map((m) => m.content).join("\n"),
     phone: null,
     resetAt: conversation.personaResetAt,
   });
 
-  const { messages: chatMessages, systemPrompt } = buildChatContext(
-    history,
-    await buildSystemPrompt(ctx.organizationId, channel)
-  );
-
-  const aiResponse = booked ?? await getChatResponse(chatMessages, systemPrompt, {
-    organizationId: ctx.organizationId,
-    channel,
-    allowCLI: true,
-    // Let Claude extract issue / name / email / company onto the lead
-    // when the customer shares them. Mirrors the phone receptionist.
-    extractToLead: conversation.leadId
-      ? { leadId: conversation.leadId }
-      : undefined,
-  });
+  const aiResponse =
+    booked ??
+    (await (async () => {
+      const { messages: chatMessages, systemPrompt } = buildChatContext(
+        rows,
+        await buildSystemPrompt(ctx.organizationId, channel)
+      );
+      return getChatResponse(chatMessages, systemPrompt, {
+        organizationId: ctx.organizationId,
+        channel,
+        allowCLI: true,
+        // Let Claude extract issue / name / email / company onto the lead
+        // when the customer shares them. Mirrors the phone receptionist.
+        extractToLead: conversation.leadId ? { leadId: conversation.leadId } : undefined,
+      }).catch((err) => {
+        console.error("[META] Plain chat reply failed:", err);
+        return CHAT_UNAVAILABLE;
+      });
+    })());
 
   const sendResult = await sendText(ctx, channel, senderId, aiResponse);
 
   await prisma.socialMessage.create({
     data: {
-      conversationId: conversation.id,
+      conversationId,
       role: "assistant",
       content: aiResponse,
       externalMessageId: sendResult.messageId,
@@ -475,7 +518,35 @@ async function processMessageEvent(
   });
 
   await prisma.socialConversation.update({
-    where: { id: conversation.id },
+    where: { id: conversationId },
     data: { lastMessageAt: new Date(), isRead: false },
   });
+}
+
+/** Answer a conversation found unanswered after a restart (chat-recovery.ts). */
+export async function answerSocialAfterRestart(conversationId: string): Promise<void> {
+  const conversation = await prisma.socialConversation.findUnique({
+    where: { id: conversationId },
+    select: { id: true, organizationId: true, channel: true, externalUserId: true },
+  });
+  if (!conversation) return;
+  const channel = conversation.channel as SocialChannel;
+  const ctx = await orgContextFor(conversation.organizationId, channel);
+  if (!ctx) return;
+  afterQuiet(`${channel}:${conversation.id}`, () => answerSocial(ctx, channel, conversation.id, conversation.externalUserId), {
+    quietMs: 0,
+  });
+}
+
+/** "typing…" in their chat. Best effort: a refusal only means no dots. */
+async function sendTyping(ctx: OrgContext, channel: SocialChannel, recipientId: string): Promise<void> {
+  try {
+    await fetch(messagesUrl(ctx, channel), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ctx.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient: { id: recipientId }, sender_action: "typing_on" }),
+    });
+  } catch {
+    // Nothing to do: the reply still goes.
+  }
 }

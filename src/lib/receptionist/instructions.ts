@@ -13,6 +13,7 @@ import {
   describeServicesForPrompt,
   describeTeamForPrompt,
 } from "@/lib/salon-config";
+import { manualProvider } from "@/lib/booking/providers/manual";
 import {
   explainProviderSelection,
   selectProvider,
@@ -21,9 +22,14 @@ import {
 } from "@/lib/booking";
 import { notListed, salonQuestionsSection } from "@/lib/salon-knowledge";
 import { inTradeWords, tradeFor, type Trade } from "@/lib/business-types";
+import { inTradeExamples } from "@/lib/trade-examples";
 import { buildVoiceTools } from "./tool-definitions";
 
 /** Before booking: the read-back, enforced by the tools (receptionist/read-back.ts). */
+/** The read-back's one line about phone calls, left out of a chat's. */
+const PHONE_DIGITS_RULE = ` Do not read out the digits of the
+  number they are ringing from.`;
+
 const READ_BACK_STEPS = `- **Read it back before you book.** When they have picked a time and you
   have their name, call \`prepare_booking\` straight away: do not ask
   "shall I book that?" first. The read-back is the one time you ask. It checks everything and books
@@ -223,6 +229,41 @@ no reading back digit by digit: the read-back shows it.
 A detail that does not make sense (a day that does not exist, a time the
 salon is shut): ask, rather than guess.`;
 
+/**
+ * A chat that cannot book (booking by message off, or a diary not ready):
+ * the salon's number to ring, or the salon ringing them. Replaces the
+ * booking stance and CHAT_IDENTITY_RULES, which are about booking.
+ */
+export function chatCallbackRules(contactPhone: string | null): string {
+  const offer = contactPhone
+    ? `When they want to book, offer both ways in one message: ringing the salon
+on ${contactPhone}, or the salon ringing them. *"You can ring us on
+${contactPhone} to book, or we can ring you. Which would you prefer?"*`
+    : `When they want to book, offer for the salon to ring them: *"We can ring
+you to book that in. What name is it under?"*`;
+  return `# Booking
+
+You cannot book, or see the diary, in this chat. Never say a time is free,
+taken or booked, and never confirm an appointment.
+
+${offer}
+
+If they would like a call: ask for their name, then a mobile number (on
+WhatsApp the tools already have it: do not ask), and the day and time they
+would like if they have not said. One question per message. Then call
+\`book_callback\` with what they want in \`notes\` (service, stylist, day and time
+they would like), and as the day to ring, the next day the salon is open.
+Say the salon will ring them to book it in; never say it is booked.
+
+# Getting their details
+
+The tools call the person you are messaging "the caller". Never invent a
+name, never send a placeholder such as "Unknown" or "Customer", and never use
+their profile name in place of one unless they say it is their name. A
+detail that does not make sense (a day that does not exist, a time the salon
+is shut): ask, rather than guess.`;
+}
+
 export const CALLER_IDENTITY_RULES = `# Getting the caller's details
 
 ## Their name
@@ -364,25 +405,39 @@ export function composeVoicePrompt(
   faq: string | null = null,
   // "chat": the same rules for a booking by message (chat-booking.ts): the
   // typed version of getting their details, and no call to end.
-  opts: { channel?: "phone" | "chat" } = {}
+  opts: {
+    channel?: "phone" | "chat";
+    /** A chat that cannot book, whatever the diary could do: the number, or a call back. */
+    canBook?: boolean;
+    contactPhone?: string | null;
+  } = {}
 ): ComposedPrompt {
   const chat = opts.channel === "chat";
   const provider = selectProvider(cfg);
-  const caps = provider.capabilities;
+  const callbackOnly = chat && opts.canBook === false;
+  const caps = callbackOnly ? manualProvider.capabilities : provider.capabilities;
   const trade = tradeFor(cfg.businessTypes);
 
   // Written by Kikai, so in the trade's own words ("nail technician", not
   // "stylist"); the salon's own prompt, below, is left as they wrote it.
   const generated = [
-    buildAvailabilityStance(caps, { colour: cfg.services.some((sv) => sv.requiresPatchTest) }),
-    `${chat ? CHAT_IDENTITY_RULES : CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`,
+    ...(callbackOnly
+      ? [chatCallbackRules(opts.contactPhone ?? null)]
+      : [
+          buildAvailabilityStance(caps, { colour: cfg.services.some((sv) => sv.requiresPatchTest) }),
+          `${chat ? CHAT_IDENTITY_RULES : CALLER_IDENTITY_RULES}\n\n## Email\n\nNever ask for an email address. Their number is all the salon needs: the\nconfirmation and reminders go by text.`,
+        ]),
     ...(chat ? [] : [CALL_CLOSING_RULES]),
     `# Opening hours\n\n${describeHoursForPrompt(cfg.hours, cfg.timeZone)}`,
     `# Services\n\n${notListed(trade)}\n\n${describeServicesForPrompt(cfg.services)}`,
     `# The team\n\n${describeTeamForPrompt(cfg.stylists, cfg.services)}`,
     salonQuestionsSection(faq, "phone", trade),
   ];
-  const sections = generated.map((x) => inTradeWords(x, trade));
+  const sections = generated.map((x) => {
+    const text = inTradeExamples(inTradeWords(x, trade), trade.types[0]);
+    // Typed, not heard: there are no digits to keep from reading out.
+    return chat ? text.replace(PHONE_DIGITS_RULE, "") : text;
+  });
   // Not reworded: it names "stylist" on purpose, to say it is not used.
   const own = tradeSection(trade);
   if (own) sections.push(own);
@@ -405,7 +460,7 @@ export function composeVoicePrompt(
   return {
     prompt: sections.join("\n\n---\n\n"),
     toolNames: buildVoiceTools(caps).map((t) => t.function.name),
-    providerId: provider.id,
+    providerId: callbackOnly ? manualProvider.id : provider.id,
     warnings,
   };
 }

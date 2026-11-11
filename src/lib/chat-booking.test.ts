@@ -94,7 +94,18 @@ vi.mock("@/lib/receptionist/session", () => ({
   receptionistRequestOptions: () => ({}),
 }));
 
-import { bookingChatReply, bookingReply, CHAT_SESSION_IDLE_MS, forSaving, fromMessages } from "./chat-booking";
+import {
+  bookedText,
+  bookingChatReply,
+  carryOver,
+  chatReply,
+  CHAT_SESSION_IDLE_MS,
+  forSaving,
+  fromMessages,
+  sorryText,
+  splitPending,
+  withColleague,
+} from "./chat-booking";
 import { buildChatSystem, buildSystem } from "@/lib/receptionist/prompt";
 import type { SalonConfig } from "@/lib/booking";
 
@@ -103,10 +114,14 @@ type Reply = { text?: string; tool?: { name: string; input: Record<string, unkno
 /** A model that answers request n with script[n]. */
 function model(script: Reply[]) {
   const requests: Anthropic.MessageParam[][] = [];
+  const tools: string[][] = [];
+  const systems: string[] = [];
   const client: StreamingClient = {
     messages: {
       stream(params) {
         requests.push(JSON.parse(JSON.stringify(params.messages)));
+        tools.push((params.tools ?? []).map((t) => (t as { name: string }).name));
+        systems.push(JSON.stringify(params.system));
         const r = script[Math.min(requests.length - 1, script.length - 1)];
         let onText: ((d: string) => void) | null = null;
         const n = requests.length;
@@ -136,7 +151,7 @@ function model(script: Reply[]) {
       },
     },
   };
-  return { client, requests };
+  return { client, requests, tools, systems };
 }
 
 const turn = (text: string, client: StreamingClient, over: Record<string, unknown> = {}) => ({
@@ -248,22 +263,112 @@ describe("booking by message", () => {
 });
 
 describe("the webhooks' way in", () => {
-  it("gives null, for the plain chat, where booking by message is off", async () => {
-    db.settings = { chatBookingEnabled: false };
-    expect(await bookingReply(turn("hi", model([{ text: "x" }]).client))).toBeNull();
+  const broken: StreamingClient = {
+    messages: {
+      stream() {
+        throw new Error("overloaded");
+      },
+    },
+  };
+
+  it("gives null, for the plain chat, to a business that does not use the diary", async () => {
+    db.settings = { chatBookingEnabled: false, diaryEnabled: false, voiceEnabled: false };
+    expect(await chatReply(turn("hi", model([{ text: "x" }]).client))).toBeNull();
   });
 
-  it("gives null, for the plain chat, if anything goes wrong", async () => {
-    const broken: StreamingClient = {
+  it("where booking by message is off, still answers as the receptionist, with the number and a call back", async () => {
+    db.settings = { chatBookingEnabled: false, diaryEnabled: true, businessName: "Polished", contactPhone: "01234 567890" };
+    const m = model([{ text: "You can ring us on 01234 567890 to book, or we can ring you. Which would you prefer?" }]);
+    expect(await chatReply(turn("Can I book a BIAB?", m.client))).toContain("01234 567890");
+    expect(m.tools[0]).toEqual(expect.arrayContaining(["book_callback", "take_message"]));
+    expect(m.tools[0]).not.toContain("prepare_booking");
+    expect(m.systems[0]).toContain("You cannot book, or see the diary, in this chat.");
+    expect(m.systems[0]).toContain("You can ring us on\\n01234 567890 to book");
+  });
+
+  it("tries twice, then says sorry with the salon's number, never an error", async () => {
+    db.settings = { ...db.settings, contactPhone: "01234 567890" };
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await chatReply(turn("hi", broken))).toBe(sorryText("01234 567890"));
+    expect(err.mock.calls.filter((c) => String(c[0]).includes("reply failed"))).toHaveLength(2);
+    err.mockRestore();
+  });
+
+  it("says what was booked when it fails after booking, and does not try again", async () => {
+    // Read back first, so the yes books.
+    await bookingChatReply(turn("BIAB Thursday 3, Roy", model([prepare, readBack]).client));
+    actions.runAction.mockResolvedValueOnce({
+      success: true,
+      bookingNumber: 1043,
+      service: "BIAB infill",
+      stylist: "Lan",
+      startsAt: "2026-11-12T15:00:00+00:00",
+      textSent: true,
+      message: "Booked.",
+    } as never);
+    // The model books, then fails writing what to say.
+    let n = 0;
+    const failsAfterBooking: StreamingClient = {
       messages: {
-        stream() {
-          throw new Error("overloaded");
+        stream(params) {
+          n++;
+          if (n > 1) throw new Error("overloaded");
+          return model([book]).client.messages.stream(params);
         },
       },
     };
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await bookingReply(turn("hi", broken))).toBeNull();
+    expect(await chatReply(turn("yes", failsAfterBooking))).toBe(
+      "You're booked: BIAB infill with Lan, Thursday 12 November at 3pm. A text is on its way."
+    );
+    expect(actions.runAction).toHaveBeenCalledTimes(1);
     err.mockRestore();
+  });
+});
+
+describe("what is said when a reply fails", () => {
+  it("names the booking, with the time as people write it", () => {
+    expect(
+      bookedText({ service: "Gel manicure", stylist: "Mai", startsAt: "2026-11-13T14:30:00+00:00", textSent: false, timeZone: "Europe/London" })
+    ).toBe("You're booked: Gel manicure with Mai, Friday 13 November at 2:30pm.");
+  });
+  it("leaves the number out when the salon has none", () => {
+    expect(sorryText(null)).toBe("Sorry, I couldn't reply properly just then. Could you send that again in a minute?");
+  });
+});
+
+describe("the salon's own replies", () => {
+  it("are shown as the salon's, not the bot's, when starting afresh", async () => {
+    const later = new Date(Date.now() + CHAT_SESSION_IDLE_MS + 60_000);
+    const m = model([{ text: "Friday it is." }]);
+    await bookingChatReply(
+      turn("Friday then", m.client, {
+        now: later,
+        earlier: [
+          { role: "user", content: "Is Lan in Thursday?", createdAt: new Date(later.getTime() - 60_000) },
+          { role: "agent", content: "Sorry, Lan is off Thursday", createdAt: new Date(later.getTime() - 30_000) },
+        ],
+      })
+    );
+    expect(m.requests[0][1]).toEqual({ role: "assistant", content: "[From the salon's team] Sorry, Lan is off Thursday" });
+    expect(m.systems[0]).toContain("were written by someone from the salon, not by you");
+  });
+
+  it("are seen when written since the last reply", async () => {
+    await bookingChatReply(turn("Is Lan in Thursday?", model([{ text: "Let me check." }]).client));
+    const m = model([{ text: "Friday at 3pm then?" }]);
+    await bookingChatReply(
+      turn("Friday then", m.client, {
+        earlier: [
+          { role: "user", content: "Is Lan in Thursday?", createdAt: new Date(Date.now() - 60_000) },
+          { role: "assistant", content: "Let me check.", createdAt: new Date(Date.now() - 50_000) },
+          { role: "agent", content: "Lan is off Thursday, sorry", createdAt: new Date(Date.now() + 1_000) },
+        ],
+      })
+    );
+    const last = m.requests[0].at(-2)!;
+    expect(last.role).toBe("assistant");
+    expect(JSON.stringify(last.content)).toContain("[From the salon's team] Lan is off Thursday, sorry");
   });
 });
 
@@ -278,8 +383,69 @@ describe("what is kept between messages", () => {
       ])
     ).toEqual([
       { role: "user", content: "Gel nails?" },
-      { role: "assistant", content: "Yes" },
+      { role: "assistant", content: "[From the salon's team] Yes" },
     ]);
+  });
+
+  it("joins messages sent one after another", () => {
+    expect(
+      fromMessages([
+        { role: "user", content: "Hi" },
+        { role: "user", content: "Can I book?" },
+      ])
+    ).toEqual([{ role: "user", content: "Hi\n\nCan I book?" }]);
+  });
+
+  it("carries over only the last ten, from the past fortnight, and says when they were from", () => {
+    const now = new Date("2026-11-11T12:00:00Z");
+    const ago = (days: number) => new Date(now.getTime() - days * 86_400_000);
+    const rows = [
+      { role: "user", content: "Last month", createdAt: ago(30) },
+      ...Array.from({ length: 12 }, (_, i) => ({
+        role: i % 2 ? "assistant" : "user",
+        content: `m${i}`,
+        createdAt: ago(3 - i * 0.01),
+      })),
+    ];
+    const { messages, olderThanASession } = carryOver(rows, now);
+    expect(JSON.stringify(messages)).not.toContain("Last month");
+    expect(JSON.stringify(messages)).not.toContain('"m1"');
+    expect(messages[0]).toEqual({ role: "user", content: "m2" });
+    expect(olderThanASession).toEqual(rows.at(-1)!.createdAt);
+    // From earlier today: nothing to warn about.
+    expect(carryOver([{ role: "user", content: "hi", createdAt: new Date(now.getTime() - 60_000) }], now).olderThanASession).toBeNull();
+  });
+
+  it("joins the salon's replies onto the last one", () => {
+    expect(
+      withColleague(
+        [
+          { role: "user", content: "x" },
+          { role: "assistant", content: "Let me check." },
+        ],
+        [{ role: "agent", content: "Off Thursday" }]
+      )
+    ).toEqual([
+      { role: "user", content: "x" },
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "Let me check." },
+          { type: "text", text: "[From the salon's team] Off Thursday" },
+        ],
+      },
+    ]);
+  });
+
+  it("answers everything they sent since the last reply", () => {
+    const rows = [
+      { role: "user", content: "a" },
+      { role: "assistant", content: "b" },
+      { role: "user", content: "c" },
+      { role: "user", content: "d" },
+    ];
+    expect(splitPending(rows)).toEqual({ earlier: rows.slice(0, 2), pending: rows.slice(2) });
+    expect(splitPending([...rows, { role: "agent", content: "e" }]).pending).toEqual([]);
   });
 
   it("drops the model's reasoning, and never keeps a tool call without its result", () => {

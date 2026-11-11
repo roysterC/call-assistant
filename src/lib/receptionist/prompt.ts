@@ -16,6 +16,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { SalonConfig } from "@/lib/booking";
 import { composeVoicePrompt } from "@/lib/receptionist/instructions";
 import { hoursForWeekday, zonedParts } from "@/lib/business-hours";
+import { inTradeExamples } from "@/lib/trade-examples";
 import { inTradeWords, tradeFor } from "@/lib/business-types";
 
 export const SPOKEN_STYLE = `# You are on the phone
@@ -176,16 +177,15 @@ rest has to be asked again.
 - No headings, bullet points, bold or emojis. A line break is fine.
 - Say nothing before a lookup: they see your message only once it is ready.
 
-How it reads, at a nail salon for example:
+How it reads:
 
-- They: *"Can I book a BIAB?"* You: *"Is that a full set or an infill?"*
-- They: *"Infill."* You: *"Which day suits you?"*
+- They: *"Can I book a cut?"* You: *"Is that a ladies' cut or a men's cut?"*
+- They: *"Ladies'."* You: *"Which day suits you?"*
 - They: *"Thursday."* You: *"Thursday 12 November at 11am or 2:30pm?"*
 - They: *"2:30."* You: *"What name is it under?"*
 - Booked: *"That's booked, and a text is on its way."*
 
-Never like this: *"Great. Which BIAB would you like: natural nails or
-extensions, and a full set or an infill? And what day suits you?"*
+Never like this: *"Great. Which cut would you like: ladies', men's or a child's, and a blow dry too? And what day suits you?"*
 
 ## How to write things
 
@@ -222,6 +222,20 @@ extensions, and a full set or an infill? And what day suits you?"*
  * own phone notes. Cached as the phone's are: the clock and how they are
  * messaging go after the marker.
  */
+export interface ChatPromptExtras {
+  /** False when this chat only takes requests for a call back (chatCallbackRules). */
+  canBook?: boolean;
+  /** The salon's number, offered when the chat cannot book. */
+  contactPhone?: string | null;
+  /** The newest of the earlier messages carried over, when they are from a while ago. */
+  earlierFrom?: Date | null;
+  /** Someone from the salon has written in this conversation. */
+  colleague?: boolean;
+}
+
+/** How a message typed by the salon's staff in the inbox is shown to the receptionist. */
+export const COLLEAGUE_PREFIX = "[From the salon's team]";
+
 export function buildChatSystem(
   cfg: SalonConfig,
   businessName: string,
@@ -229,14 +243,21 @@ export function buildChatSystem(
   body: string | null,
   now: Date,
   phone: string | null,
-  faq: string | null = null
+  faq: string | null = null,
+  extras: ChatPromptExtras = {}
 ): Anthropic.TextBlockParam[] {
-  const composed = composeVoicePrompt(cfg, body, faq, { channel: "chat" });
+  const canBook = extras.canBook !== false;
+  const composed = composeVoicePrompt(cfg, body, faq, {
+    channel: "chat",
+    canBook,
+    contactPhone: extras.contactPhone ?? null,
+  });
   const style = CHAT_STYLE.replaceAll("{{business}}", businessName || "the salon").replace(
     "{{channel}}",
     CHAT_LABEL[channel]
   );
-  const stable = [inTradeWords(style, tradeFor(cfg.businessTypes)), composed.prompt].join("\n\n---\n\n");
+  const trade = tradeFor(cfg.businessTypes);
+  const stable = [inTradeExamples(inTradeWords(style, trade), trade.types[0]), composed.prompt].join("\n\n---\n\n");
 
   const clock = new Intl.DateTimeFormat("en-GB", {
     timeZone: cfg.timeZone,
@@ -259,13 +280,32 @@ export function buildChatSystem(
     ``,
     phone
       ? `They are messaging on ${CHAT_LABEL[channel]} from their own number. The tools know it; do not ask for it unless they want to use a different one.`
-      : `They are messaging on ${CHAT_LABEL[channel]}, which gives no phone number: ask for a mobile number for the confirmation text before you book.`,
+      : canBook
+        ? `They are messaging on ${CHAT_LABEL[channel]}, which gives no phone number: ask for a mobile number for the confirmation text before you book.`
+        : `They are messaging on ${CHAT_LABEL[channel]}, which gives no phone number: ask for a mobile number if the salon is to ring them.`,
+    ...(extras.earlierFrom
+      ? [
+          ``,
+          `The messages before their latest are from ${dayLabel(extras.earlierFrom, cfg.timeZone)}. What they wanted then may have changed: confirm the service and the day rather than assume them.`,
+        ]
+      : []),
+    ...(extras.colleague
+      ? [
+          ``,
+          `Messages starting ${COLLEAGUE_PREFIX} were written by someone from the salon, not by you. They have seen them, and what the salon said or promised stands: never contradict it or say it was a mistake.`,
+        ]
+      : []),
   ].join("\n");
 
   return [
     { type: "text", text: stable, cache_control: { type: "ephemeral" } },
     { type: "text", text: context },
   ];
+}
+
+/** "Monday 9 November", in the salon's time zone. */
+function dayLabel(at: Date, timeZone: string): string {
+  return at.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone });
 }
 
 /**
