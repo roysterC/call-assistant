@@ -1,6 +1,10 @@
 /**
- * Booking by message: WhatsApp, Instagram and Messenger book into the diary
- * with the same tools, checks and read-back as the phone receptionist.
+ * The receptionist on WhatsApp, Instagram and Messenger: for every salon that
+ * uses the diary, the same instructions, tools and checks as the phone, in
+ * the chat's own style. Where booking by message is on and the diary can
+ * take bookings, it books, with the same read-back as the phone; otherwise
+ * it gives the salon's number or takes a request for the salon to ring them
+ * (chatCallbackRules), rather than the old plain chat bot answering.
  *
  * Nail clients book by message far more than by phone, and until this the
  * chats could only say "ring the salon". Switched on per salon by Kikai
@@ -28,7 +32,9 @@ import { runAction, handleBookAppointment, isActionName, normaliseParameters } f
 import { ReadBackGate, type ReadBackState } from "@/lib/receptionist/read-back";
 import { ClientTypeMemory } from "@/lib/receptionist/client-type-memory";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
-import { buildChatSystem, type ChatChannel } from "@/lib/receptionist/prompt";
+import { buildChatSystem, COLLEAGUE_PREFIX, type ChatChannel } from "@/lib/receptionist/prompt";
+import { manualProvider } from "@/lib/booking/providers/manual";
+import { hasDiary } from "@/lib/navigation";
 import { toClaudeTools, withCallerContext } from "@/lib/receptionist/tools";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
 import { attachPhotosToBooking } from "@/lib/chat-photos";
@@ -39,6 +45,11 @@ export const CHAT_SESSION_IDLE_MS = 12 * 60 * 60_000;
 
 /** Saved history is cut to about this many entries, from the front. */
 const KEEP_MESSAGES = 60;
+
+/** Starting afresh, at most this many of the conversation's own messages are carried over… */
+export const CARRY_MESSAGES = 10;
+/** …and none older than this. */
+export const CARRY_DAYS = 14;
 
 /** What is kept between messages besides the history. */
 interface SavedState {
@@ -61,13 +72,38 @@ export async function chatBookingOn(organizationId: string): Promise<boolean> {
   return selectProvider(cfg).capabilities.createBooking;
 }
 
+/**
+ * How this organisation's chats answer: "book" where booking by message is
+ * on and the diary takes bookings; "messages" (the number, or a call back)
+ * for any other salon using the diary; null for the plain chat, for a
+ * business that does not use the diary at all (Kikai's own chats).
+ */
+export type ChatMode = "book" | "messages";
+
+export async function chatMode(organizationId: string): Promise<ChatMode | null> {
+  const settings = await prisma.organizationSettings.findUnique({
+    where: { organizationId },
+    select: { chatBookingEnabled: true, diaryEnabled: true, voiceEnabled: true },
+  });
+  if (!settings || !hasDiary(settings)) return null;
+  return (await chatBookingOn(organizationId)) ? "book" : "messages";
+}
+
+/** One of the conversation's stored messages: theirs ("user"), the bot's, or the salon's staff ("agent"). */
+export interface ChatRow {
+  role: string;
+  content: string;
+  createdAt?: Date;
+}
+
 export interface ChatTurn {
   organizationId: string;
   channel: ChatChannel;
   /** The channel's conversation row. */
   conversationId: string;
-  /** The conversation's earlier messages, oldest first, not including this one. */
-  earlier: Array<{ role: string; content: string }>;
+  /** The conversation's earlier messages, oldest first, not including the ones being answered. */
+  earlier: ChatRow[];
+  /** Everything they have sent since the last reply, as one. */
   text: string;
   /** Their number, where the channel gives one (WhatsApp). */
   phone: string | null;
@@ -75,19 +111,71 @@ export interface ChatTurn {
   resetAt?: Date | null;
   client?: StreamingClient;
   now?: Date;
+  /** "messages" when this chat cannot book; "book" if not given. */
+  mode?: ChatMode;
+  /** Filled in as the reply goes, so a failure after a booking still says it is booked. */
+  outcome?: ChatOutcome;
+}
+
+export interface ChatOutcome {
+  booked?: { service: string; stylist: string; startsAt: string; textSent: boolean; timeZone: string };
 }
 
 /**
- * The webhooks' way in: the receptionist's reply where this salon's chats
- * book, or null for the plain chat reply (not switched on, no diary, or
- * something went wrong, which is logged).
+ * The webhooks' way in: the receptionist's reply for a salon using the diary,
+ * or null for the plain chat (a business that does not use it). Never fails:
+ * it tries twice, and then sends a short apology with the salon's number,
+ * or, if a booking was made before it failed, says so. It never hands a
+ * conversation to the plain chat half way, which knows nothing of it.
  */
-export async function bookingReply(turn: ChatTurn): Promise<string | null> {
+export async function chatReply(turn: ChatTurn): Promise<string | null> {
+  let mode: ChatMode | null;
   try {
-    if (!(await chatBookingOn(turn.organizationId))) return null;
-    return await bookingChatReply(turn);
+    mode = await chatMode(turn.organizationId);
   } catch (err) {
-    console.error(`[CHAT BOOKING] ${turn.channel} reply failed, falling back to the plain chat:`, err);
+    console.error(`[CHAT] ${turn.channel}: could not tell how this salon's chats answer:`, err);
+    return null;
+  }
+  if (!mode) return null;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const outcome: ChatOutcome = {};
+    try {
+      return await bookingChatReply({ ...turn, mode, outcome });
+    } catch (err) {
+      console.error(`[CHAT] ${turn.channel} reply failed (attempt ${attempt}):`, err);
+      // Booked before it failed: trying again would ask to book it twice.
+      if (outcome.booked) return bookedText(outcome.booked);
+    }
+  }
+  return sorryText(await contactPhoneFor(turn.organizationId));
+}
+
+/** Said when a reply failed after the booking was made: what the booking is. */
+export function bookedText(b: NonNullable<ChatOutcome["booked"]>): string {
+  const at = new Date(b.startsAt);
+  const day = at.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: b.timeZone });
+  const time = at
+    .toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: b.timeZone })
+    .replace(":00", "")
+    .replace(/\s/g, "")
+    .toLowerCase();
+  return `You're booked: ${b.service} with ${b.stylist}, ${day} at ${time}.${b.textSent ? " A text is on its way." : ""}`;
+}
+
+/** Said when no reply could be written: never an error message. */
+export function sorryText(contactPhone: string | null): string {
+  return (
+    "Sorry, I couldn't reply properly just then. Could you send that again in a minute?" +
+    (contactPhone ? ` Or ring us on ${contactPhone}.` : "")
+  );
+}
+
+async function contactPhoneFor(organizationId: string): Promise<string | null> {
+  try {
+    const s = await prisma.organizationSettings.findUnique({ where: { organizationId }, select: { contactPhone: true } });
+    return s?.contactPhone ?? null;
+  } catch {
     return null;
   }
 }
@@ -115,12 +203,13 @@ async function reply(turn: ChatTurn): Promise<string> {
 
   const settings = await prisma.organizationSettings.findUnique({
     where: { organizationId },
-    select: { businessName: true, voiceSystemPrompt: true, salonFaq: true },
+    select: { businessName: true, voiceSystemPrompt: true, salonFaq: true, contactPhone: true },
   });
   const key = turn.client ? null : await receptionistApiKey(organizationId);
   if (!turn.client && !key) throw new Error("No Anthropic API key for this salon.");
   const cfg = await getSalonConfig(organizationId);
-  const tools = toClaudeTools(buildVoiceTools(selectProvider(cfg).capabilities));
+  const canBook = turn.mode !== "messages";
+  const tools = toClaudeTools(buildVoiceTools(canBook ? selectProvider(cfg).capabilities : manualProvider.capabilities));
   const allowed = new Set(tools.map((t) => t.name));
 
   const saved = await prisma.chatSession.findUnique({
@@ -131,7 +220,16 @@ async function reply(turn: ChatTurn): Promise<string> {
     now.getTime() - saved.updatedAt.getTime() > CHAT_SESSION_IDLE_MS ||
     Boolean(turn.resetAt && turn.resetAt > saved.createdAt);
   const state: SavedState = fresh ? FRESH : { ...FRESH, ...(saved.state as unknown as Partial<SavedState>) };
-  const history = fresh ? fromMessages(turn.earlier) : (saved.messages as unknown as Anthropic.MessageParam[]);
+  // Afresh: the conversation's own recent messages. Carrying on: what was
+  // saved, and anything the salon's staff have written since.
+  const carried = fresh ? carryOver(turn.earlier, now) : null;
+  const history = carried
+    ? carried.messages
+    : withColleague(
+        saved!.messages as unknown as Anthropic.MessageParam[],
+        turn.earlier.filter((r) => r.role === "agent" && (!r.createdAt || r.createdAt > saved!.updatedAt))
+      );
+  const colleague = turn.earlier.some((r) => r.role === "agent");
 
   const clientTypes = new ClientTypeMemory(state.clientTypes);
   const readBack = new ReadBackGate(
@@ -151,8 +249,24 @@ async function reply(turn: ChatTurn): Promise<string> {
           organizationId,
           withCallerContext("book_appointment", { ...input, notes: withChannelNote(input.notes, channel) }, phone)
         );
+        const n = (result as {
+          success?: boolean;
+          bookingNumber?: unknown;
+          service?: string;
+          stylist?: string;
+          startsAt?: string;
+          textSent?: boolean;
+        } | null) ?? null;
+        if (n?.success && turn.outcome && n.service && n.stylist && n.startsAt) {
+          turn.outcome.booked = {
+            service: n.service,
+            stylist: n.stylist,
+            startsAt: n.startsAt,
+            textSent: n.textSent === true,
+            timeZone: cfg.timeZone,
+          };
+        }
         // Any photo they sent (the design they want) goes with the booking.
-        const n = (result as { success?: boolean; bookingNumber?: unknown } | null) ?? null;
         if (n?.success && typeof n.bookingNumber === "number") {
           await attachPhotosToBooking({ organizationId, channel, conversationId, bookingNumber: n.bookingNumber, now }).catch(
             (err) => console.error("[CHAT BOOKING] photos not linked to the booking:", err)
@@ -175,7 +289,13 @@ async function reply(turn: ChatTurn): Promise<string> {
       settings?.voiceSystemPrompt ?? null,
       now,
       phone,
-      settings?.salonFaq ?? null
+      settings?.salonFaq ?? null,
+      {
+        canBook,
+        contactPhone: settings?.contactPhone ?? null,
+        earlierFrom: carried?.olderThanASession ?? null,
+        colleague,
+      }
     ),
     tools,
     execute: async (name, said) => {
@@ -214,18 +334,68 @@ export function withChannelNote(notes: unknown, channel: ChatChannel): string {
 
 /**
  * The conversation's own messages as a history to carry on from: text only,
- * starting with theirs, empty ones left out.
+ * starting with theirs, empty ones left out, the salon's staff marked as
+ * theirs, and one after another from the same side joined into one.
  */
-export function fromMessages(rows: Array<{ role: string; content: string }>): Anthropic.MessageParam[] {
-  const out: Anthropic.MessageParam[] = [];
+export function fromMessages(rows: ChatRow[]): Anthropic.MessageParam[] {
+  const out: Array<{ role: "user" | "assistant"; content: string }> = [];
   for (const r of rows) {
-    const content = r.content?.trim();
-    if (!content) continue;
+    const text = r.content?.trim();
+    if (!text) continue;
     const role = r.role === "user" ? "user" : "assistant";
     if (out.length === 0 && role !== "user") continue;
-    out.push({ role, content });
+    const content = r.role === "agent" ? `${COLLEAGUE_PREFIX} ${text}` : text;
+    const last = out[out.length - 1];
+    if (last && last.role === role) last.content = `${last.content}\n\n${content}`;
+    else out.push({ role, content });
   }
   return out;
+}
+
+/**
+ * Starting afresh: the last CARRY_MESSAGES of the past CARRY_DAYS, so a chat
+ * from months ago is not read again, and how old they are, when they are
+ * from before a quiet spell, for the receptionist to check rather than assume.
+ */
+export function carryOver(
+  rows: ChatRow[],
+  now: Date
+): { messages: Anthropic.MessageParam[]; olderThanASession: Date | null } {
+  const since = now.getTime() - CARRY_DAYS * 86_400_000;
+  const recent = rows.filter((r) => !r.createdAt || r.createdAt.getTime() >= since).slice(-CARRY_MESSAGES);
+  const messages = fromMessages(recent);
+  const newest = recent.reduce<Date | null>((d, r) => (r.createdAt && (!d || r.createdAt > d) ? r.createdAt : d), null);
+  const old = messages.length > 0 && newest !== null && now.getTime() - newest.getTime() > CHAT_SESSION_IDLE_MS;
+  return { messages, olderThanASession: old ? newest : null };
+}
+
+/** The saved history with what the salon's staff wrote since, as the salon's side of it. */
+export function withColleague(history: Anthropic.MessageParam[], staff: ChatRow[]): Anthropic.MessageParam[] {
+  const lines = staff.map((r) => r.content?.trim()).filter(Boolean).map((t) => `${COLLEAGUE_PREFIX} ${t}`);
+  if (lines.length === 0) return history;
+  const out = [...history];
+  const last = out[out.length - 1];
+  // Joined onto the last reply, which is the salon's side too: two in a row
+  // from one side is not a conversation.
+  if (last?.role === "assistant") {
+    const blocks: Anthropic.ContentBlockParam[] =
+      typeof last.content === "string" ? [{ type: "text", text: last.content }] : [...last.content];
+    out[out.length - 1] = { role: "assistant", content: [...blocks, ...lines.map((text) => ({ type: "text" as const, text }))] };
+  } else {
+    out.push({ role: "assistant", content: lines.join("\n\n") });
+  }
+  return out;
+}
+
+/**
+ * A conversation's stored messages split into what came before and what is
+ * still to be answered: everything they sent after the last reply (the
+ * bot's or the salon's). Nothing to answer when the last word is not theirs.
+ */
+export function splitPending<T extends ChatRow>(rows: T[]): { earlier: T[]; pending: T[] } {
+  let i = rows.length;
+  while (i > 0 && rows[i - 1].role === "user") i--;
+  return { earlier: rows.slice(0, i), pending: rows.slice(i) };
 }
 
 /**
