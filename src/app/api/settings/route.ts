@@ -189,12 +189,15 @@ export async function GET(req: NextRequest) {
     // a super-admin is viewing as, so it never shows another name first.
     const org = await prisma.organization.findUnique({
       where: { id: ctx.organizationId },
-      select: { name: true },
+      select: { name: true, needsOnboarding: true },
     });
 
     return NextResponse.json({
       settings: ctx.isSuperAdmin ? settings : withoutSecrets(settings),
-      startPage,
+      // Onboarding first (src/app/onboarding), until the owner finishes it.
+      // Never for a super-admin, who sets salons up from Admin instead.
+      startPage: org?.needsOnboarding && !ctx.isSuperAdmin ? "/onboarding" : startPage,
+      needsOnboarding: Boolean(org?.needsOnboarding) && !ctx.isSuperAdmin,
       organizationName: org?.name ?? null,
     });
   } catch (error) {

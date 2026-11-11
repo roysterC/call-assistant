@@ -54,6 +54,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { plural } from "@/lib/plural";
 import { VOICE_CHANNEL, WHATSAPP_CHANNEL, channelLabel } from "@/lib/phone-channels";
 import { useDialogs } from "@/components/providers/dialogs-provider";
+import { InvitationsSection } from "@/components/admin/invitations";
 
 
 interface Org {
@@ -66,6 +67,8 @@ interface Org {
   anthropicApiKeyOverride: string | null;
   usageMarkupPercent: number | null;
   enabled: boolean;
+  /** The owner has not finished onboarding yet (src/app/onboarding). */
+  needsOnboarding?: boolean;
   settings: {
     businessName: string;
     // The salon's diary set-up, edited on its own Settings page; read here
@@ -257,7 +260,10 @@ export default function OrganizationDetailPage() {
   // to the form are kept through those (they used to vanish), and dropped
   // only after a save.
   const load = useCallback(async (opts: { keepEdits?: boolean } = {}) => {
-    setLoading(true);
+    // The spinner is for the first load only. Reloading after a save used to
+    // put it up too, which took the whole page away and brought it back at
+    // the top; now the page updates where it stands.
+    if (!orgRef.current) setLoading(true);
     try {
       const res = await fetch(`/api/admin/organizations/${params.id}`);
       if (!res.ok) throw new Error("Not found");
@@ -1300,6 +1306,15 @@ export default function OrganizationDetailPage() {
           }
         />
       </section>
+
+      {org.needsOnboarding && (
+        <p className="rounded-xl border border-light-bronze-300 bg-light-bronze-900/40 px-4 py-3 text-sm" data-testid="onboarding-pending">
+          The owner hasn&apos;t finished setting up yet. When they sign in, they&apos;re taken through the salon&apos;s
+          name, type, opening hours, services and team.
+        </p>
+      )}
+
+      <InvitationsSection orgId={org.id} onChange={() => load({ keepEdits: true })} />
 
       {/* Add Phone dialog */}
       <Dialog open={phoneDialog} onOpenChange={setPhoneDialog}>

@@ -41,6 +41,10 @@ export async function proxy(req: NextRequest) {
     // page's own (src/app/api/monitoring).
     "/api/monitoring",
     "/api/auth",
+    // An owner's invite link and the call that makes their login: they have
+    // no login yet (src/lib/invitations.ts).
+    "/invite/",
+    "/api/invite",
     "/embed",
     "/login",
     // The in-person lead funnel and where it sends; no login by design.
