@@ -25,6 +25,9 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
     // An owner's invite link, and setting the salon up (src/app/onboarding).
     "/invite/",
     "/onboarding",
+    "/forgot-password",
+    "/reset-password/",
+    "/verify-email/",
   ].some((p) => pathname?.startsWith(p));
   if (chromeless) {
     return <>{children}</>;

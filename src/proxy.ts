@@ -45,6 +45,13 @@ export async function proxy(req: NextRequest) {
     // no login yet (src/lib/invitations.ts).
     "/invite/",
     "/api/invite",
+    // "Forgot password?" and confirming an email from its link: someone
+    // who cannot sign in, or a phone that never has (src/lib/auth-tokens.ts).
+    "/forgot-password",
+    "/reset-password/",
+    "/verify-email/",
+    "/api/password-reset",
+    "/api/verify-email",
     "/embed",
     "/login",
     // The in-person lead funnel and where it sends; no login by design.

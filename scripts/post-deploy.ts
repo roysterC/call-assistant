@@ -79,6 +79,33 @@ async function numberAppointments(prisma: PrismaClient): Promise<number> {
   }
 }
 
+/**
+ * Logins made from an invite link that Kikai copied were marked as having a
+ * confirmed email, though nothing proved the address (it could be made up).
+ * Unmarked once; each person can then confirm theirs from Account. Only where
+ * the mark is exactly the moment the invite was used, so an address confirmed
+ * since, by a reset or the confirm link, is left alone.
+ */
+const UNVERIFY_LINK_INVITES = "unverify-link-invite-logins-2026-11";
+
+async function unverifyLinkInviteLogins(prisma: PrismaClient): Promise<string> {
+  if (await prisma.dataMigration.findUnique({ where: { id: UNVERIFY_LINK_INVITES } })) return "done before, left alone";
+  const invites = await prisma.invitation.findMany({
+    where: { delivery: "link", acceptedAt: { not: null } },
+    select: { email: true, acceptedAt: true },
+  });
+  let n = 0;
+  for (const inv of invites) {
+    const r = await prisma.user.updateMany({
+      where: { email: inv.email, emailVerified: inv.acceptedAt },
+      data: { emailVerified: null },
+    });
+    n += r.count;
+  }
+  await prisma.dataMigration.create({ data: { id: UNVERIFY_LINK_INVITES } });
+  return `${n} unmarked`;
+}
+
 async function main() {
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -95,6 +122,7 @@ async function main() {
       data: { diaryEnabled: true },
     });
     console.log(`  ✓ Diaries switched on for salons that had one through the phone or messages: ${diaries.count}`);
+    console.log(`  ✓ Logins from copied invite links, email no longer counted as confirmed: ${await unverifyLinkInviteLogins(prisma)}`);
     // Shogo's official price list, exactly once: after it is in (here or by
     // hand) it is recorded, and the salon's own edits in Settings are never
     // overwritten. A failure is reported, not fatal: the CRM is already live

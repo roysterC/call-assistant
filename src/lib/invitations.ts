@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, validatePassword } from "@/lib/password";
 import { isAssignableRole, type AssignableRole } from "@/lib/admin-users";
 import { INVITE_DAYS, inviteStatus } from "@/lib/invite-status";
+import { actionEmail, sendEmail, type Email } from "@/lib/email";
 
 export { INVITE_DAYS, inviteStatus, type InviteStatus } from "@/lib/invite-status";
 
@@ -46,6 +47,7 @@ export function normaliseEmail(email: unknown): string | null {
 /** What the admin screens are sent about an invitation. Never the hash. */
 export const INVITATION_FIELDS = {
   id: true,
+  delivery: true,
   email: true,
   role: true,
   expiresAt: true,
@@ -66,6 +68,8 @@ export async function createInvitation(input: {
   email: unknown;
   role?: unknown;
   createdById?: string | null;
+  /** "email": the app emails the link and nobody else sees it. "link": shown to Kikai to pass on. */
+  delivery?: InviteDelivery;
   now?: Date;
 }): Promise<
   | { ok: true; token: string; invitation: { id: string; email: string; role: string; expiresAt: Date } }
@@ -106,6 +110,7 @@ export async function createInvitation(input: {
         tokenHash,
         expiresAt: new Date(now.getTime() + INVITE_DAYS * 24 * 60 * 60 * 1000),
         createdById: input.createdById ?? null,
+        delivery: input.delivery ?? "link",
       },
       select: { id: true, email: true, role: true, expiresAt: true },
     });
@@ -177,6 +182,7 @@ export async function acceptInvitation(input: {
         id: true,
         email: true,
         role: true,
+        delivery: true,
         organizationId: true,
         acceptedAt: true,
         revokedAt: true,
@@ -205,10 +211,61 @@ export async function acceptInvitation(input: {
         role: isAssignableRole(inv!.role) ? inv!.role : "member",
         organizationId: inv!.organizationId,
         passwordHash,
-        // They opened the link sent to this address.
-        emailVerified: now,
+        // Proven only by a link the app emailed to the address. A link Kikai
+        // copied and passed on could have been opened by anyone, whatever
+        // address it names; they confirm it from Account later.
+        emailVerified: inv!.delivery === "email" ? now : null,
       },
     });
     return { ok: true as const, email: inv!.email };
   });
+}
+
+export type InviteDelivery = "email" | "link";
+
+/** The invitation email: who it is from, what for, and the button. */
+export function invitationEmail(input: { to: string; link: string; salon: string; role: string }): Email {
+  const owner = input.role === "admin";
+  return actionEmail({
+    to: input.to,
+    subject: `You're invited to ${input.salon} on Kikai`,
+    heading: owner ? `Set up ${input.salon} on Kikai` : `Join ${input.salon} on Kikai`,
+    lines: owner
+      ? [
+          "Kikai is ready for your salon. Make your login, then we'll take you through your opening hours, services and team: it takes a few minutes.",
+        ]
+      : [`You've been given a login for ${input.salon}'s diary on Kikai. Choose your password to start.`],
+    button: "Make my login",
+    url: input.link,
+    footer: `This link works once, for ${INVITE_DAYS} days. If you weren't expecting it, you can ignore this email.`,
+  });
+}
+
+/**
+ * Invite by email: make the invitation and send it. If the email cannot go,
+ * the invitation is withdrawn, so no link exists that nobody received.
+ */
+export async function emailInvitation(input: {
+  organizationId: string;
+  email: unknown;
+  role?: unknown;
+  createdById?: string | null;
+  origin: string;
+}): Promise<{ ok: true; invitation: { id: string; email: string; role: string; expiresAt: Date } } | Fail> {
+  const made = await createInvitation({ ...input, delivery: "email" });
+  if (!made.ok) return made;
+  const org = await prisma.organization.findUnique({ where: { id: input.organizationId }, select: { name: true } });
+  const sent = await sendEmail(
+    invitationEmail({
+      to: made.invitation.email,
+      link: `${input.origin}/invite/${made.token}`,
+      salon: org?.name ?? "your salon",
+      role: made.invitation.role,
+    })
+  );
+  if (!sent.ok) {
+    await prisma.invitation.update({ where: { id: made.invitation.id }, data: { revokedAt: new Date() } });
+    return { ok: false, status: 502, error: `${sent.error} Copy a link to send instead.` };
+  }
+  return { ok: true, invitation: made.invitation };
 }

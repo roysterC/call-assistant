@@ -48,6 +48,7 @@ function stored(over: Record<string, unknown> = {}) {
     acceptedAt: null,
     revokedAt: null,
     expiresAt: LATER,
+    delivery: "link",
     organization: { name: "Salon", enabled: true },
     ...over,
   };
@@ -105,6 +106,12 @@ describe("createInvitation", () => {
     expect(data.expiresAt.getTime() - NOW.getTime()).toBe(INVITE_DAYS * 86_400_000);
   });
 
+  it("records how it is delivered: a link to copy unless it is emailed", async () => {
+    await createInvitation({ organizationId: "org1", email: "a@b.co", now: NOW });
+    await createInvitation({ organizationId: "org1", email: "a@b.co", delivery: "email", now: NOW });
+    expect(db.tx.invitation.create.mock.calls.map((c) => c[0].data.delivery)).toEqual(["link", "email"]);
+  });
+
   it("refuses an address that already has a login", async () => {
     db.user.findUnique.mockResolvedValue({ organizationId: "other" });
     expect(await createInvitation({ organizationId: "org1", email: "owner@salon.test" })).toMatchObject({ ok: false, status: 409 });
@@ -152,6 +159,14 @@ describe("acceptInvitation", () => {
       organizationId: "org1",
       passwordHash: "hashed:longenough",
     });
+  });
+
+  it("counts the address as confirmed only for an invite the app emailed", async () => {
+    await acceptInvitation({ token: TOKEN, name: "Sam", password: "longenough", now: NOW });
+    expect(db.tx.user.create.mock.calls[0][0].data.emailVerified).toBeNull();
+    db.tx.invitation.findUnique.mockResolvedValue(stored({ delivery: "email" }));
+    await acceptInvitation({ token: TOKEN, name: "Sam", password: "longenough", now: NOW });
+    expect(db.tx.user.create.mock.calls[1][0].data.emailVerified).toEqual(NOW);
   });
 
   it("asks for a name and a long enough password", async () => {

@@ -3,7 +3,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
-import { createInvitation, normaliseEmail } from "@/lib/invitations";
+import { createInvitation, emailInvitation, normaliseEmail } from "@/lib/invitations";
+import { emailAvailable } from "@/lib/email";
+import { linkOrigin } from "@/lib/app-origin";
 
 export async function GET() {
   const ctx = await requireSuperAdmin();
@@ -93,7 +95,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (ownerEmail) {
-      const invite = await createInvitation({ organizationId: org.id, email: ownerEmail, role: "admin", createdById: ctx.userId });
+      const base = { organizationId: org.id, email: ownerEmail, role: "admin", createdById: ctx.userId };
+      // Emailed where email is set up, unless asked for a link to copy.
+      if ((body.ownerDelivery ?? (emailAvailable() ? "email" : "link")) === "email") {
+        const sent = await emailInvitation({ ...base, origin: linkOrigin(req.nextUrl.origin) });
+        if (sent.ok) return NextResponse.json({ ...org, invitation: sent.invitation, inviteEmailed: true });
+        return NextResponse.json({ ...org, inviteError: sent.error });
+      }
+      const invite = await createInvitation(base);
       if (invite.ok) return NextResponse.json({ ...org, invitation: invite.invitation, inviteToken: invite.token });
       // The salon is made; the invite can be sent again from its page.
       return NextResponse.json({ ...org, inviteError: invite.error });

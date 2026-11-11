@@ -166,9 +166,17 @@ function LoginForm() {
             </div>
 
             <div>
-              <label htmlFor="password" className="text-sm font-medium">
-                {t("login.password")}
-              </label>
+              <div className="flex items-baseline justify-between gap-3">
+                <label htmlFor="password" className="text-sm font-medium">
+                  {t("login.password")}
+                </label>
+                <Link
+                  href={email.trim() ? `/forgot-password?email=${encodeURIComponent(email.trim())}` : "/forgot-password"}
+                  className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  {t("login.forgot")}
+                </Link>
+              </div>
               <Input
                 id="password"
                 name="password"

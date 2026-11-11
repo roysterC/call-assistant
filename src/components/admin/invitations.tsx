@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Check, Copy, Link2, Loader2, Mail, Plus } from "lucide-react";
+import { Check, Copy, Link2, Loader2, Mail, Plus, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +50,8 @@ export function InviteLinkDialog({
           <DialogTitle>Send this link to {email}</DialogTitle>
           <DialogDescription>
             They open it to make their login, then set up their salon. It works once, for {INVITE_DAYS} days. Copy it now:
-            it can&apos;t be shown again, though you can make a new one.
+            it can&apos;t be shown again, though you can make a new one. A login made from a copied link isn&apos;t
+            counted as a confirmed email until they confirm it from their Account page.
           </DialogDescription>
         </DialogHeader>
         <div className="flex gap-2">
@@ -77,10 +78,14 @@ export function InviteLinkDialog({
   );
 }
 
+type Delivery = "email" | "link";
+
 interface Invitation {
   id: string;
   email: string;
   role: string;
+  /** "email": sent by the app. "link": copied by Kikai to pass on. */
+  delivery: Delivery;
   expiresAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
@@ -102,26 +107,37 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
   const [form, setForm] = useState({ email: "", role: "admin" });
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState<{ link: string; email: string } | null>(null);
+  // Whether the server can send email; until it can, links are copied.
+  const [canEmail, setCanEmail] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/organizations/${orgId}/invitations`);
-    if (res.ok) setInvitations((await res.json()).invitations);
+    if (!res.ok) return;
+    const d = await res.json();
+    setInvitations(d.invitations);
+    setCanEmail(Boolean(d.canEmail));
   }, [orgId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function send(url: string, init: RequestInit, email: string) {
+  /** Make an invitation, emailed or as a link to copy; whether it worked. */
+  async function send(url: string, body: Record<string, unknown>, email: string) {
     setBusy(true);
     try {
-      const res = await fetch(url, init);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
-        notify(d.error || "Couldn't make the link. Try again.");
+        notify(d.error || "Couldn't make the invitation. Try again.");
         return false;
       }
-      setShown({ link: inviteLink(d.token), email });
+      if (d.emailed) notify(`Invitation emailed to ${email}`, "success");
+      else setShown({ link: inviteLink(d.token), email });
       await load();
       onChange?.();
       return true;
@@ -130,12 +146,8 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
     }
   }
 
-  async function invite() {
-    const ok = await send(
-      `/api/admin/organizations/${orgId}/invitations`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) },
-      form.email.trim()
-    );
+  async function invite(delivery: Delivery) {
+    const ok = await send(`/api/admin/organizations/${orgId}/invitations`, { ...form, delivery }, form.email.trim());
     if (ok) {
       setInviting(false);
       setForm({ email: "", role: "admin" });
@@ -164,7 +176,7 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
         </h2>
         <Button size="sm" variant="outline" onClick={() => setInviting(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Invite by link
+          Invite
         </Button>
       </div>
 
@@ -172,7 +184,7 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Loading" />
       ) : invitations.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No invitations. Invite the owner by link and they make their own login, then set up their salon.
+          No invitations. Invite the owner and they make their own login, then set up their salon.
         </p>
       ) : (
         <ul className="divide-y divide-border rounded-xl border bg-card">
@@ -188,7 +200,7 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    {inv.role === "admin" ? "Owner" : "Staff"} ·{" "}
+                    {inv.role === "admin" ? "Owner" : "Staff"} · {inv.delivery === "email" ? "emailed" : "link copied"} ·{" "}
                     {status === "accepted"
                       ? `joined ${format(new Date(inv.acceptedAt!), "d MMM yyyy")}`
                       : status === "pending"
@@ -197,17 +209,30 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
                   </p>
                 </div>
                 <Badge variant={variant}>{label}</Badge>
-                {status !== "accepted" && (
+                {status !== "accepted" && canEmail && (
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={busy}
                     onClick={() =>
-                      send(`/api/admin/organizations/${orgId}/invitations/${inv.id}`, { method: "POST" }, inv.email)
+                      send(`/api/admin/organizations/${orgId}/invitations/${inv.id}`, { delivery: "email" }, inv.email)
+                    }
+                  >
+                    <Send className="mr-1.5 h-4 w-4" />
+                    Email again
+                  </Button>
+                )}
+                {status !== "accepted" && (
+                  <Button
+                    size="sm"
+                    variant={canEmail ? "ghost" : "outline"}
+                    disabled={busy}
+                    onClick={() =>
+                      send(`/api/admin/organizations/${orgId}/invitations/${inv.id}`, { delivery: "link" }, inv.email)
                     }
                   >
                     <Link2 className="mr-1.5 h-4 w-4" />
-                    New link
+                    Copy a new link
                   </Button>
                 )}
                 {status === "pending" && (
@@ -224,9 +249,11 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
       <Dialog open={inviting} onOpenChange={setInviting}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite by link</DialogTitle>
+            <DialogTitle>Invite someone</DialogTitle>
             <DialogDescription>
-              You&apos;ll get a link to send them. They choose their own password.
+              {canEmail
+                ? "We email them a link to make their login. They choose their own password."
+                : "You'll get a link to send them. They choose their own password."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -266,9 +293,14 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
             <Button variant="outline" onClick={() => setInviting(false)}>
               Cancel
             </Button>
-            <Button onClick={invite} disabled={busy || !form.email.trim()}>
+            {canEmail && (
+              <Button variant="ghost" onClick={() => invite("link")} disabled={busy || !form.email.trim()}>
+                Copy a link instead
+              </Button>
+            )}
+            <Button onClick={() => invite(canEmail ? "email" : "link")} disabled={busy || !form.email.trim()}>
               {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Make link
+              {canEmail ? "Email invitation" : "Make link"}
             </Button>
           </DialogFooter>
         </DialogContent>

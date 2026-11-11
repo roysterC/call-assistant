@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
 import { signOutOfDevice } from "@/lib/push-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Languages, Lock, User as UserIcon, LogOut } from "lucide-react";
+import { CircleCheck, Languages, Lock, User as UserIcon, LogOut } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
 import { DeviceAlertsCard } from "@/components/notifications/device-alerts-card";
@@ -101,6 +101,7 @@ export default function AccountSettingsPage() {
           <div>
             <label className="text-xs font-medium text-muted-foreground">{t("account.email")}</label>
             <p className="text-sm mt-1">{session?.user?.email || "—"}</p>
+            <EmailConfirmation />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">{t("account.role")}</label>
@@ -206,6 +207,64 @@ export default function AccountSettingsPage() {
           </Button>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Whether this login's email is confirmed, and a button to confirm it: until
+ * it is, "Forgot password?" is the only way back in, and that needs the
+ * address to be theirs (src/lib/auth-tokens.ts).
+ */
+function EmailConfirmation() {
+  const { t } = useT();
+  const [verified, setVerified] = useState<boolean | null>(null);
+  const [state, setState] = useState<"idle" | "sending" | "sent" | { error: string }>("idle");
+
+  useEffect(() => {
+    let live = true;
+    apiFetch("/api/account/verify-email")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && d && setVerified(Boolean(d.verified)))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  async function send() {
+    setState("sending");
+    try {
+      const res = await apiFetch("/api/account/verify-email", { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      setState(res.ok ? "sent" : { error: d.error || t("account.confirmationFailed") });
+    } catch {
+      setState({ error: t("account.confirmationFailed") });
+    }
+  }
+
+  if (verified === null) return null;
+  if (verified) {
+    return (
+      <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="email-confirmed">
+        <CircleCheck className="h-3.5 w-3.5 text-primary" aria-hidden />
+        {t("account.emailConfirmed")}
+      </p>
+    );
+  }
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-light-bronze-300 bg-light-bronze-900/40 p-3" data-testid="email-unconfirmed">
+      <p className="text-xs">{t("account.emailUnconfirmed")}</p>
+      {state === "sent" ? (
+        <p className="text-xs font-medium" role="status">{t("account.confirmationSent")}</p>
+      ) : (
+        <Button size="sm" variant="outline" onClick={send} disabled={state === "sending"}>
+          {t("account.sendConfirmation")}
+        </Button>
+      )}
+      {typeof state === "object" && (
+        <p className="text-xs text-destructive" role="alert">{state.error}</p>
+      )}
     </div>
   );
 }
