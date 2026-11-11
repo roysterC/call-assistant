@@ -305,6 +305,12 @@ EMAIL_FROM="Kikai <no-reply@your-domain>"    # a domain verified in Resend
 # EMAIL_REPLY_TO="hello@your-domain"         # optional
 ```
 
+Optionally, also in `.env`:
+
+```
+NOTIFY_EMAIL=you@example.com     # told when an owner joins, and when they finish setting up
+```
+
 `AUTH_URL` must be the public address (the links in emails start with it).
 The sending domain needs the DNS records Resend shows under Domains, or
 Resend refuses to send and the log says so (`[EMAIL] Resend refused`).
@@ -312,6 +318,14 @@ Resend refuses to send and the log says so (`[EMAIL] Resend refused`).
 Without a key a production build sends nothing: invitations fall back to a
 link for Kikai to copy and pass on, and "Forgot password?" quietly does
 nothing, so a super-admin resets passwords from Admin as before.
+
+Invitations are written in the language chosen for them (English or
+Vietnamese), with an optional note from Kikai at the top. One left unused
+for 3 days gets a single reminder with a fresh link, sent by the daily timer
+(`/api/cron/invite-reminders`, from `scripts/send-reminders.sh`); an expired
+one can ask for a new link from its own page, sent to the same address.
+Owners invite and remove their own staff from Settings → Team logins (by
+email only); making another owner stays in Admin.
 
 A login's email counts as **confirmed** (Admin shows it beside each user)
 only when the address is proven: by an invite the app emailed, a reset link,

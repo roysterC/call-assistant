@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { starterServices } from "@/lib/business-types";
-import { resumeAt, servicesAfterTypeChange, stepProblem, stepsFor, type OnboardingDraft } from "./onboarding";
+import { hasTypicalLength, resumeAt, servicesAfterTypeChange, stepProblem, stepsFor, type OnboardingDraft } from "./onboarding";
 
 const open = { day: 2, closed: false, open: "09:00", close: "17:00" };
 const cut = { name: "Cut", durationMinutes: 45, requiresPatchTest: false, priceMinor: 3000 };
@@ -22,19 +22,16 @@ describe("stepProblem", () => {
   });
 
   it("says what each step still needs", () => {
-    expect(stepProblem("salon", { ...done, businessName: "  " })).toMatch(/name/);
-    expect(stepProblem("hours", { ...done, businessHours: [{ ...open, closed: true }] })).toMatch(/at least one day/);
-    expect(stepProblem("services", { ...done, services: [] })).toMatch(/at least one service/);
-    expect(stepProblem("services", { ...done, services: [{ ...cut, durationMinutes: 0 }] })).toMatch(/how long/);
-  });
-
-  it("speaks of the team in the salon's word", () => {
-    expect(stepProblem("team", { ...done, teamMembers: [] }, "nail technician")).toBe("Add at least one nail technician.");
+    expect(stepProblem("salon", { ...done, businessName: "  " })).toBe("name");
+    expect(stepProblem("hours", { ...done, businessHours: [{ ...open, closed: true }] })).toBe("openDay");
+    expect(stepProblem("services", { ...done, services: [] })).toBe("service");
+    expect(stepProblem("services", { ...done, services: [{ ...cut, durationMinutes: 0 }] })).toBe("duration");
+    expect(stepProblem("team", { ...done, teamMembers: [] })).toBe("team");
   });
 
   it("lets the about step be skipped, and holds Finish until the diary could book", () => {
     expect(stepProblem("about", blank)).toBeNull();
-    expect(stepProblem("ready", { ...done, teamMembers: [] })).toMatch(/can't take bookings yet: no stylists/);
+    expect(stepProblem("ready", { ...done, teamMembers: [] })).toBe("notReady");
   });
 });
 
@@ -59,5 +56,14 @@ describe("servicesAfterTypeChange", () => {
 
   it("changes nothing when the type has not changed", () => {
     expect(servicesAfterTypeChange(starterServices(["hair"]), ["hair"], ["hair"])).toBeNull();
+  });
+});
+
+describe("hasTypicalLength", () => {
+  it("marks a starter service whose length nobody has changed", () => {
+    const [first] = starterServices(["nails"]);
+    expect(hasTypicalLength(first, ["nails"])).toBe(true);
+    expect(hasTypicalLength({ ...first, durationMinutes: first.durationMinutes + 15 }, ["nails"])).toBe(false);
+    expect(hasTypicalLength({ ...first, name: "Our own special" }, ["nails"])).toBe(false);
   });
 });

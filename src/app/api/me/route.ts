@@ -25,12 +25,15 @@ export async function GET(req: NextRequest) {
   // What the salon calls its team, for the screens' own words.
   const org = await prisma.organization.findUnique({
     where: { id: ctx.organizationId },
-    select: { businessType: true },
+    select: { businessType: true, alsoOffers: true },
   });
+  const types = businessTypesOf(org?.businessType, org?.alsoOffers);
 
   return NextResponse.json({
     role: ctx.role,
-    staff: PROFILES[businessTypesOf(org?.businessType)[0]].staff,
+    staff: PROFILES[types[0]].staff,
+    businessType: types[0],
+    skinTests: types.some((t) => PROFILES[t].skinTestFor.length > 0),
     name: user?.name ?? null,
     email: user?.email ?? null,
     language: user?.language ?? null,

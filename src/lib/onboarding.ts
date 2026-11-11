@@ -15,7 +15,7 @@
  */
 
 import { starterServices, type BusinessType } from "@/lib/business-types";
-import { bookingReadiness, missingText } from "@/lib/booking/readiness";
+import { bookingReadiness } from "@/lib/booking/readiness";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 
@@ -34,41 +34,42 @@ export interface OnboardingDraft {
   teamMembers: Stylist[];
 }
 
-/**
- * What stops the step being left, in a sentence, or null. `staff` is the
- * salon's word for one of its team ("stylist", "nail technician").
- */
-export function stepProblem(step: OnboardingStep, d: OnboardingDraft, staff = "stylist"): string | null {
+/** Why a step cannot be left yet: the page says it in the reader's language (onb.err.*). */
+export type StepProblem = "name" | "openDay" | "service" | "duration" | "team" | "notReady";
+
+/** What stops the step being left, or null. */
+export function stepProblem(step: OnboardingStep, d: OnboardingDraft): StepProblem | null {
   switch (step) {
     case "salon":
-      return d.businessName.trim() ? null : "Enter your salon's name.";
+      return d.businessName.trim() ? null : "name";
     case "hours":
-      return d.businessHours.some((h) => !h.closed) ? null : "Open at least one day.";
+      return d.businessHours.some((h) => !h.closed) ? null : "openDay";
     case "services": {
       const named = d.services.filter((s) => s.name.trim());
-      if (named.length === 0) return "Add at least one service.";
-      if (named.some((s) => !(s.durationMinutes > 0))) return "Give every service how long it takes.";
+      if (named.length === 0) return "service";
+      if (named.some((s) => !(s.durationMinutes > 0))) return "duration";
       return null;
     }
     case "team":
-      return d.teamMembers.some((m) => m.name.trim()) ? null : `Add at least one ${staff}.`;
+      return d.teamMembers.some((m) => m.name.trim()) ? null : "team";
     case "about":
       return null;
-    case "ready": {
-      const r = bookingReadiness({
-        services: d.services,
-        teamMembers: d.teamMembers,
-        businessHours: d.businessHours,
-        staff,
-      });
-      return r.ready ? null : `Your diary can't take bookings yet: ${missingText(r)}.`;
-    }
+    case "ready":
+      return bookingReadiness({ services: d.services, teamMembers: d.teamMembers, businessHours: d.businessHours }).ready
+        ? null
+        : "notReady";
   }
 }
 
+/** Whether a service still has the length the starter list gave it: worth a second look. */
+export function hasTypicalLength(service: SalonService, types: readonly BusinessType[]): boolean {
+  const starter = starterServices(types).find((s) => s.name.toLowerCase() === service.name.trim().toLowerCase());
+  return Boolean(starter && starter.durationMinutes === service.durationMinutes);
+}
+
 /** The first step still to do: where someone coming back picks up. */
-export function resumeAt(steps: readonly OnboardingStep[], d: OnboardingDraft, staff?: string): OnboardingStep {
-  return steps.find((s) => s !== "about" && stepProblem(s, d, staff) !== null) ?? "ready";
+export function resumeAt(steps: readonly OnboardingStep[], d: OnboardingDraft): OnboardingStep {
+  return steps.find((s) => s !== "about" && stepProblem(s, d) !== null) ?? "ready";
 }
 
 /**

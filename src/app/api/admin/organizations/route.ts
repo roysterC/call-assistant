@@ -85,6 +85,10 @@ export async function POST(req: NextRequest) {
         settings: {
           create: {
             businessName: name,
+            // A salon its owner sets up is set up for its diary: onboarding
+            // is hours, services and team, and Settings shows them only
+            // where there is a diary. On unless Kikai says otherwise.
+            diaryEnabled: body.diaryEnabled === undefined ? Boolean(ownerEmail) : Boolean(body.diaryEnabled),
             // A starting price list for its trades, unpriced: the salon
             // edits it in Settings before the receptionist goes live.
             services: starterServices(types) as unknown as Prisma.InputJsonValue,
@@ -95,7 +99,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (ownerEmail) {
-      const base = { organizationId: org.id, email: ownerEmail, role: "admin", createdById: ctx.userId };
+      const base = {
+        organizationId: org.id,
+        email: ownerEmail,
+        role: "admin",
+        createdById: ctx.userId,
+        language: body.ownerLanguage,
+        note: body.ownerNote,
+      };
       // Emailed where email is set up, unless asked for a link to copy.
       if ((body.ownerDelivery ?? (emailAvailable() ? "email" : "link")) === "email") {
         const sent = await emailInvitation({ ...base, origin: linkOrigin(req.nextUrl.origin) });

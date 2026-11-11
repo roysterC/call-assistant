@@ -10,7 +10,7 @@ import { CalendarDays, LogIn, PhoneCall, Receipt } from "lucide-react";
 import { BrandMark } from "@/components/dashboard/sidebar";
 import { safeCallbackUrl } from "@/lib/safe-redirect";
 import { useT } from "@/components/providers/language-provider";
-import { LanguagePicker } from "@/components/i18n/language-picker";
+import { LanguageFlags } from "@/components/i18n/language-flags";
 import type { MessageKey } from "@/lib/i18n";
 
 /**
@@ -112,7 +112,7 @@ function LoginForm() {
       </aside>
 
       <main className="relative flex items-center justify-center p-6 pt-16 sm:p-10">
-        <LanguagePicker className="absolute top-4 right-4" />
+        <LanguageFlags className="absolute top-4 right-4" />
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3 mb-8">
             <BrandMark size="lg" />

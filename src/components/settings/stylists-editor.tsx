@@ -1,6 +1,9 @@
 "use client";
 
-import { useTradeWords } from "@/components/providers/language-provider";
+import { useT } from "@/components/providers/language-provider";
+import { useMe } from "@/components/providers/me-provider";
+import { isBusinessType, type BusinessType } from "@/lib/business-types";
+import type { MessageKey } from "@/lib/i18n";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,21 +24,13 @@ import { apiFetch } from "@/lib/api-fetch";
  */
 
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const DAY_SHORT: Record<number, string> = {
-  0: "Sun",
-  1: "Mon",
-  2: "Tue",
-  3: "Wed",
-  4: "Thu",
-  5: "Fri",
-  6: "Sat",
-};
 
 export function StylistsEditor({
   value,
   services,
   businessHours,
   usesGoogle = false,
+  trade,
   onChange,
 }: {
   value: Stylist[];
@@ -47,9 +42,13 @@ export function StylistsEditor({
    * field is not shown.
    */
   usesGoogle?: boolean;
+  /** The salon's main type, for the role example; defaults to the signed-in salon's. */
+  trade?: BusinessType;
   onChange: (next: Stylist[]) => void;
 }) {
-  const w = useTradeWords();
+  const { t } = useT();
+  const me = useMe();
+  const kind: BusinessType = trade ?? (isBusinessType(me?.businessType) ? me.businessType : "hair");
   // Nobody works a day the salon is shut. With hours unconfigured every day
   // stays selectable — the alternative is an editor that silently refuses
   // every button before opening hours have been filled in.
@@ -102,11 +101,7 @@ export function StylistsEditor({
 
   return (
     <div className="space-y-4">
-      {value.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No one added yet.
-        </p>
-      )}
+      {value.length === 0 && <p className="text-sm text-muted-foreground">{t("sty.empty")}</p>}
 
       {value.map((stylist, i) => {
         const bookable = !usesGoogle || Boolean(stylist.googleCalendarId);
@@ -115,17 +110,17 @@ export function StylistsEditor({
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 value={stylist.name}
-                placeholder="Name"
+                placeholder={t("sty.name")}
                 onChange={(e) => update(i, { name: e.target.value })}
                 className="h-8 w-40"
-                aria-label={w("Stylist name")}
+                aria-label={t("sty.nameLabel")}
               />
               <Input
                 value={stylist.role ?? ""}
-                placeholder="Role, e.g. colour specialist"
+                placeholder={t("sty.role", { example: t(`sty.roleExample.${kind}` as MessageKey) })}
                 onChange={(e) => update(i, { role: e.target.value })}
                 className="h-8 flex-1 min-w-[12rem]"
-                aria-label="Role"
+                aria-label={t("sty.roleLabel")}
               />
               <Button
                 type="button"
@@ -133,7 +128,7 @@ export function StylistsEditor({
                 size="sm"
                 onClick={() => void askToRemove(i)}
                 disabled={checking === i}
-                aria-label={`Remove ${stylist.name || w("stylist")}`}
+                aria-label={t("sty.remove", { name: stylist.name || t("sty.stylist") })}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -146,26 +141,25 @@ export function StylistsEditor({
               >
                 <CircleAlert className="h-4 w-4 shrink-0" />
                 <span className="min-w-0 flex-1">
-                  {confirmRemove.upcoming > 0
-                    ? `${stylist.name} has ${confirmRemove.upcoming >= 200 ? "200 or more" : confirmRemove.upcoming} booking${confirmRemove.upcoming === 1 ? "" : "s"} still to come.`
-                    : `Couldn't check ${stylist.name}'s bookings.`}{" "}
-                  They stay in the diary under {stylist.name}&apos;s name, to move to someone else, and come
-                  back if you add {stylist.name} again.
+                  {confirmRemove.upcoming === 1
+                    ? t("sty.upcomingOne", { name: stylist.name })
+                    : confirmRemove.upcoming > 1
+                      ? t("sty.upcomingMany", { name: stylist.name, n: confirmRemove.upcoming >= 200 ? "200+" : confirmRemove.upcoming })
+                      : t("sty.cantCheck", { name: stylist.name })}{" "}
+                  {t("sty.stay", { name: stylist.name })}
                 </span>
                 <Button type="button" size="sm" variant="outline" onClick={() => remove(i)}>
-                  Remove anyway
+                  {t("sty.removeAnyway")}
                 </Button>
                 <Button type="button" size="sm" variant="ghost" onClick={() => setConfirmRemove(null)}>
-                  Keep
+                  {t("sty.keep")}
                 </Button>
               </div>
             )}
 
             {usesGoogle && (
               <div>
-                <label className="text-xs text-muted-foreground">
-                  Google calendar ID
-                </label>
+                <label className="text-xs text-muted-foreground">{t("sty.calendar")}</label>
                 <Input
                   value={stylist.googleCalendarId ?? ""}
                   placeholder="…@group.calendar.google.com"
@@ -173,22 +167,19 @@ export function StylistsEditor({
                     update(i, { googleCalendarId: e.target.value.trim() })
                   }
                   className="h-8 mt-1 font-mono text-xs"
-                  aria-label="Google calendar ID"
+                  aria-label={t("sty.calendar")}
                 />
                 {!bookable && (
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-papaya-whip-100">
                     <CircleAlert className="h-3.5 w-3.5 shrink-0" />
-                    Not bookable until a calendar is shared with the service
-                    account.
+                    {t("sty.notBookable")}
                   </p>
                 )}
               </div>
             )}
 
             <div>
-              <label className="text-xs text-muted-foreground">
-                Working days
-              </label>
+              <label className="text-xs text-muted-foreground">{t("sty.days")}</label>
               <div className="mt-1 flex flex-wrap gap-1">
                 {DAY_ORDER.map((day) => {
                   const open = isOpen(day);
@@ -200,7 +191,7 @@ export function StylistsEditor({
                       disabled={!open}
                       onClick={() => toggleDay(i, day)}
                       aria-pressed={on}
-                      title={open ? undefined : "The salon is closed this day"}
+                      title={open ? undefined : t("sty.closedDay")}
                       className={cn(
                         "px-2 py-0.5 rounded-md text-xs font-medium transition-colors",
                         !open
@@ -210,21 +201,19 @@ export function StylistsEditor({
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                       )}
                     >
-                      {DAY_SHORT[day]}
+                      {t(`dayShort.${day}` as MessageKey)}
                     </button>
                   );
                 })}
               </div>
               {(stylist.workingDays ?? []).filter(isOpen).length === 0 && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  None selected — treated as available any day the salon is open.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("sty.anyDay")}</p>
               )}
             </div>
 
             {services.length > 0 && (
               <div>
-                <span className="text-xs text-muted-foreground">Services they do</span>
+                <span className="text-xs text-muted-foreground">{t("sty.services")}</span>
                 <ServicePicker
                   stylistName={stylist.name}
                   services={services}
@@ -238,10 +227,7 @@ export function StylistsEditor({
       })}
 
       {constrained && (
-        <p className="text-xs text-muted-foreground">
-          Struck-through days are ones the salon is closed. Change them under
-          Opening hours.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("sty.struck")}</p>
       )}
 
       <Button
@@ -256,7 +242,7 @@ export function StylistsEditor({
         }
       >
         <Plus className="h-4 w-4 mr-1" />
-        {w("Add stylist")}
+        {t("sty.add")}
       </Button>
     </div>
   );

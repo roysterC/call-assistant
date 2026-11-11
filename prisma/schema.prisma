@@ -38,6 +38,9 @@ model Organization {
   // team) before anything else, and finishing turns it off. Off by default,
   // so salons set up by hand never see onboarding.
   needsOnboarding         Boolean  @default(false)
+  // The onboarding step the owner has reached (src/lib/onboarding.ts), for
+  // Kikai to see where they are. Null before they start.
+  onboardingStep          String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -122,6 +125,13 @@ model Invitation {
   /// anyone else, so accepting it proves the address. "link": shown to
   /// Kikai to pass on, so it proves nothing about the address.
   delivery       String       @default("link")
+  /// The language the email is written in and the invite page opens in
+  /// ("en", "vi"); the new login starts in whichever they end up choosing.
+  language       String       @default("en")
+  /// Kikai's own words to them, after the call: shown at the top of the email.
+  note           String?
+  /// When the "your login is waiting" reminder went, so it goes once.
+  remindedAt     DateTime?
   /// The super-admin who sent it.
   createdById    String?
   createdAt      DateTime     @default(now())

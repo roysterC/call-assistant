@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const limited = tooMany(req);
   if (limited) return limited;
   const problem = await checkAuthToken(req.nextUrl.searchParams.get("token"), "reset");
-  if (problem) return NextResponse.json({ error: problem.error }, { status: problem.status });
+  if (problem) return NextResponse.json({ error: problem.error, code: problem.code }, { status: problem.status });
   return NextResponse.json({ ok: true });
 }
 
@@ -47,7 +47,7 @@ export async function PUT(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   try {
     const result = await resetPassword(body?.token, body?.password);
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+    if (!result.ok) return NextResponse.json({ error: result.error, code: result.code }, { status: result.status });
     return NextResponse.json({ email: result.email });
   } catch (error) {
     console.error("[PASSWORD RESET] reset failed:", error);

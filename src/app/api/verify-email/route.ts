@@ -13,6 +13,6 @@ export async function POST(req: NextRequest) {
   if (!allowed) return NextResponse.json({ error: "Too many tries. Wait a minute and try again." }, { status: 429 });
   const body = await req.json().catch(() => ({}));
   const result = await verifyEmail(body?.token);
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  if (!result.ok) return NextResponse.json({ error: result.error, code: result.code }, { status: result.status });
   return NextResponse.json({ email: result.email });
 }

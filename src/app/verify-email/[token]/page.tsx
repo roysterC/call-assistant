@@ -12,8 +12,10 @@ import { useParams } from "next/navigation";
 import { CircleCheck, Loader2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { AuthCard } from "@/components/auth/auth-card";
+import { useT } from "@/components/providers/language-provider";
 
 export default function VerifyEmailPage() {
+  const { t } = useT();
   const { token } = useParams<{ token: string }>();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -30,9 +32,12 @@ export default function VerifyEmailPage() {
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok) setDone(d.email);
-      else setProblem(d.error || "This link is not valid.");
+      else
+        setProblem(
+          d.code === "gone" ? t("auth.err.gone.verify") : res.status === 429 ? t("common.tooMany") : t("auth.err.invalid")
+        );
     } catch {
-      setProblem("Couldn't reach Kikai. Check your connection and try again.");
+      setProblem(t("common.offline"));
     } finally {
       setBusy(false);
     }
@@ -40,19 +45,11 @@ export default function VerifyEmailPage() {
 
   if (done) {
     return (
-      <AuthCard
-        title="Email confirmed"
-        intro={
-          <>
-            <span className="font-medium text-foreground">{done}</span>{" "}is confirmed. If you ever forget your password,
-            you can reset it from the sign-in page.
-          </>
-        }
-      >
+      <AuthCard title={t("auth.verifiedTitle")} intro={t("auth.verifiedIntro", { email: done })}>
         <div className="flex items-center gap-3">
           <CircleCheck className="h-5 w-5 text-primary" aria-hidden />
           <Link href="/start" className={buttonVariants({ variant: "outline" })}>
-            Go to Kikai
+            {t("auth.goToKikai")}
           </Link>
         </div>
       </AuthCard>
@@ -60,11 +57,11 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <AuthCard title="Confirm your email" intro="Press the button to confirm this address is yours.">
+    <AuthCard title={t("auth.verifyTitle")} intro={t("auth.verifyIntro")}>
       <div className="space-y-3">
         <Button onClick={confirm} disabled={busy} className="w-full">
           {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-          Confirm my email
+          {t("auth.verifyButton")}
         </Button>
         {problem && (
           <p role="alert" className="text-sm text-destructive">

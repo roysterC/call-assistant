@@ -5,18 +5,24 @@
  * has the steps and their rules). One thing at a time, each saved on Next, so
  * someone who closes the tab comes back to where they were. Uses the same
  * editors as Settings, and saves through the same API, so nothing here can
- * set the salon up differently from Settings.
+ * set the salon up differently from Settings. In English or Vietnamese, with
+ * the flags in the header to switch.
+ *
+ * Finishing shows what to do next: the diary, Kikai on their phone, their
+ * team's logins, and (if it is not on yet) that Kikai will be in touch about
+ * the phone line.
  *
  * Staff who sign in first are told the salon is still being set up.
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { ArrowLeft, ArrowRight, Check, Loader2, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowRight, CalendarDays, Camera, Check, Loader2, Pencil, PhoneCall, Smartphone, UserPlus, Users } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandMark } from "@/components/dashboard/sidebar";
@@ -25,14 +31,21 @@ import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
 import { ServicesEditor } from "@/components/settings/services-editor";
 import { ServicesImport } from "@/components/settings/services-import";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
-import { useDialogs } from "@/components/providers/dialogs-provider";
+import { LanguageFlags } from "@/components/i18n/language-flags";
 import { ME_CHANGED } from "@/components/providers/me-provider";
-import { PROFILES, inTradeWords, type BusinessType } from "@/lib/business-types";
-import type { DayHours } from "@/lib/business-hours";
+import { useLanguage, useT } from "@/components/providers/language-provider";
+import { PROFILES, type BusinessType } from "@/lib/business-types";
+import { toMinutes, type DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
-import { plural } from "@/lib/plural";
-import { resumeAt, stepProblem, stepsFor, type OnboardingStep } from "@/lib/onboarding";
+import { minutesTime, type MessageKey } from "@/lib/i18n";
+import {
+  hasTypicalLength,
+  resumeAt,
+  stepProblem,
+  stepsFor,
+  type OnboardingStep,
+} from "@/lib/onboarding";
 
 interface Draft {
   businessName: string;
@@ -43,43 +56,30 @@ interface Draft {
   salonFaq: string;
 }
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
 /** A week to start from, rather than seven closed days: Monday to Saturday, nine till half five. */
 const STARTER_WEEK: DayHours[] = [0, 1, 2, 3, 4, 5, 6].map((day) =>
   day === 0 ? { day, closed: true, open: "", close: "" } : { day, closed: false, open: "09:00", close: "17:30" }
 );
 
-const TITLES: Record<OnboardingStep, { title: string; hint: string }> = {
-  salon: { title: "Your salon", hint: "Its name, as clients know it, and what you do." },
-  hours: { title: "Opening hours", hint: "When clients can book. The receptionist tells callers these too." },
-  services: {
-    title: "Your services",
-    hint: "What you offer and how long each takes. The time decides how much of the diary a booking fills.",
-  },
-  team: { title: "Your team", hint: "Who can be booked, the days they work and what they do." },
-  about: {
-    title: "About the salon",
-    hint: "What the receptionist and chats can tell customers who ask. You can add to it later in Settings.",
-  },
-  ready: { title: "All set?", hint: "A last look before you start." },
-};
-
 export default function OnboardingPage() {
   const router = useRouter();
-  const { notify } = useDialogs();
-  const [loaded, setLoaded] = useState<"loading" | "owner" | "staff">("loading");
+  const { t } = useT();
+  const { clock } = useLanguage();
+  const [loaded, setLoaded] = useState<"loading" | "owner" | "staff" | "failed">("loading");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [types, setTypes] = useState<{ main: BusinessType; also: BusinessType[] }>({ main: "hair", also: [] });
-  const [staff, setStaff] = useState("stylist");
   const [answersCustomers, setAnswersCustomers] = useState(false);
+  const [ownerName, setOwnerName] = useState<string | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [step, setStep] = useState<OnboardingStep>("salon");
+  const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
   const steps = useMemo(() => stepsFor(answersCustomers), [answersCustomers]);
   const at = steps.indexOf(step);
-  const w = (text: string) => inTradeWords(text, { staff });
+  const allTypes = useMemo(() => [types.main, ...types.also], [types]);
+  const skinTests = allTypes.some((ty) => PROFILES[ty].skinTestFor.length > 0);
 
   useEffect(() => {
     let live = true;
@@ -108,19 +108,24 @@ export default function OnboardingPage() {
         );
         setDraft(d);
         setTypes({ main: o.businessType, also: o.alsoOffers ?? [] });
-        setStaff(o.staff || "stylist");
         setAnswersCustomers(answers);
-        // Back where they left off. The name is always asked first, so a
-        // salon named by Kikai still has its owner look at it.
-        const resume = resumeAt(stepsFor(answers), { ...d, businessHours: st.businessHours ?? [] }, o.staff);
-        setStep(st.businessHours?.length ? resume : "salon");
+        setOwnerName(o.ownerName);
+        setVoiceEnabled(Boolean(o.voiceEnabled));
+        // Back where they left off: the furthest step they reached, but never
+        // past one still to do. A first visit starts at the name.
+        const own = stepsFor(answers);
+        const reached = own.includes(o.step) ? (o.step as OnboardingStep) : null;
+        const firstGap = resumeAt(own, { ...d, businessHours: st.businessHours ?? [] });
+        setStep(
+          !reached ? "salon" : own.indexOf(firstGap) < own.indexOf(reached) ? firstGap : reached
+        );
         setLoaded("owner");
       })
-      .catch(() => notify("Couldn't load your salon. Check your connection and reload the page."));
+      .catch(() => live && setLoaded("failed"));
     return () => {
       live = false;
     };
-  }, [router, notify]);
+  }, [router]);
 
   function go(next: OnboardingStep) {
     setProblem(null);
@@ -136,7 +141,7 @@ export default function OnboardingPage() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setProblem(data.error || "Couldn't save. Try again.");
+      setProblem(data.error || t("onb.err.save"));
       return null;
     }
     return data;
@@ -148,7 +153,6 @@ export default function OnboardingPage() {
       case "salon": {
         const r = await put("/api/onboarding", { name: d.businessName, businessType: types.main, alsoOffers: types.also });
         if (!r) return false;
-        if (typeof r.staff === "string") setStaff(r.staff);
         if (Array.isArray(r.services)) setDraft({ ...d, services: r.services as SalonService[] });
         // The CRM's own words for the team ("Add nail technician") follow the type.
         window.dispatchEvent(new Event(ME_CHANGED));
@@ -174,9 +178,9 @@ export default function OnboardingPage() {
 
   async function next() {
     if (!draft) return;
-    const wrong = stepProblem(step, draft, staff);
+    const wrong = stepProblem(step, draft);
     if (wrong) {
-      setProblem(wrong);
+      setProblem(t(`onb.err.${wrong}` as MessageKey));
       return;
     }
     setBusy(true);
@@ -184,18 +188,26 @@ export default function OnboardingPage() {
     try {
       if (step === "ready") {
         const res = await apiFetch("/api/onboarding", { method: "POST" });
-        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setProblem(data.error || "Couldn't finish. Try again.");
+          setProblem(t("onb.err.notReady"));
           return;
         }
-        notify("Your salon is set up", "success");
-        router.replace("/start");
+        setDone(true);
+        document.getElementById("onboarding-top")?.scrollIntoView({ block: "start" });
         return;
       }
-      if (await save(draft)) go(steps[at + 1]);
+      if (await save(draft)) {
+        const following = steps[at + 1];
+        // Where they have got to, for Kikai and for coming back: best effort.
+        void apiFetch("/api/onboarding", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reached: following }),
+        }).catch(() => {});
+        go(following);
+      }
     } catch {
-      setProblem("Couldn't reach the server. Check your connection and try again.");
+      setProblem(t("common.offline"));
     } finally {
       setBusy(false);
     }
@@ -205,21 +217,20 @@ export default function OnboardingPage() {
     return (
       <Shell>
         <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label={t("common.loading")} />
         </div>
       </Shell>
     );
   }
 
-  if (loaded === "staff") {
+  if (loaded === "failed" || loaded === "staff") {
     return (
       <Shell>
-        <div className="mx-auto max-w-md space-y-3 py-16 text-center">
-          <h1 className="font-heading text-2xl font-semibold">Your salon is being set up</h1>
-          <p className="text-sm text-muted-foreground">
-            The owner is putting in the salon&apos;s hours, services and team. You&apos;ll be able to use Kikai as soon
-            as they finish.
-          </p>
+        <div className="mx-auto max-w-md space-y-3 px-4 py-16 text-center">
+          <h1 className="font-heading text-2xl font-semibold">
+            {loaded === "staff" ? t("onb.staffTitle") : t("inv.broken")}
+          </h1>
+          <p className="text-sm text-muted-foreground">{loaded === "staff" ? t("onb.staffBody") : t("onb.loadFailed")}</p>
         </div>
       </Shell>
     );
@@ -230,13 +241,32 @@ export default function OnboardingPage() {
     setProblem(null);
     setDraft({ ...d, ...patch });
   };
+
+  if (done) return <Finished salon={d.businessName} voiceEnabled={voiceEnabled} />;
+
   const openDays = d.businessHours.filter((h) => !h.closed).sort((a, b) => ((a.day + 6) % 7) - ((b.day + 6) % 7));
-  const { title, hint } = TITLES[step];
+  const named = d.services.filter((s) => s.name.trim());
+  const time = (hhmm: string) => minutesTime(toMinutes(hhmm), clock);
+  const weekSummary = () => {
+    const runs: { from: DayHours; to: DayHours }[] = [];
+    for (const h of openDays) {
+      const last = runs[runs.length - 1];
+      if (last && (last.to.day + 1) % 7 === h.day && last.to.open === h.open && last.to.close === h.close) last.to = h;
+      else runs.push({ from: h, to: h });
+    }
+    const short = (x: DayHours) => t(`dayShort.${x.day}` as MessageKey);
+    return runs
+      .map(({ from, to }) => `${short(from)}${from === to ? "" : `–${short(to)}`} ${time(from.open)}–${time(from.close)}`)
+      .join(", ");
+  };
+  const meInTeam = ownerName
+    ? d.teamMembers.some((m) => m.name.trim().toLowerCase() === ownerName.trim().toLowerCase())
+    : true;
 
   return (
     <Shell>
       <div id="onboarding-top" className="mx-auto w-full max-w-2xl px-4 pb-32 pt-6 md:pt-10">
-        <ol className="mb-6 flex gap-1.5" aria-label={`Step ${at + 1} of ${steps.length}`}>
+        <ol className="mb-6 flex gap-1.5" aria-label={t("onb.step", { n: at + 1, total: steps.length })}>
           {steps.map((s, i) => (
             <li
               key={s}
@@ -246,16 +276,16 @@ export default function OnboardingPage() {
           ))}
         </ol>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Step {at + 1} of {steps.length}
+          {t("onb.step", { n: at + 1, total: steps.length })}
         </p>
-        <h1 className="mt-1 font-heading text-2xl font-semibold">{w(title)}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{w(hint)}</p>
+        <h1 className="mt-1 font-heading text-2xl font-semibold">{t(`onb.${step}.title` as MessageKey)}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t(`onb.${step}.hint` as MessageKey)}</p>
 
         <div className="mt-6 space-y-5">
           {step === "salon" && (
             <>
               <div>
-                <label htmlFor="salon-name" className="text-sm font-medium">Salon name</label>
+                <label htmlFor="salon-name" className="text-sm font-medium">{t("onb.salonName")}</label>
                 <Input
                   id="salon-name"
                   value={d.businessName}
@@ -265,12 +295,12 @@ export default function OnboardingPage() {
                 />
               </div>
               <BusinessTypePicker
+                audience="owner"
                 main={types.main}
                 also={types.also}
                 onChange={(main, also) => {
                   setProblem(null);
                   setTypes({ main, also });
-                  setStaff(PROFILES[main].staff);
                 }}
               />
             </>
@@ -278,9 +308,12 @@ export default function OnboardingPage() {
 
           {step === "hours" && (
             <>
+              <p className="rounded-xl border border-light-bronze-300 bg-light-bronze-900/40 px-4 py-3 text-sm" data-testid="hours-prompt">
+                {t("onb.hoursPrompt")}
+              </p>
               <OpeningHoursEditor value={d.businessHours} onChange={(businessHours) => set({ businessHours })} />
               <div>
-                <label htmlFor="contact" className="text-sm font-medium">Salon phone number</label>
+                <label htmlFor="contact" className="text-sm font-medium">{t("onb.phone")}</label>
                 <Input
                   id="contact"
                   value={d.contactPhone}
@@ -289,49 +322,82 @@ export default function OnboardingPage() {
                   className="mt-1"
                   inputMode="tel"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Printed in booking texts, which clients can&apos;t reply to: it&apos;s how they reach you about a
-                  booking.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("onb.phoneHint")}</p>
               </div>
             </>
           )}
 
           {step === "services" && (
             <>
-              <ServicesImport services={d.services} onApply={(services) => set({ services })} />
-              <ServicesEditor value={d.services} onChange={(services) => set({ services })} />
+              {/* The quickest way through: a photo of the price list. */}
+              <div className="rounded-2xl border bg-card p-4 sm:p-5" data-testid="price-list-photo">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tea-green-900 text-tea-green-200">
+                    <Camera className="h-5 w-5" aria-hidden />
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div>
+                      <p className="font-medium">{t("onb.photoTitle")}</p>
+                      <p className="text-sm text-muted-foreground">{t("onb.photoIntro")}</p>
+                    </div>
+                    <ServicesImport services={d.services} onApply={(services) => set({ services })} />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{t("onb.orTypical")}</p>
+                <p className="text-xs text-muted-foreground">{t("onb.checkTimes")}</p>
+              </div>
+              <ServicesEditor
+                value={d.services}
+                onChange={(services) => set({ services })}
+                skinTests={skinTests}
+                typical={(s) => hasTypicalLength(s, allTypes)}
+              />
             </>
           )}
 
           {step === "team" && (
-            <StylistsEditor
-              value={d.teamMembers}
-              services={d.services}
-              businessHours={d.businessHours}
-              onChange={(teamMembers) => set({ teamMembers })}
-            />
+            <>
+              {!meInTeam && ownerName && (
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4" data-testid="add-me">
+                  <Users className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  <p className="min-w-0 flex-1 text-sm font-medium">{t("onb.addMeQ")}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      set({ teamMembers: [{ name: ownerName, role: "", workingDays: [], services: [] }, ...d.teamMembers] })
+                    }
+                  >
+                    <UserPlus className="mr-1.5 h-4 w-4" />
+                    {t("onb.addMe", { name: ownerName })}
+                  </Button>
+                </div>
+              )}
+              <StylistsEditor
+                value={d.teamMembers}
+                services={d.services}
+                businessHours={d.businessHours}
+                trade={types.main}
+                onChange={(teamMembers) => set({ teamMembers })}
+              />
+            </>
           )}
 
           {step === "about" && (
             <div className="space-y-2">
               <Textarea
-                aria-label="About the salon"
+                aria-label={t("onb.aboutLabel")}
                 value={d.salonFaq}
                 maxLength={SALON_FAQ_MAX}
                 rows={8}
-                placeholder={
-                  "Where are you? 47 Bridge Street, next to the florist.\n" +
-                  "Parking? Six spaces behind the salon.\n" +
-                  "Cancellations: please give 24 hours' notice.\n" +
-                  "Gift vouchers: yes, any amount, from the desk."
-                }
+                placeholder={t("onb.aboutPlaceholder")}
                 onChange={(e) => set({ salonFaq: e.target.value })}
                 className="min-h-40"
               />
-              <p className="text-xs text-muted-foreground">
-                A question and its answer per line is plenty. Skip it for now if you like.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("onb.aboutHint")}</p>
             </div>
           )}
 
@@ -339,16 +405,40 @@ export default function OnboardingPage() {
             <ul className="divide-y divide-border rounded-xl border bg-card">
               {(
                 [
-                  ["salon", d.businessName, [PROFILES[types.main].label, ...types.also.map((t) => PROFILES[t].label)].join(", ")],
+                  [
+                    "salon",
+                    d.businessName,
+                    allTypes.map((ty) => t(`type.${ty}` as MessageKey)).join(", "),
+                  ],
                   [
                     "hours",
-                    openDays.length ? `Open ${plural(openDays.length, "day")} a week` : "Closed every day",
-                    weekSummary(openDays),
+                    openDays.length === 0
+                      ? t("onb.closedAll")
+                      : openDays.length === 1
+                        ? t("onb.openDay1")
+                        : t("onb.openDays", { n: openDays.length }),
+                    weekSummary(),
                   ],
-                  ["services", plural(d.services.filter((s) => s.name.trim()).length, "service"), d.services.map((s) => s.name).filter(Boolean).slice(0, 4).join(", ")],
-                  ["team", plural(d.teamMembers.length, staff), d.teamMembers.map((m) => m.name).join(", ")],
+                  [
+                    "services",
+                    named.length === 1 ? t("onb.servicesCount1") : t("onb.servicesCount", { n: named.length }),
+                    named.map((s) => s.name).slice(0, 4).join(", "),
+                  ],
+                  [
+                    "team",
+                    d.teamMembers.length === 1 ? t("onb.teamCount1") : t("onb.teamCount", { n: d.teamMembers.length }),
+                    d.teamMembers.map((m) => m.name).join(", "),
+                  ],
                   ...(answersCustomers
-                    ? [["about", "About the salon", d.salonFaq.trim() ? plural(d.salonFaq.split("\n").filter((l) => l.trim()).length, "line") : "Nothing yet"]]
+                    ? [
+                        [
+                          "about",
+                          t("onb.about.title"),
+                          d.salonFaq.trim()
+                            ? t("onb.lines", { n: d.salonFaq.split("\n").filter((l) => l.trim()).length })
+                            : t("onb.nothingYet"),
+                        ],
+                      ]
                     : []),
                 ] as [OnboardingStep, string, string][]
               ).map(([s, head, detail]) => (
@@ -358,9 +448,14 @@ export default function OnboardingPage() {
                     <p className="text-sm font-medium">{head}</p>
                     {detail && <p className="truncate text-xs text-muted-foreground">{detail}</p>}
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => go(s)} aria-label={`Change ${TITLES[s].title.toLowerCase()}`}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => go(s)}
+                    aria-label={`${t("onb.change")}: ${t(`onb.${s}.title` as MessageKey)}`}
+                  >
                     <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                    Change
+                    {t("onb.change")}
                   </Button>
                 </li>
               ))}
@@ -375,7 +470,7 @@ export default function OnboardingPage() {
           {at > 0 ? (
             <Button variant="outline" onClick={() => go(steps[at - 1])} disabled={busy}>
               <ArrowLeft className="mr-1.5 h-4 w-4" />
-              Back
+              {t("common.back")}
             </Button>
           ) : (
             <span />
@@ -385,12 +480,12 @@ export default function OnboardingPage() {
           </p>
           {step === "about" && !d.salonFaq.trim() ? (
             <Button variant="ghost" onClick={() => go(steps[at + 1])} disabled={busy}>
-              Skip
+              {t("onb.skip")}
             </Button>
           ) : null}
           <Button onClick={next} disabled={busy}>
             {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            {step === "ready" ? "Finish" : "Next"}
+            {step === "ready" ? t("onb.finish") : t("onb.next")}
             {step !== "ready" && !busy && <ArrowRight className="ml-1.5 h-4 w-4" />}
           </Button>
         </div>
@@ -399,32 +494,79 @@ export default function OnboardingPage() {
   );
 }
 
-/**
- * "Mon–Sat 09:00–17:30", or "Mon–Fri 09:00–17:30, Sat 09:00–16:00": days in
- * a row with the same hours run together. `open` is the open days, Monday first.
- */
-function weekSummary(open: DayHours[]): string {
-  const runs: { from: DayHours; to: DayHours }[] = [];
-  for (const h of open) {
-    const last = runs[runs.length - 1];
-    if (last && (last.to.day + 1) % 7 === h.day && last.to.open === h.open && last.to.close === h.close) last.to = h;
-    else runs.push({ from: h, to: h });
-  }
-  const short = (d: DayHours) => DAY_NAMES[d.day].slice(0, 3);
-  return runs
-    .map(({ from, to }) => `${short(from)}${from === to ? "" : `–${short(to)}`} ${from.open}–${from.close}`)
-    .join(", ");
+/** After Finish: what to do next, so the end of setting up is a beginning. */
+function Finished({ salon, voiceEnabled }: { salon: string; voiceEnabled: boolean }) {
+  const { t } = useT();
+  const items: { icon: typeof CalendarDays; title: string; body: React.ReactNode; action?: React.ReactNode }[] = [
+    {
+      icon: CalendarDays,
+      title: t("done.diary"),
+      body: t("done.diaryHint"),
+      action: (
+        <Link href="/calendar" className={buttonVariants()}>
+          {t("done.diary")}
+          <ArrowRight className="ml-1.5 h-4 w-4" />
+        </Link>
+      ),
+    },
+    {
+      icon: Smartphone,
+      title: t("done.phone"),
+      body: (
+        <>
+          <span className="block">{t("done.phoneIos")}</span>
+          <span className="block">{t("done.phoneAndroid")}</span>
+        </>
+      ),
+    },
+    {
+      icon: Users,
+      title: t("done.team"),
+      body: t("done.teamHint"),
+      action: (
+        <Link href="/settings#team-logins" className={buttonVariants({ variant: "outline" })}>
+          {t("done.team")}
+        </Link>
+      ),
+    },
+    ...(voiceEnabled ? [] : [{ icon: PhoneCall, title: t("done.line"), body: t("done.lineHint") }]),
+  ];
+  return (
+    <Shell>
+      <div id="onboarding-top" className="mx-auto w-full max-w-2xl px-4 pb-16 pt-6 md:pt-10" data-testid="onboarding-done">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tea-green-900 text-tea-green-200">
+          <Check className="h-6 w-6" aria-hidden />
+        </span>
+        <h1 className="mt-4 font-heading text-2xl font-semibold">{t("done.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("done.intro", { salon })}</p>
+        <ul className="mt-6 space-y-3">
+          {items.map(({ icon: Icon, title, body, action }) => (
+            <li key={title} className="flex flex-wrap items-start gap-3 rounded-2xl border bg-card p-4">
+              <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{title}</p>
+                <p className="text-sm text-muted-foreground">{body}</p>
+              </div>
+              {action}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Shell>
+  );
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const { t } = useT();
   return (
     <div className="h-dvh overflow-y-auto bg-background">
       <header className="border-b">
         <div className="mx-auto flex h-14 w-full max-w-2xl items-center gap-3 px-4">
           <BrandMark size="sm" alt="" />
           <span className="flex-1 font-heading font-semibold">Kikai</span>
+          <LanguageFlags />
           <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>
-            Sign out
+            {t("onb.signOut")}
           </Button>
         </div>
       </header>

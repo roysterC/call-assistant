@@ -12,6 +12,7 @@ import { Loader2, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthCard } from "@/components/auth/auth-card";
+import { useT } from "@/components/providers/language-provider";
 
 export default function ForgotPasswordPage() {
   return (
@@ -22,6 +23,7 @@ export default function ForgotPasswordPage() {
 }
 
 function ForgotPassword() {
+  const { t } = useT();
   const params = useSearchParams();
   const [email, setEmail] = useState(params.get("email") ?? "");
   const [busy, setBusy] = useState(false);
@@ -38,11 +40,10 @@ function ForgotPassword() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) setError(d.error || "Couldn't send the link. Try again.");
-      else setSentTo(email.trim());
+      if (res.ok) setSentTo(email.trim());
+      else setError(res.status === 429 ? t("common.tooMany") : t("auth.enterEmail"));
     } catch {
-      setError("Couldn't reach Kikai. Check your connection and try again.");
+      setError(t("common.offline"));
     } finally {
       setBusy(false);
     }
@@ -50,19 +51,11 @@ function ForgotPassword() {
 
   if (sentTo) {
     return (
-      <AuthCard
-        title="Check your email"
-        intro={
-          <>
-            If <span className="font-medium text-foreground">{sentTo}</span>{" "}has a Kikai login, we&apos;ve sent it a
-            link to choose a new password. It works for an hour. Not there? Look in spam, or check the address.
-          </>
-        }
-      >
+      <AuthCard title={t("auth.checkTitle")} intro={t("auth.checkIntro", { email: sentTo })}>
         <div className="flex items-center gap-3">
           <MailCheck className="h-5 w-5 text-primary" aria-hidden />
           <Link href="/login" className="text-sm font-medium underline-offset-2 hover:underline">
-            Back to sign in
+            {t("auth.back")}
           </Link>
         </div>
       </AuthCard>
@@ -70,10 +63,10 @@ function ForgotPassword() {
   }
 
   return (
-    <AuthCard title="Forgot your password?" intro="Enter the email you sign in with and we'll send you a link to choose a new one.">
+    <AuthCard title={t("auth.forgotTitle")} intro={t("auth.forgotIntro")}>
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
-          <label htmlFor="email" className="text-sm font-medium">Email</label>
+          <label htmlFor="email" className="text-sm font-medium">{t("inv.email")}</label>
           <Input
             id="email"
             type="email"
@@ -91,11 +84,11 @@ function ForgotPassword() {
         )}
         <Button type="submit" className="w-full" disabled={busy || !email.trim()}>
           {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-          Send me a link
+          {t("auth.send")}
         </Button>
         <p className="text-center text-sm">
           <Link href="/login" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
-            Back to sign in
+            {t("auth.back")}
           </Link>
         </p>
       </form>

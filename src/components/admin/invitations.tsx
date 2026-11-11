@@ -25,6 +25,9 @@ import {
 } from "@/components/ui/dialog";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { INVITE_DAYS, inviteStatus, type InviteStatus } from "@/lib/invite-status";
+import { LanguageFlags } from "@/components/i18n/language-flags";
+import { Textarea } from "@/components/ui/textarea";
+import type { Lang } from "@/lib/i18n";
 
 export function inviteLink(token: string): string {
   return `${window.location.origin}/invite/${token}`;
@@ -86,6 +89,8 @@ interface Invitation {
   role: string;
   /** "email": sent by the app. "link": copied by Kikai to pass on. */
   delivery: Delivery;
+  language: string;
+  remindedAt: string | null;
   expiresAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
@@ -104,7 +109,7 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
   const { confirm, notify } = useDialogs();
   const [invitations, setInvitations] = useState<Invitation[] | null>(null);
   const [inviting, setInviting] = useState(false);
-  const [form, setForm] = useState({ email: "", role: "admin" });
+  const [form, setForm] = useState({ email: "", role: "admin", language: "en" as Lang, note: "" });
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState<{ link: string; email: string } | null>(null);
   // Whether the server can send email; until it can, links are copied.
@@ -150,7 +155,7 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
     const ok = await send(`/api/admin/organizations/${orgId}/invitations`, { ...form, delivery }, form.email.trim());
     if (ok) {
       setInviting(false);
-      setForm({ email: "", role: "admin" });
+      setForm({ email: "", role: "admin", language: "en", note: "" });
     }
   }
 
@@ -200,7 +205,8 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    {inv.role === "admin" ? "Owner" : "Staff"} · {inv.delivery === "email" ? "emailed" : "link copied"} ·{" "}
+                    {inv.role === "admin" ? "Owner" : "Staff"} · {inv.language === "vi" ? "Tiếng Việt" : "English"} ·{" "}
+                    {inv.delivery === "email" ? (inv.remindedAt ? "emailed, reminded" : "emailed") : "link copied"} ·{" "}
                     {status === "accepted"
                       ? `joined ${format(new Date(inv.acceptedAt!), "d MMM yyyy")}`
                       : status === "pending"
@@ -288,6 +294,23 @@ export function InvitationsSection({ orgId, onChange }: { orgId: string; onChang
                 ))}
               </div>
             </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-medium">Their language</span>
+              <LanguageFlags value={form.language} onChange={(language) => setForm({ ...form, language })} />
+            </div>
+            {canEmail && (
+              <div>
+                <label htmlFor="invite-note" className="text-xs font-medium">A note from you (optional)</label>
+                <Textarea
+                  id="invite-note"
+                  value={form.note}
+                  maxLength={600}
+                  rows={3}
+                  onChange={(e) => setForm({ ...form, note: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setInviting(false)}>

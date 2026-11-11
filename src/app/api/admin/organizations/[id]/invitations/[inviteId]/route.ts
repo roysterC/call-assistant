@@ -10,7 +10,7 @@ type Params = { params: Promise<{ id: string; inviteId: string }> };
 async function find(organizationId: string, inviteId: string) {
   return prisma.invitation.findFirst({
     where: { id: inviteId, organizationId },
-    select: { id: true, email: true, role: true, acceptedAt: true },
+    select: { id: true, email: true, role: true, acceptedAt: true, language: true, note: true },
   });
 }
 
@@ -26,7 +26,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!inv) return NextResponse.json({ error: "Invitation not found" }, { status: 404 });
   if (inv.acceptedAt) return NextResponse.json({ error: "That invitation has been used." }, { status: 409 });
   const body = await req.json().catch(() => ({}));
-  const base = { organizationId, email: inv.email, role: inv.role, createdById: ctx.userId };
+  const base = {
+    organizationId,
+    email: inv.email,
+    role: inv.role,
+    createdById: ctx.userId,
+    language: inv.language,
+    note: inv.note,
+  };
   if ((body?.delivery ?? (emailAvailable() ? "email" : "link")) === "email") {
     const sent = await emailInvitation({ ...base, origin: linkOrigin(req.nextUrl.origin) });
     if (!sent.ok) return NextResponse.json({ error: sent.error }, { status: sent.status });

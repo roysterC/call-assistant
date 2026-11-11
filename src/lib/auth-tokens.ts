@@ -16,6 +16,12 @@ import { hashPassword, validatePassword } from "@/lib/password";
 import { isTenantRole } from "@/lib/tenant-roles";
 import { normaliseEmail } from "@/lib/invitations";
 import { actionEmail, sendEmail } from "@/lib/email";
+import { DEFAULT_LANG, isLang, translate, type Lang } from "@/lib/i18n";
+
+/** A login's own language for its emails: theirs if chosen, English otherwise. */
+function langOf(language: string | null | undefined): Lang {
+  return isLang(language) ? language : DEFAULT_LANG;
+}
 
 export type AuthPurpose = "reset" | "verify";
 
@@ -49,7 +55,8 @@ export async function issueAuthToken(userId: string, purpose: AuthPurpose, now: 
   return token;
 }
 
-type Fail = { ok: false; status: number; error: string };
+/** `code` says why, for the page to put in the reader's language. */
+type Fail = { ok: false; status: number; error: string; code?: "invalid" | "gone" | "weak" | "confirmed" | "send" };
 
 const GONE: Record<AuthPurpose, string> = {
   reset: "This link has expired or been used. Ask for a new one.",
@@ -65,27 +72,27 @@ export async function consumeAuthToken(
   purpose: AuthPurpose,
   now: Date = new Date()
 ): Promise<{ ok: true; userId: string } | Fail> {
-  if (!looksLikeAuthToken(token)) return { ok: false, status: 404, error: "This link is not valid." };
+  if (!looksLikeAuthToken(token)) return { ok: false, status: 404, error: "This link is not valid.", code: "invalid" };
   const row = await prisma.authToken.findUnique({
     where: { tokenHash: hashAuthToken(token) },
     select: { id: true, userId: true, purpose: true, usedAt: true, expiresAt: true },
   });
-  if (!row || row.purpose !== purpose) return { ok: false, status: 404, error: "This link is not valid." };
-  if (row.usedAt || row.expiresAt.getTime() <= now.getTime()) return { ok: false, status: 410, error: GONE[purpose] };
+  if (!row || row.purpose !== purpose) return { ok: false, status: 404, error: "This link is not valid.", code: "invalid" };
+  if (row.usedAt || row.expiresAt.getTime() <= now.getTime()) return { ok: false, status: 410, error: GONE[purpose], code: "gone" };
   const claimed = await prisma.authToken.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
-  if (claimed.count !== 1) return { ok: false, status: 410, error: GONE[purpose] };
+  if (claimed.count !== 1) return { ok: false, status: 410, error: GONE[purpose], code: "gone" };
   return { ok: true, userId: row.userId };
 }
 
 /** Whether a link is still good, without using it: for the page to show the form or say why not. */
 export async function checkAuthToken(token: unknown, purpose: AuthPurpose, now: Date = new Date()): Promise<Fail | null> {
-  if (!looksLikeAuthToken(token)) return { ok: false, status: 404, error: "This link is not valid." };
+  if (!looksLikeAuthToken(token)) return { ok: false, status: 404, error: "This link is not valid.", code: "invalid" };
   const row = await prisma.authToken.findUnique({
     where: { tokenHash: hashAuthToken(token) },
     select: { purpose: true, usedAt: true, expiresAt: true },
   });
-  if (!row || row.purpose !== purpose) return { ok: false, status: 404, error: "This link is not valid." };
-  if (row.usedAt || row.expiresAt.getTime() <= now.getTime()) return { ok: false, status: 410, error: GONE[purpose] };
+  if (!row || row.purpose !== purpose) return { ok: false, status: 404, error: "This link is not valid.", code: "invalid" };
+  if (row.usedAt || row.expiresAt.getTime() <= now.getTime()) return { ok: false, status: 410, error: GONE[purpose], code: "gone" };
   return null;
 }
 
@@ -99,18 +106,21 @@ export async function checkAuthToken(token: unknown, purpose: AuthPurpose, now: 
 export async function requestPasswordReset(email: unknown, origin: string): Promise<void> {
   const address = normaliseEmail(email);
   if (!address) return;
-  const user = await prisma.user.findUnique({ where: { email: address }, select: { id: true, role: true } });
+  const user = await prisma.user.findUnique({ where: { email: address }, select: { id: true, role: true, language: true } });
   if (!user || !isTenantRole(user.role || "member")) return;
   const token = await issueAuthToken(user.id, "reset");
+  const lang = langOf(user.language);
   await sendEmail(
     actionEmail({
       to: address,
-      subject: "Reset your Kikai password",
-      heading: "Reset your password",
-      lines: ["Someone, hopefully you, asked to reset the password for your Kikai login."],
-      button: "Choose a new password",
+      subject: translate(lang, "mail.reset.subject"),
+      heading: translate(lang, "mail.reset.heading"),
+      lines: [translate(lang, "mail.reset.line")],
+      button: translate(lang, "mail.reset.button"),
       url: `${origin}/reset-password/${token}`,
-      footer: "This link works once, for an hour. If you didn't ask, ignore this email: your password stays as it is.",
+      footer: translate(lang, "mail.reset.footer"),
+      copyLine: translate(lang, "mail.copy"),
+      lang,
     })
   );
 }
@@ -127,7 +137,7 @@ export async function resetPassword(
 ): Promise<{ ok: true; email: string } | Fail> {
   const plain = typeof password === "string" ? password : "";
   const weak = validatePassword(plain);
-  if (weak) return { ok: false, status: 400, error: weak };
+  if (weak) return { ok: false, status: 400, error: weak, code: "weak" };
   const passwordHash = await hashPassword(plain);
   const used = await consumeAuthToken(token, "reset", now);
   if (!used.ok) return used;
@@ -147,19 +157,22 @@ export async function resetPassword(
 // ─── Confirming the address ───────────────────────────────────────────────
 
 export async function sendVerification(userId: string, origin: string): Promise<{ ok: true } | Fail> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true, language: true } });
   if (!user) return { ok: false, status: 404, error: "Login not found" };
   if (user.emailVerified) return { ok: false, status: 409, error: "Your email is already confirmed." };
   const token = await issueAuthToken(userId, "verify");
+  const lang = langOf(user.language);
   const sent = await sendEmail(
     actionEmail({
       to: user.email,
-      subject: "Confirm your email for Kikai",
-      heading: "Confirm your email",
-      lines: ["Confirm this is your address, so you can reset your password with it if you ever forget it."],
-      button: "Confirm my email",
+      subject: translate(lang, "mail.verify.subject"),
+      heading: translate(lang, "mail.verify.heading"),
+      lines: [translate(lang, "mail.verify.line")],
+      button: translate(lang, "mail.verify.button"),
       url: `${origin}/verify-email/${token}`,
-      footer: "This link works once, for a day. If you don't use Kikai, ignore this email.",
+      footer: translate(lang, "mail.verify.footer"),
+      copyLine: translate(lang, "mail.copy"),
+      lang,
     })
   );
   return sent.ok ? { ok: true } : { ok: false, status: 502, error: sent.error };
