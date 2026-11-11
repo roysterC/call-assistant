@@ -105,5 +105,6 @@ export async function readAvailability(
     service,
     candidates,
     clientType: q.clientType ?? "unknown",
+    ...(q.maxDaysWithSlots ? { maxDaysWithSlots: q.maxDaysWithSlots } : {}),
   });
 }

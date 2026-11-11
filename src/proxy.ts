@@ -53,6 +53,12 @@ export async function proxy(req: NextRequest) {
     "/api/password-reset",
     "/api/verify-email",
     "/embed",
+    // A salon's own website and online booking (src/lib/online-booking):
+    // clients, never logged in. /embed above covers the booking flow shown
+    // inside a salon's existing website.
+    "/s/",
+    "/api/book/",
+    "/book.js",
     "/login",
     // The in-person lead funnel and where it sends; no login by design.
     "/meet",

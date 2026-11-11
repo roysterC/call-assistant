@@ -688,6 +688,49 @@ the last week go with the booking and show in the diary's booking panel
 indefinitely for now: a retention period belongs with the transcript one,
 before real clients.
 
+### Online booking and the salon's website
+
+Switched on by the salon itself in Settings → **Website & online booking**
+(`OrganizationSettings.onlineBookingEnabled`, off by default), shown only
+where the salon uses the diary. Code: `src/lib/online-booking/`.
+
+- **`/s/<slug>`**: a one-page website built from the salon's settings
+  (services and prices, team, opening hours, phone), plus a headline, about
+  text, address and brand colour set in that section. A "Next free" button
+  books the soonest time for the first service in one tap.
+- **`/s/<slug>/book`**: the booking flow. Service, then time, then name and
+  mobile; the stylist is a filter on the time step ("Anyone" by default), and
+  colour services ask "had colour with us before?" first. `?service=`,
+  `?stylist=` and `?start=` open part-way in.
+- **On a website the salon already has**: one line,
+  `<script src="https://<app>/book.js" data-salon="<slug>" async></script>`,
+  then any element with `data-kikai-book` opens the flow over the page, or
+  `<div data-kikai-book-inline></div>` puts it in the page
+  (`public/book.js`). The flow is served from `/embed/book/<slug>` because
+  only `/embed/*` may be framed by other sites (`src/lib/security-headers.ts`).
+  The host page gets a `kikai:booked` event (and a `dataLayer` entry) per
+  booking.
+
+Nothing about what may be booked is decided here. Free times come from the
+same provider and slot engine as the phone, and a booking goes through
+`handleBookAppointment` in `src/lib/receptionist/booking.ts` with
+`source: "website"`: the same rules (hours, rotas, blocks, two hours'
+notice, the 48-hour skin test for a new client's colour), the same locked
+diary write, booking number, salon pop-up and confirmation text. The diary
+shows these as "booked online". Online-only settings: how far ahead
+(`onlineMaxDaysAhead`), whether clients choose who they see
+(`onlineStylistChoice`), and services kept off the web
+(`onlineHiddenServices`).
+
+The public API (`/api/book/<slug>`, `/availability`, `/bookings`) needs no
+login. Bookings are rate-limited by address and by phone number, and the
+form carries a hidden field that only bots fill in. No client account, no
+cookies on the salon's site.
+
+Not built yet: clients changing or cancelling online (they ring the salon,
+whose number is on the confirmation), a photo on the website, deposits, and
+booking several services at once.
+
 ### Business types (hair, nails, beauty, barbers)
 
 Each salon has a main **business type** and any others it **also offers**

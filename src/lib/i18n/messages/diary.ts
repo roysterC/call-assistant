@@ -59,6 +59,7 @@ export const diary = {
   "sheet.bookedByPhone": ["booked by phone", "đặt qua điện thoại"],
   "sheet.bookedByMessage": ["booked by {channel} message", "đặt qua tin nhắn {channel}"],
   "sheet.bookedAtDesk": ["booked at the desk", "đặt tại quầy"],
+  "sheet.bookedOnline": ["booked online", "đặt trực tuyến"],
   "sheet.photos": ["Photos", "Ảnh"],
   "sheet.photoAlt": ["Photo {n} from the client", "Ảnh {n} của khách"],
   "sheet.bookingNumber": ["Booking #{n}", "Lịch hẹn #{n}"],

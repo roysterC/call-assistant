@@ -129,6 +129,7 @@ export const clients = {
   "dash.bookedBy": ["Booked by", "Người đặt"],
   "dash.receptionist": ["Receptionist", "Lễ tân"],
   "dash.desk": ["The desk", "Tại quầy"],
+  "dash.online": ["Online", "Trực tuyến"],
   "dash.caller": ["Caller", "Người gọi"],
   "dash.unknownCaller": ["Unknown caller", "Không rõ người gọi"],
   "dash.outcome": ["Outcome", "Kết quả"],

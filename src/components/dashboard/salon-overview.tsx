@@ -188,6 +188,8 @@ export function SalonOverview() {
         cell: ({ row: { original: a } }) =>
           a.source === "voice" ? (
             <Pill>{t("dash.receptionist")}</Pill>
+          ) : a.source === "website" ? (
+            <Pill>{t("dash.online")}</Pill>
           ) : (
             <span className="text-muted-foreground">{t("dash.desk")}</span>
           ),

@@ -40,6 +40,13 @@ export interface AvailabilityQuery {
    * instead of claiming a fortnight was searched.
    */
   searchDays?: number;
+  /**
+   * Stop the forward search once this many days have produced slots.
+   * Defaults to DEFAULT_MAX_DAYS_WITH_SLOTS, which suits a caller asking for
+   * the soonest; the online booking page asks for every day in its window so
+   * it can show a week at a time.
+   */
+  maxDaysWithSlots?: number;
 }
 
 export interface BookingWrite {

@@ -7,8 +7,9 @@
  * colour of its own until they open it. On a phone or computer they turned
  * alerts on for, a push notification goes too (src/lib/push.ts).
  *
- * Only the receptionist's bookings: one made at the desk, or through the
- * personal assistant, was made by someone who already knows.
+ * Only the receptionist's bookings and clients' own online ones
+ * (src/lib/online-booking): one made at the desk, or through the personal
+ * assistant, was made by someone who already knows.
  */
 
 import { prisma } from "@/lib/prisma";
