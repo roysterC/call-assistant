@@ -326,6 +326,15 @@ describe("the instructions for a chat", () => {
     expect(buildSystem(cfg, "Polished", null, now, null)[0].text).toContain("# Ending the call");
   });
 
+  it("ask one thing per message, with no opener", () => {
+    const [stable] = buildChatSystem(cfg, "Polished", "instagram", null, now, null);
+    expect(stable.text).toContain("One question per message, and it is the last thing in it.");
+    expect(stable.text).toContain("which service, then the day, then");
+    expect(stable.text).toContain('No openers: no "Great.", "Got');
+    // The phone keeps its own, spoken, rules.
+    expect(buildSystem(cfg, "Polished", null, now, null)[0].text).not.toContain("reads like a form");
+  });
+
   it("ask Instagram and Messenger for a number", () => {
     const [, context] = buildChatSystem(cfg, "Polished", "instagram", null, now, null);
     expect(context.text).toContain("messaging on Instagram, which gives no phone number");
