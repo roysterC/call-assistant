@@ -32,7 +32,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: organizationId } = await params;
   const body = await req.json().catch(() => ({}));
   try {
-    const base = { organizationId, email: body?.email, role: body?.role, createdById: ctx.userId };
+    const base = {
+      organizationId,
+      email: body?.email,
+      role: body?.role,
+      createdById: ctx.userId,
+      language: body?.language,
+      note: body?.note,
+    };
     if ((body?.delivery ?? (emailAvailable() ? "email" : "link")) === "email") {
       const sent = await emailInvitation({ ...base, origin: linkOrigin(req.nextUrl.origin) });
       if (!sent.ok) return NextResponse.json({ error: sent.error }, { status: sent.status });

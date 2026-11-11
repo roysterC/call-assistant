@@ -29,6 +29,20 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AdminUsageTable } from "@/components/usage/admin-usage-table";
 import { InviteLinkDialog, inviteLink } from "@/components/admin/invitations";
+import { LanguageFlags } from "@/components/i18n/language-flags";
+import { Textarea } from "@/components/ui/textarea";
+import type { Lang } from "@/lib/i18n";
+
+/** "Polished Nails & Co." → "polished-nails-co". */
+function slugFrom(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
 
 interface Organization {
   id: string;
@@ -54,8 +68,20 @@ export default function OrganizationsPage() {
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const blank = { name: "", slug: "", planTier: "starter", businessType: "hair" as BusinessType, alsoOffers: [] as BusinessType[], ownerEmail: "" };
+  const blank = {
+    name: "",
+    slug: "",
+    planTier: "starter",
+    businessType: "hair" as BusinessType,
+    alsoOffers: [] as BusinessType[],
+    ownerEmail: "",
+    ownerLanguage: "en" as Lang,
+    ownerNote: "",
+    diaryEnabled: true,
+  };
   const [form, setForm] = useState(blank);
+  // The slug follows the name until it is typed in by hand.
+  const [slugTyped, setSlugTyped] = useState(false);
   // The owner's invite link, shown once after the salon is made with one.
   const [invite, setInvite] = useState<{ link: string; email: string } | null>(null);
 
@@ -80,7 +106,12 @@ export default function OrganizationsPage() {
       const res = await fetch("/api/admin/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          // The diary switch is for a salon whose owner sets it up; without an
+          // owner it starts off, as before, and is switched on from its page.
+          diaryEnabled: form.ownerEmail.trim() ? form.diaryEnabled : undefined,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -90,6 +121,7 @@ export default function OrganizationsPage() {
       const made = await res.json();
       setDialogOpen(false);
       setForm(blank);
+      setSlugTyped(false);
       if (made.inviteEmailed) notify(`Invitation emailed to ${made.invitation.email}`, "success");
       else if (made.inviteToken) setInvite({ link: inviteLink(made.inviteToken), email: made.invitation.email });
       else if (made.inviteError) notify(`The salon is made, but the invite wasn't: ${made.inviteError}`);
@@ -203,7 +235,9 @@ export default function OrganizationsPage() {
               <label className="text-xs font-medium">Name</label>
               <Input
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, name: e.target.value, slug: slugTyped ? form.slug : slugFrom(e.target.value) })
+                }
                 placeholder="Acme Corp"
                 className="mt-1"
               />
@@ -212,7 +246,10 @@ export default function OrganizationsPage() {
               <label className="text-xs font-medium">Slug</label>
               <Input
                 value={form.slug}
-                onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase() })}
+                onChange={(e) => {
+                  setSlugTyped(true);
+                  setForm({ ...form, slug: e.target.value.toLowerCase() });
+                }}
                 placeholder="acme-corp"
                 className="mt-1"
               />
@@ -243,6 +280,47 @@ export default function OrganizationsPage() {
                 own login, then set up their salon: its hours, services and team.
               </p>
             </div>
+            {form.ownerEmail.trim() && (
+              <div className="space-y-3 rounded-xl border bg-muted/40 p-3" data-testid="owner-invite-options">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-medium">Their language</span>
+                  <LanguageFlags
+                    value={form.ownerLanguage}
+                    onChange={(ownerLanguage) => setForm({ ...form, ownerLanguage })}
+                  />
+                </div>
+                <p className="-mt-2 text-[10px] text-muted-foreground">
+                  The email, and setting up, start in it. They can switch with the flags at any time.
+                </p>
+                <div>
+                  <label htmlFor="owner-note" className="text-xs font-medium">A note from you (optional)</label>
+                  <Textarea
+                    id="owner-note"
+                    value={form.ownerNote}
+                    maxLength={600}
+                    rows={3}
+                    onChange={(e) => setForm({ ...form, ownerNote: e.target.value })}
+                    placeholder="Hi Priya, great to speak today. Here's your link to get started, any questions just call me."
+                    className="mt-1"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">At the top of their email, as you write it.</p>
+                </div>
+                <label className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={form.diaryEnabled}
+                    onChange={(e) => setForm({ ...form, diaryEnabled: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 accent-primary"
+                  />
+                  <span>
+                    <span className="font-medium">Diary on</span>
+                    <span className="block text-muted-foreground">
+                      What they set up (hours, services, team) is the diary. Leave on unless you know why not.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>

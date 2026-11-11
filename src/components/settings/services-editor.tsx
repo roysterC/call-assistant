@@ -8,6 +8,8 @@ import { STATUS_BADGE, PATCH_TEST_BADGE } from "@/lib/status-styles";
 import type { SalonService } from "@/lib/salon-config";
 import { minorToInput, parseMoney } from "@/lib/money";
 import { REBOOK_WEEKS_MAX, REBOOK_WEEKS_MIN } from "@/lib/salon-config";
+import { useT } from "@/components/providers/language-provider";
+import { useMe } from "@/components/providers/me-provider";
 
 /**
  * Services and how long each takes.
@@ -24,12 +26,25 @@ export function ServicesEditor({
   value,
   onChange,
   rebook = false,
+  skinTests,
+  typical,
 }: {
   value: SalonService[];
   onChange: (next: SalonService[]) => void;
   /** Show when each is due again, for rebooking texts (src/lib/rebook.ts). */
   rebook?: boolean;
+  /**
+   * Show the patch-test switch. Off for trades with no skin tests (nails,
+   * barbers), where it only puzzles; a service already switched on still
+   * shows it. Defaults to the salon's own types.
+   */
+  skinTests?: boolean;
+  /** Which services still have the length we guessed, to mark for checking (onboarding). */
+  typical?: (service: SalonService) => boolean;
 }) {
+  const { t } = useT();
+  const me = useMe();
+  const showSkinTests = skinTests ?? me?.skinTests ?? true;
   function update(index: number, patch: Partial<SalonService>) {
     const next = [...value];
     next[index] = { ...next[index], ...patch };
@@ -50,12 +65,7 @@ export function ServicesEditor({
 
   return (
     <div className="space-y-3">
-      {value.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No services yet. Without at least one, the receptionist cannot check
-          the diary — it has no way to know how long an appointment needs.
-        </p>
-      )}
+      {value.length === 0 && <p className="text-sm text-muted-foreground">{t("svc.empty")}</p>}
 
       {value.map((service, i) => (
         <div
@@ -64,10 +74,10 @@ export function ServicesEditor({
         >
           <Input
             value={service.name}
-            placeholder="Service name"
+            placeholder={t("svc.name")}
             onChange={(e) => update(i, { name: e.target.value })}
             className="h-8 flex-1 min-w-[10rem]"
-            aria-label="Service name"
+            aria-label={t("svc.name")}
           />
 
           <div className="flex items-center gap-1.5">
@@ -79,10 +89,18 @@ export function ServicesEditor({
               onChange={(e) =>
                 update(i, { durationMinutes: Number(e.target.value) })
               }
-              className="h-8 w-20"
-              aria-label="Duration in minutes"
+              className={cn("h-8 w-20", typical?.(service) && "border-light-bronze-400 ring-2 ring-light-bronze-400/30")}
+              aria-label={t("svc.minutes")}
             />
-            <span className="text-xs text-muted-foreground">min</span>
+            <span className="text-xs text-muted-foreground">{t("svc.min")}</span>
+            {typical?.(service) && (
+              <span
+                className="rounded bg-light-bronze-800 px-1.5 py-0.5 text-[10px] font-medium text-light-bronze-200"
+                title={t("svc.typicalTitle")}
+              >
+                {t("svc.typical")}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -98,10 +116,11 @@ export function ServicesEditor({
                 update(i, { priceMinor: parseMoney(e.target.value) })
               }
               className="h-8 w-20"
-              aria-label="Price in pounds"
+              aria-label={t("svc.price")}
             />
           </div>
 
+          {(showSkinTests || service.requiresPatchTest) && (
           <button
             type="button"
             onClick={() =>
@@ -116,22 +135,23 @@ export function ServicesEditor({
                 : "bg-muted text-muted-foreground border-border hover:text-foreground"
             )}
           >
-            {service.requiresPatchTest ? "Patch test" : "No patch test"}
+            {service.requiresPatchTest ? t("svc.patch") : t("svc.noPatch")}
           </button>
+          )}
 
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => onChange(value.filter((_, j) => j !== i))}
-            aria-label={`Remove ${service.name || "service"}`}
+            aria-label={t("svc.remove", { name: service.name || t("svc.thisService") })}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
 
           {rebook && (
             <div className="flex w-full flex-wrap items-center gap-1.5 pl-0.5 text-xs text-muted-foreground">
-              <span>Due again after</span>
+              <span>{t("svc.dueAfter")}</span>
               <Input
                 type="number"
                 min={REBOOK_WEEKS_MIN}
@@ -145,23 +165,23 @@ export function ServicesEditor({
                   });
                 }}
                 className="h-7 w-16"
-                aria-label={`Weeks until ${service.name || "this service"} is due again`}
+                aria-label={t("svc.weeksLabel", { name: service.name || t("svc.thisService") })}
               />
-              <span>weeks</span>
+              <span>{t("svc.weeks")}</span>
               {service.rebookWeeks ? (
                 <>
-                  <span>as</span>
+                  <span>{t("svc.as")}</span>
                   <Input
                     value={service.rebookAs ?? ""}
-                    placeholder={service.name || "the same"}
+                    placeholder={service.name || t("svc.same")}
                     maxLength={120}
                     onChange={(e) => update(i, { rebookAs: e.target.value || undefined })}
                     className="h-7 min-w-[8rem] flex-1"
-                    aria-label={`What ${service.name || "this service"} is rebooked as`}
+                    aria-label={t("svc.rebookAs", { name: service.name || t("svc.thisService") })}
                   />
                 </>
               ) : (
-                <span>(blank: no rebooking text)</span>
+                <span>{t("svc.noRebook")}</span>
               )}
             </div>
           )}
@@ -170,15 +190,12 @@ export function ServicesEditor({
 
       <Button type="button" variant="outline" size="sm" onClick={add}>
         <Plus className="h-4 w-4 mr-1" />
-        Add service
+        {t("svc.add")}
       </Button>
 
       <p className="text-xs text-muted-foreground">
-        Duration decides how much of the stylist&apos;s day is blocked. Colour services
-        should be marked as needing a patch test — that forces a 48-hour gap
-        for anyone new. The price is a starting figure: the desk starts from it,
-        and the receptionist and chat bots quote it as &ldquo;from&rdquo;. What
-        gets counted in the sales report is what was actually taken.
+        {t("svc.help")}
+        {showSkinTests && <> {t("svc.patchHelp")}</>}
       </p>
     </div>
   );

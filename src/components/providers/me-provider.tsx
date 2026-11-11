@@ -25,6 +25,10 @@ export interface Me {
   clock: string | null;
   /** What the salon calls one of its team: "stylist", "nail technician" (business-types.ts). */
   staff?: string;
+  /** The salon's main type ("hair", "nails"…), for examples in its own trade. */
+  businessType?: string;
+  /** Whether any of its types books skin (patch) tests: hair colour, lash tints. */
+  skinTests?: boolean;
 }
 
 const MeContext = createContext<Me | null>(null);

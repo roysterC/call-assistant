@@ -32,6 +32,7 @@ import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 import { useMe } from "@/components/providers/me-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { ExpandableSection } from "@/components/settings/expandable-section";
+import { TeamLogins } from "@/components/settings/team-logins";
 import { plural } from "@/lib/plural";
 import { VOICE_CHANNEL, type PhoneChannel } from "@/lib/phone-channels";
 
@@ -577,6 +578,9 @@ export default function SettingsPage() {
             </div>
           </ExpandableSection>
         )}
+
+        {/* Who can sign in: the owner invites and removes staff here. */}
+        {canEdit && <TeamLogins salon={settings.businessName || "your salon"} />}
 
         {/* What the bots may tell customers about the salon beyond the hours,
             services, prices and team above. They answer salon questions only

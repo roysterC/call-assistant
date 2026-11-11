@@ -10,6 +10,7 @@
  * front, the assistant, and More, which opens the rest above the bar.
  */
 
+import { LanguageFlags } from "@/components/i18n/language-flags";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -393,6 +394,10 @@ function Sidebar({
             <span className={wide}>{t("nav.collapse")}</span>
           </button>
         )}
+        {/* The language, one tap away on every page. */}
+        <div className={cn("flex px-[11px] pt-1", collapsed ? "justify-center px-0" : "")}>
+          <LanguageFlags tone="dark" className={collapsed ? "flex-col" : undefined} />
+        </div>
       </div>
 
       {/* User menu */}

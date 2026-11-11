@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-fetch";
+import { LanguageFlags } from "@/components/i18n/language-flags";
 import { BrandMark, Navigation } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
 import { BookingAlerts } from "@/components/notifications/booking-alerts";
@@ -45,7 +46,8 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
           bottom (Navigation). */}
       <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <BrandMark size="sm" alt="" />
-        <span className="font-heading font-semibold text-[0.95rem] tracking-tight truncate text-cornsilk-500">Kikai</span>
+        <span className="flex-1 font-heading font-semibold text-[0.95rem] tracking-tight truncate text-cornsilk-500">Kikai</span>
+        <LanguageFlags tone="dark" />
       </header>
 
       <div className="flex flex-1 min-h-0 w-full">

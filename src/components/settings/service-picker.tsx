@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { SalonService } from "@/lib/salon-config";
+import { useT } from "@/components/providers/language-provider";
 
 /** "Everything", "Root Tint", "Root Tint and Balayage", "Root Tint and 4 more". */
 export function servicesSummary(selected: string[]): string {
@@ -38,6 +39,7 @@ export function ServicePicker({
   value: string[];
   onChange: (next: string[]) => void;
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -66,32 +68,38 @@ export function ServicePicker({
     setOpen(false);
   }
 
-  const who = stylistName.trim() || "this stylist";
+  const who = stylistName.trim() || t("pick.thisStylist");
+  const summary = (selected: string[]) =>
+    selected.length === 1
+      ? selected[0]
+      : selected.length === 2
+        ? t("pick.two", { a: selected[0], b: selected[1] })
+        : t("pick.more", { a: selected[0], n: selected.length - 1 });
 
   return (
     <>
       <div className="mt-1 flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={start} aria-label={`Choose services for ${who}`}>
-          {current.length === 0 ? "All services" : `${current.length} of ${services.length}`}
-          <span className="ml-1 text-muted-foreground">· Edit</span>
+        <Button type="button" variant="outline" size="sm" onClick={start} aria-label={t("pick.choose", { name: who })}>
+          {current.length === 0 ? t("pick.all") : t("pick.some", { n: current.length, total: services.length })}
+          <span className="ml-1 text-muted-foreground">· {t("pick.edit")}</span>
         </Button>
         <span className="min-w-0 truncate text-xs text-muted-foreground">
-          {current.length === 0 ? "None ticked, so they do everything." : servicesSummary(current)}
+          {current.length === 0 ? t("pick.everything") : summary(current)}
         </span>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Services {who} does</DialogTitle>
+            <DialogTitle>{t("pick.title", { name: who })}</DialogTitle>
           </DialogHeader>
 
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              aria-label="Search services"
-              placeholder="Search services"
+              aria-label={t("pick.search")}
+              placeholder={t("pick.search")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-9"
@@ -99,20 +107,20 @@ export function ServicePicker({
           </div>
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{draft.length === 0 ? "None ticked: they do everything." : `${draft.length} ticked`}</span>
+            <span>{draft.length === 0 ? t("pick.everything") : t("pick.ticked", { n: draft.length })}</span>
             <span className="flex gap-3">
               <button type="button" className="hover:text-foreground hover:underline" onClick={() => setDraft(services.map((s) => s.name))}>
-                Tick all
+                {t("pick.tickAll")}
               </button>
               <button type="button" className="hover:text-foreground hover:underline" onClick={() => setDraft([])}>
-                Clear
+                {t("pick.clear")}
               </button>
             </span>
           </div>
 
-          <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-md border" aria-label="Services">
+          <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-md border" aria-label={t("sty.services")}>
             {shown.length === 0 ? (
-              <li className="px-3 py-6 text-center text-sm text-muted-foreground">No services match that.</li>
+              <li className="px-3 py-6 text-center text-sm text-muted-foreground">{t("pick.noMatch")}</li>
             ) : (
               shown.map((s) => {
                 const id = `svc-${s.name.replace(/\W+/g, "-")}`;
@@ -127,7 +135,7 @@ export function ServicePicker({
                         className="h-4 w-4 accent-primary"
                       />
                       <span className="flex-1">{s.name}</span>
-                      <span className="text-xs text-muted-foreground">{s.durationMinutes} min</span>
+                      <span className="text-xs text-muted-foreground">{s.durationMinutes} {t("svc.min")}</span>
                     </label>
                   </li>
                 );
@@ -137,10 +145,10 @@ export function ServicePicker({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="button" onClick={done}>
-              Done
+              {t("pick.done")}
             </Button>
           </DialogFooter>
         </DialogContent>

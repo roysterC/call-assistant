@@ -40,6 +40,10 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   me: { GET: "members", PUT: "members" },
   // Staff see the salon is being set up; only the owner sets it up.
   onboarding: { GET: "members", PUT: "owner", POST: "owner" },
+  // The salon's logins: the owner invites and removes staff (Settings).
+  "team-logins": { GET: "owner", POST: "owner" },
+  "team-logins/[id]": { DELETE: "owner" },
+  "team-logins/invitations/[id]": { POST: "owner", DELETE: "owner" },
   "phone-numbers": { GET: "members" },
   // Booking alerts on this person's own phone or computer.
   push: { DELETE: "members", GET: "members", POST: "members" },

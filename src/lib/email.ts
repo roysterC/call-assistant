@@ -92,10 +92,15 @@ export function actionEmail(input: {
   url: string;
   /** A last line in small print: how long the link lasts, what to do if it was not you. */
   footer: string;
+  /** "Or copy this into your browser:", in the email's language. */
+  copyLine?: string;
+  /** The email's language, for the HTML's lang (screen readers, translation offers). */
+  lang?: string;
 }): Email {
   const p = (s: string) =>
     `<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#2a2e22">${escapeHtml(s)}</p>`;
-  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4ef">
+  const copyLine = input.copyLine ?? "Or copy this into your browser:";
+  const html = `<!doctype html><html lang="${escapeHtml(input.lang ?? "en")}"><body style="margin:0;padding:0;background:#f4f4ef">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4ef;padding:32px 16px">
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
@@ -104,7 +109,7 @@ export function actionEmail(input: {
 <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#2a2e22">${escapeHtml(input.heading)}</h1>
 ${input.lines.map(p).join("\n")}
 <p style="margin:24px 0"><a href="${escapeHtml(input.url)}" style="display:inline-block;background:#5b6635;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 20px;border-radius:10px">${escapeHtml(input.button)}</a></p>
-<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#6b7066">Or copy this into your browser:<br><span style="word-break:break-all">${escapeHtml(input.url)}</span></p>
+<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#6b7066">${escapeHtml(copyLine)}<br><span style="word-break:break-all">${escapeHtml(input.url)}</span></p>
 <p style="margin:0;font-size:13px;line-height:1.5;color:#6b7066">${escapeHtml(input.footer)}</p>
 </td></tr></table>
 </td></tr></table>

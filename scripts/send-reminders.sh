@@ -27,3 +27,7 @@ post() {
 # a rebooking run that fails is logged without hiding that they went.
 post "$reminders"
 post "$base/api/cron/rebook-texts" || echo "Rebooking texts run failed." >&2
+# Owners and staff who have not used their invitation after a few days: one
+# reminder each (src/lib/invitations.ts). Refused, harmlessly, where email is
+# not set up.
+post "$base/api/cron/invite-reminders" || echo "Invitation reminders run failed (is email set up?)." >&2

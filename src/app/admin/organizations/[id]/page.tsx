@@ -69,6 +69,8 @@ interface Org {
   enabled: boolean;
   /** The owner has not finished onboarding yet (src/app/onboarding). */
   needsOnboarding?: boolean;
+  /** The onboarding step they have reached, or null before they start. */
+  onboardingStep?: string | null;
   settings: {
     businessName: string;
     // The salon's diary set-up, edited on its own Settings page; read here
@@ -172,6 +174,16 @@ function withEdits(fresh: Org, edited: Org): Org {
     settings: fresh.settings && edited.settings ? { ...fresh.settings, ...settingsBody(edited.settings) } : fresh.settings,
   };
 }
+
+/** The onboarding steps (src/lib/onboarding.ts), as the admin reads them. */
+const ONBOARDING_STEP_NAMES: Record<string, string> = {
+  salon: "step 1, the salon's name and type",
+  hours: "opening hours",
+  services: "services",
+  team: "the team",
+  about: "about the salon",
+  ready: "the last check, before Finish",
+};
 
 export default function OrganizationDetailPage() {
   const params = useParams();
@@ -1324,8 +1336,17 @@ export default function OrganizationDetailPage() {
 
       {org.needsOnboarding && (
         <p className="rounded-xl border border-light-bronze-300 bg-light-bronze-900/40 px-4 py-3 text-sm" data-testid="onboarding-pending">
-          The owner hasn&apos;t finished setting up yet. When they sign in, they&apos;re taken through the salon&apos;s
-          name, type, opening hours, services and team.
+          {org.onboardingStep ? (
+            <>
+              The owner is setting up: they&apos;ve reached <strong>{ONBOARDING_STEP_NAMES[org.onboardingStep] ?? org.onboardingStep}</strong>.
+              You&apos;ll be emailed when they finish (NOTIFY_EMAIL).
+            </>
+          ) : (
+            <>
+              The owner hasn&apos;t started setting up yet. When they sign in, they&apos;re taken through the salon&apos;s
+              name, type, opening hours, services and team.
+            </>
+          )}
         </p>
       )}
 
