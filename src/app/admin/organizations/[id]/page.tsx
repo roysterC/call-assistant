@@ -106,6 +106,8 @@ interface Org {
     name: string | null;
     role: string;
     createdAt: string;
+    /** When they proved the address is theirs; null while unconfirmed. */
+    emailVerified?: string | null;
   }>;
   phoneNumbers: Array<{
     id: string;
@@ -657,6 +659,19 @@ export default function OrganizationDetailPage() {
       accessorFn: (u) => `${u.name ?? ""} ${u.email}`,
       sortingFn: (a, b) => (a.original.name || a.original.email).localeCompare(b.original.name || b.original.email),
       cell: ({ row: { original: u } }) => <PersonCell name={u.name || u.email} detail={u.name ? u.email : null} />,
+    },
+    {
+      // Whether the address is proven theirs: by an emailed invite, a reset
+      // link or the confirm link. Until then it may not even be real.
+      id: "email",
+      header: "Email",
+      accessorFn: (u) => (u.emailVerified ? "Confirmed" : "Not confirmed"),
+      cell: ({ row: { original: u } }) =>
+        u.emailVerified ? (
+          <Pill className="bg-tea-green-900 text-tea-green-200">Confirmed</Pill>
+        ) : (
+          <Pill className="bg-muted text-muted-foreground">Not confirmed</Pill>
+        ),
     },
     {
       id: "role",

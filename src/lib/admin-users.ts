@@ -21,7 +21,7 @@ export function isAssignableRole(role: unknown): role is AssignableRole {
 }
 
 /** What the admin screens are sent about a login. Never the password hash. */
-export const USER_FIELDS = { id: true, email: true, name: true, role: true, createdAt: true } as const;
+export const USER_FIELDS = { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true } as const;
 
 export type UserChange =
   | { ok: true; role?: AssignableRole; password?: string }

@@ -288,6 +288,36 @@ nothing.
 3. Deploy (or rebuild and restart), then restart the voice server:
    `systemctl restart call-assistant-voice`.
 
+### Email (logins)
+
+The app emails three things, and nothing else: an **invitation** to make a
+login, a **reset link** from "Forgot password?" on the sign-in page, and a
+link to **confirm an address** from Account. All go through
+[Resend](https://resend.com) (`src/lib/email.ts`); the links are one-time,
+stored only as hashes, and short-lived (`src/lib/invitations.ts`,
+`src/lib/auth-tokens.ts`).
+
+On netcup, in `/home/deploy/call-assistant/.env`, then restart the service:
+
+```
+RESEND_API_KEY=re_…                          # resend.com → API Keys
+EMAIL_FROM="Kikai <no-reply@your-domain>"    # a domain verified in Resend
+# EMAIL_REPLY_TO="hello@your-domain"         # optional
+```
+
+`AUTH_URL` must be the public address (the links in emails start with it).
+The sending domain needs the DNS records Resend shows under Domains, or
+Resend refuses to send and the log says so (`[EMAIL] Resend refused`).
+
+Without a key a production build sends nothing: invitations fall back to a
+link for Kikai to copy and pass on, and "Forgot password?" quietly does
+nothing, so a super-admin resets passwords from Admin as before.
+
+A login's email counts as **confirmed** (Admin shows it beside each user)
+only when the address is proven: by an invite the app emailed, a reset link,
+or the confirm link. A login made from a copied link is not, until its owner
+confirms it from Account.
+
 ### Backups
 
 Every night at 3:15am UK time, `call-assistant-backup.timer` runs

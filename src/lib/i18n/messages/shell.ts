@@ -66,6 +66,7 @@ export const shell = {
   "login.continueAs": ["Continue as {name}", "Tiếp tục với tên {name}"],
   "login.email": ["Email", "Email"],
   "login.password": ["Password", "Mật khẩu"],
+  "login.forgot": ["Forgot password?", "Quên mật khẩu?"],
   "login.signIn": ["Sign in", "Đăng nhập"],
   "login.signingIn": ["Signing in…", "Đang đăng nhập…"],
   "login.noAccount": [
@@ -87,6 +88,14 @@ export const shell = {
   "account.profile": ["Profile", "Hồ sơ"],
   "account.name": ["Name", "Tên"],
   "account.email": ["Email", "Email"],
+  "account.emailConfirmed": ["Confirmed", "Đã xác nhận"],
+  "account.emailUnconfirmed": [
+    "Not confirmed yet. Confirm it so you can reset your password if you ever forget it.",
+    "Chưa xác nhận. Hãy xác nhận để có thể đặt lại mật khẩu nếu bạn quên.",
+  ],
+  "account.sendConfirmation": ["Send confirmation link", "Gửi liên kết xác nhận"],
+  "account.confirmationSent": ["Sent. Check your inbox for a link from Kikai.", "Đã gửi. Hãy kiểm tra hộp thư để tìm liên kết từ Kikai."],
+  "account.confirmationFailed": ["Couldn't send it. Try again.", "Không gửi được. Hãy thử lại."],
   "account.role": ["Role", "Vai trò"],
   "account.roleSuperAdmin": ["Super admin", "Quản trị cấp cao"],
   "account.roleAdmin": ["Admin (owner)", "Quản trị (chủ tiệm)"],

@@ -96,6 +96,7 @@ model User {
   sessions           Session[]
   bookingNotices     BookingNotice[]
   pushSubscriptions  PushSubscription[]
+  authTokens         AuthToken[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -117,12 +118,33 @@ model Invitation {
   expiresAt      DateTime
   acceptedAt     DateTime?
   revokedAt      DateTime?
+  /// "email": sent to the address by the app, and the link never shown to
+  /// anyone else, so accepting it proves the address. "link": shown to
+  /// Kikai to pass on, so it proves nothing about the address.
+  delivery       String       @default("link")
   /// The super-admin who sent it.
   createdById    String?
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
   @@map("ca_invitations")
+}
+
+/// A one-time link emailed to a login's own address: to set a new password
+/// ("reset") or to confirm the address is theirs ("verify"). Only a SHA-256
+/// of the token is kept. See src/lib/auth-tokens.ts.
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, purpose])
+  @@map("ca_auth_tokens")
 }
 
 model Account {

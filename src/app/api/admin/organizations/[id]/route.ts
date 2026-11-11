@@ -17,7 +17,7 @@ export async function GET(
       include: {
         settings: true,
         users: {
-          select: { id: true, email: true, name: true, role: true, createdAt: true },
+          select: { id: true, email: true, name: true, role: true, createdAt: true, emailVerified: true },
         },
         phoneNumbers: true,
         _count: { select: { leads: true, calls: true, websites: true } },

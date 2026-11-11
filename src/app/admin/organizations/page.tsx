@@ -90,7 +90,8 @@ export default function OrganizationsPage() {
       const made = await res.json();
       setDialogOpen(false);
       setForm(blank);
-      if (made.inviteToken) setInvite({ link: inviteLink(made.inviteToken), email: made.invitation.email });
+      if (made.inviteEmailed) notify(`Invitation emailed to ${made.invitation.email}`, "success");
+      else if (made.inviteToken) setInvite({ link: inviteLink(made.inviteToken), email: made.invitation.email });
       else if (made.inviteError) notify(`The salon is made, but the invite wasn't: ${made.inviteError}`);
       await load();
     } finally {
@@ -238,8 +239,8 @@ export default function OrganizationsPage() {
                 className="mt-1"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                You&apos;ll get a link to send them. They make their own login, then set up their salon:
-                its hours, services and team.
+                We email them a link (or, where email isn&apos;t set up, give you one to send). They make their
+                own login, then set up their salon: its hours, services and team.
               </p>
             </div>
           </div>
