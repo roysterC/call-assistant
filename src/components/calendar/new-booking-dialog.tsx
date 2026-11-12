@@ -47,6 +47,10 @@ export interface BookingSlot {
   time: string;
   /** "YYYY-MM-DD". */
   date: string;
+  /** Booking again for someone: skip choosing the client. */
+  client?: ClientRow;
+  /** And the services to start from. */
+  serviceNames?: string[];
 }
 
 interface Booked {
@@ -73,6 +77,8 @@ interface NewBookingDialogProps {
   dayAppointments: CalendarAppointment[];
   /** Blocked time on the day shown, for the same. */
   dayBlocks: DiaryBlock[];
+  /** "YYYY-MM-DD" of the day the diary shows, which those two belong to. */
+  dayShown: string;
   onClose: () => void;
   onBooked: () => void;
   /** The slot was clicked to block it, not to book it. */
@@ -98,6 +104,7 @@ export function NewBookingDialog({
   timeZone,
   dayAppointments,
   dayBlocks,
+  dayShown,
   onClose,
   onBooked,
   onBlockInstead,
@@ -111,7 +118,7 @@ export function NewBookingDialog({
   // rides along into the next one.
   useEffect(() => {
     if (!slot) return;
-    setStep({ kind: "client" });
+    setStep(slot.client ? { kind: "details", client: slot.client } : { kind: "client" });
     setError(null);
   }, [slot]);
 
@@ -216,7 +223,7 @@ export function NewBookingDialog({
             timeZone={timeZone}
             dayAppointments={dayAppointments}
             dayBlocks={dayBlocks}
-            dayShown={slot.date}
+            dayShown={dayShown}
             initial={slot}
             saving={saving}
             error={error}

@@ -55,7 +55,8 @@ export function isMovable(a: CalendarAppointment): boolean {
   return a.status === "booked" && new Date(a.startsAt) >= new Date();
 }
 
-function clientOf(a: CalendarAppointment): ClientRow {
+/** The booking's client as the picker would list them. */
+export function clientOf(a: CalendarAppointment): ClientRow {
   return {
     id: a.lead.id,
     name: a.lead.name,
