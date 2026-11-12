@@ -4,18 +4,9 @@ import { hasDiary } from "@/lib/navigation";
 import { bookingReadiness, missingText } from "@/lib/booking/readiness";
 import { useTradeWords } from "@/components/providers/language-provider";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Users,
-  MessageSquare,
-  MessageCircle,
-  Phone,
-  Camera,
-  Send,
-  AlertTriangle,
-} from "lucide-react";
+import { Users, MessageCircle, Phone, Camera, Send, Globe } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { SaveBar, useLeaveGuard } from "@/components/ui/unsaved-changes";
@@ -31,9 +22,10 @@ import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/nav
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 import { useMe } from "@/components/providers/me-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
-import { ExpandableSection } from "@/components/settings/expandable-section";
+import { SettingsSection } from "@/components/settings/settings-section";
 import { TeamLogins } from "@/components/settings/team-logins";
-import { plural } from "@/lib/plural";
+import { cn } from "@/lib/utils";
+import { settingsTabs, setupSteps, tabFromHash, TAB_LABELS, type SettingsTab, type SetupStep } from "@/lib/settings-tabs";
 import { VOICE_CHANNEL, type PhoneChannel } from "@/lib/phone-channels";
 import {
   OnlineBookingSettings,
@@ -155,6 +147,7 @@ export default function SettingsPage() {
           whatsappEnabled: !!data.settings?.whatsappEnabled,
           voiceEnabled: !!data.settings?.voiceEnabled,
           hasDiary: data.settings ? hasDiary(data.settings) : false,
+          diaryProvider: data.settings?.diaryProvider ?? "native",
           chatBookingEnabled: !!data.settings?.chatBookingEnabled,
           instagramEnabled: !!data.settings?.instagramEnabled,
           instagramBusinessId: data.settings?.instagramBusinessId ?? null,
@@ -258,6 +251,15 @@ export default function SettingsPage() {
   };
   const { dialog: leaveGuard } = useLeaveGuard({ dirty, save: handleSave, discard });
 
+  // Which tab is open: kept in the address (#services), so a reload or a
+  // link (onboarding's #team-logins) opens the right one.
+  const [hash, setHash] = useState(() => (typeof window === "undefined" ? "" : window.location.hash));
+  useEffect(() => {
+    const follow = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  }, []);
+
   if (loading || !settings) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -273,6 +275,30 @@ export default function SettingsPage() {
     diaryProvider: settings.diaryProvider,
     staff: w("stylist"),
   });
+  const usesGoogle = settings.diaryProvider === "google";
+
+  // The tabs, and the one open.
+  const tabs = settingsTabs({ hasDiary: settings.hasDiary, canEdit });
+  const tab = tabFromHash(hash, tabs);
+  const choose = (next: SettingsTab, anchor?: string) => {
+    setHash(`#${next}`);
+    window.history.replaceState(null, "", `#${next}`);
+    if (anchor) requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  // What setup still needs before anything can be booked: the same three
+  // checks as bookingReadiness, as steps, each pointing at its tab.
+  const steps = setupSteps({
+    serviceCount: settings.services.length,
+    teamReady: usesGoogle ? settings.teamMembers.some((s) => s.googleCalendarId) : settings.teamMembers.length > 0,
+    hoursOpen: settings.businessHours.some((d) => !d.closed),
+    staffPlural: w("stylists"),
+  });
+  const todo = settings.hasDiary && !readiness.ready ? steps.filter((s) => !s.done) : [];
+  const needs = (t: SettingsTab) => todo.some((s) => s.tab === t);
+  const counts: Partial<Record<SettingsTab, number>> = settings.hasDiary
+    ? { services: settings.services.length, team: settings.teamMembers.length }
+    : {};
 
   // What rebooking texts still need, from what is on screen (the same tests
   // as salonCannotSend in src/lib/rebook.ts, but the switch itself).
@@ -288,59 +314,66 @@ export default function SettingsPage() {
     !settings.services.some((s) => s.rebookWeeks) && "no service has a \"due again after\" yet",
   ].filter((x): x is string => Boolean(x));
 
-  // Built here rather than inline in the JSX so the five channels are declared
-  // once, in one shape, instead of five hand-written blocks that drifted apart.
   const numberList = (nums: PhoneNumber[]) =>
     nums
+      .filter((p) => p.active)
       .map((p) => (p.label ? `${p.number} (${p.label})` : p.number))
       .join(", ");
 
-  const channels: {
-    label: string;
-    icon: typeof MessageSquare;
-    enabled: boolean;
-    detail: string;
-    missing: string;
-  }[] = [
+  // Every channel, switched on or not, so the salon sees what it has and what
+  // it could have. Kikai switches them on; nothing here changes them.
+  const chatDoes = settings.chatBookingEnabled
+    ? "Answers messages and books into the diary"
+    : settings.hasDiary
+      ? "Answers questions, and gives your number or takes a call-back request to book"
+      : "Answers questions";
+  const channels: ChannelRow[] = [
     {
-      label: "Website chatbot",
-      icon: MessageSquare,
-      enabled: settings.chatbotEnabled,
-      detail: "",
-      missing: "Configured under Websites",
-    },
-    {
-      label: "WhatsApp",
-      icon: MessageCircle,
-      enabled: settings.whatsappEnabled,
-      detail: numberList(whatsappNumbers),
-      missing: "No number assigned yet — contact Kikai",
-    },
-    {
-      label: "Voice agent",
+      name: "Phone receptionist",
       icon: Phone,
-      enabled: settings.voiceEnabled,
-      detail: numberList(voiceNumbers),
-      missing: "No number assigned yet — contact Kikai",
+      address: numberList(voiceNumbers),
+      does: "Answers calls and books into the diary",
+      ...status(settings.voiceEnabled, Boolean(numberList(voiceNumbers)), "No number yet"),
     },
     {
-      label: "Instagram",
+      name: "Instagram",
       icon: Camera,
-      enabled: settings.instagramEnabled,
-      detail: settings.instagramBusinessId || "",
-      missing: "No business account linked yet — contact Kikai",
+      address: settings.instagramUsername ? `@${settings.instagramUsername}` : "",
+      does: chatDoes,
+      ...status(settings.instagramEnabled, Boolean(settings.instagramBusinessId), "Not linked yet"),
     },
     {
-      label: "Facebook Messenger",
-      icon: Send,
-      enabled: settings.facebookEnabled,
-      detail: settings.facebookPageId || "",
-      missing: "No Page linked yet — contact Kikai",
+      name: "WhatsApp",
+      icon: MessageCircle,
+      address: numberList(whatsappNumbers),
+      does: chatDoes,
+      ...status(settings.whatsappEnabled, Boolean(numberList(whatsappNumbers)), "No number yet"),
     },
-  ].filter((c) => c.enabled);
+    {
+      name: "Facebook Messenger",
+      icon: Send,
+      address: "",
+      does: chatDoes,
+      ...status(settings.facebookEnabled, Boolean(settings.facebookPageId), "Not linked yet"),
+    },
+    {
+      name: "Website chat",
+      icon: Globe,
+      address: "",
+      does: "A chat on your website or your booking page, set up in Websites",
+      ...status(settings.chatbotEnabled, true, ""),
+    },
+  ];
+
+  const botsOn =
+    settings.voiceEnabled ||
+    settings.chatbotEnabled ||
+    settings.whatsappEnabled ||
+    settings.instagramEnabled ||
+    settings.facebookEnabled;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-4xl space-y-5 pb-24">
       <PageHeader
         title="Settings"
         actions={
@@ -354,321 +387,410 @@ export default function SettingsPage() {
 
       {/* What the diary still needs before the phone and chats can book,
           worked out from what is on screen, so it clears as they fill it in
-          (booking/readiness.ts). Until then those take messages instead. */}
-      {settings.hasDiary && !readiness.ready && (
-        <div
-          role="status"
-          className="flex items-start gap-2.5 rounded-lg border border-papaya-whip-400 bg-papaya-whip-700 px-4 py-3 text-sm text-papaya-whip-100"
-        >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <p>
-            <span className="font-medium">Not taking bookings yet:</span> {missingText(readiness)}.{" "}
-            {canEdit ? "Add them below, then save." : "The salon's owner can add them here."}
-            {(settings.voiceEnabled || settings.chatBookingEnabled) &&
-              " Until then the receptionist and chats take messages instead of booking."}
-          </p>
-        </div>
+          (booking/readiness.ts). Above the tabs, so it is seen on any of them. */}
+      {todo.length > 0 && (
+        <SetupProgress
+          steps={steps}
+          next={todo[0]}
+          takesMessages={settings.voiceEnabled || settings.chatBookingEnabled}
+          onGo={(s) => choose(s.tab, s.anchor)}
+        />
       )}
+
+      <div
+        role="tablist"
+        aria-label="Settings"
+        className="-mx-1 flex gap-1 overflow-x-auto border-b border-border px-1"
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+          const i = tabs.indexOf(tab) + (e.key === "ArrowRight" ? 1 : -1);
+          const next = tabs[(i + tabs.length) % tabs.length];
+          choose(next);
+          document.getElementById(`tab-${next}`)?.focus();
+        }}
+      >
+        {tabs.map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            id={`tab-${t}`}
+            aria-selected={t === tab}
+            aria-controls={`panel-${t}`}
+            tabIndex={t === tab ? 0 : -1}
+            onClick={() => choose(t)}
+            className={cn(
+              "-mb-px inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm transition-colors",
+              t === tab
+                ? "border-primary font-semibold text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {TAB_LABELS[t]}
+            {needs(t) ? (
+              <span className="h-2 w-2 rounded-full bg-papaya-whip-400">
+                <span className="sr-only"> (needs doing)</span>
+              </span>
+            ) : counts[t] !== undefined ? (
+              <span className="rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">{counts[t]}</span>
+            ) : null}
+          </button>
+        ))}
+      </div>
 
       {/* Everything a save changes. Disabled as one, so a member sees the
           salon's setup but no control in it works. */}
-      <fieldset disabled={!canEdit} className="min-w-0 space-y-6">
-        {/* Business Info — always visible */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Business information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Business name</label>
-              <Input
-                value={settings.businessName}
-                onChange={(e) =>
-                  setSettings({ ...settings, businessName: e.target.value })
-                }
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Contact number</label>
-              <Input
-                value={settings.contactPhone ?? ""}
-                placeholder="01234 567890"
-                onChange={(e) =>
-                  setSettings({ ...settings, contactPhone: e.target.value })
-                }
-                className="mt-1"
-              />
-              {/* Texts go out from a one-way sender, so without this a client
-                  who cannot make their appointment has no way to tell you. */}
-              <p className="text-xs text-muted-foreground mt-1">
-                Printed in confirmation and reminder texts. Customers cannot
-                reply to those messages, so this is the only way they can reach
-                you about a booking.
-              </p>
-            </div>
-
-            <div>
-              <label htmlFor="start-page" className="text-sm font-medium">
-                Start page
-              </label>
-              <select
-                id="start-page"
-                value={settings.startPage ?? ""}
-                onChange={(e) => setSettings({ ...settings, startPage: e.target.value || null })}
-                className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      <fieldset disabled={!canEdit} className="min-w-0">
+        <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="space-y-5">
+          {tab === "salon" && (
+            <>
+              <SettingsSection
+                id="details"
+                title="Salon details"
+                description="How the salon is named to clients: on the phone, in chats and in every text."
               >
-                <option value="">Automatic ({labelFor(automaticStart)})</option>
-                {NAV_PAGES.filter((p) => isStartPageChoice(p.href) && isNavVisible(p, { ...settings, diaryEnabled: settings.hasDiary })).map((p) => (
-                  <option key={p.href} value={p.href}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground mt-1">
-                The screen the CRM opens on after signing in, and the top of the
-                menu. Automatic opens a salon taking bookings on the Diary, and
-                anyone else on the Dashboard.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/*
-          One card, one row per channel.
-
-          This was five near-identical cards — icon, name, an "Enabled" badge and
-          a single line of detail each — stacked down the page. Five card frames
-          to carry five lines of text made the page look padded out, and two of
-          them said "contact Kikai" in exactly the same words. A row each says the
-          same thing in a quarter of the height, and the differences between
-          channels are finally visible side by side.
-
-          Only enabled channels appear: a client has no use for a row telling
-          them about a product they have not bought.
-        */}
-        {channels.length > 0 && (
-          <Card className="gap-0">
-            <CardHeader className="border-b pb-3">
-              <CardTitle className="text-base">Channels</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <ul className="divide-y divide-border">
-                {channels.map((c) => (
-                  <li
-                    key={c.label}
-                    className="flex items-center gap-3 px-4 py-3 flex-wrap"
-                  >
-                    <c.icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm font-medium">{c.label}</span>
-                    <span className="flex-1 min-w-0 text-right">
-                      {c.detail ? (
-                        <span className="text-xs font-mono text-foreground/80 break-all">
-                          {c.detail}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {c.missing}
-                        </span>
-                      )}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-medium">Salon name</span>
+                    <Input
+                      value={settings.businessName}
+                      onChange={(e) => setSettings({ ...settings, businessName: e.target.value })}
+                    />
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-medium">Contact number</span>
+                    <Input
+                      value={settings.contactPhone ?? ""}
+                      placeholder="01234 567890"
+                      onChange={(e) => setSettings({ ...settings, contactPhone: e.target.value })}
+                    />
+                    {/* Texts go out from a one-way sender, so without this a client
+                        who cannot make their appointment has no way to tell you. */}
+                    <span className="block text-xs text-muted-foreground">
+                      Printed in confirmation and reminder texts, which clients cannot reply to.
                     </span>
-                    <Badge variant="secondary" className="text-[10px] shrink-0">
-                      Enabled
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
+                  </label>
+                </div>
+              </SettingsSection>
 
-        {/* The salon diary — hours, services and who can be booked.
-
-            All three feed the same place: the availability algorithm enforces
-            them, and the voice prompt is generated from them, so what the agent
-            says and what it will actually do cannot drift apart. */}
-        {settings.hasDiary && (
-          <>
-            <Card className="gap-0">
-              <CardHeader className="border-b pb-3">
-                <CardTitle className="text-base">Opening hours</CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  When appointments can be booked. Also what the receptionist
-                  tells callers.
-                </p>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <OpeningHoursEditor
-                  value={settings.businessHours}
-                  onChange={(businessHours) =>
-                    setSettings({ ...settings, businessHours })
-                  }
-                />
-              </CardContent>
-            </Card>
-
-            <ExpandableSection
-              title="Services"
-              description="What you offer and how long each takes."
-              summary={plural(settings.services.length, "service")}
-            >
-              <ServicesImport
-                services={settings.services}
-                onApply={(services) => setSettings({ ...settings, services })}
-              />
-              <ServicesEditor
-                value={settings.services}
-                onChange={(services) => setSettings({ ...settings, services })}
-                rebook={settings.rebookTextsEnabled}
-              />
-            </ExpandableSection>
-
-            <ExpandableSection
-              title={w("Stylists")}
-              description={
-                settings.diaryProvider === "google"
-                  ? "Each needs a Google calendar shared with the service account before they can be booked."
-                  : undefined
-              }
-              summary={plural(settings.teamMembers.length, w("stylist"))}
-            >
-              {settings.teamMembers.length === 0 ? (
-                <EmptyState
-                  icon={Users}
-                  title="No one added yet"
-                  hint={w("Add a stylist so the receptionist has someone to book with.")}
-                />
-              ) : null}
-              <StylistsEditor
-                value={settings.teamMembers}
-                services={settings.services}
-                businessHours={settings.businessHours}
-                usesGoogle={settings.diaryProvider === "google"}
-                onChange={(teamMembers) =>
-                  setSettings({ ...settings, teamMembers })
-                }
-              />
-            </ExpandableSection>
-          </>
-        )}
-
-        {/* The salon's website and online booking (src/lib/online-booking):
-            the salon's own choice, like rebooking texts. Only with a diary,
-            which is what it books into. */}
-        {settings.hasDiary && (
-          <OnlineBookingSettings
-            value={settings.online}
-            onChange={(online) => setSettings({ ...settings, online })}
-            slug={slug}
-            bookingOrigin={bookingOrigin}
-            live={Boolean(saved?.online.onlineBookingEnabled)}
-            services={settings.services}
-            notReady={readiness.ready ? null : missingText(readiness)}
-            staff={w("stylist")}
-            chatbotEnabled={settings.chatbotEnabled}
-          />
-        )}
-
-        {/* Rebooking texts (src/lib/rebook.ts): the salon's own choice, since
-            they go to its clients in its name. Only where chats book, as the
-            text's link opens one. */}
-        {settings.chatBookingEnabled && (
-          <ExpandableSection
-            title="Rebooking texts"
-            description="A text to clients when they are due back, offering a free time."
-            summary={settings.rebookTextsEnabled ? "On" : "Off"}
-          >
-            <div className="space-y-3">
-              <label className="flex items-start gap-2.5">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-4 w-4 accent-primary"
-                  checked={settings.rebookTextsEnabled}
-                  onChange={(e) => setSettings({ ...settings, rebookTextsEnabled: e.target.checked })}
-                />
-                <span>
-                  <span className="font-medium">Text clients when they are due back</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Sent in the morning, a few days before, to clients with nothing booked. It
-                    offers a free time with the same {w("stylist")} where there is one, and a
-                    link that opens your {rebookChat ?? "WhatsApp or Instagram"} chat with the
-                    booking written for them. Each text has a link to stop them.
-                  </span>
-                </span>
-              </label>
-              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                &ldquo;Hi Mai, your BIAB infill is due. Lan has Thursday at 3pm free. Book:
-                https://…/r/Ab3kQ9 Stop these: https://…/r/Ab3kQ9/stop {settings.businessName || "Your salon"}&rdquo;
-              </p>
-              {settings.rebookTextsEnabled && rebookNeeds.length > 0 && (
-                <p role="status" className="flex items-start gap-2 text-xs text-papaya-whip-100">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span>Not sending yet: {rebookNeeds.join("; ")}.</span>
-                </p>
+              {/* Hours, services and who can be booked all feed the same place:
+                  the availability rules enforce them, and the receptionist's
+                  instructions are written from them, so what it says and what
+                  it will do cannot drift apart. */}
+              {settings.hasDiary && (
+                <SettingsSection
+                  id="hours"
+                  title="Opening hours"
+                  description="When appointments can be booked, and what the receptionist tells callers."
+                  attention={needs("salon")}
+                >
+                  <OpeningHoursEditor
+                    value={settings.businessHours}
+                    onChange={(businessHours) => setSettings({ ...settings, businessHours })}
+                  />
+                </SettingsSection>
               )}
-              <p className="text-xs text-muted-foreground">
-                Set when each service is due again under Services, e.g. an infill after 3
-                weeks. A new set can be rebooked as an infill.
-              </p>
-            </div>
-          </ExpandableSection>
-        )}
 
-        {/* Who can sign in: the owner invites and removes staff here. */}
-        {canEdit && <TeamLogins salon={settings.businessName || "your salon"} />}
-
-        {/* What the bots may tell customers about the salon beyond the hours,
-            services, prices and team above. They answer salon questions only
-            from Settings, so anything not written anywhere gets "I'm not sure"
-            rather than a guess. */}
-        {(settings.voiceEnabled ||
-          settings.chatbotEnabled ||
-          settings.whatsappEnabled ||
-          settings.instagramEnabled ||
-          settings.facebookEnabled) && (
-          <ExpandableSection
-            title="Salon FAQs"
-            description="What the receptionist and the chat bots tell customers who ask."
-            summary={
-              settings.salonFaq.trim()
-                ? plural(settings.salonFaq.split("\n").filter((l) => l.trim()).length, "line")
-                : "None yet"
-            }
-          >
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">
-                They already know your hours, services, prices and team from
-                above, and can explain things like what balayage is. For anything
-                else about the salon they only use what you write here, and say
-                they are not sure otherwise.
-              </p>
-              <Textarea
-                aria-label="Salon FAQs"
-                value={settings.salonFaq}
-                maxLength={SALON_FAQ_MAX}
-                rows={8}
-                placeholder={
-                  "Where are you? 47 Bridge Street, next to the florist.\n" +
-                  "Parking? Six spaces behind the salon; the Castle Street multi-storey is two minutes away.\n" +
-                  "Cancellations: please give 24 hours' notice.\n" +
-                  "Gift vouchers: yes, any amount, from the desk."
+              <SettingsSection
+                id="start-page"
+                title="Start page"
+                description="The screen Kikai opens on after signing in, and the top of the menu."
+                actions={
+                  <select
+                    aria-label="Start page"
+                    value={settings.startPage ?? ""}
+                    onChange={(e) => setSettings({ ...settings, startPage: e.target.value || null })}
+                    className="flex h-9 min-w-56 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    <option value="">Automatic ({labelFor(automaticStart)})</option>
+                    {NAV_PAGES.filter(
+                      (p) => isStartPageChoice(p.href) && isNavVisible(p, { ...settings, diaryEnabled: settings.hasDiary })
+                    ).map((p) => (
+                      <option key={p.href} value={p.href}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
                 }
-                onChange={(e) => setSettings({ ...settings, salonFaq: e.target.value })}
-                className="min-h-40"
               />
-              <p className="text-xs text-muted-foreground">
-                A question and its answer per line is plenty. Prices come from
-                Services, quoted as &ldquo;from&rdquo;. {settings.salonFaq.length}/{SALON_FAQ_MAX}
-              </p>
-            </div>
-          </ExpandableSection>
-        )}
+            </>
+          )}
+
+          {tab === "services" && (
+            <SettingsSection
+              id="price-list"
+              title="Your price list"
+              description="Length decides how much of the diary is blocked. Prices are quoted as “from”."
+              attention={needs("services")}
+            >
+              <div className="space-y-3">
+                <ServicesImport
+                  services={settings.services}
+                  onApply={(services) => setSettings({ ...settings, services })}
+                />
+                <ServicesEditor
+                  value={settings.services}
+                  onChange={(services) => setSettings({ ...settings, services })}
+                  rebook={settings.rebookTextsEnabled}
+                />
+              </div>
+            </SettingsSection>
+          )}
+
+          {tab === "team" && (
+            <>
+              {settings.hasDiary && (
+                <SettingsSection
+                  id="people"
+                  title={w("Your stylists")}
+                  description={
+                    usesGoogle
+                      ? "Each needs a Google calendar shared with the service account before they can be booked."
+                      : "Who can be booked, on which days, and for what."
+                  }
+                  attention={needs("team")}
+                >
+                  {settings.teamMembers.length === 0 && (
+                    <EmptyState
+                      icon={Users}
+                      title="No one added yet"
+                      hint={w("Add a stylist so the receptionist has someone to book with.")}
+                    />
+                  )}
+                  <StylistsEditor
+                    value={settings.teamMembers}
+                    services={settings.services}
+                    businessHours={settings.businessHours}
+                    usesGoogle={usesGoogle}
+                    onChange={(teamMembers) => setSettings({ ...settings, teamMembers })}
+                  />
+                </SettingsSection>
+              )}
+
+              {/* Who can sign in: the owner invites and removes staff here. */}
+              {canEdit && <TeamLogins salon={settings.businessName || "your salon"} />}
+            </>
+          )}
+
+          {/* The salon's website and online booking (src/lib/online-booking):
+              the salon's own choice, like rebooking texts. */}
+          {tab === "online" && (
+            <OnlineBookingSettings
+              value={settings.online}
+              onChange={(online) => setSettings({ ...settings, online })}
+              slug={slug}
+              bookingOrigin={bookingOrigin}
+              live={Boolean(saved?.online.onlineBookingEnabled)}
+              services={settings.services}
+              notReady={readiness.ready ? null : missingText(readiness)}
+              staff={w("stylist")}
+              chatbotEnabled={settings.chatbotEnabled}
+            />
+          )}
+
+          {tab === "chats" && (
+            <>
+              <SettingsSection
+                id="channels"
+                title="Where clients reach you"
+                description="What each one does for you. Kikai sets these up: ask us to switch one on."
+              >
+                <ul className="divide-y divide-border overflow-hidden rounded-lg ring-1 ring-border">
+                  {channels.map((c) => (
+                    <li key={c.name} className="flex items-center gap-3 px-4 py-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                        <c.icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">
+                          {c.name}
+                          {c.address && <span className="ml-1.5 font-normal text-muted-foreground">{c.address}</span>}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {c.name === "Website chat" ? (
+                            <>
+                              A chat on your website or your booking page, set up in{" "}
+                              <Link href="/websites" className="font-medium underline underline-offset-2">
+                                Websites
+                              </Link>
+                            </>
+                          ) : (
+                            c.does
+                          )}
+                        </p>
+                      </div>
+                      <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_STYLE[c.status])}>
+                        {c.statusText}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </SettingsSection>
+
+              {/* Rebooking texts (src/lib/rebook.ts): the salon's own choice, since
+                  they go to its clients in its name. Only where chats book, as the
+                  text's link opens one. */}
+              {settings.chatBookingEnabled && (
+                <SettingsSection
+                  id="rebooking"
+                  title="Rebooking texts"
+                  description="A text to clients when they are due back, offering a free time."
+                  actions={
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                        STATUS_STYLE[settings.rebookTextsEnabled ? "on" : "off"]
+                      )}
+                    >
+                      {settings.rebookTextsEnabled ? "On" : "Off"}
+                    </span>
+                  }
+                >
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 accent-primary"
+                        checked={settings.rebookTextsEnabled}
+                        onChange={(e) => setSettings({ ...settings, rebookTextsEnabled: e.target.checked })}
+                      />
+                      <span>
+                        <span className="font-medium">Text clients when they are due back</span>
+                        <span className="block text-xs text-muted-foreground">
+                          Sent in the morning, a few days before, to clients with nothing booked. It
+                          offers a free time with the same {w("stylist")} where there is one, and a
+                          link that opens your {rebookChat ?? "WhatsApp or Instagram"} chat with the
+                          booking written for them. Each text has a link to stop them.
+                        </span>
+                      </span>
+                    </label>
+                    <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                      &ldquo;Hi Mai, your BIAB infill is due. Lan has Thursday at 3pm free. Book:
+                      https://…/r/Ab3kQ9 Stop these: https://…/r/Ab3kQ9/stop {settings.businessName || "Your salon"}&rdquo;
+                    </p>
+                    {settings.rebookTextsEnabled && rebookNeeds.length > 0 && (
+                      <p role="status" className="rounded-lg bg-papaya-whip-700 px-3 py-2 text-xs text-papaya-whip-100">
+                        Not sending yet: {rebookNeeds.join("; ")}.
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Set when each service is due again in{" "}
+                      <button type="button" className="font-medium underline underline-offset-2" onClick={() => choose("services", "price-list")}>
+                        Services
+                      </button>
+                      , e.g. an infill after 3 weeks. A new set can be rebooked as an infill.
+                    </p>
+                  </div>
+                </SettingsSection>
+              )}
+
+              {/* What the bots may tell customers about the salon beyond the hours,
+                  services, prices and team. They answer salon questions only
+                  from Settings, so anything not written anywhere gets "I'm not sure"
+                  rather than a guess. */}
+              {botsOn && (
+                <SettingsSection
+                  id="faq"
+                  title="What the receptionist and chats know"
+                  description="They already know your hours, services, prices and team. For anything else about the salon they only use what you write here, and say they are not sure otherwise."
+                >
+                  <div className="space-y-1.5">
+                    <Textarea
+                      aria-label="Your answers to common questions"
+                      value={settings.salonFaq}
+                      maxLength={SALON_FAQ_MAX}
+                      rows={8}
+                      placeholder={
+                        "Where are you? 47 Bridge Street, next to the florist.\n" +
+                        "Parking? Six spaces behind the salon; the Castle Street multi-storey is two minutes away.\n" +
+                        "Cancellations: please give 24 hours' notice.\n" +
+                        "Gift vouchers: yes, any amount, from the desk."
+                      }
+                      onChange={(e) => setSettings({ ...settings, salonFaq: e.target.value })}
+                      className="min-h-40"
+                    />
+                    <p className="flex justify-between gap-3 text-xs text-muted-foreground">
+                      <span>A question and its answer per line is plenty. Prices come from Services, quoted as &ldquo;from&rdquo;.</span>
+                      <span className="shrink-0 tabular-nums">
+                        {settings.salonFaq.length}/{SALON_FAQ_MAX}
+                      </span>
+                    </p>
+                  </div>
+                </SettingsSection>
+              )}
+            </>
+          )}
+        </div>
       </fieldset>
 
-      {/* Comes up once something is changed; see unsaved-changes.tsx. */}
+      {/* Comes up once something is changed; see unsaved-changes.tsx. One
+          save for every tab, so a change on one is kept while looking at another. */}
       {canEdit && <SaveBar dirty={dirty} saving={saving} onSave={() => void handleSave()} onDiscard={discard} />}
       {leaveGuard}
+    </div>
+  );
+}
+
+type ChannelState = "on" | "waiting" | "off";
+
+interface ChannelRow {
+  name: string;
+  icon: typeof Phone;
+  address: string;
+  does: string;
+  status: ChannelState;
+  statusText: string;
+}
+
+const STATUS_STYLE: Record<ChannelState, string> = {
+  on: "bg-tea-green-800 text-tea-green-200",
+  waiting: "bg-papaya-whip-700 text-papaya-whip-100",
+  off: "bg-muted text-muted-foreground",
+};
+
+/** A channel's status: on and working, switched on but not set up yet, or off. */
+function status(enabled: boolean, ready: boolean, notReady: string): { status: ChannelState; statusText: string } {
+  if (!enabled) return { status: "off", statusText: "Off" };
+  return ready ? { status: "on", statusText: "On" } : { status: "waiting", statusText: notReady };
+}
+
+/**
+ * How far setup has got, above the tabs until bookings can be taken, with
+ * the next thing to do: one click opens its tab at the right section.
+ */
+function SetupProgress({
+  steps,
+  next,
+  takesMessages,
+  onGo,
+}: {
+  steps: SetupStep[];
+  next: SetupStep;
+  takesMessages: boolean;
+  onGo: (step: SetupStep) => void;
+}) {
+  const done = steps.filter((s) => s.done).length;
+  return (
+    <div role="status" className="space-y-2 rounded-xl bg-card px-4 py-3 shadow-surface ring-1 ring-papaya-whip-400">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="font-medium">{done === 0 ? "Set up your diary to take bookings" : "Almost ready to take bookings"}</span>
+        <span aria-hidden="true" className="h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+          <span className="block h-full rounded-full bg-primary" style={{ width: `${(done / steps.length) * 100}%` }} />
+        </span>
+        <span className="text-sm text-muted-foreground">
+          {done} of {steps.length} done
+        </span>
+        <button
+          type="button"
+          onClick={() => onGo(next)}
+          className="ml-auto text-sm font-semibold text-papaya-whip-100 underline-offset-4 hover:underline"
+        >
+          {next.label} →
+        </button>
+      </div>
+      {takesMessages && (
+        <p className="text-xs text-muted-foreground">Until then the receptionist and chats take messages instead of booking.</p>
+      )}
     </div>
   );
 }

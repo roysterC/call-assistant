@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Check, Copy, ExternalLink, MessageCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
-import { ExpandableSection } from "@/components/settings/expandable-section";
+import { SettingsSection } from "@/components/settings/settings-section";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { SalonService } from "@/lib/salon-config";
@@ -142,10 +142,21 @@ export function OnlineBookingSettings({
   const brand = value.siteBrandColor ?? DEFAULT_BRAND_COLOR;
 
   return (
-    <ExpandableSection
+    <SettingsSection
+      id="online-booking"
       title="Website & online booking"
       description="Clients book straight into your diary, from your own page or the website you already have."
-      summary={value.onlineBookingEnabled ? (live ? "Live" : "On, not saved") : "Off"}
+      actions={
+        <span
+          className={
+            value.onlineBookingEnabled && live
+              ? "rounded-full bg-tea-green-800 px-2.5 py-0.5 text-xs font-semibold text-tea-green-200"
+              : "rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
+          }
+        >
+          {value.onlineBookingEnabled ? (live ? "Live" : "On, not saved") : "Off"}
+        </span>
+      }
     >
       <div className="space-y-6">
         <label className="flex items-start gap-2.5">
@@ -346,7 +357,7 @@ export function OnlineBookingSettings({
           )}
         </div>
       </div>
-    </ExpandableSection>
+    </SettingsSection>
   );
 }
 
