@@ -35,6 +35,11 @@ export interface SalonService {
   rebookWeeks?: number;
   /** What they are due for instead, when not this again: a new set's infill. */
   rebookAs?: string;
+  /**
+   * The diary colour family the salon chose for it ("manicure", "colour"…,
+   * service-colours.ts). Unset: worked out from its name.
+   */
+  group?: string;
 }
 
 /** The weeks a rebooking text can be set to: a fortnight to six months. */
@@ -109,6 +114,8 @@ export function parseServices(raw: unknown): SalonService[] {
     const rebookWeeks =
       Number.isInteger(weeks) && weeks >= REBOOK_WEEKS_MIN && weeks <= REBOOK_WEEKS_MAX ? weeks : undefined;
     const rebookAs = typeof e.rebookAs === "string" && e.rebookAs.trim() ? e.rebookAs.trim().slice(0, 120) : undefined;
+    // The diary colour the salon chose (service-colours.ts); unset means worked out from the name.
+    const group = typeof e.group === "string" && /^[a-z]{2,20}$/.test(e.group) ? e.group : undefined;
 
     seen.add(key);
     out.push({
@@ -118,6 +125,7 @@ export function parseServices(raw: unknown): SalonService[] {
       priceMinor,
       ...(rebookWeeks ? { rebookWeeks } : {}),
       ...(rebookWeeks && rebookAs ? { rebookAs } : {}),
+      ...(group ? { group } : {}),
     });
   }
 

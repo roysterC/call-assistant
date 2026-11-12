@@ -10,6 +10,8 @@ import { minorToInput, parseMoney } from "@/lib/money";
 import { REBOOK_WEEKS_MAX, REBOOK_WEEKS_MIN } from "@/lib/salon-config";
 import { useT } from "@/components/providers/language-provider";
 import { useMe } from "@/components/providers/me-provider";
+import { classifyService, familyChoices, familyHue } from "@/lib/service-colours";
+import type { MessageKey } from "@/lib/i18n";
 
 /**
  * Services and how long each takes.
@@ -45,6 +47,10 @@ export function ServicesEditor({
   const { t } = useT();
   const me = useMe();
   const showSkinTests = skinTests ?? me?.skinTests ?? true;
+  // The diary colour families this salon's trades have (service-colours.ts).
+  const types = me?.businessTypes;
+  const families = familyChoices(types);
+  const familyLabel = (id: string) => t(`family.${id}` as MessageKey);
   function update(index: number, patch: Partial<SalonService>) {
     const next = [...value];
     next[index] = { ...next[index], ...patch };
@@ -119,6 +125,34 @@ export function ServicesEditor({
               aria-label={t("svc.price")}
             />
           </div>
+
+          {/* The colour it has in the diary: worked out from the name, or
+              chosen here when the name says nothing (or the wrong thing). */}
+          <span className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="h-3 w-3 shrink-0 rounded-sm border"
+              style={(() => {
+                const hue = familyHue(classifyService(service.name, service.requiresPatchTest, types, service.group), types);
+                return { background: `${hue}2e`, borderColor: `${hue}b3` };
+              })()}
+            />
+            <select
+              value={service.group ?? ""}
+              onChange={(e) => update(i, { group: e.target.value || undefined })}
+              aria-label={t("svc.group", { name: service.name || t("svc.thisService") })}
+              className="h-8 max-w-56 rounded-md border border-input bg-transparent px-2 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              <option value="">
+                {t("svc.groupAuto", { group: familyLabel(classifyService(service.name, service.requiresPatchTest, types)) })}
+              </option>
+              {families.map((f) => (
+                <option key={f} value={f}>
+                  {familyLabel(f)}
+                </option>
+              ))}
+            </select>
+          </span>
 
           {(showSkinTests || service.requiresPatchTest) && (
           <button

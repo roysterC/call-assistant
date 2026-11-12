@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
     role: ctx.role,
     staff: PROFILES[types[0]].staff,
     businessType: types[0],
+    businessTypes: types,
     skinTests: types.some((t) => PROFILES[t].skinTestFor.length > 0),
     name: user?.name ?? null,
     email: user?.email ?? null,
