@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { websiteVisitorLabel } from "@/lib/visitor-label";
+import { conversationState, OUTCOME_WINDOW_MS, type ConversationState } from "@/lib/conversation-state";
 
 type NormalizedConversation = {
   id: string;
@@ -26,6 +27,12 @@ type NormalizedConversation = {
   // and @handles instead of an opaque externalUserId.
   profilePicUrl?: string | null;
   handle?: string | null;
+  /** Whether it needs someone, Kikai has it, or it is done, and what happened (conversation-state.ts). */
+  state?: ConversationState;
+  /** Who sent the last message: "user" (the client), "assistant" (Kikai), "agent" (staff). */
+  lastRole?: string | null;
+  /** Website only, for the state: "human" once staff took over. */
+  handoffState?: string | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -106,7 +113,7 @@ export async function GET(req: NextRequest) {
             messages: {
               orderBy: { createdAt: "desc" },
               take: 1,
-              select: { content: true },
+              select: { content: true, role: true },
             },
           },
           orderBy: { lastMessageAt: "desc" },
@@ -123,6 +130,7 @@ export async function GET(req: NextRequest) {
           contactName: c.contactName || c.lead?.name || null,
           identifier: c.phoneNumber,
           lastMessage: c.messages[0]?.content || null,
+          lastRole: c.messages[0]?.role ?? null,
           lastMessageAt: c.lastMessageAt.toISOString(),
           isRead: c.isRead,
           starred: c.starred,
@@ -156,7 +164,7 @@ export async function GET(req: NextRequest) {
             messages: {
               orderBy: { createdAt: "desc" },
               take: 1,
-              select: { content: true },
+              select: { content: true, role: true },
             },
           },
           orderBy: { lastMessageAt: "desc" },
@@ -173,6 +181,7 @@ export async function GET(req: NextRequest) {
           contactName: c.visitorName || c.lead?.name || null,
           identifier: c.visitorEmail || websiteVisitorLabel(c.sessionId),
           lastMessage: c.messages[0]?.content || null,
+          lastRole: c.messages[0]?.role ?? null,
           lastMessageAt: c.lastMessageAt.toISOString(),
           isRead: c.isRead,
           starred: c.starred,
@@ -181,6 +190,7 @@ export async function GET(req: NextRequest) {
           messageCount: c._count.messages,
           lead: c.lead,
           siteName: c.site.name,
+          handoffState: c.handoffState,
         });
       }
     }
@@ -217,7 +227,7 @@ export async function GET(req: NextRequest) {
             messages: {
               orderBy: { createdAt: "desc" },
               take: 1,
-              select: { content: true },
+              select: { content: true, role: true },
             },
           },
           orderBy: { lastMessageAt: "desc" },
@@ -239,6 +249,7 @@ export async function GET(req: NextRequest) {
           // → channel-specific placeholder.
           identifier: "",
           lastMessage: c.messages[0]?.content || null,
+          lastRole: c.messages[0]?.role ?? null,
           lastMessageAt: c.lastMessageAt.toISOString(),
           isRead: c.isRead,
           starred: c.starred,
@@ -262,6 +273,7 @@ export async function GET(req: NextRequest) {
     const total = waTotal + webTotal + socialTotal;
     const start = (page - 1) * limit;
     const conversations = results.slice(start, start + limit);
+    await addStates(ctx.organizationId, conversations);
 
     return NextResponse.json({
       conversations,
@@ -276,5 +288,45 @@ export async function GET(req: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Each conversation's state: what its client's latest booking and callback
+ * were, read in two queries for the whole page, then conversation-state.ts.
+ */
+async function addStates(organizationId: string, rows: NormalizedConversation[]): Promise<void> {
+  const leadIds = [...new Set(rows.map((r) => r.lead?.id).filter((x): x is string => Boolean(x)))];
+  const oldest = rows.reduce((t, r) => Math.min(t, new Date(r.lastMessageAt).getTime()), Date.now());
+  const since = new Date(oldest - OUTCOME_WINDOW_MS);
+  const [bookings, callbacks] = leadIds.length
+    ? await Promise.all([
+        prisma.appointment.findMany({
+          where: { organizationId, leadId: { in: leadIds }, status: { not: "cancelled" }, createdAt: { gte: since } },
+          select: { leadId: true, createdAt: true, serviceText: true, startsAt: true },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.callback.findMany({
+          where: { organizationId, leadId: { in: leadIds }, createdAt: { gte: since } },
+          select: { leadId: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+        }),
+      ])
+    : [[], []];
+  const now = new Date();
+  for (const r of rows) {
+    const last = new Date(r.lastMessageAt);
+    // The newest one made by the time of the chat's last message (and a moment after).
+    const fits = (at: Date) => at.getTime() <= last.getTime() + 5 * 60 * 1000;
+    const booking = r.lead ? bookings.find((b) => b.leadId === r.lead!.id && fits(b.createdAt)) : undefined;
+    const callback = r.lead ? callbacks.find((c) => c.leadId === r.lead!.id && fits(c.createdAt)) : undefined;
+    r.state = conversationState({
+      lastRole: r.lastRole ?? null,
+      lastMessageAt: last,
+      handoffState: r.handoffState,
+      booking: booking ? { createdAt: booking.createdAt, service: booking.serviceText, startsAt: booking.startsAt } : null,
+      callbackAt: callback?.createdAt ?? null,
+      now,
+    });
   }
 }

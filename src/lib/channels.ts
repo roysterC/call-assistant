@@ -76,10 +76,12 @@ export function initialsFor(
   name: string | null | undefined,
   fallback: string
 ): string {
-  if (name && name.trim()) {
-    return name
-      .split(" ")
-      .map((w) => w[0])
+  // Words that start with a letter or digit only: "Yuki | ゆき" is "Yゆ",
+  // not "Y|", and a stray "-" or "@" never becomes an initial.
+  const words = String(name ?? "").trim().split(/\s+/).filter((w) => /^[\p{L}\p{N}]/u.test(w));
+  if (words.length > 0) {
+    return words
+      .map((w) => Array.from(w)[0])
       .join("")
       .toUpperCase()
       .slice(0, 2);

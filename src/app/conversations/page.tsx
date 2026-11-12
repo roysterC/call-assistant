@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   User,
   X,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConversationListItem } from "@/components/conversations/conversation-list-item";
@@ -19,6 +20,7 @@ import { useMe } from "@/components/providers/me-provider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
+import type { ConversationGroup, ConversationState } from "@/lib/conversation-state";
 
 type Channel = "whatsapp" | "website" | "instagram" | "facebook";
 
@@ -41,6 +43,29 @@ interface ConversationSummary {
   // because non-social channels and senders with strict privacy don't have it.
   profilePicUrl?: string | null;
   handle?: string | null;
+  /** Who sent the last message: "user" (the client), "assistant" (Kikai), "agent" (staff). */
+  lastRole?: string | null;
+  /** Needs you, Kikai is handling, or done, and what happened (src/lib/conversation-state.ts). */
+  state?: ConversationState;
+}
+
+/**
+ * The list's three groups, in the order a person works through them: those
+ * waiting on someone first (longest waiting at the top), then what Kikai is
+ * dealing with, then what is done, newest first.
+ */
+const GROUPS: { id: ConversationGroup; title: string; dot: string; ink: string }[] = [
+  { id: "you", title: "Needs you", dot: "bg-orange-600", ink: "text-orange-800" },
+  { id: "bot", title: "Kikai is handling", dot: "bg-tea-green-300", ink: "text-tea-green-200" },
+  { id: "done", title: "Done", dot: "bg-tea-green-500", ink: "text-muted-foreground" },
+];
+
+function groupConversations(list: ConversationSummary[]) {
+  return GROUPS.map((g) => {
+    const rows = list.filter((c) => (c.state?.group ?? "bot") === g.id);
+    if (g.id === "you") rows.sort((a, b) => new Date(a.lastMessageAt).getTime() - new Date(b.lastMessageAt).getTime());
+    return { ...g, rows };
+  }).filter((g) => g.rows.length > 0);
 }
 
 interface DetailMessage {
@@ -135,12 +160,6 @@ function dayLabel(dateStr: string): string {
 type Filter = "all" | "unread" | "recent" | "starred";
 type ChannelFilter = "all" | "whatsapp" | "website" | "instagram" | "facebook";
 
-const FILTER_TABS: { value: Filter; label: string }[] = [
-  { value: "unread", label: "Unread" },
-  { value: "recent", label: "Recent" },
-  { value: "starred", label: "Starred" },
-  { value: "all", label: "All" },
-];
 
 const CHANNEL_TABS: { value: ChannelFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -177,6 +196,8 @@ export default function ConversationsPage() {
   // from firing 4 parallel Prisma calls. 350ms balances responsiveness
   // and quietness.
   const [search, setSearch] = useState("");
+  // Search sits behind an icon, so the list starts higher; open while searching.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchDebounced, setSearchDebounced] = useState("");
   useEffect(() => {
     const id = setTimeout(() => setSearchDebounced(search), 350);
@@ -460,87 +481,92 @@ export default function ConversationsPage() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* LEFT PANEL */}
+      {/* LEFT PANEL: chats grouped by what they need (src/lib/conversation-state.ts). */}
       <aside
         className={cn(
           "flex-col bg-card border-r border-border shrink-0",
-          "w-full md:w-72 lg:w-80 xl:w-[22rem]",
+          "w-full md:w-80 lg:w-[22rem] xl:w-[23rem]",
           mobileView === "list" ? "flex" : "hidden md:flex"
         )}
       >
-        <div className="p-3 border-b border-border shrink-0 space-y-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className="font-semibold text-sm">Conversations</h2>
-            {!loading && conversations.length > 0 && (
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {conversations.length}
-              </span>
-            )}
+        <div className="shrink-0 space-y-3 border-b border-border px-4 pb-3.5 pt-4">
+          <div className="flex items-center gap-2">
+            <h2 className="flex-1 font-heading text-xl font-extrabold tracking-tight">Conversations</h2>
+            <button
+              type="button"
+              onClick={() => setFilter(filter === "starred" ? "all" : "starred")}
+              aria-pressed={filter === "starred"}
+              aria-label={filter === "starred" ? "Show all conversations" : "Show starred only"}
+              title={filter === "starred" ? "Showing starred: show all" : "Show starred only"}
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
+                filter === "starred"
+                  ? "border-papaya-whip-300 bg-papaya-whip-600 text-papaya-whip-100"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Star className={cn("h-4 w-4", filter === "starred" && "fill-papaya-whip-300")} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (searchOpen) setSearch("");
+                setSearchOpen(!searchOpen);
+              }}
+              aria-pressed={searchOpen}
+              aria-label={searchOpen ? "Close search" : "Search conversations"}
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
+                searchOpen ? "border-tea-green-500 bg-tea-green-800 text-foreground" : "border-border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {searchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+            </button>
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search conversations"
-              aria-label="Search conversations"
-              className="pl-8 h-8 text-xs"
-            />
-          </div>
-
-          {/*
-            Two filters, one look.
-
-            These are different axes — which channel, and what state — but they
-            used to advertise themselves as different *kinds* of control: the
-            channel row was a grey segmented bar, the state row blue pills, and
-            each row ended in a button labelled "All", so the panel opened with
-            two identical words meaning two different things. Same treatment for
-            both now, and the channel one says what its "all" covers.
-
-            The channel row only appears when there is a choice to make.
-          */}
-          {visibleChannelTabs.length > 2 && (
-            <div className="flex gap-1 p-0.5 rounded-lg bg-muted">
-              {visibleChannelTabs.map((tab) => (
-                <button
-                  key={tab.value}
-                  onClick={() => setChannelFilter(tab.value)}
-                  aria-pressed={channelFilter === tab.value}
-                  className={cn(
-                    "flex-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors",
-                    channelFilter === tab.value
-                      ? "bg-accent text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {tab.value === "all" ? "All channels" : tab.label}
-                </button>
-              ))}
+          {searchOpen && (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search names, numbers or messages"
+                aria-label="Search conversations"
+                className="h-10 rounded-xl pl-9 text-sm"
+                autoFocus
+              />
             </div>
           )}
 
-          <div className="flex gap-1 flex-wrap">
-            {FILTER_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setFilter(tab.value)}
-                aria-pressed={filter === tab.value}
-                className={cn(
-                  "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-                  filter === tab.value
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          {/* Which channel. Only shown when there is a choice to make. */}
+          {visibleChannelTabs.length > 2 && (
+            <div role="group" aria-label="Channels" className="flex flex-wrap gap-1.5">
+              {visibleChannelTabs.map((tab) => {
+                const on = channelFilter === tab.value;
+                const meta = tab.value === "all" ? null : CHANNEL_META[tab.value];
+                return (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    onClick={() => setChannelFilter(tab.value)}
+                    aria-pressed={on}
+                    className={cn(
+                      "inline-flex h-[30px] items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition-colors",
+                      on
+                        ? "border-primary bg-primary font-semibold text-primary-foreground"
+                        : "border-border bg-card font-medium text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {meta && <span className={cn("h-2 w-2 rounded-full", meta.bg)} aria-hidden />}
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-2 pb-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full" />
@@ -560,22 +586,41 @@ export default function ConversationsPage() {
               }
             />
           ) : (
-            conversations.map((conv) => (
-              <ConversationListItem
-                key={`${conv.channel}-${conv.id}`}
-                id={conv.id}
-                channel={conv.channel}
-                contactName={conv.contactName}
-                phoneNumber={conv.identifier}
-                lastMessage={conv.lastMessage}
-                lastMessageAt={conv.lastMessageAt}
-                isRead={conv.isRead}
-                starred={conv.starred}
-                isActive={conv.id === selectedId}
-                profilePicUrl={conv.profilePicUrl}
-                handle={conv.handle}
-                onClick={() => selectConversation(conv.id, conv.channel)}
-              />
+            groupConversations(conversations).map((group) => (
+              <section key={group.id} aria-labelledby={`group-${group.id}`} className="pt-1">
+                <h3
+                  id={`group-${group.id}`}
+                  className={cn(
+                    "flex items-center gap-2 px-2.5 pb-1 pt-3 text-[11.5px] font-bold uppercase tracking-[0.07em]",
+                    group.ink
+                  )}
+                >
+                  <span className={cn("h-2 w-2 rounded-full", group.dot)} aria-hidden />
+                  {group.title}
+                  <span className="font-semibold normal-case tracking-normal text-muted-foreground">{group.rows.length}</span>
+                </h3>
+                <div className="space-y-0.5">
+                  {group.rows.map((conv) => (
+                    <ConversationListItem
+                      key={`${conv.channel}-${conv.id}`}
+                      id={conv.id}
+                      channel={conv.channel}
+                      contactName={conv.contactName}
+                      phoneNumber={conv.identifier}
+                      lastMessage={conv.lastMessage}
+                      lastMessageAt={conv.lastMessageAt}
+                      lastRole={conv.lastRole}
+                      isRead={conv.isRead}
+                      starred={conv.starred}
+                      isActive={conv.id === selectedId}
+                      profilePicUrl={conv.profilePicUrl}
+                      handle={conv.handle}
+                      state={conv.state}
+                      onClick={() => selectConversation(conv.id, conv.channel)}
+                    />
+                  ))}
+                </div>
+              </section>
             ))
           )}
         </div>
