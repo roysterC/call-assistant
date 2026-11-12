@@ -566,6 +566,7 @@ export default function SettingsPage() {
             services={settings.services}
             notReady={readiness.ready ? null : missingText(readiness)}
             staff={w("stylist")}
+            chatbotEnabled={settings.chatbotEnabled}
           />
         )}
 

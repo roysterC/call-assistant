@@ -305,6 +305,10 @@ model OrganizationSettings {
   // by name. Hidden rather than listed-as-bookable, so a new service is
   // bookable online by default, the way it is by phone.
   onlineHiddenServices    String[]     @default([])
+  // A chat from Websites (WebsiteConfig.siteId) shown on the salon's own
+  // page and booking page, with its button opening online booking. Only
+  // while website chat is on for the salon (chatbotEnabled); null for none.
+  siteChatSiteId          String?
   updatedAt               DateTime     @updatedAt
 
   @@map("ca_organization_settings")

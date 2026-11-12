@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { MessageCircle, X, Send } from "lucide-react";
 import { readableTextOn } from "@/lib/contrast";
+import { isSafeCTAUrl } from "@/lib/website-chat";
 
 interface Config {
   siteId: string;
@@ -237,6 +238,8 @@ function postResizeToParent(state: WidgetState, p: Placement) {
 function EmbedContent() {
   const searchParams = useSearchParams();
   const siteId = searchParams.get("siteId") || "";
+  const ctaUrlParam = searchParams.get("ctaUrl");
+  const ctaLabelParam = searchParams.get("ctaLabel");
 
   const [config, setConfig] = useState<Config | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -291,7 +294,14 @@ function EmbedContent() {
           console.error("[Widget] Config error:", cfg.error);
           return;
         }
-        setConfig(cfg);
+        // The page can name its own button (widget.js data-cta-url and
+        // data-cta-label): a salon's page sends the chat's "Book" to its
+        // online booking, whatever the chat does on other websites.
+        setConfig(
+          ctaUrlParam && isSafeCTAUrl(ctaUrlParam)
+            ? { ...cfg, ctaUrl: ctaUrlParam, ctaSelector: null, ctaLabel: ctaLabelParam || cfg.ctaLabel || "Book online" }
+            : cfg
+        );
 
         const restored: Message[] = (hist?.messages ?? []).map(
           (m: { id: string; role: string; content: string }) => ({
@@ -317,7 +327,7 @@ function EmbedContent() {
         setHasPriorHistory(restored.some((m) => m.role === "user"));
       })
       .catch((err) => console.error("[Widget] Failed to load config:", err));
-  }, [siteId]);
+  }, [siteId, ctaUrlParam, ctaLabelParam]);
 
   // Notify parent of the presentation state and placement. Placement is
   // config-driven, so it can only be sent once the config has loaded — the
@@ -559,6 +569,7 @@ function EmbedContent() {
             message: text,
             userAgent: navigator.userAgent,
             referrer: document.referrer,
+            hostOrigin: hostPageOrigin(),
           }),
         });
 
@@ -1083,6 +1094,23 @@ function EmbedContent() {
       )}
     </div>
   );
+}
+
+/**
+ * The website this chat is shown on, as the browser records it: the parent
+ * page's origin. The server checks it against the site's allowed origins,
+ * since its own Origin header is this app's (website-chat.ts
+ * chatOriginAllowed). Firefox has no ancestorOrigins; the referrer, at least
+ * its origin, is the parent page there.
+ */
+function hostPageOrigin(): string | null {
+  try {
+    const ancestors = window.location.ancestorOrigins;
+    if (ancestors && ancestors.length > 0) return ancestors[0];
+    return document.referrer ? new URL(document.referrer).origin : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function EmbedPage() {

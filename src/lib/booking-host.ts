@@ -18,10 +18,14 @@
  * site's icons. Exact rather than prefixes, so a salon called "iconic-hair"
  * is a salon, not an icon.
  */
-const PASS_DIRS = ["/_next/", "/api/book/", "/api/health/", "/embed/book/"];
+const PASS_DIRS = ["/_next/", "/api/book/", "/api/health/", "/embed/book/", "/api/website-chat/"];
 const PASS_EXACT = [
   // The script that puts booking in a salon's own website.
   "/book.js",
+  // The salon's chat on its page (siteChatSiteId): the widget, its page and
+  // its API, all public, as on any website the chat is put on.
+  "/widget.js",
+  "/embed",
   "/robots.txt",
   // Browser error reports from the booking pages (instrumentation-client.ts).
   "/api/monitoring",

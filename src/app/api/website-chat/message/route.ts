@@ -7,7 +7,8 @@ import {
   withSalonFacts,
 } from "@/lib/claude";
 import {
-  checkCORS,
+  chatOriginAllowed,
+  ownChatHosts,
   corsHeaders,
   parseLeadMarker,
   isValidEmail,
@@ -16,6 +17,7 @@ import {
   OVER_CAP_REPLY,
 } from "@/lib/website-chat";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
+import { requestHostname } from "@/lib/booking-host";
 import { upsertWebsiteLead } from "@/lib/website-lead";
 
 export async function OPTIONS(req: NextRequest) {
@@ -83,7 +85,15 @@ export async function POST(req: NextRequest) {
 
     // Verify CORS
     const allowedOrigins = site.allowedOrigins as string[];
-    if (!checkCORS(origin, allowedOrigins)) {
+    if (
+      !chatOriginAllowed({
+        origin,
+        hostOrigin: body.hostOrigin,
+        requestHost: requestHostname(req.headers, req.nextUrl.host),
+        ownHosts: ownChatHosts(),
+        allowedOrigins,
+      })
+    ) {
       return new Response(
         JSON.stringify({ error: "Origin not allowed" }),
         { status: 403, headers: { ...headers, "Content-Type": "application/json" } }
