@@ -147,7 +147,7 @@ afterEach(() => vi.useRealTimers());
 
 type P = Record<string, unknown>;
 const check = (p: P) => handleCheckAvailability("org", p as Parameters<typeof handleCheckAvailability>[1]);
-const book = (p: P, opts?: { dryRun?: boolean }) =>
+const book = (p: P, opts?: Parameters<typeof handleBookAppointment>[2]) =>
   handleBookAppointment("org", { customerPhone: "", ...p } as Parameters<typeof handleBookAppointment>[1], opts);
 const move = (p: P) => handleRescheduleAppointment("org", p as unknown as Parameters<typeof handleRescheduleAppointment>[1]);
 const cancel = (p: P) => handleCancelAppointment("org", p as Parameters<typeof handleCancelAppointment>[1]);
@@ -233,5 +233,31 @@ describe("the reply catalogue", () => {
   it.each(cases)("%s", async (_name, run, setUp) => {
     setUp?.();
     expect(await record(run)).toMatchSnapshot();
+  });
+});
+
+// Every booking a client makes, by phone, by message (the chats book through
+// this same call) or online (src/lib/online-booking), puts the salon's
+// pop-up up; only the source it is recorded with differs. A read-back books
+// nothing and tells nobody.
+describe("telling the salon", () => {
+  const nina = { time: "2026-09-29T14:00:00+01:00", service: "blow dry", customerName: "Nina New", callerNumber: NEW };
+
+  it.each([
+    ["by phone or message", undefined, "voice", "phone"],
+    ["online", "website", "website", "website"],
+  ] as const)("a booking made %s", async (_how, source, recorded, leadSource) => {
+    const reply = (await book(nina, source ? { source } : undefined)) as { success: boolean };
+    expect(reply.success).toBe(true);
+    expect(noticed).toEqual([expect.objectContaining({ id: "appt-new", bookingNumber: 1050, clientName: "Nina New" })]);
+    const booked = written[0] as { booked: { record: { source: string } } };
+    expect(booked.booked.record.source).toBe(recorded);
+    expect(db.lead.create).toHaveBeenCalledWith({ data: expect.objectContaining({ source: leadSource }) });
+  });
+
+  it("a read-back books nothing and tells nobody", async () => {
+    await book(nina, { dryRun: true });
+    expect(written).toEqual([]);
+    expect(noticed).toEqual([]);
   });
 });
