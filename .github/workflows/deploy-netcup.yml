@@ -32,22 +32,29 @@ env:
   APP_USER: deploy # owns APP_DIR and runs the service
   APP_DIR: /home/deploy/call-assistant
   SERVICE: call-assistant.service
-  # `npm run build` dies with a V8 OOM / SIGABRT on this 3.8GB box under Node's
-  # default heap. 3072MB builds reliably and still leaves room for Postgres and
-  # the running service alongside it.
-  NODE_HEAP_MB: "3072"
+  # The app is built here on GitHub, not on the box. Building on the 3.8GB
+  # box alongside Postgres, the live app and the voice server stopped
+  # fitting: one deploy was killed for memory, the next froze until the
+  # 30-minute limit, and the live site slowed while they ran. The runner
+  # has room to spare; the box only unpacks the result and restarts.
+  BUILD_HEAP_MB: "6144"
+  # What the build reads from the box's .env and bakes in: the browser's
+  # error reporting, the voice server's address (in the security headers),
+  # the app's and booking addresses, and Sentry's source-map upload. Read
+  # over SSH at build time, so the box stays the one place they are set.
+  BUILD_ENV_KEYS: "NEXT_PUBLIC_[A-Z0-9_]+|RECEPTIONIST_VOICE_URL|BOOKING_URL|AUTH_URL|SENTRY_ORG|SENTRY_PROJECT|SENTRY_AUTH_TOKEN"
 
 jobs:
   # Fail fast on the runner, before anything touches production.
   #
-  # The four checks run side by side, one job each; the deploy waits for all
-  # of them, and the first to fail cancels the rest. The build stays: it
-  # catches a broken build before the server starts one.
+  # The three checks run side by side, one job each; the deploy waits for all
+  # of them, and the first to fail cancels the rest. The build is the deploy
+  # job's own first step, so a broken build still stops before the box.
   checks:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        check: [typecheck, lint, test, build]
+        check: [typecheck, lint, test]
     name: checks (${{ matrix.check }})
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +82,58 @@ jobs:
     needs: checks
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Restore node_modules
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
+      - name: Install deps
+        if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Set up SSH to the box
+        env:
+          SSH_KEY: ${{ secrets.NETCUP_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -t ed25519,rsa -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host box\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  ServerAliveInterval 30\n' \
+            "$DEPLOY_HOST" "$DEPLOY_USER" > ~/.ssh/config
+
+      # Only the keys in BUILD_ENV_KEYS, each file kept apart so .env.local
+      # still wins over .env as it does on the box. Values are masked in the
+      # log; the files live only on this runner and are never uploaded.
+      - name: Read the build settings from the box
+        run: |
+          for f in .env .env.local; do
+            ssh box "grep -E '^(${BUILD_ENV_KEYS})=' '$APP_DIR/$f' 2>/dev/null || true" > "$f"
+            while IFS= read -r line; do
+              value="${line#*=}"; value="${value%\"}"; value="${value#\"}"
+              [ -n "$value" ] && echo "::add-mask::$value"
+            done < "$f"
+            echo "$f: $(cut -d= -f1 "$f" | tr '\n' ' ')"
+          done
+
+      - name: Build
+        run: NODE_OPTIONS=--max-old-space-size=${BUILD_HEAP_MB} npm run build
+
+      # The build without its cache, named for the commit, so the box can
+      # never unpack one commit's build over another's code.
+      - name: Copy the build to the box
+        run: |
+          tar -czf next-build.tgz --exclude=.next/cache --exclude=.next/dev .next
+          ls -lh next-build.tgz
+          scp -q next-build.tgz "box:/tmp/next-build-${GITHUB_SHA}.tgz"
+
       - name: Deploy to netcup over SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -82,8 +141,8 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ secrets.NETCUP_SSH_KEY }}
           script_stop: true
-          # Room for the build plus up to ten minutes waiting for voice calls
-          # to finish before the voice server is restarted.
+          # Up to ten minutes waiting for voice calls to finish before the
+          # voice server is restarted, and room for the rest.
           command_timeout: 30m
           script: |
             set -euo pipefail
@@ -91,7 +150,12 @@ jobs:
             APP_DIR='${{ env.APP_DIR }}'
             APP_USER='${{ env.APP_USER }}'
             SERVICE='${{ env.SERVICE }}'
-            NODE_HEAP_MB='${{ env.NODE_HEAP_MB }}'
+            # The commit this run built: the box checks out exactly that,
+            # not whatever master is by now, so code and build always match.
+            SHA='${{ github.sha }}'
+            BUILD_TGZ="/tmp/next-build-${SHA}.tgz"
+            # Gone when this run ends, whether it succeeds or not.
+            trap 'rm -f "$BUILD_TGZ"' EXIT
 
             # Login is root, but the working tree and the service both belong to
             # `deploy`. Everything that touches the tree therefore runs as
@@ -119,8 +183,13 @@ jobs:
             # pull: a merge or a rebase on a deploy target is never what anyone
             # wants, and this recovers a tree someone has poked at by hand.
             # Untracked files (.env.local in particular) are not touched.
-            echo "==> Fetching master"
-            as_deploy 'git fetch origin master && git reset --hard origin/master'
+            if [ ! -s "$BUILD_TGZ" ]; then
+              echo "ERROR: the build for $SHA is not on the box ($BUILD_TGZ)." >&2
+              exit 1
+            fi
+
+            echo "==> Fetching $SHA"
+            as_deploy "git fetch origin master && git reset --hard $SHA"
 
             # Installed afresh only when the lockfile or Node has changed since
             # the last install: most deploys change neither, and `npm ci` took
@@ -171,10 +240,13 @@ jobs:
             echo "==> Syncing schema (additive only)"
             as_deploy 'npx prisma db push --accept-data-loss'
 
-            # Build before the restart, so the service keeps serving the old
-            # build for the ~minute this takes and is down only for the restart.
-            echo "==> Building (heap ${NODE_HEAP_MB}MB)"
-            as_deploy "NODE_OPTIONS=--max-old-space-size=${NODE_HEAP_MB} npm run build"
+            # The build made on GitHub, unpacked beside the live one: the
+            # service keeps serving the old build until the switch just
+            # before the restart. The previous build is kept as .next-previous
+            # (moved back by hand to roll back) until the next deploy.
+            echo "==> Unpacking the build"
+            chmod 644 "$BUILD_TGZ"
+            as_deploy "rm -rf .next-incoming && mkdir .next-incoming && tar -xzf '$BUILD_TGZ' -C .next-incoming --strip-components=1"
 
             # Booking alerts' signing keys: made once on this box and kept in
             # .env (scripts/ensure-push-keys.ts). Before the restarts, so the
@@ -184,7 +256,8 @@ jobs:
             as_deploy 'npx tsx scripts/ensure-push-keys.ts' \
               || echo "WARNING: booking alert keys could not be checked; phones will get no alerts" >&2
 
-            echo "==> Restarting $SERVICE"
+            echo "==> Switching to the new build and restarting $SERVICE"
+            as_deploy 'rm -rf .next-previous && { [ ! -d .next ] || mv .next .next-previous; } && mv .next-incoming .next'
             systemctl restart "$SERVICE"
             # Give it a moment to fall over before declaring success: a unit
             # that exits on boot would otherwise be reported as a green deploy.

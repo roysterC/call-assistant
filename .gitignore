@@ -15,6 +15,11 @@
 
 # next.js
 /.next/
+# The deploy unpacks the next build beside the live one and keeps the last
+# (.github/workflows/deploy-netcup.yml).
+/.next-incoming/
+/.next-previous/
+next-build.tgz
 /out/
 
 # production
