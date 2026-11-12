@@ -55,7 +55,7 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 /** "5 min", "2 hours", "3 days": how long a client has been waiting. */
-function waitedFor(dateStr: string): string {
+export function waitedFor(dateStr: string): string {
   const mins = Math.max(1, Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000));
   if (mins < 60) return `${mins} min`;
   const hours = Math.floor(mins / 60);
@@ -66,6 +66,7 @@ function waitedFor(dateStr: string): string {
 
 /** The tag under each row: what the chat needs, or what came of it. */
 const TAG_STYLE: Record<ConversationState["kind"], string> = {
+  callback: "bg-orange-100 text-orange-800",
   waiting: "bg-orange-100 text-orange-800",
   staff: "bg-violet-100 text-violet-800",
   replying: "bg-muted text-muted-foreground",
@@ -213,6 +214,8 @@ export function ConversationListItem({
 
 function tagText(state: ConversationState, lastMessageAt: string, clock: "12h" | "24h"): string {
   switch (state.kind) {
+    case "callback":
+      return `Message for the team · ${waitedFor(state.since ?? lastMessageAt)}`;
     case "waiting":
       return `Waiting for you · ${waitedFor(lastMessageAt)}`;
     case "staff":
@@ -228,7 +231,7 @@ function tagText(state: ConversationState, lastMessageAt: string, clock: "12h" |
       return `Booked · ${state.booking.service}, ${when}`;
     }
     case "message":
-      return "Message taken · in Callbacks";
+      return "Message dealt with";
     case "replied":
       return "You replied";
   }

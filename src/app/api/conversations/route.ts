@@ -308,7 +308,7 @@ async function addStates(organizationId: string, rows: NormalizedConversation[])
         }),
         prisma.callback.findMany({
           where: { organizationId, leadId: { in: leadIds }, createdAt: { gte: since } },
-          select: { leadId: true, createdAt: true },
+          select: { leadId: true, createdAt: true, status: true },
           orderBy: { createdAt: "desc" },
         }),
       ])
@@ -325,7 +325,7 @@ async function addStates(organizationId: string, rows: NormalizedConversation[])
       lastMessageAt: last,
       handoffState: r.handoffState,
       booking: booking ? { createdAt: booking.createdAt, service: booking.serviceText, startsAt: booking.startsAt } : null,
-      callbackAt: callback?.createdAt ?? null,
+      callback: callback ? { createdAt: callback.createdAt, pending: callback.status === "pending" } : null,
       now,
     });
   }
