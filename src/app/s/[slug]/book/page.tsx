@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadOnlineSalon } from "@/lib/online-booking";
 import { BookingFlow } from "@/components/online-booking/booking-flow";
+import { salonUrlsHere } from "@/lib/booking-host-server";
 
 /**
  * Book online with a salon, on its own site. ?service= opens on the times for
@@ -26,6 +27,7 @@ export default async function BookPage({ params, searchParams }: Props) {
   const [{ slug }, q] = await Promise.all([params, searchParams]);
   const online = await loadOnlineSalon(slug);
   if (!online) notFound();
+  const urls = await salonUrlsHere(online.salon.slug);
   return (
     <BookingFlow
       salon={online.salon}
@@ -34,7 +36,7 @@ export default async function BookPage({ params, searchParams }: Props) {
       initialService={one(q.service)}
       initialStylist={one(q.stylist)}
       initialStart={one(q.start)}
-      homeHref={`/s/${online.salon.slug}`}
+      homeHref={urls.home}
     />
   );
 }

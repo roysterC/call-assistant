@@ -1,6 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { devBypassEnabled } from "@/lib/dev-bypass";
+import {
+  bookingOrigin,
+  isBookingHost,
+  redirectToBookingHost,
+  requestHostname,
+  routeOnBookingHost,
+} from "@/lib/booking-host";
 
 /** NextAuth v5's session cookie: the __Secure- one over https. */
 const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"] as const;
@@ -17,6 +24,27 @@ const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"
  * looked empty and broken rather than asking the user to sign in.
  */
 export async function proxy(req: NextRequest) {
+  // Salons' pages on their own address (BOOKING_URL, src/lib/booking-host.ts):
+  // first, so the CRM is never served there, bypass or not.
+  const booking = bookingOrigin();
+  if (booking) {
+    const { pathname, search } = req.nextUrl;
+    if (isBookingHost(requestHostname(req.headers, req.nextUrl.host), booking)) {
+      const route = routeOnBookingHost(pathname, search, booking);
+      if (route.kind === "rewrite") return NextResponse.rewrite(new URL(route.path + search, req.url));
+      if (route.kind === "redirect") return NextResponse.redirect(route.location, 308);
+      if (route.kind === "not_found") return new NextResponse("Not found", { status: 404 });
+      return NextResponse.next();
+    }
+    // A salon page asked for on the app's address. Not for the app's own
+    // in-page navigation (an RSC fetch), which cannot follow a redirect to
+    // another address.
+    if (!req.headers.get("rsc")) {
+      const to = redirectToBookingHost(pathname, search, booking);
+      if (to) return NextResponse.redirect(to, 308);
+    }
+  }
+
   // Dev-only bypass for local preview with no real session. Never in a
   // production build, whatever the environment says.
   if (devBypassEnabled()) {

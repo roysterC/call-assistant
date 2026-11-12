@@ -7,7 +7,8 @@ import { MeProvider } from "@/components/providers/me-provider";
 import { DialogsProvider } from "@/components/providers/dialogs-provider";
 import { LanguageProvider } from "@/components/providers/language-provider";
 import { MotionProvider } from "@/components/providers/motion-provider";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { bookingOrigin, isBookingHost, requestHostname } from "@/lib/booking-host";
 import { CLOCK_COOKIE, DEFAULT_LANG, LANG_COOKIE, isClock, isLang } from "@/lib/i18n";
 
 // The fonts ship with the app (the @fontsource-variable packages, OFL) rather
@@ -90,10 +91,24 @@ export default async function RootLayout({
   // And their clock, 12- or 24-hour, likewise.
   const chosenClock = jar.get(CLOCK_COOKIE)?.value;
   const clock = isClock(chosenClock) ? chosenClock : null;
+  const fonts = `${inter.variable} ${interVietnamese.variable} ${jakarta.variable} ${jakartaVietnamese.variable} ${jetbrainsMono.variable} h-full antialiased`;
+
+  // The booking address (src/lib/booking-host.ts) serves only salons' public
+  // pages, under paths the CRM's own chrome does not recognise (/<slug>, not
+  // /s/<slug>). They need none of the CRM around them: no sign-in session,
+  // no sidebar, no assistant, no booking pop-ups.
+  if (isBookingHost(requestHostname(await headers(), ""), bookingOrigin())) {
+    return (
+      <html lang="en" className={fonts}>
+        <body className="h-full bg-white text-stone-900 overflow-hidden">{children}</body>
+      </html>
+    );
+  }
+
   return (
     <html
       lang={lang}
-      className={`${inter.variable} ${interVietnamese.variable} ${jakarta.variable} ${jakartaVietnamese.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={fonts}
     >
       <body className="h-full bg-background text-foreground overflow-hidden">
         <SessionProvider>

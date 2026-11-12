@@ -136,6 +136,8 @@ export default function SettingsPage() {
   const [automaticStart, setAutomaticStart] = useState<string>(DASHBOARD);
   // The salon's web address, /s/<slug>.
   const [slug, setSlug] = useState<string | null>(null);
+  // Where salons' pages are given out, when that is not this app's address.
+  const [bookingOrigin, setBookingOrigin] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchAll() {
@@ -165,6 +167,7 @@ export default function SettingsPage() {
           online: onlineSettingsFrom(data.settings),
         };
         setSlug(data.organizationSlug ?? null);
+        setBookingOrigin(data.bookingOrigin ?? null);
         setSettings(s);
         setSaved(editable(s));
         if (!s.startPage && data.startPage) setAutomaticStart(data.startPage);
@@ -558,6 +561,7 @@ export default function SettingsPage() {
             value={settings.online}
             onChange={(online) => setSettings({ ...settings, online })}
             slug={slug}
+            bookingOrigin={bookingOrigin}
             live={Boolean(saved?.online.onlineBookingEnabled)}
             services={settings.services}
             notReady={readiness.ready ? null : missingText(readiness)}

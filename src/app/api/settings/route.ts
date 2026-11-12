@@ -17,6 +17,7 @@ import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { featureFlags, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
+import { bookingOrigin } from "@/lib/booking-host";
 import {
   parseBrandColor,
   parseDaysAhead,
@@ -228,6 +229,9 @@ export async function GET(req: NextRequest) {
       organizationName: org?.name ?? null,
       // The salon's web address, /s/<slug> (src/lib/online-booking).
       organizationSlug: org?.slug ?? null,
+      // Where salons' pages are given out (BOOKING_URL), or null for /s/<slug>
+      // on the app's own address (src/lib/booking-host.ts).
+      bookingOrigin: bookingOrigin(),
     });
   } catch (error) {
     console.error("[SETTINGS API] GET error:", error);

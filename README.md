@@ -63,8 +63,34 @@ On netcup:
 - **Path** — `/home/deploy/call-assistant`, owned by the `deploy` user
 - **Service** — systemd unit `call-assistant.service`, running as `deploy`,
   `ExecStart=/usr/bin/npm start`, listening on port 3000
-- **Public URL** — <https://89-58-45-110.nip.io> (Let's Encrypt, with nip.io
-  supplying the wildcard DNS)
+- **Public URL** — <https://app.getkikai.com> (Let's Encrypt). The old
+  <https://89-58-45-110.nip.io> name is still served, because links already
+  sent (rebooking texts, invites) and chat or booking embeds already pasted
+  into salons' websites use it: keep it in the Caddyfile.
+- **Web server** — Caddy, in front of the app on port 3000 (responses say
+  `Via: 1.1 Caddy`). It fetches and renews HTTPS certificates itself.
+- **`AUTH_URL`** in the box's `.env` must be `https://app.getkikai.com`. Every
+  link the app sends out (invites, password resets, rebooking texts, phone
+  alerts) is built from it, whichever name the request came in on.
+- **Not this app** — `getkikai.com` / `www.getkikai.com` is the marketing
+  site, hosted elsewhere.
+- **Salons' pages** — `book.getkikai.com/<slug>`, the same app on a second
+  name (see "Online booking and the salon's website" below). Setting it up:
+  1. DNS: an `A` record `book.getkikai.com → 89.58.45.110`.
+  2. Caddyfile on the box, beside the `app.getkikai.com` block:
+
+     ```caddy
+     book.getkikai.com {
+         reverse_proxy 127.0.0.1:3000
+     }
+     ```
+
+     then `systemctl reload caddy`. Caddy gets the certificate on the first
+     request; it needs the DNS record in place first.
+  3. `.env` on the box: `BOOKING_URL=https://book.getkikai.com`, then
+     `systemctl restart call-assistant`. Until this is set the app answers
+     the name as if it were the CRM, so do it before telling anyone the
+     address. Check with `curl -I https://book.getkikai.com/<a salon's slug>`.
 - **SSH** — as `root`, with the key at `~/.ssh/netcup-ca`
 
 Note that SSH login is `root` while the checkout belongs to `deploy`. Every
@@ -141,7 +167,7 @@ One-time setup on netcup, as root:
 
 1. Add to the app's settings file, `/home/deploy/call-assistant/.env` (the
    box has no `.env.local`; either would be read):
-   `RECEPTIONIST_VOICE_URL=wss://89-58-45-110.nip.io/voice`,
+   `RECEPTIONIST_VOICE_URL=wss://app.getkikai.com/voice`,
    `RECEPTIONIST_VOICE_SECRET=` (from `openssl rand -hex 32`),
    `DEEPGRAM_API_KEY=` and `ELEVENLABS_API_KEY=`. The Anthropic key is the
    salon's own where one is set (Admin → Organizations → Anthropic API key
@@ -164,7 +190,7 @@ One-time setup on netcup, as root:
    (For Caddy: `handle /voice/* { reverse_proxy 127.0.0.1:4610 }`.)
 4. Restart the CRM so it reads the two new settings:
    `systemctl restart call-assistant`, then check
-   `curl https://89-58-45-110.nip.io/voice/health`.
+   `curl https://app.getkikai.com/voice/health`.
 
 Locally, `VOICE_FAKES=1 npx tsx src/voice-server/index.ts` runs it with a
 stand-in model, recogniser and voice, so the audio path can be tried with no
@@ -256,8 +282,8 @@ email you:
 
 | Check | URL | Red when |
 |---|---|---|
-| The CRM | `https://89-58-45-110.nip.io/api/health` | the app, its database or the voice server is not answering |
-| Backups | `https://89-58-45-110.nip.io/api/health/backups` | no off-site backup in 26 hours |
+| The CRM | `https://app.getkikai.com/api/health` | the app, its database or the voice server is not answering |
+| Backups | `https://app.getkikai.com/api/health/backups` | no off-site backup in 26 hours |
 
 Poll the first every minute or few, the second every hour or so.
 
@@ -376,7 +402,7 @@ One-time setup:
 
 4. **First run:** `systemctl start call-assistant-backup`, then
    `journalctl -u call-assistant-backup -n 30` and
-   `curl https://89-58-45-110.nip.io/api/health/backups`.
+   `curl https://app.getkikai.com/api/health/backups`.
 
 **Restore drill** (do it once now, then every few months). It restores the
 newest backup into a scratch database and prints row counts to compare with
@@ -412,7 +438,7 @@ To put a salon's number on it:
 1. Admin → the salon → phone numbers: add the Twilio number (E.164, channel
    Voice), if it is not there already.
 2. Twilio console → the number → Voice configuration → "A call comes in":
-   Webhook, `https://89-58-45-110.nip.io/api/twilio/voice`, HTTP POST.
+   Webhook, `https://app.getkikai.com/api/twilio/voice`, HTTP POST.
 3. `.env` on the box needs `TWILIO_AUTH_TOKEN` (already there for texts),
    `RECEPTIONIST_VOICE_URL`, `RECEPTIONIST_VOICE_SECRET`, `DEEPGRAM_API_KEY`,
    `ELEVENLABS_API_KEY` and an Anthropic key, as for the lab. If the web
@@ -446,7 +472,7 @@ To move it, in this order:
    more than one). Leave `TWILIO_AUTH_TOKEN` alone: texts are sent with it.
    Then `systemctl restart call-assistant.service`.
 3. Twilio console → move the number to IE1 → set "A call comes in" there:
-   Webhook, `https://89-58-45-110.nip.io/api/twilio/voice`, HTTP POST.
+   Webhook, `https://app.getkikai.com/api/twilio/voice`, HTTP POST.
 4. Ring the number. If it fails, `journalctl -u call-assistant.service -n 50 | grep TWILIO`
    says why: "refused an unsigned or mis-signed voice webhook" is the token;
    "matched no salon's voice number" means IE1 sends the dialled number in
@@ -694,6 +720,15 @@ Switched on by the salon itself in Settings → **Website & online booking**
 (`OrganizationSettings.onlineBookingEnabled`, off by default), shown only
 where the salon uses the diary. Code: `src/lib/online-booking/`.
 
+- **Address.** With `BOOKING_URL` set (production:
+  `https://book.getkikai.com`), salons' pages are `book.getkikai.com/<slug>`
+  and `/<slug>/book`, and `app.getkikai.com/s/<slug>` redirects there
+  (`src/lib/booking-host.ts`, applied in `src/proxy.ts`). That address serves
+  only salon pages and what they need (`/api/book/`, `/embed/book/`,
+  `/book.js`); the CRM, its login and the rest of its API are not served
+  there, and the root layout renders the pages without the CRM's session or
+  chrome. Any other path is read as a salon's slug and shows "not found".
+  Without `BOOKING_URL`, everything below is at `/s/<slug>` on the app.
 - **`/s/<slug>`**: a one-page website built from the salon's settings
   (services and prices, team, opening hours, phone), plus a headline, about
   text, address and brand colour set in that section. A "Next free" button

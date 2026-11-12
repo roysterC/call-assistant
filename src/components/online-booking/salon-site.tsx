@@ -17,20 +17,23 @@ import { brandStyle, durationText, longDay, timeText } from "./format";
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-function bookHref(slug: string, q: Record<string, string | null | undefined> = {}): string {
+function withQuery(path: string, q: Record<string, string | null | undefined> = {}): string {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);
   const s = p.toString();
-  return `/s/${slug}/book${s ? `?${s}` : ""}`;
+  return `${path}${s ? `?${s}` : ""}`;
 }
 
 export function SalonSite({
   salon,
   takesBookings,
   nextFree,
+  bookPath,
 }: {
   salon: PublicSalon;
   takesBookings: boolean;
+  /** The booking flow's path on the address this page was opened on. */
+  bookPath: string;
   /** The soonest free time for the first service, if there is one. */
   nextFree: { service: string; slot: PublicSlot; date: string } | null;
 }) {
@@ -66,7 +69,7 @@ export function SalonSite({
           )}
           {takesBookings && (
             <Link
-              href={bookHref(salon.slug)}
+              href={withQuery(bookPath)}
               className="hidden rounded-full px-5 py-3 text-[0.95rem] font-semibold md:inline-block"
               style={brandButton}
             >
@@ -88,7 +91,7 @@ export function SalonSite({
             {takesBookings && (
               <div className="flex flex-wrap gap-3">
                 <Link
-                  href={bookHref(salon.slug)}
+                  href={withQuery(bookPath)}
                   className="rounded-full px-7 py-4 text-[1.05rem] font-semibold"
                   style={brandButton}
                 >
@@ -103,7 +106,7 @@ export function SalonSite({
             )}
             {takesBookings && nextFree && (
               <Link
-                href={bookHref(salon.slug, {
+                href={withQuery(bookPath, {
                   service: nextFree.service,
                   start: nextFree.slot.start,
                   stylist: nextFree.slot.stylist,
@@ -152,7 +155,7 @@ export function SalonSite({
                     )}
                     {takesBookings && (
                       <Link
-                        href={bookHref(salon.slug, { service: s.name })}
+                        href={withQuery(bookPath, { service: s.name })}
                         aria-label={`Book ${s.name}`}
                         className="rounded-full border px-4 py-2.5 text-[0.95rem] font-semibold text-[var(--brand-ink)]"
                         style={{ borderColor: "var(--brand-ink)" }}
@@ -180,7 +183,7 @@ export function SalonSite({
                   {p.role && <span className="text-sm text-stone-600">{p.role}</span>}
                   {takesBookings && (
                     <Link
-                      href={bookHref(salon.slug, { stylist: p.name })}
+                      href={withQuery(bookPath, { stylist: p.name })}
                       className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[var(--brand-ink)]"
                     >
                       Book with {p.name} <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -245,7 +248,7 @@ export function SalonSite({
       {takesBookings && (
         <div className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 md:hidden">
           <Link
-            href={bookHref(salon.slug)}
+            href={withQuery(bookPath)}
             className="flex h-14 items-center justify-center rounded-full text-[1.05rem] font-semibold"
             style={brandButton}
           >
