@@ -3,6 +3,8 @@ import {
   buildServiceTones,
   classifyService,
   familiesInUse,
+  familyChoices,
+  familyHue,
   FAMILY_STEPS,
   NEW_BOOKING,
   solidTint,
@@ -157,5 +159,109 @@ describe("solidTint", () => {
     const tones = buildServiceTones(SHOGO);
     const fills = [...tones.values()].map((t) => t.fill).concat(NEW_BOOKING.fill, toneFor("Gone service", tones).fill);
     for (const f of fills) expect(f).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});
+
+describe("each trade's own families", () => {
+  it("gives every starter service of every trade a colour, none grey", async () => {
+    const { starterServices, BUSINESS_TYPES } = await import("@/lib/business-types");
+    for (const t of BUSINESS_TYPES) {
+      const grey = starterServices([t]).filter((s) => classifyService(s.name, s.requiresPatchTest, [t]) === "other");
+      expect(grey.map((s) => `${t}: ${s.name}`)).toEqual([]);
+    }
+  });
+
+  it("reads a nail salon's price list as nails, not hair", () => {
+    const nails = ["nails"] as const;
+    expect(classifyService("Gel manicure", false, nails)).toBe("manicure");
+    expect(classifyService("Gel pedicure", false, nails)).toBe("pedicure");
+    expect(classifyService("BIAB new set", false, nails)).toBe("enhancement");
+    expect(classifyService("BIAB infill", false, nails)).toBe("enhancement");
+    expect(classifyService("Acrylic full set", false, nails)).toBe("enhancement");
+    // A removal before it is gel; toes before the BIAB on them.
+    expect(classifyService("Gel removal", false, nails)).toBe("nailart");
+    expect(classifyService("BIAB on toes", false, nails)).toBe("pedicure");
+    expect(classifyService("Nail art, per nail", false, nails)).toBe("nailart");
+    expect(classifyService("Cuticle care", false, nails)).toBe("manicure");
+  });
+
+  it("reads beauty and barbers in their own words", () => {
+    expect(classifyService("Lash lift and tint", true, ["beauty"])).toBe("brows");
+    expect(classifyService("Half leg wax", false, ["beauty"])).toBe("waxing");
+    expect(classifyService("Express facial", false, ["beauty"])).toBe("skin");
+    expect(classifyService("Skin fade", false, ["barber"])).toBe("fades");
+    expect(classifyService("Beard trim", false, ["barber"])).toBe("beard");
+    expect(classifyService("Haircut and beard", false, ["barber"])).toBe("cuts");
+  });
+
+  it("matches whole words only, so a cuticle is not a cut", () => {
+    expect(classifyService("Cuticle care")).toBe("other");
+    expect(classifyService("Freestyle art")).toBe("other");
+    expect(classifyService("Two cuts")).toBe("cutting");
+    expect(classifyService("Blow-dry")).toBe("finishing");
+  });
+
+  it("lists a nail salon's families in its legend, in hue order", () => {
+    const list = [{ name: "Gel manicure" }, { name: "Acrylic full set" }, { name: "Gel removal" }, { name: "Consultation" }];
+    expect(familiesInUse(list, ["nails"])).toEqual(["manicure", "enhancement", "nailart", "other"]);
+  });
+
+  it("gives each family its own validated hue, and Other grey", () => {
+    const tones = buildServiceTones([{ name: "Gel manicure" }, { name: "Gel pedicure" }, { name: "Consultation" }], ["nails"]);
+    expect(tones.get("gel manicure")!.border).toBe(`${FAMILY_STEPS.cutting[0]}b3`);
+    expect(tones.get("gel pedicure")!.border).toBe(`${FAMILY_STEPS.colour[0]}b3`);
+    expect(tones.get("consultation")!.border).toBe(`${FAMILY_STEPS.other[0]}b3`);
+  });
+
+  it("colours a booking under an old name with the salon's own families", () => {
+    const tones = buildServiceTones([{ name: "Gel manicure" }], ["nails"]);
+    expect(toneFor("Acrylic infill", tones).family).toBe("enhancement");
+  });
+});
+
+describe("a salon of several trades", () => {
+  const both = ["hair", "nails"] as const;
+
+  it("is coloured by trade, by whichever trade's word fits the name best", () => {
+    expect(classifyService("Wash and blow dry", false, both)).toBe("hair");
+    expect(classifyService("Gel manicure", false, both)).toBe("nails");
+    // Nails' "acrylic" over hair's "set".
+    expect(classifyService("Acrylic full set", false, both)).toBe("nails");
+    expect(classifyService("Root tint", true, both)).toBe("hair");
+    expect(classifyService("Lash lift and tint", true, ["hair", "beauty"])).toBe("beauty");
+  });
+
+  it("lists its trades in the legend, main first", () => {
+    expect(familiesInUse([{ name: "Ladies cut" }, { name: "Gel manicure" }], both)).toEqual(["hair", "nails"]);
+    expect(familyHue("hair", both)).not.toBe(familyHue("nails", both));
+  });
+});
+
+describe("the salon's own choice", () => {
+  it("wins over the name", () => {
+    expect(classifyService("Signature glow", false, ["nails"], "manicure")).toBe("manicure");
+    expect(classifyService("Gel manicure", false, ["nails"], "other")).toBe("other");
+  });
+
+  it("is ignored where it is not one of the salon's families", () => {
+    // Chosen at a hair salon, then the salon became a nail salon.
+    expect(classifyService("Gel manicure", false, ["nails"], "cutting")).toBe("manicure");
+  });
+
+  it("is offered from the salon's own families, then Other", () => {
+    expect(familyChoices(["nails"])).toEqual(["manicure", "pedicure", "enhancement", "nailart", "other"]);
+    expect(familyChoices(["hair", "beauty"])).toEqual(["hair", "beauty", "other"]);
+  });
+
+  it("is kept when services are saved, and only if it looks like one", async () => {
+    const { parseServices } = await import("@/lib/salon-config");
+    const [kept, dropped, none] = parseServices([
+      { name: "A", durationMinutes: 30, group: "manicure" },
+      { name: "B", durationMinutes: 30, group: "<script>" },
+      { name: "C", durationMinutes: 30 },
+    ]);
+    expect(kept.group).toBe("manicure");
+    expect(dropped).not.toHaveProperty("group");
+    expect(none).not.toHaveProperty("group");
   });
 });

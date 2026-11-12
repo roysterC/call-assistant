@@ -14,6 +14,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api-fetch";
 import { NAV_PAGES, START } from "@/lib/navigation";
+import type { BusinessType } from "@/lib/business-types";
 
 export interface Me {
   role: string;
@@ -27,6 +28,8 @@ export interface Me {
   staff?: string;
   /** The salon's main type ("hair", "nails"…), for examples in its own trade. */
   businessType?: string;
+  /** All its types, main first: what the diary colours services by (service-colours.ts). */
+  businessTypes?: BusinessType[];
   /** Whether any of its types books skin (patch) tests: hair colour, lash tints. */
   skinTests?: boolean;
 }

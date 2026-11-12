@@ -276,6 +276,26 @@ export const diary = {
   "family.finishing": ["Finishing", "Tạo kiểu"],
   "family.treatment": ["Treatments", "Phục hồi"],
   "family.other": ["Other", "Khác"],
+  // A nail salon's (service-colours.ts).
+  "family.manicure": ["Manicures", "Làm móng tay"],
+  "family.pedicure": ["Pedicures", "Làm móng chân"],
+  "family.enhancement": ["Sets & infills", "Đắp & dặm móng"],
+  "family.nailart": ["Nail art & removals", "Vẽ móng & tháo móng"],
+  // A beauty salon's.
+  "family.brows": ["Brows & lashes", "Chân mày & mi"],
+  "family.waxing": ["Waxing", "Wax lông"],
+  "family.skin": ["Facials & skin", "Chăm sóc da mặt"],
+  "family.body": ["Body", "Chăm sóc cơ thể"],
+  // A barber's.
+  "family.cuts": ["Cuts", "Cắt tóc"],
+  "family.fades": ["Fades", "Fade"],
+  "family.beard": ["Beard & shave", "Râu & cạo"],
+  "family.extras": ["Colour & extras", "Nhuộm & dịch vụ thêm"],
+  // A salon of several trades, coloured by trade.
+  "family.hair": ["Hair", "Tóc"],
+  "family.nails": ["Nails", "Móng"],
+  "family.beauty": ["Beauty", "Làm đẹp"],
+  "family.barber": ["Barbering", "Cắt tóc nam"],
 
   // --- Who's free now (who-is-free.tsx) -------------------------------------------------
   "free.button": ["Who's free", "Ai đang rảnh"],

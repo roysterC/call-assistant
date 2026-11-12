@@ -74,6 +74,8 @@ export const onboarding = {
   "svc.noRebook": ["(blank: no rebooking text)", "(để trống: không nhắn hẹn lại)"],
   "svc.weeksLabel": ["Weeks until {name} is due again", "Số tuần đến khi {name} cần làm lại"],
   "svc.rebookAs": ["What {name} is rebooked as", "{name} được hẹn lại dưới tên gì"],
+  "svc.group": ["Diary colour for {name}", "Màu trên sổ hẹn cho {name}"],
+  "svc.groupAuto": ["{group} (automatic)", "{group} (tự động)"],
   "svc.typical": ["typical", "thông thường"],
   "svc.typicalTitle": ["Our typical time: check it's right for you", "Thời gian thông thường của chúng tôi: hãy kiểm tra"],
   "svc.help": [

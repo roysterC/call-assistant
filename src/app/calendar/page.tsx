@@ -12,7 +12,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarDays, UserCheck } from "lucide-react";
 import { WhoIsFree } from "@/components/calendar/who-is-free";
 import { Button } from "@/components/ui/button";
-import { clockTime } from "@/lib/i18n";
+import { clockTime, type MessageKey } from "@/lib/i18n";
+import { useMe } from "@/components/providers/me-provider";
 import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
 import { OPEN_BOOKING } from "@/components/notifications/booking-alerts";
 import { noticesChanged } from "@/lib/use-booking-notices";
@@ -52,7 +53,7 @@ import {
 import {
   buildServiceTones,
   familiesInUse,
-  FAMILY_HUE,
+  familyHue,
 } from "@/lib/service-colours";
 import {
   NewBookingDialog,
@@ -214,8 +215,11 @@ export default function CalendarPage() {
   // Built once per service list rather than per block: the mapping depends on
   // the whole list (a service's step is its position within its family), so
   // it cannot be worked out one appointment at a time.
-  const tones = useMemo(() => buildServiceTones(services), [services]);
-  const legend = useMemo(() => familiesInUse(services), [services]);
+  // Coloured by the salon's own trade's families: manicures and sets at a
+  // nail salon, cutting and colour at a hairdresser's (service-colours.ts).
+  const businessTypes = useMe()?.businessTypes;
+  const tones = useMemo(() => buildServiceTones(services, businessTypes), [services, businessTypes]);
+  const legend = useMemo(() => familiesInUse(services, businessTypes), [services, businessTypes]);
 
   useEffect(() => {
     (async () => {
@@ -574,12 +578,12 @@ export default function CalendarPage() {
                     <span
                       className="h-2.5 w-2.5 rounded-sm shrink-0 border"
                       style={{
-                        background: `${FAMILY_HUE[f]}2e`,
-                        borderColor: `${FAMILY_HUE[f]}b3`,
+                        background: `${familyHue(f, businessTypes)}2e`,
+                        borderColor: `${familyHue(f, businessTypes)}b3`,
                       }}
                     />
                     <span className="text-muted-foreground truncate">
-                      {t(`family.${f}`)}
+                      {t(`family.${f}` as MessageKey)}
                     </span>
                   </li>
                 ))}
