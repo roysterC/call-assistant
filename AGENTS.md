@@ -35,7 +35,8 @@ Two VPSes carry a checkout of this repo and only one of them matters.
 
 - **Production: netcup** — `v2202609416356518198.megasrv.de` (89.58.45.110),
   app at `/home/deploy/call-assistant`, systemd unit `call-assistant.service`,
-  served at <https://89-58-45-110.nip.io>.
+  served at <https://app.getkikai.com> (also still answers on
+  <https://89-58-45-110.nip.io>, which old links and embeds use).
 - **Retired: Hetzner** — `178.104.49.71` / `doai-vps` / ssh alias `kaia-vps`,
   stale copy at `/home/kaia/doai/call-assistant`. Nothing should deploy here.
 
@@ -45,7 +46,9 @@ never said which machine "production" meant. The host is now written in plain
 text in `.github/workflows/deploy-netcup.yml`; keep it that way.
 
 `call.doaisystems.co.uk` still resolves to the retired box, so it is not a
-reliable way to check whether a change went out. Use the nip.io URL.
+reliable way to check whether a change went out. Use `app.getkikai.com`.
+`getkikai.com` and `www.getkikai.com` are the marketing site, hosted
+elsewhere: not this app.
 
 Full topology, secrets, and the schema-change policy: see "Deployment" in
 README.md.
