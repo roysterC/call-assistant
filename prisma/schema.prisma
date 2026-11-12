@@ -286,6 +286,25 @@ model OrganizationSettings {
   // WhatsApp Cloud API token for sending; the number it sends from is the
   // PhoneNumber row the customer wrote to.
   whatsappAccessToken     String?
+  // Online booking (src/lib/online-booking): the salon's own website at
+  // /s/<slug>, and the same booking flow as a link or embed on a site the
+  // salon already has. The salon's own choice, in Settings; off until then.
+  // Services, team, hours and prices come from the fields above, so the site
+  // can never disagree with the diary; these are only what the site adds.
+  onlineBookingEnabled    Boolean      @default(false)
+  siteHeadline            String?
+  siteAbout               String?
+  siteAddress             String?
+  // "#RRGGBB", checked on the way in. Null: the default.
+  siteBrandColor          String?
+  // How far ahead clients may book online, in days.
+  onlineMaxDaysAhead      Int          @default(56)
+  // Whether clients may pick who they see, or are only offered "anyone".
+  onlineStylistChoice     Boolean      @default(true)
+  // Services clients cannot book online (a consultation, colour correction),
+  // by name. Hidden rather than listed-as-bookable, so a new service is
+  // bookable online by default, the way it is by phone.
+  onlineHiddenServices    String[]     @default([])
   updatedAt               DateTime     @updatedAt
 
   @@map("ca_organization_settings")
@@ -583,7 +602,7 @@ model Appointment {
   amountMinor Int?
 
   status String  @default("booked") // booked | cancelled | completed | no_show
-  source String  @default("voice") // voice | manual
+  source String  @default("voice") // voice | manual | website
   notes  String?
 
   // SMS state. Columns rather than a message table: the only question staff

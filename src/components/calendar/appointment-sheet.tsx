@@ -149,7 +149,9 @@ export function AppointmentSheet({
                   ? t("sheet.bookedByMessage", { channel: bookedByMessage(a.notes)! })
                   : a.source === "voice"
                     ? t("sheet.bookedByPhone")
-                    : t("sheet.bookedAtDesk")}
+                    : a.source === "website"
+                      ? t("sheet.bookedOnline")
+                      : t("sheet.bookedAtDesk")}
               </span>
               {a.bookingNumber !== null && (
                 <span className="ml-auto text-xs tabular-nums text-muted-foreground">

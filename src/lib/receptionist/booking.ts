@@ -221,12 +221,25 @@ export async function handleBookAppointment(
    * back exactly what would be booked, for the receptionist to read back
    * before it is (src/lib/receptionist/read-back.ts).
    */
-  opts: { dryRun?: boolean } = {}
+  opts: {
+    dryRun?: boolean;
+    /**
+     * Where the booking came from: the phone and the chats are "voice"; the
+     * online booking page is "website" (src/lib/online-booking), held to
+     * exactly the same rules and written the same way.
+     */
+    source?: BookingSource;
+  } = {}
 ) {
   const checked = await checkBooking(organizationId, params);
   if (checked.ok !== true) return checked;
-  return opts.dryRun ? readBackDetails(checked.booking) : writeBooking(organizationId, checked.booking);
+  return opts.dryRun
+    ? readBackDetails(checked.booking)
+    : writeBooking(organizationId, checked.booking, opts.source ?? "voice");
 }
+
+/** Appointment.source for a booking made through handleBookAppointment. */
+export type BookingSource = "voice" | "website";
 
 /**
  * Every rule a phone booking is held to, in order: a number, a name, a diary
@@ -522,14 +535,19 @@ function readBackDetails(b: CheckedBooking) {
  * lock refuses a clash that crept in), the salon's notice, the confirmation
  * text, and the reply.
  */
-async function writeBooking(organizationId: string, b: CheckedBooking) {
+async function writeBooking(organizationId: string, b: CheckedBooking, source: BookingSource) {
   const { provider, cfg, service, stylist, startsAt, clientName, phone, clientType, needsSkinTest, onFile, notes, today, usedCallerId } = b;
 
 
   // One number, one client record, but not always one person: a mum books
   // herself and her daughter on her own phone. The daughter goes on a record
   // of her own, reached through her mum's number (src/lib/client-link.ts).
-  const { lead, contact } = await clientForBooking(organizationId, phone, clientName);
+  const { lead, contact } = await clientForBooking(
+    organizationId,
+    phone,
+    clientName,
+    source === "website" ? "website" : "phone"
+  );
   const bookingNotes = blankToUndefined(notes);
 
   const written = await bookAppointment(
@@ -555,7 +573,7 @@ async function writeBooking(organizationId: string, b: CheckedBooking) {
       clientType,
       patchTestRequired: needsSkinTest,
       notes: bookingNotes ?? null,
-      source: "voice",
+      source,
     }
   );
 

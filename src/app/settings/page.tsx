@@ -35,6 +35,11 @@ import { ExpandableSection } from "@/components/settings/expandable-section";
 import { TeamLogins } from "@/components/settings/team-logins";
 import { plural } from "@/lib/plural";
 import { VOICE_CHANNEL, type PhoneChannel } from "@/lib/phone-channels";
+import {
+  OnlineBookingSettings,
+  onlineSettingsFrom,
+  type OnlineSettings,
+} from "@/components/settings/online-booking-settings";
 
 const labelFor = (href: string) => NAV_PAGES.find((p) => p.href === href)?.label ?? "Dashboard";
 
@@ -66,6 +71,8 @@ interface Settings {
   rebookTextsEnabled: boolean;
   /** Where a rebooking text's link opens the chat, if not WhatsApp. */
   instagramUsername: string | null;
+  /** The salon's website and online booking (src/lib/online-booking). */
+  online: OnlineSettings;
 }
 
 /** The fields this page edits and saves: what "unsaved changes" compares. */
@@ -80,6 +87,7 @@ type Editable = Pick<
   | "startPage"
   | "salonFaq"
   | "rebookTextsEnabled"
+  | "online"
 >;
 
 function editable(s: Settings): Editable {
@@ -93,6 +101,7 @@ function editable(s: Settings): Editable {
     startPage: s.startPage,
     salonFaq: s.salonFaq,
     rebookTextsEnabled: s.rebookTextsEnabled,
+    online: s.online,
   };
 }
 
@@ -125,6 +134,8 @@ export default function SettingsPage() {
   const { notify } = useDialogs();
   // What "automatic" currently means for this organisation, to show beside it.
   const [automaticStart, setAutomaticStart] = useState<string>(DASHBOARD);
+  // The salon's web address, /s/<slug>.
+  const [slug, setSlug] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchAll() {
@@ -151,7 +162,9 @@ export default function SettingsPage() {
           salonFaq: data.settings?.salonFaq ?? "",
           rebookTextsEnabled: !!data.settings?.rebookTextsEnabled,
           instagramUsername: data.settings?.instagramUsername ?? null,
+          online: onlineSettingsFrom(data.settings),
         };
+        setSlug(data.organizationSlug ?? null);
         setSettings(s);
         setSaved(editable(s));
         if (!s.startPage && data.startPage) setAutomaticStart(data.startPage);
@@ -205,6 +218,7 @@ export default function SettingsPage() {
           startPage: settings.startPage ?? "",
           salonFaq: settings.salonFaq,
           rebookTextsEnabled: settings.rebookTextsEnabled,
+          ...settings.online,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -218,6 +232,8 @@ export default function SettingsPage() {
         contactPhone: data.settings?.contactPhone ?? null,
         startPage: data.settings?.startPage ?? null,
         salonFaq: data.settings?.salonFaq ?? "",
+        // As stored: blank text cleared, the colour checked.
+        online: onlineSettingsFrom(data.settings),
       };
       setSettings(stored);
       setSaved(editable(stored));
@@ -532,6 +548,21 @@ export default function SettingsPage() {
               />
             </ExpandableSection>
           </>
+        )}
+
+        {/* The salon's website and online booking (src/lib/online-booking):
+            the salon's own choice, like rebooking texts. Only with a diary,
+            which is what it books into. */}
+        {settings.hasDiary && (
+          <OnlineBookingSettings
+            value={settings.online}
+            onChange={(online) => setSettings({ ...settings, online })}
+            slug={slug}
+            live={Boolean(saved?.online.onlineBookingEnabled)}
+            services={settings.services}
+            notReady={readiness.ready ? null : missingText(readiness)}
+            staff={w("stylist")}
+          />
         )}
 
         {/* Rebooking texts (src/lib/rebook.ts): the salon's own choice, since

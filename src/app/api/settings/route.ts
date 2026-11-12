@@ -17,6 +17,15 @@ import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { featureFlags, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
+import {
+  parseBrandColor,
+  parseDaysAhead,
+  parseHiddenServices,
+  parseSiteText,
+  SITE_ABOUT_MAX,
+  SITE_ADDRESS_MAX,
+  SITE_HEADLINE_MAX,
+} from "@/lib/online-booking/catalogue";
 
 const DEFAULT_SETTINGS = {
   businessName: "Our Business",
@@ -68,6 +77,16 @@ const WRITABLE_FIELDS = [
   "metaVerifyToken",
   "whatsappAccessToken",
   "startPage",
+  // Online booking and the salon's own website (src/lib/online-booking):
+  // the salon's own choice, like rebooking texts.
+  "onlineBookingEnabled",
+  "siteHeadline",
+  "siteAbout",
+  "siteAddress",
+  "siteBrandColor",
+  "onlineMaxDaysAhead",
+  "onlineStylistChoice",
+  "onlineHiddenServices",
 ] as const;
 
 /**
@@ -95,6 +114,14 @@ function sanitiseSettingsPayload(
   if ("salonFaq" in out) out.salonFaq = parseSalonFaq(out.salonFaq);
   if ("startPage" in out) out.startPage = isStartPageChoice(out.startPage) ? out.startPage : null;
   if ("rebookTextsEnabled" in out) out.rebookTextsEnabled = out.rebookTextsEnabled === true;
+  if ("onlineBookingEnabled" in out) out.onlineBookingEnabled = out.onlineBookingEnabled === true;
+  if ("onlineStylistChoice" in out) out.onlineStylistChoice = out.onlineStylistChoice !== false;
+  if ("siteHeadline" in out) out.siteHeadline = parseSiteText(out.siteHeadline, SITE_HEADLINE_MAX);
+  if ("siteAbout" in out) out.siteAbout = parseSiteText(out.siteAbout, SITE_ABOUT_MAX);
+  if ("siteAddress" in out) out.siteAddress = parseSiteText(out.siteAddress, SITE_ADDRESS_MAX);
+  if ("siteBrandColor" in out) out.siteBrandColor = parseBrandColor(out.siteBrandColor);
+  if ("onlineMaxDaysAhead" in out) out.onlineMaxDaysAhead = parseDaysAhead(out.onlineMaxDaysAhead);
+  if ("onlineHiddenServices" in out) out.onlineHiddenServices = parseHiddenServices(out.onlineHiddenServices);
   // As in ig.me/m/<username>: letters, digits, dots and underscores, no @.
   if ("instagramUsername" in out) {
     const u = typeof out.instagramUsername === "string" ? out.instagramUsername.trim().replace(/^@/, "") : "";
@@ -189,7 +216,7 @@ export async function GET(req: NextRequest) {
     // a super-admin is viewing as, so it never shows another name first.
     const org = await prisma.organization.findUnique({
       where: { id: ctx.organizationId },
-      select: { name: true, needsOnboarding: true },
+      select: { name: true, slug: true, needsOnboarding: true },
     });
 
     return NextResponse.json({
@@ -199,6 +226,8 @@ export async function GET(req: NextRequest) {
       startPage: org?.needsOnboarding && !ctx.isSuperAdmin ? "/onboarding" : startPage,
       needsOnboarding: Boolean(org?.needsOnboarding) && !ctx.isSuperAdmin,
       organizationName: org?.name ?? null,
+      // The salon's web address, /s/<slug> (src/lib/online-booking).
+      organizationSlug: org?.slug ?? null,
     });
   } catch (error) {
     console.error("[SETTINGS API] GET error:", error);

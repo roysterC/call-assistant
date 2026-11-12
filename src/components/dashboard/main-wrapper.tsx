@@ -16,6 +16,8 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
   // Meta's app-review crawler (and end users) see them without logged-in UI.
   const chromeless = [
     "/embed",
+    // A salon's own website and online booking, for its clients.
+    "/s/",
     "/login",
     "/meet",
     // Rebooking text links, opened by clients (src/app/r).
