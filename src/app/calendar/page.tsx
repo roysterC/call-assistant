@@ -37,6 +37,7 @@ import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
 import { useIsPhone } from "@/lib/use-is-phone";
 import { stylistColour } from "@/lib/stylist-colours";
 import {
+  clientOf,
   EditBookingDialog,
   MoveConfirmDialog,
   type PendingMove,
@@ -62,8 +63,10 @@ import {
 import {
   parseServices,
   resolveBookedService,
+  splitServiceText,
   type SalonService,
 } from "@/lib/salon-config";
+import { addCalendarDays } from "@/lib/business-hours";
 
 interface Stylist {
   name: string;
@@ -131,6 +134,38 @@ function listPriceFor(
 ): number | null {
   const r = resolveBookedService(serviceText, services);
   return r.ok ? r.service.priceMinor : null;
+}
+
+/** Weeks until a client is usually back when the service does not say. */
+const DEFAULT_REBOOK_WEEKS = 4;
+
+/**
+ * "Book again" from a booking: the same client, services, stylist and time,
+ * as many weeks on as the service says they come back (a month if it does
+ * not say), moved on a week at a time until it is not in the past.
+ */
+function rebookSlot(
+  a: CalendarAppointment,
+  services: SalonService[],
+  today: string,
+  timeZone: string
+): BookingSlot {
+  const text = a.serviceText.toLowerCase();
+  const weeks =
+    services
+      .filter((s) => s.rebookWeeks && text.includes(s.name.toLowerCase()))
+      .sort((x, y) => y.name.length - x.name.length)[0]?.rebookWeeks ?? DEFAULT_REBOOK_WEEKS;
+  const start = new Date(a.startsAt);
+  let date = addCalendarDays(salonDate(start, timeZone), weeks * 7);
+  while (date < today) date = addCalendarDays(date, 7);
+  const min = minutesOfDay(start, timeZone);
+  return {
+    stylistName: a.stylistName,
+    time: `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`,
+    date,
+    client: { ...clientOf(a), visits: a.status === "completed" || a.clientType === "returning" ? 1 : 0 },
+    serviceNames: splitServiceText(a.serviceText),
+  };
 }
 
 /** A new block's form, starting from a day, a person and a time. An hour long. */
@@ -616,6 +651,11 @@ export default function CalendarPage() {
           setEditing(openAppointment);
           setOpenAppointment(null);
         }}
+        onBookAgain={() => {
+          if (!openAppointment) return;
+          setSlot(rebookSlot(openAppointment, services, today, timeZone));
+          setOpenAppointment(null);
+        }}
         onChanged={() => {
           loadDay();
           loadMonth();
@@ -641,6 +681,7 @@ export default function CalendarPage() {
         timeZone={timeZone}
         dayAppointments={appointments}
         dayBlocks={blocks}
+        dayShown={selected}
         onClose={() => setSlot(null)}
         onBooked={() => {
           loadDay();

@@ -16,6 +16,9 @@ import {
 } from "@/lib/salon-config";
 import { bookAppointment } from "@/lib/booking/diary";
 import { normalisePhone } from "@/lib/phone";
+import { textRecipient } from "@/lib/client-link";
+import { cancellationBody, sendSms } from "@/lib/sms";
+import { describeAppointmentWhen } from "@/lib/business-hours";
 
 const VALID_STATUSES = ["booked", "cancelled", "completed", "no_show"];
 
@@ -103,6 +106,8 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     const { id, status, notes, amountMinor } = body;
+    // Cancelling: text the client to say so (the desk ticks it).
+    const notifyClient = body.notifyClient === true;
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -118,10 +123,42 @@ export async function PATCH(req: NextRequest) {
     // Verify ownership before touching anything.
     const existing = await prisma.appointment.findUnique({
       where: { id },
-      select: { organizationId: true, stylistName: true },
+      select: {
+        organizationId: true,
+        stylistName: true,
+        status: true,
+        startsAt: true,
+        endsAt: true,
+        serviceText: true,
+        lead: { include: { contactLead: { select: { name: true, phone: true } } } },
+      },
     });
     if (!existing || existing.organizationId !== ctx.organizationId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Undoing a cancellation puts the booking back in the diary, where its
+    // time may have gone to someone else since.
+    if (status === "booked" && existing.status === "cancelled") {
+      const taken = await prisma.appointment.findFirst({
+        where: {
+          organizationId: ctx.organizationId,
+          id: { not: id },
+          status: { in: ["booked", "completed"] },
+          stylistName: { equals: existing.stylistName, mode: "insensitive" },
+          startsAt: { lt: existing.endsAt },
+          endsAt: { gt: existing.startsAt },
+        },
+        select: { serviceText: true, lead: { select: { name: true } } },
+      });
+      if (taken) {
+        return NextResponse.json(
+          {
+            error: `That time has been booked since (${taken.lead.name ?? "another client"}, ${taken.serviceText}). Book them again at another time instead.`,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const data: Record<string, unknown> = {};
@@ -155,12 +192,46 @@ export async function PATCH(req: NextRequest) {
 
     const appointment = await prisma.appointment.update({ where: { id }, data });
 
+    // The client told it is cancelled, on their own number or the one they
+    // are reached through.
+    let textSent = false;
+    let textError: string | null = null;
+    if (status === "cancelled" && existing.status !== "cancelled" && notifyClient) {
+      const to = textRecipient(existing.lead);
+      if (!to) {
+        textError = "There is no number to text.";
+      } else {
+        const [cfg, settings] = await Promise.all([
+          getSalonConfig(ctx.organizationId),
+          prisma.organizationSettings.findUnique({
+            where: { organizationId: ctx.organizationId },
+            select: { businessName: true, contactPhone: true },
+          }),
+        ]);
+        const sms = await sendSms(
+          ctx.organizationId,
+          to.to,
+          cancellationBody({
+            clientName: to.greet,
+            forName: to.forName,
+            serviceName: existing.serviceText,
+            stylistName: existing.stylistName,
+            whenText: describeAppointmentWhen(existing.startsAt, cfg.timeZone),
+            businessName: settings?.businessName ?? "the salon",
+            contactPhone: settings?.contactPhone ?? null,
+          })
+        );
+        textSent = sms.ok;
+        textError = sms.ok ? null : sms.reason;
+      }
+    }
+
     // Deliberately does NOT remove the event from the stylist's calendar.
     // Google is the diary and staff work in it directly; a dashboard status
     // change silently deleting an event out from under them would be worse
     // than the two records disagreeing. Cancelling in Google is the real
     // cancellation — this flag is our record of it.
-    return NextResponse.json({ appointment });
+    return NextResponse.json({ appointment, textSent, textError });
   } catch (error) {
     console.error("[APPOINTMENTS API] PATCH error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
