@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { isChannelEnabled, type Channel } from "@/lib/channel-flags";
 import { websiteVisitorLabel } from "@/lib/visitor-label";
+import { conversationExtras } from "@/lib/conversation-client";
+import { getSalonConfig } from "@/lib/booking";
 
 export async function GET(
   req: NextRequest,
@@ -45,7 +47,18 @@ export async function GET(
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
 
+      const extras = await conversationExtras({
+        organizationId: ctx.organizationId,
+        channel: "website",
+        conversationId: conv.id,
+        conversationStartedAt: conv.createdAt,
+        leadId: conv.leadId,
+        messages: conv.messages,
+        timeZone: (await getSalonConfig(ctx.organizationId)).timeZone,
+      });
+
       return NextResponse.json({
+        ...extras,
         id: conv.id,
         channel: "website",
         // Falls back to the same label the list shows, so a conversation does
@@ -89,7 +102,18 @@ export async function GET(
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
 
+      const extras = await conversationExtras({
+        organizationId: ctx.organizationId,
+        channel: conv.channel,
+        conversationId: conv.id,
+        conversationStartedAt: conv.createdAt,
+        leadId: conv.leadId,
+        messages: conv.messages,
+        timeZone: (await getSalonConfig(ctx.organizationId)).timeZone,
+      });
+
       return NextResponse.json({
+        ...extras,
         id: conv.id,
         channel: conv.channel,
         contactName: conv.contactName,
@@ -131,7 +155,18 @@ export async function GET(
     // and social branches. Earlier we spread `...conversation` which leaked
     // internal columns (waId, organizationId, raw timestamps, etc.) and
     // diverged from the other branches' shapes.
+    const extras = await conversationExtras({
+      organizationId: ctx.organizationId,
+      channel: "whatsapp",
+      conversationId: conversation.id,
+      conversationStartedAt: conversation.createdAt,
+      leadId: conversation.leadId,
+      messages: conversation.messages,
+      timeZone: (await getSalonConfig(ctx.organizationId)).timeZone,
+    });
+
     return NextResponse.json({
+      ...extras,
       id: conversation.id,
       channel: "whatsapp",
       contactName: conversation.contactName,

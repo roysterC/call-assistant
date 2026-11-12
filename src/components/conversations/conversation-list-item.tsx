@@ -55,7 +55,7 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 /** "5 min", "2 hours", "3 days": how long a client has been waiting. */
-function waitedFor(dateStr: string): string {
+export function waitedFor(dateStr: string): string {
   const mins = Math.max(1, Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000));
   if (mins < 60) return `${mins} min`;
   const hours = Math.floor(mins / 60);

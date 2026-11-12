@@ -1,73 +1,116 @@
 import { format } from "date-fns";
+import { ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { withAsOrg } from "@/lib/api-fetch";
+import { readPhotoLine } from "@/lib/thread-photos";
+import { useLanguage } from "@/components/providers/language-provider";
 
 interface MessageBubbleProps {
-  /** "agent" is a human operator reply sent from this inbox. */
+  /** "user" is the client; "assistant" is Kikai; "agent" is staff replying from this inbox. */
   role: "user" | "assistant" | "agent";
   content: string;
   createdAt: string;
   /**
-   * False when the previous message was from the same side, so a run of
+   * False when the next message is from the same side, so a run of
    * replies reads as one turn instead of a stack of separate cards.
    */
   showTail?: boolean;
+  /** Who is speaking, over the first message of a run: "Mai", "Kikai", "You". */
+  label?: string | null;
+  /** Ids of the photos this message carried (/api/chat-photos/[id]). */
+  photos?: string[];
+  onOpenPhoto?: (id: string) => void;
 }
 
+/**
+ * One message. The client on the left, the salon on the right (Kikai, and
+ * staff in a darker green), as in the chat apps the client wrote from.
+ */
 export function MessageBubble({
   role,
   content,
   createdAt,
   showTail = true,
+  label,
+  photos = [],
+  onOpenPhoto,
 }: MessageBubbleProps) {
-  const isUser = role === "user";
+  const { clock } = useLanguage();
+  const isClient = role === "user";
   const isAgent = role === "agent";
+  const photo = isClient ? readPhotoLine(content) : null;
+  const text = photo?.isPhoto ? photo.caption : content;
+  const time = format(new Date(createdAt), clock === "24h" ? "HH:mm" : "h:mmaaa");
 
   return (
-    <div className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>
-      {/*
-        Operators need to tell at a glance which replies were theirs and which
-        the bot sent — otherwise a transcript reads as one voice and it is
-        impossible to see where a handoff happened.
-      */}
-      {isAgent && showTail && (
-        <span className="text-[10px] font-medium text-tea-green-200 mb-0.5 px-1">
-          You
-        </span>
-      )}
-      <div
-        className={cn(
-          // Whichever is smaller. The percentage keeps the bubble off the far
-          // edge on a narrow pane; the character measure stops a long reply
-          // running to 90-odd characters a line on a wide one, which is well
-          // past readable and was how every bot answer rendered.
-          //
-          // min() rather than two classes: max-w and max-inline-size are the
-          // same property, so declaring both does not apply both — the later
-          // one in the generated CSS simply wins, and the percentage was being
-          // dropped.
-          "max-w-[min(75%,52ch)] rounded-2xl px-4 py-2.5 text-sm",
-          isUser && "bg-primary text-primary-foreground",
-          isUser && (showTail ? "rounded-br-md" : "rounded-br-2xl"),
-          isAgent &&
-            "bg-tea-green-800 text-foreground border border-tea-green-600",
-          // The bot's bubble is a filled grey with a hairline, not a faint wash of the
-          // pane behind it, which read as loose text rather than messages.
-          !isUser && !isAgent && "bg-muted text-foreground border border-border",
-          !isUser && (showTail ? "rounded-bl-md" : "rounded-bl-2xl")
-        )}
-      >
-        <p className="whitespace-pre-wrap break-words leading-relaxed">
-          {content}
-        </p>
-        <p
+    <div className={cn("flex flex-col gap-1", isClient ? "items-start" : "items-end")}>
+      {label && (
+        <span
           className={cn(
-            "text-[10px] mt-1 tabular-nums",
-            isUser ? "text-primary-foreground/75" : "text-muted-foreground"
+            "px-1 text-[11.5px] font-semibold",
+            isClient ? "text-muted-foreground" : isAgent ? "text-foreground" : "text-tea-green-200"
           )}
         >
-          {format(new Date(createdAt), "HH:mm")}
-        </p>
-      </div>
+          {label}
+        </span>
+      )}
+
+      {photo?.isPhoto && photos.length > 0 && (
+        <div className={cn("flex max-w-[min(75%,52ch)] flex-wrap gap-1.5", !isClient && "justify-end")}>
+          {photos.map((id, i) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onOpenPhoto?.(id)}
+              className="block cursor-zoom-in overflow-hidden rounded-2xl rounded-bl-md border border-border bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+              aria-label={photos.length > 1 ? `See photo ${i + 1} full size` : "See the photo full size"}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image */}
+              <img
+                src={withAsOrg(`/api/chat-photos/${id}`)}
+                alt={text ? `Photo: ${text}` : "Photo the client sent"}
+                className={cn("block object-cover", photos.length > 1 ? "h-32 w-32" : "h-44 w-56")}
+                loading="lazy"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {photo?.isPhoto && photos.length === 0 && (
+        <span className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+          <ImageOff className="h-3.5 w-3.5" aria-hidden />
+          {photo.saved ? "Sent a photo" : "Sent a photo that couldn't be saved"}
+        </span>
+      )}
+
+      {(text || !photo?.isPhoto) && (
+        <div
+          className={cn(
+            // Whichever is smaller: the percentage keeps it off the far edge
+            // on a narrow pane, the measure keeps lines readable on a wide one.
+            "max-w-[min(75%,52ch)] rounded-2xl px-4 py-2.5 text-sm",
+            isClient && "border border-border bg-card text-foreground",
+            isClient && (showTail ? "rounded-bl-md" : ""),
+            !isClient && !isAgent && "border border-tea-green-700 bg-tea-green-800 text-foreground",
+            isAgent && "bg-primary text-primary-foreground",
+            !isClient && (showTail ? "rounded-br-md" : "")
+          )}
+        >
+          <p className="whitespace-pre-wrap break-words leading-relaxed">{text}</p>
+          <p
+            className={cn(
+              "mt-1 text-right text-[10.5px] tabular-nums",
+              isAgent ? "text-primary-foreground/75" : "text-muted-foreground"
+            )}
+          >
+            {time}
+          </p>
+        </div>
+      )}
+      {photo?.isPhoto && !text && (
+        <span className="px-1 text-[10.5px] tabular-nums text-muted-foreground">{time}</span>
+      )}
     </div>
   );
 }

@@ -65,6 +65,14 @@ export default function ClientsPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const { t, lang } = useT();
 
+  // /clients?client=… (a chat's "Open client page"): that client, open.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("client");
+    if (!id) return;
+    setOpenId(id);
+    window.history.replaceState(null, "", "/clients");
+  }, []);
+
   // Search as they type, once they pause.
   useEffect(() => {
     const t = setTimeout(() => setSearch(query.trim()), 250);

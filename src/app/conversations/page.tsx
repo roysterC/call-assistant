@@ -7,13 +7,20 @@ import {
   MessageCircle,
   Search,
   ArrowLeft,
-  User,
+  UserRound,
   X,
   Star,
+  CalendarCheck,
+  PhoneCall,
 } from "lucide-react";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ConversationListItem } from "@/components/conversations/conversation-list-item";
-import { ContactPanel } from "@/components/conversations/contact-panel";
+import { ClientPanel } from "@/components/conversations/client-panel";
+import type { Channel, ConversationDetail, ThreadEvent } from "@/components/conversations/types";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { withAsOrg } from "@/lib/api-fetch";
+import { useLanguage } from "@/components/providers/language-provider";
 import { MessageBubble } from "@/components/conversations/message-bubble";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
@@ -21,8 +28,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
 import type { ConversationGroup, ConversationState } from "@/lib/conversation-state";
-
-type Channel = "whatsapp" | "website" | "instagram" | "facebook";
 
 interface ConversationSummary {
   id: string;
@@ -66,57 +71,6 @@ function groupConversations(list: ConversationSummary[]) {
     if (g.id === "you") rows.sort((a, b) => new Date(a.lastMessageAt).getTime() - new Date(b.lastMessageAt).getTime());
     return { ...g, rows };
   }).filter((g) => g.rows.length > 0);
-}
-
-interface DetailMessage {
-  id: string;
-  /**
-   * "agent" is an operator reply typed in this inbox. It was missing here
-   * while the API had been returning it and MessageBubble had been styling it
-   * for some time — the type said the green "You" bubble was unreachable.
-   */
-  role: "user" | "assistant" | "agent";
-  content: string;
-  createdAt: string;
-}
-
-interface ConversationDetail {
-  id: string;
-  channel: Channel;
-  contactName: string | null;
-  phoneNumber: string;
-  visitorEmail?: string | null;
-  visitorPhone?: string | null;
-  status: string;
-  isRead: boolean;
-  starred: boolean;
-  createdAt: string;
-  lastMessageAt: string;
-  userAgent?: string | null;
-  referrer?: string | null;
-  site?: { name: string; siteId: string; botName: string } | null;
-  lead: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    phone: string | null;
-    company: string | null;
-    // The API has always returned the whole lead row; this type just did not
-    // mention `issue`, so it was dropped on the way to the contact panel.
-    issue: string | null;
-    status: string;
-    source: string;
-  } | null;
-  messages: DetailMessage[];
-  profilePicUrl?: string | null;
-  handle?: string | null;
-  /** ISO timestamp of the last persona reset, or null if never reset. */
-  personaResetAt?: string | null;
-  /**
-   * "bot" | "human" — website conversations only. ("requested" was the
-   * visitor-initiated state, retired with the "Talk to a person" button.)
-   */
-  handoffState?: string;
 }
 
 /** Which side of the thread a role sits on. "agent" is us, same as the bot. */
@@ -242,6 +196,9 @@ export default function ConversationsPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [contactPanelOpen, setContactPanelOpen] = useState(false);
+  // A photo the client sent, open full size.
+  const [photoOpen, setPhotoOpen] = useState<string | null>(null);
+  const { clock } = useLanguage();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchConversations = useCallback(
@@ -459,25 +416,24 @@ export default function ConversationsPage() {
     }
   }
 
-  // For the ContactPanel we need to adapt the website shape to what the panel expects
-  const contactPanelData = activeConversation
-    ? {
-        id: activeConversation.id,
-        phoneNumber:
-          activeConversation.phoneNumber ||
-          activeConversation.visitorPhone ||
-          activeConversation.visitorEmail ||
-          "",
-        contactName: activeConversation.contactName,
-        status: activeConversation.status,
-        starred: activeConversation.starred,
-        createdAt: activeConversation.createdAt,
-        lead: activeConversation.lead,
-        profilePicUrl: activeConversation.profilePicUrl,
-        handle: activeConversation.handle,
-        personaResetAt: activeConversation.personaResetAt,
-      }
-    : null;
+  const title = activeConversation ? conversationTitle(activeConversation) : "";
+  const activeState = conversations.find((c) => c.id === activeConversation?.id)?.state;
+  const time = (iso: string) => format(new Date(iso), clock === "24h" ? "HH:mm" : "h:mmaaa");
+
+  const panel = activeConversation ? (
+    <ClientPanel
+      key={activeConversation.id}
+      conversation={activeConversation}
+      state={activeState}
+      title={title}
+      onTakeOver={activeConversation.channel === "website" ? () => setHandoff("human") : undefined}
+      onChanged={() => {
+        refetchActive();
+        fetchConversations(true);
+      }}
+      onResetPersona={isOwner ? resetPersona : undefined}
+    />
+  ) : null;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -626,10 +582,10 @@ export default function ConversationsPage() {
         </div>
       </aside>
 
-      {/* MIDDLE PANEL */}
+      {/* MIDDLE PANEL: the thread. The client on the left, the salon on the right. */}
       <section
         className={cn(
-          "flex-1 flex-col min-w-0",
+          "flex-1 flex-col min-w-0 bg-background",
           mobileView === "chat" ? "flex" : "hidden md:flex"
         )}
       >
@@ -647,86 +603,82 @@ export default function ConversationsPage() {
           </div>
         ) : activeConversation ? (
           <>
-            <header className="px-3 md:px-4 py-3 border-b border-border flex items-center gap-2 shrink-0">
+            <header className="flex shrink-0 items-center gap-2.5 border-b border-border bg-card px-3 py-3 md:px-5">
               <Button
                 variant="ghost"
                 size="sm"
                 className="md:hidden h-8 w-8 p-0"
                 onClick={() => setMobileView("list")}
+                aria-label="Back to conversations"
               >
                 <ArrowLeft className="w-4 h-4" />
               </Button>
 
-              {/*
-                The same avatar and channel badge the list row carries. Without
-                them the header was two lines of plain text, so moving from the
-                list into a thread lost every visual cue about who this is and
-                where they came from.
-              */}
-              {(() => {
-                const title =
-                  activeConversation.contactName ||
-                  activeConversation.lead?.name ||
-                  activeConversation.visitorEmail ||
-                  activeConversation.phoneNumber ||
-                  "Unknown";
-                const meta = CHANNEL_META[activeConversation.channel];
-                const ChannelIcon = meta?.icon;
-                return (
-                  <>
-                    <div className="relative shrink-0">
-                      <div
-                        className={cn(
-                          "w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold",
-                          avatarColorFor(title)
-                        )}
-                      >
-                        {initialsFor(
-                          activeConversation.contactName ||
-                            activeConversation.lead?.name ||
-                            null,
-                          activeConversation.phoneNumber
-                        )}
-                      </div>
-                      {meta && ChannelIcon && (
-                        <span
-                          className={cn(
-                            "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-card",
-                            meta.bg
-                          )}
-                          title={meta.label}
-                        >
-                          <ChannelIcon className="w-2.5 h-2.5 text-white" />
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm truncate">
-                        {title}
-                      </h3>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {activeConversation.channel === "website"
-                          ? activeConversation.site?.name || "Website"
-                          : activeConversation.phoneNumber}
-                      </p>
-                    </div>
-                  </>
-                );
-              })()}
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="xl:hidden h-8 w-8 p-0"
+              {/* Below the widest screens the client is a tap away: on the name. */}
+              <button
+                type="button"
                 onClick={() => setContactPanelOpen(true)}
-                title="Contact details"
+                className="flex min-w-0 flex-1 items-center gap-2.5 text-left xl:pointer-events-none"
+                aria-label={`${title}: client details`}
               >
-                <User className="w-4 h-4" />
-              </Button>
+                <span className="relative shrink-0">
+                  <span
+                    className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold",
+                      avatarColorFor(title)
+                    )}
+                  >
+                    {initialsFor(
+                      activeConversation.contactName || activeConversation.lead?.name || null,
+                      activeConversation.phoneNumber || title
+                    )}
+                  </span>
+                  {CHANNEL_META[activeConversation.channel] && (
+                    <span
+                      className={cn(
+                        "absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-card",
+                        CHANNEL_META[activeConversation.channel].bg
+                      )}
+                      title={CHANNEL_META[activeConversation.channel].label}
+                    />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-base font-bold">{title}</span>
+                  <span className="block truncate text-[12.5px] text-muted-foreground">
+                    {activeConversation.channel === "website"
+                      ? activeConversation.site?.name || "Website chat"
+                      : CHANNEL_META[activeConversation.channel]?.label}
+                    {" · "}
+                    {activeConversation.messages.length === 1
+                      ? "1 message"
+                      : `${activeConversation.messages.length} messages`}
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleStar}
+                aria-pressed={activeConversation.starred}
+                aria-label={activeConversation.starred ? "Unstar" : "Star"}
+                title={activeConversation.starred ? "Starred" : "Star this conversation"}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Star className={cn("h-4 w-4", activeConversation.starred && "fill-papaya-whip-300 text-papaya-whip-200")} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setContactPanelOpen(true)}
+                aria-label="Client details"
+                title="Client details"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground xl:hidden"
+              >
+                <UserRound className="h-4 w-4" />
+              </button>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1.5">
+            <div className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4 md:px-6">
               {activeConversation.messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
                   <EmptyState
@@ -736,23 +688,34 @@ export default function ConversationsPage() {
                   />
                 </div>
               ) : (
-                activeConversation.messages.map((msg, i) => {
-                  const prev = activeConversation.messages[i - 1];
-                  // A thread can span weeks, and without a marker every
-                  // message reads as though it arrived just now — "09:14" says
-                  // nothing about which day.
+                threadItems(activeConversation).map((item, i, items) => {
+                  if (item.type === "event") {
+                    return <EventChip key={`ev-${i}`} event={item.event} time={time} />;
+                  }
+                  const msg = item.msg;
+                  const prevMsg = items.slice(0, i).reverse().find((x) => x.type === "msg");
+                  const prev = items[i - 1];
+                  const next = items[i + 1];
+                  // A thread can span weeks: a marker at each new day.
                   const showDay =
-                    !prev || !isSameDay(prev.createdAt, msg.createdAt);
-                  // Consecutive messages from one side are one turn, so only
-                  // the last of a run gets the pointed corner.
-                  const next = activeConversation.messages[i + 1];
+                    !prevMsg || prevMsg.type !== "msg" || !isSameDay(prevMsg.msg.createdAt, msg.createdAt);
+                  // A run is one side's messages in a row, unbroken by a day or a booking.
+                  const side = (m: { role: string }) => (isUserSide(m.role) ? "client" : m.role);
+                  const firstOfRun = showDay || prev?.type !== "msg" || side(prev.msg) !== side(msg);
                   const showTail =
-                    !next ||
-                    isUserSide(next.role) !== isUserSide(msg.role) ||
-                    !isSameDay(msg.createdAt, next.createdAt);
+                    next?.type !== "msg" ||
+                    side(next.msg) !== side(msg) ||
+                    !isSameDay(msg.createdAt, next.msg.createdAt);
+                  const label = !firstOfRun
+                    ? null
+                    : msg.role === "user"
+                      ? title.split(/\s+/)[0]
+                      : msg.role === "agent"
+                        ? "You"
+                        : activeConversation.site?.botName || "Kikai";
 
                   return (
-                    <div key={msg.id} className={showDay ? "pt-3" : undefined}>
+                    <div key={msg.id} className={cn(showDay && "pt-3", firstOfRun && !showDay && "pt-2.5")}>
                       {showDay && (
                         <div
                           className="flex items-center gap-3 pb-3"
@@ -771,6 +734,9 @@ export default function ConversationsPage() {
                         content={msg.content}
                         createdAt={msg.createdAt}
                         showTail={showTail}
+                        label={label}
+                        photos={activeConversation.photos?.[msg.id]}
+                        onOpenPhoto={setPhotoOpen}
                       />
                     </div>
                   );
@@ -779,128 +745,186 @@ export default function ConversationsPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/*
-              Operator composer. Website only — WhatsApp, Instagram and
-              Facebook replies have to go back out through their own provider
-              APIs rather than just being written to the transcript, so they
-              are a separate piece of work rather than a disabled-looking box
-              that silently does nothing.
-            */}
-            {/*
-              "requested" is gone: visitors can no longer ask for a person, so
-              the only way off "bot" is an operator choosing to take over. The
-              dot makes the state readable without parsing the sentence.
-            */}
-            {selectedChannel === "website" && (
-              <div className="border-t border-border px-3 py-2 flex items-center justify-between gap-3 bg-card">
-                <span className="text-xs text-muted-foreground flex items-center gap-2 min-w-0">
-                  <span
-                    className={cn(
-                      "w-1.5 h-1.5 rounded-full shrink-0",
-                      activeConversation.handoffState === "bot"
-                        ? "bg-primary"
-                        : "bg-tea-green-300"
-                    )}
-                  />
-                  <span className="truncate">
-                    {activeConversation.handoffState === "bot"
-                      ? "The bot is answering this conversation."
-                      : "You are handling this conversation. The bot is paused."}
+            {selectedChannel === "website" ? (
+              <div className="border-t border-border bg-card">
+                <div className="flex items-center justify-between gap-3 px-4 pt-3">
+                  <span className="flex min-w-0 items-center gap-2 text-[13px]">
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        activeConversation.handoffState === "human" ? "bg-violet-600" : "bg-tea-green-300"
+                      )}
+                    />
+                    <span className="truncate">
+                      {activeConversation.handoffState === "human" ? (
+                        <>
+                          <strong>You&apos;re replying.</strong>{" "}
+                          <span className="text-muted-foreground">Kikai is paused in this chat.</span>
+                        </>
+                      ) : (
+                        <>
+                          <strong>Kikai is answering.</strong>{" "}
+                          <span className="text-muted-foreground">Replying pauses it.</span>
+                        </>
+                      )}
+                    </span>
                   </span>
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={switchingHandoff}
-                  onClick={() =>
-                    setHandoff(
-                      activeConversation.handoffState === "bot"
-                        ? "human"
-                        : "bot"
-                    )
-                  }
-                >
-                  {activeConversation.handoffState === "bot"
-                    ? "Take over"
-                    : "Hand back to bot"}
-                </Button>
+                  <Button
+                    variant={activeConversation.handoffState === "human" ? "outline" : "default"}
+                    size="sm"
+                    disabled={switchingHandoff}
+                    onClick={() => setHandoff(activeConversation.handoffState === "human" ? "bot" : "human")}
+                  >
+                    {activeConversation.handoffState === "human" ? "Hand back to Kikai" : "Take over"}
+                  </Button>
+                </div>
+                <form onSubmit={sendReply} className="flex gap-2 p-3 pt-2.5">
+                  <input
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    placeholder={
+                      activeConversation.handoffState === "human"
+                        ? "Write to the visitor"
+                        : "Write to the visitor (this pauses Kikai)"
+                    }
+                    aria-label="Reply to this conversation"
+                    disabled={replying}
+                    className="h-11 flex-1 rounded-xl border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-3 focus:ring-ring/40 disabled:opacity-50"
+                  />
+                  <Button type="submit" className="h-11 px-5" disabled={replying || !reply.trim()}>
+                    {replying ? "Sending…" : "Send"}
+                  </Button>
+                </form>
               </div>
-            )}
-
-            {selectedChannel === "website" && (
-              <form
-                onSubmit={sendReply}
-                className="border-t border-border p-3 flex gap-2 bg-card"
-              >
-                <input
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  placeholder={
-                    activeConversation.handoffState === "bot"
-                      ? "Reply as a team member — this pauses the bot"
-                      : "Reply as a team member…"
-                  }
-                  aria-label="Reply to this conversation"
-                  disabled={replying}
-                  className="flex-1 px-3 py-2 text-sm bg-card border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring focus:ring-3 focus:ring-ring/40 disabled:opacity-50"
-                />
-                <Button type="submit" size="sm" disabled={replying || !reply.trim()}>
-                  {replying ? "Sending..." : "Send"}
-                </Button>
-              </form>
+            ) : (
+              // WhatsApp, Instagram and Messenger replies go back out through
+              // their own provider APIs, which this inbox does not send to yet.
+              <div className="flex items-center gap-2.5 border-t border-border bg-card px-4 py-3.5 text-[13px] text-muted-foreground">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-tea-green-300" aria-hidden />
+                <span>
+                  <strong className="text-foreground">Kikai is answering on {CHANNEL_META[activeConversation.channel]?.label}.</strong>{" "}
+                  Replying from here works on website chats for now.
+                </span>
+              </div>
             )}
           </>
         ) : null}
       </section>
 
-      {/*
-        RIGHT PANEL — only once there is a contact to show.
-
-        It used to render "No contact selected" beside the message pane's
-        "Select a conversation": two empty states, side by side, saying the same
-        thing twice, which made the screen read as half-broken rather than
-        simply idle. One prompt, in the pane the eye goes to first.
-      */}
-      {contactPanelData && (
-        <aside className="hidden xl:flex xl:flex-col xl:w-80 2xl:w-96 border-l border-border bg-card shrink-0">
-          <ContactPanel
-            conversation={contactPanelData}
-            onToggleStar={toggleStar}
-            onResetPersona={isOwner ? resetPersona : undefined}
-          />
+      {/* RIGHT PANEL: the client, once there is a chat open. */}
+      {panel && (
+        <aside className="hidden xl:flex xl:w-[22rem] 2xl:w-96 shrink-0 flex-col border-l border-border bg-card">
+          {panel}
         </aside>
       )}
 
-      {/* Contact panel slide-over */}
-      {contactPanelOpen && contactPanelData && (
+      {/* Below the widest screens: the client over the chat. */}
+      {contactPanelOpen && activeConversation && (
         <div className="xl:hidden fixed inset-0 z-50 flex">
           <button
             className="flex-1 bg-tea-green-100/30 backdrop-blur-[2px]"
             onClick={() => setContactPanelOpen(false)}
-            aria-label="Close contact panel"
+            aria-label="Close client details"
           />
-          <div className="w-80 max-w-[85vw] bg-card border-l border-border flex flex-col animate-in slide-in-from-right">
-            <div className="px-3 py-2.5 border-b border-border flex items-center justify-between shrink-0">
-              <h3 className="font-semibold text-sm">Contact Details</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => setContactPanelOpen(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <ContactPanel
-                conversation={contactPanelData}
-                onToggleStar={toggleStar}
-                onResetPersona={isOwner ? resetPersona : undefined}
-              />
-            </div>
+          <div className="flex w-full max-w-[24rem] flex-col border-l border-border bg-card animate-in slide-in-from-right">
+            <ClientPanel
+              key={activeConversation.id}
+              conversation={activeConversation}
+              state={activeState}
+              title={title}
+              onTakeOver={
+                activeConversation.channel === "website"
+                  ? () => {
+                      setContactPanelOpen(false);
+                      setHandoff("human");
+                    }
+                  : undefined
+              }
+              onChanged={() => {
+                refetchActive();
+                fetchConversations(true);
+              }}
+              onResetPersona={isOwner ? resetPersona : undefined}
+              onClose={() => setContactPanelOpen(false)}
+            />
           </div>
         </div>
       )}
+
+      {/* A photo the client sent, full size. */}
+      <Dialog open={photoOpen !== null} onOpenChange={(open) => !open && setPhotoOpen(null)}>
+        <DialogContent className="max-w-[min(92vw,44rem)] p-2 sm:max-w-[min(92vw,44rem)]">
+          <DialogTitle className="sr-only">Photo from {title}</DialogTitle>
+          {photoOpen && (
+            // eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image
+            <img
+              src={withAsOrg(`/api/chat-photos/${photoOpen}`)}
+              alt={`Photo from ${title}`}
+              className="max-h-[80vh] w-full rounded-lg object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** The name a chat goes by: theirs, their lead's, or how to reach them. */
+function conversationTitle(c: ConversationDetail): string {
+  return (
+    c.contactName ||
+    c.lead?.name ||
+    (c.handle ? `@${c.handle}` : null) ||
+    c.visitorEmail ||
+    c.phoneNumber ||
+    "Unknown"
+  );
+}
+
+type ThreadItem =
+  | { type: "msg"; msg: ConversationDetail["messages"][number] }
+  | { type: "event"; event: ThreadEvent };
+
+/** The messages, with what came of the chat (bookings, messages taken) at the moment it happened. */
+function threadItems(c: ConversationDetail): ThreadItem[] {
+  const events = [...(c.events ?? [])];
+  const out: ThreadItem[] = [];
+  for (const msg of c.messages) {
+    while (events.length && new Date(events[0].at).getTime() < new Date(msg.createdAt).getTime()) {
+      out.push({ type: "event", event: events.shift()! });
+    }
+    out.push({ type: "msg", msg });
+  }
+  for (const event of events) out.push({ type: "event", event });
+  return out;
+}
+
+function EventChip({ event, time }: { event: ThreadEvent; time: (iso: string) => string }) {
+  const booked = event.kind === "booked";
+  const Icon = booked ? CalendarCheck : PhoneCall;
+  return (
+    <div className="flex justify-center py-2.5">
+      <span
+        className={cn(
+          "inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs",
+          booked ? "border-tea-green-600 bg-card text-tea-green-100" : "border-papaya-whip-400 bg-papaya-whip-900 text-light-bronze-200"
+        )}
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="truncate">
+          {booked ? (
+            <>
+              <strong className="font-semibold">Booked</strong> · {event.serviceText},{" "}
+              {format(new Date(event.startsAt), "EEE d MMM")}, {time(event.startsAt)}
+              {event.bookingNumber !== null && ` · #${event.bookingNumber}`}
+            </>
+          ) : (
+            <>
+              <strong className="font-semibold">Message taken</strong> · in Callbacks
+            </>
+          )}
+        </span>
+      </span>
     </div>
   );
 }
