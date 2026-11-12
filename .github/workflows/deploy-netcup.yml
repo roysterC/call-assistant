@@ -244,6 +244,14 @@ jobs:
             # service keeps serving the old build until the switch just
             # before the restart. The previous build is kept as .next-previous
             # (moved back by hand to roll back) until the next deploy.
+            # A build left from the days the box built for itself can outlive
+            # its deploy (a run that timed out ends the SSH session, not the
+            # build) and would go on writing into .next. Stopped first.
+            if pkill -u "$APP_USER" -f 'next build'; then
+              echo "==> Stopped a leftover build on the box"
+              sleep 2
+            fi
+
             echo "==> Unpacking the build"
             chmod 644 "$BUILD_TGZ"
             as_deploy "rm -rf .next-incoming && mkdir .next-incoming && tar -xzf '$BUILD_TGZ' -C .next-incoming --strip-components=1"
