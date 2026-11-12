@@ -106,10 +106,12 @@ any traffic or screenshot from that hostname as showing old code.
 
 `.github/workflows/deploy-netcup.yml` runs on every push to `master`, and can
 be started by hand from the Actions tab. It checks on the runner first
-(`npm ci`, `prisma generate`, typecheck, lint, `npm test`, `npm run build`) and
-only then SSHes to netcup to fetch master, `npm ci`, regenerate the Prisma
-client, sync the schema, rebuild and restart the unit. Deploys are serialised,
-and a restart that does not leave the unit active fails the run.
+(typecheck, lint, `npm test`), then **builds the app on the runner** and copies
+the build (`.next`, without its cache) to the box. On the box it checks out
+exactly the commit that was built, runs `npm ci` if the lockfile changed,
+regenerates the Prisma client, syncs the schema, unpacks the build beside the
+live one, switches to it and restarts the unit. Deploys are serialised, and a
+restart that does not leave the unit active fails the run.
 
 It needs one repository secret:
 
@@ -122,9 +124,21 @@ box from `.env.local` (or `.env`) in the app directory, which is also where
 Next and `prisma.config.ts` look. The production database URL is deliberately
 not duplicated into GitHub.
 
-The build step raises Node's heap to 3072MB. The default heap OOMs
-(`SIGABRT`) on this 3.8GB box, which reads as a mysterious mid-build crash if
-you do not know to look for it.
+**The box never builds.** It used to, and on a 3.8GB box running Postgres,
+the live app and the voice server it stopped fitting: in November 2026 one
+deploy was killed for memory and the next froze until the 30-minute limit,
+with the live site slow while they ran. The settings the build bakes in
+(`NEXT_PUBLIC_*`, `RECEPTIONIST_VOICE_URL` for the security headers,
+`BOOKING_URL`, `AUTH_URL`, and Sentry's `SENTRY_ORG`, `SENTRY_PROJECT`,
+`SENTRY_AUTH_TOKEN` for source maps) are read from the box's `.env` and
+`.env.local` over SSH during the run (`BUILD_ENV_KEYS` in the workflow), so
+the box stays the one place they are set; they are masked in the log and
+never uploaded. Change one of them on the box and redeploy (the Actions
+tab's "Run workflow") for the build to pick it up.
+
+The previous build is kept as `.next-previous` until the next deploy. To roll
+back by hand: `cd /home/deploy/call-assistant && sudo -u deploy bash -c 'mv .next .next-bad && mv .next-previous .next' && systemctl restart call-assistant.service`
+(and `git reset --hard` to the commit before, so code and build match).
 
 ### Schema changes
 
