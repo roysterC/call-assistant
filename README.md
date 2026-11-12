@@ -66,12 +66,31 @@ On netcup:
 - **Public URL** — <https://app.getkikai.com> (Let's Encrypt). The old
   <https://89-58-45-110.nip.io> name is still served, because links already
   sent (rebooking texts, invites) and chat or booking embeds already pasted
-  into salons' websites use it: keep it in nginx.
+  into salons' websites use it: keep it in the Caddyfile.
+- **Web server** — Caddy, in front of the app on port 3000 (responses say
+  `Via: 1.1 Caddy`). It fetches and renews HTTPS certificates itself.
 - **`AUTH_URL`** in the box's `.env` must be `https://app.getkikai.com`. Every
   link the app sends out (invites, password resets, rebooking texts, phone
   alerts) is built from it, whichever name the request came in on.
 - **Not this app** — `getkikai.com` / `www.getkikai.com` is the marketing
-  site, hosted elsewhere. Salons' own pages are `app.getkikai.com/s/<slug>`.
+  site, hosted elsewhere.
+- **Salons' pages** — `book.getkikai.com/<slug>`, the same app on a second
+  name (see "Online booking and the salon's website" below). Setting it up:
+  1. DNS: an `A` record `book.getkikai.com → 89.58.45.110`.
+  2. Caddyfile on the box, beside the `app.getkikai.com` block:
+
+     ```caddy
+     book.getkikai.com {
+         reverse_proxy 127.0.0.1:3000
+     }
+     ```
+
+     then `systemctl reload caddy`. Caddy gets the certificate on the first
+     request; it needs the DNS record in place first.
+  3. `.env` on the box: `BOOKING_URL=https://book.getkikai.com`, then
+     `systemctl restart call-assistant`. Until this is set the app answers
+     the name as if it were the CRM, so do it before telling anyone the
+     address. Check with `curl -I https://book.getkikai.com/<a salon's slug>`.
 - **SSH** — as `root`, with the key at `~/.ssh/netcup-ca`
 
 Note that SSH login is `root` while the checkout belongs to `deploy`. Every
@@ -701,6 +720,15 @@ Switched on by the salon itself in Settings → **Website & online booking**
 (`OrganizationSettings.onlineBookingEnabled`, off by default), shown only
 where the salon uses the diary. Code: `src/lib/online-booking/`.
 
+- **Address.** With `BOOKING_URL` set (production:
+  `https://book.getkikai.com`), salons' pages are `book.getkikai.com/<slug>`
+  and `/<slug>/book`, and `app.getkikai.com/s/<slug>` redirects there
+  (`src/lib/booking-host.ts`, applied in `src/proxy.ts`). That address serves
+  only salon pages and what they need (`/api/book/`, `/embed/book/`,
+  `/book.js`); the CRM, its login and the rest of its API are not served
+  there, and the root layout renders the pages without the CRM's session or
+  chrome. Any other path is read as a salon's slug and shows "not found".
+  Without `BOOKING_URL`, everything below is at `/s/<slug>` on the app.
 - **`/s/<slug>`**: a one-page website built from the salon's settings
   (services and prices, team, opening hours, phone), plus a headline, about
   text, address and brand colour set in that section. A "Next free" button

@@ -48,7 +48,9 @@ text in `.github/workflows/deploy-netcup.yml`; keep it that way.
 `call.doaisystems.co.uk` still resolves to the retired box, so it is not a
 reliable way to check whether a change went out. Use `app.getkikai.com`.
 `getkikai.com` and `www.getkikai.com` are the marketing site, hosted
-elsewhere: not this app.
+elsewhere: not this app. `book.getkikai.com` is this app too, serving only
+salons' public booking pages (`BOOKING_URL`, `src/lib/booking-host.ts`).
+The web server in front of the app is Caddy, not nginx.
 
 Full topology, secrets, and the schema-change policy: see "Deployment" in
 README.md.

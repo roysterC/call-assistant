@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadOnlineSalon, onlineAvailability } from "@/lib/online-booking";
 import { SalonSite } from "@/components/online-booking/salon-site";
+import { salonUrlsHere } from "@/lib/booking-host-server";
 
 /**
  * A salon's own website, built from its CRM settings (src/lib/online-booking).
@@ -16,9 +17,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const online = await loadOnlineSalon(slug);
   if (!online) return { title: "Not found", robots: { index: false } };
   const { salon } = online;
+  const urls = await salonUrlsHere(salon.slug);
   return {
     title: salon.name,
     description: salon.headline ?? salon.about ?? `Book online with ${salon.name}.`,
+    // One address for search engines, the booking one where there is one.
+    ...(urls.absoluteHome ? { alternates: { canonical: urls.absoluteHome } } : {}),
   };
 }
 
@@ -37,5 +41,13 @@ export default async function SalonPage({ params }: Props) {
     if (day) nextFree = { service: first.name, slot: day.slots[0], date: day.date };
   }
 
-  return <SalonSite salon={online.salon} takesBookings={online.takesBookings} nextFree={nextFree} />;
+  const urls = await salonUrlsHere(online.salon.slug);
+  return (
+    <SalonSite
+      salon={online.salon}
+      takesBookings={online.takesBookings}
+      nextFree={nextFree}
+      bookPath={urls.book}
+    />
+  );
 }
