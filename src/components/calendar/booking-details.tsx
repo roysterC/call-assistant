@@ -25,7 +25,7 @@ import { classifyService, type ServiceFamily } from "@/lib/service-colours";
 import { formatMoney } from "@/lib/money";
 import { speakablePhone } from "@/lib/phone";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
-import { minutesTime } from "@/lib/i18n";
+import { minutesTime, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { DialogTitle } from "@/components/ui/dialog";
 import { ClientAvatar, ClientLink, CloseButton, DuplicateFlag, type ClientRow } from "./client-picker";
@@ -503,7 +503,7 @@ export function BookingDetails({
                         on ? "border-foreground bg-foreground text-background" : "border-tea-green-700 bg-card hover:bg-tea-green-900"
                       )}
                     >
-                      {f === "all" ? t("form.allServices") : t(`family.${f}`)}
+                      {f === "all" ? t("form.allServices") : t(`family.${f}` as MessageKey)}
                     </button>
                   );
                 })}
