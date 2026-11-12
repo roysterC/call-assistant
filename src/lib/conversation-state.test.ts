@@ -32,17 +32,33 @@ describe("conversationState", () => {
       lastRole: "assistant",
       lastMessageAt: ago(HOUR),
       booking: { createdAt: ago(HOUR + 2 * MIN), service: "BIAB infill", startsAt: new Date("2026-11-14T14:30:00Z") },
-      callbackAt: ago(HOUR),
+      callback: { createdAt: ago(HOUR), pending: false },
       now: NOW,
     });
     expect(s).toEqual({ group: "done", kind: "booked", booking: { service: "BIAB infill", startsAt: "2026-11-14T14:30:00.000Z" } });
   });
 
-  it("is done with a message taken", () => {
-    expect(conversationState({ lastRole: "assistant", lastMessageAt: ago(HOUR), callbackAt: ago(HOUR + MIN), now: NOW })).toEqual({
-      group: "done",
-      kind: "message",
+  it("needs you while a message Kikai took is waiting for the team", () => {
+    expect(
+      conversationState({ lastRole: "assistant", lastMessageAt: ago(HOUR), callback: { createdAt: ago(HOUR + MIN), pending: true }, now: NOW })
+    ).toEqual({ group: "you", kind: "callback", since: ago(HOUR + MIN).toISOString() });
+  });
+
+  it("still needs you for that message after a booking in the same chat", () => {
+    const s = conversationState({
+      lastRole: "assistant",
+      lastMessageAt: ago(HOUR),
+      booking: { createdAt: ago(HOUR + 2 * MIN), service: "Cut", startsAt: NOW },
+      callback: { createdAt: ago(HOUR), pending: true },
+      now: NOW,
     });
+    expect(s.kind).toBe("callback");
+  });
+
+  it("is done once the message has been dealt with", () => {
+    expect(
+      conversationState({ lastRole: "assistant", lastMessageAt: ago(HOUR), callback: { createdAt: ago(HOUR + MIN), pending: false }, now: NOW })
+    ).toEqual({ group: "done", kind: "message" });
   });
 
   it("ignores a booking or callback from an earlier conversation with the same person", () => {
@@ -50,7 +66,7 @@ describe("conversationState", () => {
       lastRole: "assistant",
       lastMessageAt: ago(HOUR),
       booking: { createdAt: ago(5 * 24 * HOUR), service: "Cut", startsAt: ago(4 * 24 * HOUR) },
-      callbackAt: ago(3 * 24 * HOUR),
+      callback: { createdAt: ago(3 * 24 * HOUR), pending: true },
       now: NOW,
     });
     expect(s).toEqual({ group: "bot", kind: "bot" });
