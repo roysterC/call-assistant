@@ -12,7 +12,6 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
-  PHONE_FULL_SCREEN,
   PHONE_SHEET,
   DialogFooter,
   DialogHeader,
@@ -24,6 +23,7 @@ import { salonDate, wallTimeToUtc } from "@/lib/calendar-layout";
 import { splitServiceText, type SalonService } from "@/lib/salon-config";
 import { ClientPicker, type ClientRow } from "./client-picker";
 import { BookingDetails, type BookingDraft } from "./booking-details";
+import { BOOKING_CARD } from "./new-booking-dialog";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
 import { useT } from "@/components/providers/language-provider";
 import type { Translate } from "@/lib/i18n";
@@ -171,21 +171,10 @@ function EditBooking({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent
-        className={`${picking ? "sm:max-w-3xl" : "sm:max-w-lg"} ${PHONE_FULL_SCREEN}`}
-      >
-        <DialogHeader>
-          <DialogTitle>
-            {picking
-              ? t("edit.whoFor")
-              : a.bookingNumber !== null
-                ? t("edit.changeNumber", { n: a.bookingNumber })
-                : t("edit.change")}
-          </DialogTitle>
-        </DialogHeader>
-
+      <DialogContent showCloseButton={false} className={BOOKING_CARD}>
         {textProblem ? (
-          <div className="grid gap-4">
+          <div className="grid gap-4 p-6">
+            <DialogTitle>{a.bookingNumber !== null ? t("edit.changeNumber", { n: a.bookingNumber }) : t("edit.change")}</DialogTitle>
             <p className="text-sm">{t("edit.savedTextFailed", { reason: textProblem })}</p>
             <div className="flex justify-end">
               <Button onClick={onClose}>{t("new.done")}</Button>
@@ -194,6 +183,9 @@ function EditBooking({
         ) : picking ? (
           <ClientPicker
             timeZone={timeZone}
+            title={t("edit.whoFor")}
+            kicker={a.bookingNumber !== null ? t("edit.changeNumber", { n: a.bookingNumber }) : t("edit.change")}
+            onClose={() => setPicking(false)}
             onPick={(c) => {
               setClient(c);
               setPicking(false);
@@ -213,8 +205,9 @@ function EditBooking({
             editing={{ appointmentId: a.id, lockWhen: locked }}
             saving={saving}
             error={error}
+            kicker={a.bookingNumber !== null ? t("edit.changeNumber", { n: a.bookingNumber }) : t("edit.change")}
             onBack={() => setPicking(true)}
-            onCancel={onClose}
+            onClose={onClose}
             onSubmit={submit}
           />
         )}

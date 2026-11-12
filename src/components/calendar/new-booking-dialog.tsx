@@ -16,23 +16,30 @@
  */
 
 import { useEffect, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  PHONE_FULL_SCREEN,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Check, CalendarDays } from "lucide-react";
+import { Dialog, DialogContent, PHONE_FULL_SCREEN, DialogTitle } from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/api-fetch";
+import { cn } from "@/lib/utils";
+import { minutesTime } from "@/lib/i18n";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
 import { formatMoney } from "@/lib/money";
 import { combineServices, type SalonService } from "@/lib/salon-config";
-import { ClientPicker, type ClientRow } from "./client-picker";
+import { ClientPicker, CloseButton, type ClientRow } from "./client-picker";
 import { BookingDetails, type BookingDraft } from "./booking-details";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
 import { useT } from "@/components/providers/language-provider";
+
+/**
+ * The booking pop-ups' card: 640 wide on a computer with its header and
+ * footer fixed and the middle scrolling; the whole screen on a phone.
+ */
+export const BOOKING_CARD = cn(
+  PHONE_FULL_SCREEN,
+  "flex flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-[640px] md:max-h-[min(860px,calc(100dvh-2rem))]",
+  // The card's own cap (100dvh less a margin) would leave the app's tab bar
+  // showing under a full-screen card on a phone.
+  "max-md:max-h-none max-md:overflow-hidden max-md:rounded-none max-md:pb-0"
+);
 
 export interface BookingSlot {
   stylistName: string;
@@ -98,7 +105,7 @@ export function NewBookingDialog({
   const [step, setStep] = useState<Step>({ kind: "client" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { t, locale } = useT();
+  const { t, locale, clock } = useT();
 
   // Back to the start for every slot, so the last booking's client never
   // rides along into the next one.
@@ -155,32 +162,40 @@ export function NewBookingDialog({
     }
   };
 
-  const title =
-    step.kind === "client"
-      ? slot
-        ? t("new.whoFor", { time: slot.time, stylist: slot.stylistName })
-        : t("new.title")
-      : step.kind === "details"
-        ? t("new.details")
-        : t("new.booked");
+  const slotWhen = slot
+    ? wallTimeToUtc(slot.date, "12:00", timeZone).toLocaleDateString(locale, {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        timeZone,
+      })
+    : "";
+  const slotTime = slot
+    ? minutesTime(Number(slot.time.slice(0, 2)) * 60 + Number(slot.time.slice(3, 5)), clock)
+    : "";
+  const chip = "inline-flex h-[30px] items-center gap-1.5 rounded-full bg-tea-green-800 px-3 text-[13px] font-semibold";
 
   return (
     <Dialog open={Boolean(slot)} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className={`${step.kind === "client" ? "sm:max-w-3xl" : "sm:max-w-lg"} ${PHONE_FULL_SCREEN}`}
+        showCloseButton={false}
+        className={cn(BOOKING_CARD, step.kind === "done" && "sm:max-w-[520px]")}
       >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {step.kind !== "done" && (
-            <p className="text-xs text-muted-foreground">
-              {step.kind === "client" ? t("new.stepClient") : t("new.stepDetails")}
-            </p>
-          )}
-        </DialogHeader>
-
         {slot && step.kind === "client" && (
           <ClientPicker
             timeZone={timeZone}
+            kicker={t("new.kickerClient")}
+            title={t("new.whoFor2")}
+            context={
+              <div className="flex flex-wrap gap-2">
+                <span className={chip}>
+                  <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                  {slotWhen} · {slotTime}
+                </span>
+                <span className={chip}>{t("new.withStylist", { stylist: slot.stylistName })}</span>
+              </div>
+            }
+            onClose={onClose}
             onPick={(client) => {
               setError(null);
               setStep({ kind: "details", client });
@@ -205,42 +220,59 @@ export function NewBookingDialog({
             initial={slot}
             saving={saving}
             error={error}
+            kicker={t("new.kickerDetails")}
             onBack={() => setStep({ kind: "client" })}
+            onClose={onClose}
             onSubmit={(draft) => submit(step.client, draft)}
           />
         )}
 
         {step.kind === "done" && (
-          <div className="grid gap-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-8 w-8 text-tea-green-200 shrink-0" />
-              <div>
-                <div className="text-xs text-muted-foreground">{t("new.bookingNumber")}</div>
-                <div className="text-2xl font-semibold tabular-nums">
-                  {step.booked.bookingNumber !== null
-                    ? `#${step.booked.bookingNumber}`
-                    : "—"}
-                </div>
-              </div>
+          <div className="relative flex flex-col items-center gap-5 overflow-y-auto px-8 pb-7 pt-9 text-center max-md:min-h-full max-md:px-5 max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-md:pt-16">
+            <div className="absolute right-4 top-4">
+              <CloseButton onClose={onClose} />
             </div>
-            <dl className="grid grid-cols-[6rem_1fr] gap-y-2 text-sm">
-              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.client")}</dt>
-              <dd>{step.booked.clientName}</dd>
-              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.when")}</dt>
-              <dd>{step.booked.whenText}</dd>
-              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.stylist")}</dt>
-              <dd>{step.booked.stylistName}</dd>
-              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.services")}</dt>
-              <dd>{step.booked.serviceText}</dd>
-              <dt className="text-muted-foreground text-xs pt-0.5">{t("new.cost")}</dt>
-              <dd className="tabular-nums">
-                {step.booked.priceMinor === null
-                  ? t("form.notPriced")
-                  : formatMoney(step.booked.priceMinor)}
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <Check className="h-8 w-8" strokeWidth={2.6} aria-hidden="true" />
+            </span>
+            <div>
+              <DialogTitle className="font-heading text-[26px] font-extrabold">{t("new.booked")}</DialogTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t("new.bookingNumber")}{" "}
+                <strong className="text-base text-foreground tabular-nums">
+                  {step.booked.bookingNumber !== null ? `#${step.booked.bookingNumber}` : "—"}
+                </strong>
+              </p>
+            </div>
+            <dl className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 rounded-2xl bg-tea-green-900 px-[18px] py-4 text-left text-sm">
+              <dt className="text-muted-foreground">{t("new.client")}</dt>
+              <dd className="font-semibold">{step.booked.clientName}</dd>
+              <dt className="text-muted-foreground">{t("new.when")}</dt>
+              <dd className="font-semibold">{step.booked.whenText}</dd>
+              <dt className="text-muted-foreground">{t("new.stylist")}</dt>
+              <dd className="font-semibold">{step.booked.stylistName}</dd>
+              <dt className="text-muted-foreground">{t("new.services")}</dt>
+              <dd className="font-semibold">{step.booked.serviceText}</dd>
+              <dt className="text-muted-foreground">{t("new.cost")}</dt>
+              <dd className="font-semibold tabular-nums">
+                {step.booked.priceMinor === null ? t("form.notPriced") : formatMoney(step.booked.priceMinor)}
               </dd>
             </dl>
-            <div className="flex justify-end">
-              <Button onClick={onClose}>{t("new.done")}</Button>
+            <div className="mt-auto grid w-full grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setStep({ kind: "client" })}
+                className="h-12 rounded-[14px] border-[1.5px] border-tea-green-700 bg-card text-[15px] font-semibold hover:bg-tea-green-900"
+              >
+                {t("new.bookAnother")}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-12 rounded-[14px] bg-primary text-[15px] font-bold text-primary-foreground hover:bg-tea-green-100"
+              >
+                {t("new.done")}
+              </button>
             </div>
           </div>
         )}

@@ -11,12 +11,13 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Search, UserPlus } from "lucide-react";
+import { Ban, ChevronRight, Footprints, Search, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api-fetch";
-import { DataTable, PersonCell, Pill, type ColumnDef } from "@/components/ui/data-table";
+import { DialogTitle } from "@/components/ui/dialog";
+import { initialsFor } from "@/lib/channels";
 import { speakablePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { useT } from "@/components/providers/language-provider";
@@ -41,9 +42,6 @@ export interface ClientRow {
   nextBooking: string | null;
 }
 
-type SortKey = "firstName" | "lastName" | "phone" | "email";
-type Dir = "asc" | "desc";
-
 const PAGE = 50;
 
 interface ClientPickerProps {
@@ -52,15 +50,17 @@ interface ClientPickerProps {
   /** Absent when a walk-in makes no sense, e.g. changing a booking's client. */
   onWalkIn?: () => void;
   onBlockInstead?: () => void;
+  /** The heading: "Who's it for?". */
+  title: string;
+  /** Over the heading: "New booking · step 1 of 2". */
+  kicker?: string;
+  /** Under the heading: the slot being booked, as chips. */
+  context?: React.ReactNode;
+  onClose: () => void;
 }
 
 function shortDate(iso: string, timeZone: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone,
-  });
+  return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", timeZone });
 }
 
 function shortDateTime(iso: string, timeZone: string, locale: string): string {
@@ -75,22 +75,61 @@ function shortDateTime(iso: string, timeZone: string, locale: string): string {
   });
 }
 
+/** The round close button in the corner of the booking pop-ups. */
+export function CloseButton({ onClose }: { onClose: () => void }) {
+  const { t } = useT();
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label={t("common.close")}
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tea-green-900 text-muted-foreground hover:bg-tea-green-800 hover:text-foreground"
+    >
+      <X className="h-[18px] w-[18px]" />
+    </button>
+  );
+}
+
+/** Initials in a circle: sage for someone who has been in, warm for someone new. */
+export function ClientAvatar({ name, regular, className }: { name: string | null; regular: boolean; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-sm font-bold",
+        regular ? "bg-tea-green-700 text-tea-green-100" : "bg-papaya-whip-600 text-light-bronze-200",
+        className
+      )}
+    >
+      {initialsFor(name, "?")}
+    </span>
+  );
+}
+
+/**
+ * Step one of a desk booking, and of changing a booking's client: one big
+ * search box over a list of people. Before anything is typed the list is
+ * the clients seen most recently, who are most often the ones on the phone.
+ */
 export function ClientPicker({
   timeZone,
   onPick,
   onWalkIn,
   onBlockInstead,
+  title,
+  kicker,
+  context,
+  onClose,
 }: ClientPickerProps) {
   const [mode, setMode] = useState<"search" | "new">("search");
   const [q, setQ] = useState("");
-  const [sort, setSort] = useState<SortKey>("firstName");
-  const [dir, setDir] = useState<Dir>("asc");
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const { t, locale } = useT();
+  const typed = q.trim();
 
   useEffect(() => {
     if (mode === "search") searchRef.current?.focus();
@@ -106,10 +145,12 @@ export function ClientPicker({
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({ q, sort, dir, limit: String(PAGE) });
-        const res = await apiFetch(`/api/clients?${params}`, {
-          signal: controller.signal,
-        });
+        const params = new URLSearchParams(
+          typed
+            ? { q: typed, sort: "firstName", dir: "asc", limit: String(PAGE) }
+            : { sort: "lastVisit", dir: "desc", limit: String(PAGE) }
+        );
+        const res = await apiFetch(`/api/clients?${params}`, { signal: controller.signal });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Search failed");
         setRows(data.clients ?? []);
@@ -125,144 +166,155 @@ export function ClientPicker({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [q, sort, dir, mode, t]);
+  }, [typed, mode, t]);
 
-  const columns: ColumnDef<ClientRow>[] = [
-    {
-      // Sorted by first name; search finds a surname.
-      id: "firstName",
-      header: t("picker.client"),
-      cell: ({ row: { original: c } }) => (
-        <PersonCell
-          name={c.name}
-          badge={<DuplicateFlag client={c} />}
-          detail={c.phone ? speakablePhone(c.phone) : reachedThrough(c, t)}
-        />
-      ),
-    },
-    {
-      id: "email",
-      header: t("picker.email"),
-      meta: {
-        className: "hidden max-w-[14rem] truncate text-muted-foreground md:table-cell",
-        headerClassName: "hidden md:table-cell",
-      },
-      cell: ({ row: { original: c } }) => c.email ?? "",
-    },
-    {
-      id: "lastVisit",
-      header: t("picker.lastVisit"),
-      enableSorting: false,
-      meta: {
-        className: "hidden whitespace-nowrap text-muted-foreground sm:table-cell",
-        headerClassName: "hidden sm:table-cell",
-      },
-      cell: ({ row: { original: c } }) => (c.lastVisit ? shortDate(c.lastVisit, timeZone, locale) : t("picker.newClient")),
-    },
-    {
-      id: "nextBooking",
-      header: t("picker.nextBooking"),
-      enableSorting: false,
-      meta: { className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell" },
-      cell: ({ row: { original: c } }) => (c.nextBooking ? <Pill>{shortDateTime(c.nextBooking, timeZone, locale)}</Pill> : null),
-    },
-  ];
+  const header = (
+    <div className="flex shrink-0 items-start gap-4 px-6 pb-4 pt-6 max-md:px-4 max-md:pt-4">
+      <div className="grid min-w-0 flex-1 gap-2.5">
+        {kicker && (
+          <span className="text-xs font-bold uppercase tracking-[0.07em] text-tea-green-200">{kicker}</span>
+        )}
+        <DialogTitle className="font-heading text-[26px] font-extrabold leading-tight max-md:text-[22px]">
+          {mode === "new" ? t("picker.newClient") : title}
+        </DialogTitle>
+        {context}
+      </div>
+      <CloseButton onClose={onClose} />
+    </div>
+  );
 
   if (mode === "new") {
     return (
-      <NewClientForm
-        initial={q}
-        onCancel={() => setMode("search")}
-        onCreated={onPick}
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {header}
+        <NewClientForm initial={q} onCancel={() => setMode("search")} onCreated={onPick} />
+      </div>
     );
   }
 
+  const hasOptions = Boolean(onWalkIn || onBlockInstead);
+
   return (
-    <div className="grid gap-3 min-w-0">
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
+    <div className="flex min-h-0 flex-1 flex-col">
+      {header}
+      <div className="shrink-0 px-6 max-md:px-4">
+        <label className="relative block">
+          <span className="sr-only">{t("picker.searchLabel")}</span>
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <input
             ref={searchRef}
+            type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("picker.searchPlaceholder")}
-            className="pl-8"
-            aria-label={t("picker.searchLabel")}
+            className="h-[52px] w-full rounded-[14px] border-[1.5px] border-tea-green-500 bg-card pl-12 pr-4 text-base text-foreground placeholder:text-muted-foreground focus:border-tea-green-300 focus:outline-none focus:ring-3 focus:ring-tea-green-800"
           />
-        </div>
-        <Button onClick={() => setMode("new")} className="gap-1.5">
-          <UserPlus className="h-4 w-4" />
-          {t("picker.newClient")}
-        </Button>
+        </label>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={rows}
-        getRowId={(c) => c.id}
-        onRowClick={onPick}
-        rowLabel={(c) => c.name ?? t("picker.rowLabel")}
-        loading={loading}
-        manualSorting
-        sorting={[{ id: sort, desc: dir === "desc" }]}
-        onSortingChange={(update) => {
-          const next = typeof update === "function" ? update([{ id: sort, desc: dir === "desc" }]) : update;
-          const first = next[0];
-          if (!first) {
-            setDir(dir === "asc" ? "desc" : "asc");
-            return;
-          }
-          setSort(first.id as SortKey);
-          setDir(first.desc ? "desc" : "asc");
-        }}
-        scrollClassName="max-h-[50vh] max-md:max-h-[60dvh]"
-        empty={
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-            {q ? (
-              <>
-                {t("picker.noMatch", { q })}{" "}
-                <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => setMode("new")}>
-                  {t("picker.addAsNew")}
-                </button>
-              </>
-            ) : (
-              t("picker.noClients")
-            )}
-          </p>
-        }
-      />
+      <div
+        aria-live="polite"
+        className="shrink-0 px-6 pb-1.5 pt-4 text-xs font-bold uppercase tracking-[0.07em] text-muted-foreground max-md:px-4"
+      >
+        {error ?? (loading ? t("picker.searching") : typed ? t("picker.matches") : t("picker.recent"))}
+      </div>
 
-      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span aria-live="polite">
-          {error ??
-            (loading
-              ? t("picker.searching")
-              : total > rows.length
-                ? t("picker.showing", { shown: rows.length, total })
-                : t(total === 1 ? "picker.countOne" : "picker.countMany", { n: total }))}
-        </span>
-        <span className="flex gap-3 shrink-0">
-          {onBlockInstead && (
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 md:max-h-[380px] max-md:px-1">
+        {rows.map((c) => {
+          const regular = c.visits > 0;
+          const reach = c.phone ? speakablePhone(c.phone) : reachedThrough(c, t);
+          return (
             <button
+              key={c.id}
               type="button"
-              onClick={onBlockInstead}
-              className="underline underline-offset-2 hover:text-foreground"
+              onClick={() => onPick(c)}
+              className="flex w-full items-center gap-3.5 rounded-[14px] px-3 py-2.5 text-left hover:bg-tea-green-900 focus-visible:bg-tea-green-900 focus-visible:outline-none max-md:min-h-16 max-md:rounded-none max-md:border-b max-md:border-tea-green-900"
             >
-              {t("picker.blockInstead")}
+              <ClientAvatar name={c.name} regular={regular} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[15px] font-semibold max-md:text-base">
+                  {c.name ?? t("form.unnamedClient")}
+                  <DuplicateFlag client={c} className="ml-2" />
+                </span>
+                {reach && <span className="block truncate text-[13px] text-muted-foreground">{reach}</span>}
+              </span>
+              <span className="flex shrink-0 flex-col items-end gap-1 max-md:hidden">
+                <span className={cn("text-[12.5px] font-semibold", regular ? "text-tea-green-200" : "text-light-bronze-300")}>
+                  {regular && c.lastVisit
+                    ? t(c.visits === 1 ? "picker.visitLast" : "picker.visitsLast", {
+                        n: c.visits,
+                        date: shortDate(c.lastVisit, timeZone, locale),
+                      })
+                    : t("picker.newClient")}
+                </span>
+                {c.nextBooking && (
+                  <span className="rounded-full bg-papaya-whip-600 px-2 py-0.5 text-[11.5px] font-semibold text-light-bronze-200">
+                    {t("picker.bookedFor", { when: shortDateTime(c.nextBooking, timeZone, locale) })}
+                  </span>
+                )}
+              </span>
+              <ChevronRight className="h-[18px] w-[18px] shrink-0 text-tea-green-400" aria-hidden="true" />
             </button>
+          );
+        })}
+
+        {!loading && !error && rows.length === 0 && (
+          <div className="flex flex-col items-center gap-3 px-3 py-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              {typed ? t("picker.nobodyNamed", { q: typed }) : t("picker.noClients")}
+            </p>
+            {typed && (
+              <Button type="button" onClick={() => setMode("new")} className="h-10 px-4">
+                {t("picker.addNamed", { q: typed })}
+              </Button>
+            )}
+          </div>
+        )}
+        {!loading && total > rows.length && (
+          <p className="px-3 py-2 text-center text-xs text-muted-foreground">
+            {t("picker.more", { n: total - rows.length })}
+          </p>
+        )}
+      </div>
+
+      <div
+        className={cn(
+          "mt-2 grid shrink-0 gap-2.5 border-t border-tea-green-800 px-6 py-4 max-md:px-4 max-md:pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+          hasOptions ? "grid-cols-3 max-md:grid-cols-2" : "grid-cols-1"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setMode("new")}
+          className={cn(
+            "flex h-14 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tea-green-700 bg-card text-sm font-semibold hover:border-tea-green-500 hover:bg-tea-green-900",
+            "max-md:col-span-2 max-md:h-[52px] max-md:border-0 max-md:bg-primary max-md:text-base max-md:font-bold max-md:text-primary-foreground max-md:hover:bg-tea-green-100",
+            !hasOptions && "max-md:col-span-1"
           )}
-          {onWalkIn && (
-            <button
-              type="button"
-              onClick={onWalkIn}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              {t("picker.walkIn")}
-            </button>
-          )}
-        </span>
+        >
+          <UserPlus className="h-[18px] w-[18px]" aria-hidden="true" />
+          {t("picker.newClient")}
+        </button>
+        {onWalkIn && (
+          <button
+            type="button"
+            onClick={onWalkIn}
+            className="flex h-14 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tea-green-700 bg-card text-sm font-semibold hover:border-tea-green-500 hover:bg-tea-green-900 max-md:h-12"
+          >
+            <Footprints className="h-[18px] w-[18px] text-tea-green-200" aria-hidden="true" />
+            {t("picker.walkInShort")}
+          </button>
+        )}
+        {onBlockInstead && (
+          <button
+            type="button"
+            onClick={onBlockInstead}
+            className="flex h-14 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed border-tea-green-700 bg-card text-sm font-semibold text-muted-foreground hover:border-tea-green-500 hover:text-foreground max-md:h-12"
+          >
+            <Ban className="h-[18px] w-[18px]" aria-hidden="true" />
+            {t("picker.blockShort")}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -338,7 +390,7 @@ function NewClientForm({
 
   return (
     <form
-      className="grid gap-3"
+      className="grid min-h-0 content-start gap-3 overflow-y-auto px-6 pb-6 max-md:px-4 max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))]"
       onSubmit={(e) => {
         e.preventDefault();
         if (firstName.trim() && !saving) save();
@@ -407,10 +459,10 @@ function NewClientForm({
       )}
 
       <div className="flex justify-between gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
+        <Button type="button" variant="ghost" className="h-12" onClick={onCancel} disabled={saving}>
           {t("picker.backToSearch")}
         </Button>
-        <Button type="submit" disabled={!firstName.trim() || saving}>
+        <Button type="submit" className="h-12 px-6 text-[15px] font-bold" disabled={!firstName.trim() || saving}>
           {saving ? t("common.saving") : t("picker.saveContinue")}
         </Button>
       </div>
