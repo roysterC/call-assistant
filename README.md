@@ -725,7 +725,8 @@ where the salon uses the diary. Code: `src/lib/online-booking/`.
   and `/<slug>/book`, and `app.getkikai.com/s/<slug>` redirects there
   (`src/lib/booking-host.ts`, applied in `src/proxy.ts`). That address serves
   only salon pages and what they need (`/api/book/`, `/embed/book/`,
-  `/book.js`); the CRM, its login and the rest of its API are not served
+  `/book.js`, and the salon's chat: `/widget.js`, `/embed`,
+  `/api/website-chat/`); the CRM, its login and the rest of its API are not served
   there, and the root layout renders the pages without the CRM's session or
   chrome. Any other path is read as a salon's slug and shows "not found".
   Without `BOOKING_URL`, everything below is at `/s/<slug>` on the app.
@@ -745,6 +746,15 @@ where the salon uses the diary. Code: `src/lib/online-booking/`.
   only `/embed/*` may be framed by other sites (`src/lib/security-headers.ts`).
   The host page gets a `kikai:booked` event (and a `dataLayer` entry) per
   booking.
+- **A chat on the salon's page.** Where website chat is on for the salon
+  (`chatbotEnabled`, which Kikai switches on), the same section offers
+  "Chat on your page": one of the salon's chats from **Websites**
+  (`siteChatSiteId`, `src/lib/salon-chat.ts`) is put on `/s/<slug>` with
+  `public/widget.js`, its button reading "Book online" and opening the
+  booking flow (`data-cta-url`, `data-cta-label`), and sitting above the
+  page's own "Book" bar on a phone (`data-mobile-bottom`). The booking
+  address serves `/widget.js`, `/embed` and `/api/website-chat/` for it.
+  Its chats show in Conversations like any website chat.
 
 Nothing about what may be booked is decided here. Free times come from the
 same provider and slot engine as the phone, and a booking goes through

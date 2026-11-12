@@ -51,6 +51,62 @@ export function checkCORS(
   return false;
 }
 
+/** "https://salon.co.uk" from anything a browser reports as an origin or a page address; null if it is neither. */
+function originOf(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a chat request may be answered, by where the chat is shown.
+ *
+ * The widget is an iframe of this app's own /embed page, so the browser's
+ * Origin on its requests is this app, never the salon's website, and
+ * checking that against a site's allowed origins refused every message.
+ * For the widget's own requests the page that matters is the one it sits
+ * in, which the embed page reports (hostOrigin: the browser's own record of
+ * the parent page). This app's own pages (a salon's page on the booking
+ * address, the Websites editor's preview) are always allowed: only this
+ * app puts a chat on them. A request from anywhere else is checked by its
+ * Origin as before.
+ */
+export function chatOriginAllowed(p: {
+  /** The request's Origin header. */
+  origin: string | null;
+  /** The page the widget is on, as the embed page reported it. */
+  hostOrigin: unknown;
+  /** The hostname this request was made to. */
+  requestHost: string;
+  /** Other hostnames this app answers on (its main and booking addresses). */
+  ownHosts: string[];
+  allowedOrigins: string[];
+}): boolean {
+  const origin = originOf(p.origin);
+  if (!origin) return false;
+  const own = (o: string) => {
+    const host = new URL(o).hostname;
+    return host === p.requestHost || p.ownHosts.includes(host);
+  };
+  if (!own(origin)) return checkCORS(origin, p.allowedOrigins);
+  if (p.allowedOrigins.length === 0 || p.allowedOrigins.includes("*")) return true;
+  const host = originOf(p.hostOrigin);
+  if (!host) return false;
+  return own(host) || checkCORS(host, p.allowedOrigins);
+}
+
+/** The hostnames this app answers on besides the one a request came to: AUTH_URL's and BOOKING_URL's. */
+export function ownChatHosts(env: Record<string, string | undefined> = process.env): string[] {
+  return [env.AUTH_URL, env.BOOKING_URL, env.NEXTAUTH_URL]
+    .map((u) => originOf(u))
+    .filter((o): o is string => o !== null)
+    .map((o) => new URL(o).hostname);
+}
+
 export function corsHeaders(origin: string | null): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": origin || "*",

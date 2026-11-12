@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkCORS, corsHeaders, isValidEmail, isValidSessionId } from "@/lib/website-chat";
+import { chatOriginAllowed, corsHeaders, isValidEmail, isValidSessionId, ownChatHosts } from "@/lib/website-chat";
+import { requestHostname } from "@/lib/booking-host";
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 import { upsertWebsiteLead } from "@/lib/website-lead";
 
@@ -63,7 +64,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!checkCORS(origin, site.allowedOrigins as string[])) {
+    if (
+      !chatOriginAllowed({
+        origin,
+        hostOrigin: body?.hostOrigin,
+        requestHost: requestHostname(req.headers, req.nextUrl.host),
+        ownHosts: ownChatHosts(),
+        allowedOrigins: site.allowedOrigins as string[],
+      })
+    ) {
       return NextResponse.json(
         { error: "Origin not allowed" },
         { status: 403, headers }

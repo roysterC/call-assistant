@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { loadOnlineSalon, onlineAvailability } from "@/lib/online-booking";
 import { SalonSite } from "@/components/online-booking/salon-site";
 import { salonUrlsHere } from "@/lib/booking-host-server";
+import { salonChatSiteId } from "@/lib/salon-chat";
 
 /**
  * A salon's own website, built from its CRM settings (src/lib/online-booking).
@@ -41,13 +42,32 @@ export default async function SalonPage({ params }: Props) {
     if (day) nextFree = { service: first.name, slot: day.slots[0], date: day.date };
   }
 
-  const urls = await salonUrlsHere(online.salon.slug);
+  const [urls, chat] = await Promise.all([
+    salonUrlsHere(online.salon.slug),
+    salonChatSiteId(online.organizationId),
+  ]);
   return (
-    <SalonSite
-      salon={online.salon}
-      takesBookings={online.takesBookings}
-      nextFree={nextFree}
-      bookPath={urls.book}
-    />
+    <>
+      <SalonSite
+        salon={online.salon}
+        takesBookings={online.takesBookings}
+        nextFree={nextFree}
+        bookPath={urls.book}
+      />
+      {/*
+        The salon's chat (src/lib/salon-chat.ts), from this same address so
+        the booking address serves it too. Its button opens booking; on a
+        phone it sits above the page's own "Book" bar.
+      */}
+      {chat && (
+        <script
+          src="/widget.js"
+          async
+          data-site-id={chat}
+          {...(online.takesBookings ? { "data-cta-url": urls.book, "data-cta-label": "Book online" } : {})}
+          data-mobile-bottom={online.takesBookings ? "104" : undefined}
+        />
+      )}
+    </>
   );
 }

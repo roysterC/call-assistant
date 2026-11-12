@@ -17,6 +17,7 @@ import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { featureFlags, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
+import { checkSiteChat } from "@/lib/salon-chat";
 import { bookingOrigin } from "@/lib/booking-host";
 import {
   parseBrandColor,
@@ -88,6 +89,8 @@ const WRITABLE_FIELDS = [
   "onlineMaxDaysAhead",
   "onlineStylistChoice",
   "onlineHiddenServices",
+  // The salon's chat on its page (src/lib/salon-chat.ts): checked in PUT.
+  "siteChatSiteId",
 ] as const;
 
 /**
@@ -265,6 +268,15 @@ export async function PUT(req: NextRequest) {
         );
       }
       data.contactPhone = contact.value;
+    }
+
+    // Only one of this salon's own chats, from Websites.
+    if ("siteChatSiteId" in data) {
+      const chat = await checkSiteChat(ctx.organizationId, data.siteChatSiteId);
+      if (chat === "invalid") {
+        return NextResponse.json({ error: "That chat isn't one of this salon's." }, { status: 400 });
+      }
+      data.siteChatSiteId = chat;
     }
 
     // Strip super-admin-only fields unless the caller is a super-admin.

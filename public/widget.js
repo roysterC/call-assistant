@@ -27,7 +27,28 @@
 
   var origin = new URL(script.src).origin;
   var iframe = document.createElement("iframe");
-  iframe.src = origin + "/embed?siteId=" + encodeURIComponent(siteId);
+  // Optional: the chat's button for this page. A salon's page on Kikai sets
+  // it to the salon's online booking (data-cta-url, data-cta-label).
+  var ctaParams = "";
+  var ctaUrlAttr = script.getAttribute("data-cta-url");
+  if (ctaUrlAttr) {
+    try {
+      var ctaResolved = new URL(ctaUrlAttr, window.location.href);
+      if (ctaResolved.protocol === "https:" || ctaResolved.protocol === "http:") {
+        ctaParams = "&ctaUrl=" + encodeURIComponent(ctaResolved.href);
+        var ctaLabelAttr = script.getAttribute("data-cta-label");
+        if (ctaLabelAttr) ctaParams += "&ctaLabel=" + encodeURIComponent(ctaLabelAttr);
+      }
+    } catch {
+      ctaParams = "";
+    }
+  }
+  iframe.src = origin + "/embed?siteId=" + encodeURIComponent(siteId) + ctaParams;
+
+  // Optional: how high to sit on a phone, over a bar the page keeps at the
+  // bottom of the screen (a salon's page has its "Book" button there).
+  var mobileBottom = parseInt(script.getAttribute("data-mobile-bottom") || "", 10);
+  if (!(mobileBottom >= 0)) mobileBottom = null;
   iframe.title = "Chat";
   iframe.setAttribute("allow", "clipboard-write");
 
@@ -88,7 +109,7 @@
       // pinning it to both.
       var off = placement.offset;
       s.top = "auto";
-      s.bottom = off + "px";
+      s.bottom = (mobileBottom !== null && isMobile() ? mobileBottom : off) + "px";
       if (placement.position === "left") {
         s.left = off + "px";
         s.right = "auto";
