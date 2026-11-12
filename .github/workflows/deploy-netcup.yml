@@ -105,9 +105,18 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -t ed25519,rsa -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          printf 'Host box\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  ServerAliveInterval 30\n' \
+          # accept-new rather than ssh-keyscan: keyscan gives up after five
+          # seconds, which a box short of memory can take to answer, and
+          # the first deploy on it failed that way. Generous timeouts too.
+          printf 'Host box\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  StrictHostKeyChecking accept-new\n  ConnectTimeout 60\n  ConnectionAttempts 3\n  ServerAliveInterval 30\n  ServerAliveCountMax 10\n' \
             "$DEPLOY_HOST" "$DEPLOY_USER" > ~/.ssh/config
+
+      # Before anything else: a build left running by a deploy from when the
+      # box built for itself (a timed-out run ends the SSH session, not the
+      # build) holds the box's memory, slowing the live site and every step
+      # after this one. Its deploy is over, so it is stopped.
+      - name: Stop any build left running on the box
+        run: ssh box "pkill -u '$APP_USER' -f 'next build' && echo 'stopped a leftover build' || echo 'none running'"
 
       # Only the keys in BUILD_ENV_KEYS, each file kept apart so .env.local
       # still wins over .env as it does on the box. Values are masked in the
