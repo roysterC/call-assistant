@@ -20,10 +20,8 @@ import { useT } from "@/components/providers/language-provider";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  Phone,
   MessageCircle,
   Globe,
-  Users,
   CalendarClock,
   Contact,
   Settings,
@@ -54,7 +52,6 @@ import { useMe } from "@/components/providers/me-provider";
 import { OPEN_ASSISTANT } from "@/components/voice-booking/assistant";
 import type { MessageKey } from "@/lib/i18n";
 import {
-  DASHBOARD,
   NAV_PAGES,
   isNavShown,
   splitNav,
@@ -65,12 +62,9 @@ import {
 
 /** Each page's icon; the pages themselves are in src/lib/navigation.ts. */
 const ICONS: Record<string, typeof LayoutDashboard> = {
-  [DASHBOARD]: LayoutDashboard,
-  "/calls": Phone,
   "/conversations": MessageCircle,
   "/websites": Globe,
   "/insights": TrendingUp,
-  "/leads": Users,
   "/calendar": CalendarDays,
   "/clients": Contact,
   "/sales": Receipt,

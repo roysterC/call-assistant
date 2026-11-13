@@ -20,12 +20,9 @@ export const shell = {
   ],
 
   // --- Menu -------------------------------------------------------------------------------
-  "nav.dashboard": ["Dashboard", "Tổng quan"],
-  "nav.calls": ["Call History", "Lịch sử cuộc gọi"],
   "nav.conversations": ["Conversations", "Hội thoại"],
   "nav.websites": ["Websites", "Trang web"],
   "nav.insights": ["Insights", "Phân tích"],
-  "nav.leads": ["Leads", "Khách tiềm năng"],
   "nav.diary": ["Diary", "Lịch hẹn"],
   "nav.clients": ["Clients", "Khách hàng"],
   "nav.sales": ["Sales", "Doanh thu"],

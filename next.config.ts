@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
   // ships: the deploy waits on the `checks` job, whose `npm run typecheck`
   // fails it on any type error.
   typescript: { ignoreBuildErrors: true },
+  // Pages that were removed. Old bookmarks, home-screen icons and links in
+  // past emails land on the start page instead of a 404 (and keep ?asOrg).
+  async redirects() {
+    return ["/dashboard", "/calls", "/leads"].map((source) => ({
+      source,
+      destination: "/start",
+      permanent: false,
+    }));
+  },
   async headers() {
     return securityHeaders({
       voiceUrl: process.env.RECEPTIONIST_VOICE_URL,

@@ -2,14 +2,13 @@
 
 /**
  * Where signing in lands: sends a signed-in user to their organisation's start
- * page (Settings → Start page; the diary for a salon, the dashboard for
- * everyone else). The site's root is the login page, not this.
+ * page (Settings → Start page; the diary for a salon, see resolveStartPage). The site's root is the login page, not this.
  */
 
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api-fetch";
-import { DASHBOARD } from "@/lib/navigation";
+import { DIARY } from "@/lib/navigation";
 
 export default function Home() {
   // useSearchParams needs a Suspense boundary for the page to prerender.
@@ -37,10 +36,10 @@ function GoToStartPage() {
     apiFetch("/api/settings")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (live) router.replace(`${d?.startPage ?? DASHBOARD}${suffix}`);
+        if (live) router.replace(`${d?.startPage ?? DIARY}${suffix}`);
       })
       .catch(() => {
-        if (live) router.replace(`${DASHBOARD}${suffix}`);
+        if (live) router.replace(`${DIARY}${suffix}`);
       });
     return () => {
       live = false;

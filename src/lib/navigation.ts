@@ -60,8 +60,6 @@ export interface NavPage {
   labelKey: MessageKey;
   /** Shown when ANY of these is switched on for the organisation. */
   requires?: FeatureKey | FeatureKey[];
-  /** Hidden when this is switched on: another page has taken its place. */
-  hiddenWhen?: FeatureKey;
   /**
    * Owners (admin) and super-admins only, never members: the salon's
    * websites and chatbot. The API refuses members too; this keeps the menu
@@ -70,35 +68,24 @@ export interface NavPage {
   ownerOnly?: boolean;
   /** Kikai's own super-admins only: a tool for us, not for the salon. */
   superAdminOnly?: boolean;
-  /**
-   * Shown to super-admins whatever the organisation's features say. Leads,
-   * because our own organisation has the receptionist switched on (which
-   * hides Leads for a salon) and still needs the prospects the in-person
-   * funnel (/meet) brings in.
-   */
-  superAdminAlways?: boolean;
 }
 
-export const DASHBOARD = "/dashboard";
 /** Sends a signed-in user on to their organisation's start page. */
 export const START = "/start";
 export const DIARY = "/calendar";
+const CONVERSATIONS = "/conversations";
+const SETTINGS = "/settings";
 
 /** In the order the sidebar lists them, before the start page is moved up. */
 export const NAV_PAGES: NavPage[] = [
-  { href: DASHBOARD, label: "Dashboard", labelKey: "nav.dashboard" },
-  { href: "/calls", label: "Call History", labelKey: "nav.calls", requires: "voice" },
   {
-    href: "/conversations",
+    href: CONVERSATIONS,
     label: "Conversations", labelKey: "nav.conversations",
     requires: ["chatbot", "whatsapp", "instagram", "facebook"],
   },
   { href: "/websites", label: "Websites", labelKey: "nav.websites", requires: "chatbot", ownerOnly: true },
   // The receptionist's figures for a salon, the chatbot's for a website.
   { href: "/insights", label: "Insights", labelKey: "nav.insights", requires: ["voice", "chatbot"], ownerOnly: true },
-  // A salon's people are its clients, with their bookings and patch tests;
-  // Leads stays for an organisation without the diary (chat, WhatsApp).
-  { href: "/leads", label: "Leads", labelKey: "nav.leads", hiddenWhen: "diary", superAdminAlways: true },
   { href: DIARY, label: "Diary", labelKey: "nav.diary", requires: "diary" },
   { href: "/clients", label: "Clients", labelKey: "nav.clients", requires: "diary" },
   { href: "/sales", label: "Sales", labelKey: "nav.sales", requires: "diary" },
@@ -107,7 +94,7 @@ export const NAV_PAGES: NavPage[] = [
   // Where we test the receptionist before a salon hears it. It books into the
   // real diary and spends on the AI and voice accounts, so it is ours.
   { href: "/receptionist", label: "Receptionist lab", labelKey: "nav.receptionist", requires: "voice", superAdminOnly: true },
-  { href: "/settings", label: "Settings", labelKey: "nav.settings" },
+  { href: SETTINGS, label: "Settings", labelKey: "nav.settings" },
 ];
 
 /**
@@ -116,7 +103,7 @@ export const NAV_PAGES: NavPage[] = [
  * the automatic page instead (see resolveStartPage).
  */
 export const START_PAGE_CHOICES = NAV_PAGES.filter(
-  (p) => p.href !== "/settings" && !p.superAdminOnly
+  (p) => p.href !== SETTINGS && !p.superAdminOnly
 ).map((p) => p.href);
 
 export function isStartPageChoice(href: unknown): href is string {
@@ -132,18 +119,15 @@ export function isNavAllowed(page: NavPage, role: string | null | undefined): bo
 
 /** Whether the organisation's switched-on features show this page. */
 export function isNavVisible(page: NavPage, flags: FeatureFlags | null): boolean {
-  if (!page.requires && !page.hiddenWhen) return true;
+  if (!page.requires) return true;
   // Flags not loaded yet: show nothing feature-gated, rather than flash it.
   if (!flags) return false;
-  if (page.hiddenWhen && flags[`${page.hiddenWhen}Enabled` as keyof FeatureFlags]) return false;
-  if (!page.requires) return true;
   const reqs = Array.isArray(page.requires) ? page.requires : [page.requires];
   return reqs.some((r) => flags[`${r}Enabled` as keyof FeatureFlags]);
 }
 
 /** Whether the menu lists the page for this login in this organisation. */
 export function isNavShown(page: NavPage, flags: FeatureFlags | null, role: string | null | undefined): boolean {
-  if (page.superAdminAlways && role === "superAdmin") return true;
   return isNavVisible(page, flags) && isNavAllowed(page, role);
 }
 
@@ -152,7 +136,8 @@ export function isNavShown(page: NavPage, flags: FeatureFlags | null, role: stri
  *
  * Its own choice (Settings → Start page), when that page is one it can see.
  * Otherwise the diary for a salon whose diary takes bookings — that is where
- * a salon's day happens — and the dashboard for everyone else.
+ * a salon's day happens — Conversations for an organisation with no diary,
+ * and Settings for a salon whose diary is not set up yet.
  */
 export function resolveStartPage(input: {
   chosen: string | null | undefined;
@@ -169,7 +154,10 @@ export function resolveStartPage(input: {
   };
   if (isStartPageChoice(input.chosen) && visible(input.chosen)) return input.chosen;
   if (input.diaryTakesBookings && visible(DIARY)) return DIARY;
-  return DASHBOARD;
+  // A diary that cannot take bookings yet has no services or team: Settings
+  // is where those are added. Without one, the inbox is the day's work.
+  if (!visible(DIARY) && visible(CONVERSATIONS)) return CONVERSATIONS;
+  return SETTINGS;
 }
 
 /** The sidebar's order: the start page first, the rest as listed. */
@@ -182,9 +170,7 @@ export function orderForStartPage<T extends { href: string }>(pages: T[], startP
  * What a salon owner opens all day: always at the top of the menu, full size.
  * Everything else is one tap further, under More.
  */
-export const PRIMARY_PAGES = [DIARY, "/conversations"];
-
-const SETTINGS = "/settings";
+export const PRIMARY_PAGES = [DIARY, CONVERSATIONS];
 
 /**
  * The menu in three parts: the pages up front (Diary, then Conversations, and

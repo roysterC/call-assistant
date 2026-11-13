@@ -265,7 +265,7 @@ export async function bookOnline(
     };
   }
 
-  return explainRefusal(online, service, stylist, start, newClient, result, call);
+  return explainRefusal(online, service, stylist, start, newClient, result, call, now);
 }
 
 /** A refusal from handleBookAppointment, said to the client. */
@@ -276,7 +276,8 @@ async function explainRefusal(
   start: Date,
   newClient: boolean,
   r: Record<string, unknown>,
-  call: string
+  call: string,
+  now: Date
 ): Promise<OnlineBookingResult> {
   if (r.badPhone) {
     return { ok: false, status: 400, code: "phone", error: "That mobile number does not look right." };
@@ -297,7 +298,7 @@ async function explainRefusal(
   const taken = r.conflict === true || r.notAvailable === true;
   const tooSoon = r.tooSoon === true;
   if (taken || tooSoon) {
-    const alternatives = await alternativesNear(online, service, stylist, start, newClient).catch(() => []);
+    const alternatives = await alternativesNear(online, service, stylist, start, newClient, now).catch(() => []);
     return tooSoon && r.patchTestRequired
       ? {
           ok: false,
@@ -331,9 +332,12 @@ async function alternativesNear(
   service: PublicService,
   stylist: string | null,
   start: Date,
-  newClient: boolean
+  newClient: boolean,
+  now: Date
 ): Promise<PublicSlot[]> {
   const day = zonedDateString(start, online.salon.timeZone);
-  const res = await onlineAvailability(online, { service: service.name, stylist, from: day, newClient });
+  // The same clock as the booking it stands in for, or a test (or a request
+  // that crosses midnight) asks about one day and is answered about another.
+  const res = await onlineAvailability(online, { service: service.name, stylist, from: day, newClient }, now);
   return res.ok ? nearestSlots(res.days, start.toISOString()) : [];
 }

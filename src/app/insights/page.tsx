@@ -12,6 +12,7 @@ import { TableTabs } from "@/components/ui/data-table";
 import { ReceptionistInsights } from "@/components/insights/receptionist-insights";
 import { ChatInsights } from "@/components/insights/chat-insights";
 import { apiFetch } from "@/lib/api-fetch";
+import { UsageSummary } from "@/components/usage/usage-summary";
 
 const RANGES = [7, 30, 90];
 
@@ -71,6 +72,10 @@ export default function InsightsPage() {
           />
         </div>
       )}
+
+      {/* The month's calls and what they came to, which used to sit on Call
+          history: the one place a salon sees what the receptionist costs. */}
+      {features && view === "receptionist" && <UsageSummary />}
 
       {features && (view === "receptionist" ? <ReceptionistInsights days={days} /> : <ChatInsights days={days} />)}
     </div>
