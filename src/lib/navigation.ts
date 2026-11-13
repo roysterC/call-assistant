@@ -83,7 +83,9 @@ export const NAV_PAGES: NavPage[] = [
     label: "Conversations", labelKey: "nav.conversations",
     requires: ["chatbot", "whatsapp", "instagram", "facebook"],
   },
-  { href: "/websites", label: "Websites", labelKey: "nav.websites", requires: "chatbot", ownerOnly: true },
+  // A salon sets its chat up in Settings › Online booking (PageChat). The
+  // full editor stays for us, for a chat on a website of its own.
+  { href: "/websites", label: "Websites", labelKey: "nav.websites", requires: "chatbot", superAdminOnly: true },
   // The receptionist's figures for a salon, the chatbot's for a website.
   { href: "/insights", label: "Insights", labelKey: "nav.insights", requires: ["voice", "chatbot"], ownerOnly: true },
   { href: DIARY, label: "Diary", labelKey: "nav.diary", requires: "diary" },

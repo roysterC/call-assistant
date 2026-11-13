@@ -9,13 +9,12 @@
  * reads them from the rest of Settings (src/lib/online-booking).
  */
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { AlertTriangle, Check, Copy, ExternalLink, MessageCircle } from "lucide-react";
-import { apiFetch } from "@/lib/api-fetch";
+import { useState } from "react";
+import { AlertTriangle, Check, Copy, ExternalLink } from "lucide-react";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { PageChat } from "@/components/settings/page-chat";
 import type { SalonService } from "@/lib/salon-config";
 import {
   DEFAULT_BRAND_COLOR,
@@ -34,7 +33,7 @@ export interface OnlineSettings {
   onlineMaxDaysAhead: number;
   onlineStylistChoice: boolean;
   onlineHiddenServices: string[];
-  /** A chat from Websites shown on the page (src/lib/salon-chat.ts), or null. */
+  /** The chat shown on the page (src/lib/salon-chat.ts, set up in PageChat), or null. */
   siteChatSiteId: string | null;
 }
 
@@ -117,6 +116,7 @@ export function OnlineBookingSettings({
   notReady,
   staff,
   chatbotEnabled,
+  businessName,
 }: {
   value: OnlineSettings;
   onChange: (v: OnlineSettings) => void;
@@ -133,6 +133,8 @@ export function OnlineBookingSettings({
   staff: string;
   /** Website chat is on for the salon (Kikai switches it on), so a chat can go on the page. */
   chatbotEnabled: boolean;
+  /** The salon's name, which its chat answers as to begin with. */
+  businessName: string;
 }) {
   const set = (patch: Partial<OnlineSettings>) => onChange({ ...value, ...patch });
   const here = typeof window !== "undefined" ? window.location.origin : "";
@@ -221,6 +223,10 @@ export function OnlineBookingSettings({
             chatbotEnabled={chatbotEnabled}
             value={value.siteChatSiteId}
             onChange={(siteChatSiteId) => set({ siteChatSiteId })}
+            businessName={businessName}
+            brand={brand}
+            pageUrl={site}
+            headline={value.siteHeadline}
           />
         )}
 
@@ -358,119 +364,5 @@ export function OnlineBookingSettings({
         </div>
       </div>
     </SettingsSection>
-  );
-}
-
-interface ChatSite {
-  id: string;
-  siteId: string;
-  name: string;
-  enabled: boolean;
-}
-
-/**
- * A chat from Websites on the salon's page: it answers clients' questions
- * from Settings (services, prices, hours, FAQ) and its button opens booking.
- */
-function PageChat({
-  chatbotEnabled,
-  value,
-  onChange,
-}: {
-  chatbotEnabled: boolean;
-  value: string | null;
-  onChange: (siteId: string | null) => void;
-}) {
-  const [sites, setSites] = useState<ChatSite[] | null>(null);
-
-  useEffect(() => {
-    if (!chatbotEnabled) return;
-    let live = true;
-    apiFetch("/api/websites")
-      .then((r) => (r.ok ? r.json() : { sites: [] }))
-      .then((d) => {
-        if (live) setSites(Array.isArray(d.sites) ? d.sites : []);
-      })
-      .catch(() => live && setSites([]));
-    return () => {
-      live = false;
-    };
-  }, [chatbotEnabled]);
-
-  const chosen = sites?.find((s) => s.siteId === value) ?? null;
-
-  return (
-    <div className="space-y-3 rounded-xl border p-4">
-      <div className="flex items-start gap-2.5">
-        <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <div className="min-w-0 flex-1 space-y-1">
-          <h3 className="text-sm font-semibold">Chat on your page</h3>
-          <p className="text-xs text-muted-foreground">
-            A chat in the corner of your page answers clients&rsquo; questions from your services, prices and hours,
-            and its &ldquo;Book online&rdquo; button opens your booking. Chats show in Conversations.
-          </p>
-        </div>
-      </div>
-
-      {!chatbotEnabled ? (
-        <p className="text-xs text-muted-foreground">
-          Website chat isn&rsquo;t on for your salon yet. Ask Kikai to switch it on.
-        </p>
-      ) : sites === null ? null : sites.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          Set up a chat in{" "}
-          <Link href="/websites/new" className="font-medium text-primary underline underline-offset-2">
-            Websites
-          </Link>{" "}
-          first, then choose it here.
-        </p>
-      ) : (
-        <div className="space-y-2.5">
-          <label className="flex items-start gap-2.5">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-primary"
-              checked={value !== null}
-              onChange={(e) =>
-                onChange(e.target.checked ? (sites.find((s) => s.enabled) ?? sites[0]).siteId : null)
-              }
-            />
-            <span className="font-medium">Show a chat on your page</span>
-          </label>
-          {value !== null && sites.length > 1 && (
-            <label className="block space-y-1.5 pl-6">
-              <span className="text-xs font-medium text-muted-foreground">Which chat</span>
-              <select
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className="h-9 rounded-lg border bg-background px-2 text-sm"
-              >
-                {sites.map((s) => (
-                  <option key={s.siteId} value={s.siteId}>
-                    {s.name}
-                    {s.enabled ? "" : " (switched off)"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {chosen && (
-            <p className="pl-6 text-xs text-muted-foreground">
-              {!chosen.enabled && (
-                <span className="mb-1 flex items-start gap-1.5 text-papaya-whip-100">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  This chat is switched off in Websites, so it won&rsquo;t show until it&rsquo;s back on.
-                </span>
-              )}
-              Change how it looks and talks in{" "}
-              <Link href={`/websites/${chosen.id}`} className="font-medium text-primary underline underline-offset-2">
-                Websites › {chosen.name}
-              </Link>
-              .
-            </p>
-          )}
-        </div>
-      )}
-    </div>
   );
 }
