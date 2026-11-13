@@ -22,7 +22,6 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   // Each person's own pop-ups and "new" colours.
   "booking-notices": { GET: "members", POST: "members" },
   callbacks: { GET: "members", PATCH: "members" },
-  calls: { GET: "members" },
   // Deleting a client cannot be undone and changes past takings.
   "clients/[id]": { GET: "members", PATCH: "members", DELETE: "owner" },
   clients: { GET: "members", POST: "members" },
@@ -33,10 +32,8 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "conversations/[id]": { GET: "members" },
   "conversations/[id]/star": { PATCH: "members" },
   conversations: { GET: "members" },
-  dashboard: { GET: "members" },
   // The owner's question of the receptionist: is it earning its keep?
   "insights/receptionist": { GET: "owner" },
-  leads: { GET: "members" },
   me: { GET: "members", PUT: "members" },
   // Staff see the salon is being set up; only the owner sets it up.
   onboarding: { GET: "members", PUT: "owner", POST: "owner" },
@@ -54,7 +51,6 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "receptionist/voice-token": { POST: "owner" },
   sales: { GET: "members" },
   settings: { GET: "members", PUT: "owner" },
-  stats: { GET: "members" },
   "time-blocks/[id]": { PATCH: "members", DELETE: "members" },
   "time-blocks": { GET: "members", POST: "members" },
   usage: { GET: "owner" },

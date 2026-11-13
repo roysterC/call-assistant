@@ -18,7 +18,7 @@ import { StylistsEditor } from "@/components/settings/stylists-editor";
 import { ServicesImport } from "@/components/settings/services-import";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
-import { DASHBOARD, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
+import { DIARY, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 import { useMe } from "@/components/providers/me-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
@@ -125,7 +125,7 @@ export default function SettingsPage() {
   // is how a contact number that never saved went unnoticed.
   const { notify } = useDialogs();
   // What "automatic" currently means for this organisation, to show beside it.
-  const [automaticStart, setAutomaticStart] = useState<string>(DASHBOARD);
+  const [automaticStart, setAutomaticStart] = useState<string>(DIARY);
   // The salon's web address, /s/<slug>.
   const [slug, setSlug] = useState<string | null>(null);
   // Where salons' pages are given out, when that is not this app's address.

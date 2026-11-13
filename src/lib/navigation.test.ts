@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  DASHBOARD,
   DIARY,
   NAV_PAGES,
   isNavAllowed,
@@ -50,8 +49,7 @@ describe("the diary", () => {
     for (const href of [DIARY, "/clients", "/sales", "/callbacks"]) {
       expect(isNavVisible(NAV_PAGES.find((p) => p.href === href)!, instagramOnly)).toBe(true);
     }
-    expect(isNavVisible(NAV_PAGES.find((p) => p.href === "/calls")!, instagramOnly)).toBe(false);
-    expect(isNavVisible(NAV_PAGES.find((p) => p.href === "/leads")!, instagramOnly)).toBe(false);
+    expect(isNavVisible(NAV_PAGES.find((p) => p.href === "/insights")!, instagramOnly)).toBe(false);
   });
 
   it("and to a salon that only wants the diary", () => {
@@ -59,34 +57,17 @@ describe("the diary", () => {
   });
 });
 
-describe("a salon's people", () => {
-  const leads = NAV_PAGES.find((p) => p.href === "/leads")!;
-  const clients = NAV_PAGES.find((p) => p.href === "/clients")!;
-
-  it("still show Leads to us, for the prospects met in person", () => {
-    expect(isNavShown(leads, salon, "superAdmin")).toBe(true);
-    expect(isNavShown(leads, salon, "admin")).toBe(false);
-    expect(isNavShown(leads, salon, "member")).toBe(false);
-    expect(isNavShown(leads, chatOnly, "member")).toBe(true);
+describe("removed pages", () => {
+  it("are gone from the menu: Dashboard, Call history, Leads and Appointments", () => {
+    for (const href of ["/dashboard", "/calls", "/leads", "/appointments"]) {
+      expect(NAV_PAGES.some((p) => p.href === href)).toBe(false);
+      expect(isStartPageChoice(href)).toBe(false);
+    }
   });
 
-  it("are its Clients, not Leads, once it has the diary", () => {
-    expect(isNavVisible(clients, salon)).toBe(true);
-    expect(isNavVisible(leads, salon)).toBe(false);
-  });
-
-  it("stay Leads for an organisation without it", () => {
-    expect(isNavVisible(leads, chatOnly)).toBe(true);
-    expect(isNavVisible(clients, chatOnly)).toBe(false);
-  });
-
-  it("show neither until the features have loaded", () => {
-    expect(isNavVisible(leads, null)).toBe(false);
-    expect(isNavVisible(clients, null)).toBe(false);
-  });
-
-  it("no longer include Appointments, which the diary shows", () => {
-    expect(NAV_PAGES.some((p) => p.href === "/appointments")).toBe(false);
+  it("leave a salon's people on Clients", () => {
+    const clients = NAV_PAGES.find((p) => p.href === "/clients")!;
+    expect(isNavShown(clients, salon, "member")).toBe(true);
   });
 });
 
@@ -95,13 +76,21 @@ describe("resolveStartPage", () => {
     expect(resolveStartPage({ chosen: null, flags: salon, diaryTakesBookings: true })).toBe(DIARY);
   });
 
-  it("opens anyone else on the dashboard: no diary set up, or no diary at all", () => {
-    expect(resolveStartPage({ chosen: null, flags: salon, diaryTakesBookings: false })).toBe(DASHBOARD);
-    expect(resolveStartPage({ chosen: null, flags: chatOnly, diaryTakesBookings: true })).toBe(DASHBOARD);
+  it("opens a salon whose diary is not set up yet on Settings, where services and team are added", () => {
+    expect(resolveStartPage({ chosen: null, flags: salon, diaryTakesBookings: false })).toBe("/settings");
+  });
+
+  it("opens an organisation without the diary on Conversations", () => {
+    expect(resolveStartPage({ chosen: null, flags: chatOnly, diaryTakesBookings: true })).toBe("/conversations");
+  });
+
+  it("opens on Settings when there is nothing else to show", () => {
+    const nothing = { ...chatOnly, chatbotEnabled: false };
+    expect(resolveStartPage({ chosen: null, flags: nothing, diaryTakesBookings: false })).toBe("/settings");
   });
 
   it("honours the organisation's own choice over the automatic one", () => {
-    expect(resolveStartPage({ chosen: DASHBOARD, flags: salon, diaryTakesBookings: true })).toBe(DASHBOARD);
+    expect(resolveStartPage({ chosen: "/sales", flags: salon, diaryTakesBookings: true })).toBe("/sales");
     expect(resolveStartPage({ chosen: "/conversations", flags: chatOnly, diaryTakesBookings: false })).toBe(
       "/conversations"
     );
@@ -109,9 +98,11 @@ describe("resolveStartPage", () => {
 
   it("ignores a choice the organisation can no longer see, or that is not a page", () => {
     // Diary chosen, then voice switched off: the diary is not in its menu.
-    expect(resolveStartPage({ chosen: DIARY, flags: chatOnly, diaryTakesBookings: false })).toBe(DASHBOARD);
+    expect(resolveStartPage({ chosen: DIARY, flags: chatOnly, diaryTakesBookings: false })).toBe("/conversations");
     expect(resolveStartPage({ chosen: "/nowhere", flags: salon, diaryTakesBookings: true })).toBe(DIARY);
-    expect(resolveStartPage({ chosen: "/settings", flags: salon, diaryTakesBookings: false })).toBe(DASHBOARD);
+    // A start page saved before its page was removed.
+    expect(resolveStartPage({ chosen: "/dashboard", flags: salon, diaryTakesBookings: true })).toBe(DIARY);
+    expect(resolveStartPage({ chosen: "/calls", flags: salon, diaryTakesBookings: true })).toBe(DIARY);
   });
 });
 
@@ -140,7 +131,7 @@ describe("owner-only pages", () => {
   it("are a start page for the owner, but a member opens on the automatic page", () => {
     const chosen = "/insights";
     expect(resolveStartPage({ chosen, flags: chatOnly, diaryTakesBookings: false })).toBe(chosen);
-    expect(resolveStartPage({ chosen, flags: chatOnly, diaryTakesBookings: false, isOwner: false })).toBe(DASHBOARD);
+    expect(resolveStartPage({ chosen, flags: chatOnly, diaryTakesBookings: false, isOwner: false })).toBe("/conversations");
   });
 });
 
@@ -158,13 +149,13 @@ describe("the sidebar's order", () => {
 
 describe("the menu's three parts", () => {
   const page = (href: string) => ({ href });
-  const salon = ["/dashboard", "/calls", "/conversations", "/calendar", "/clients", "/sales", "/callbacks", "/settings"].map(page);
+  const salon = ["/conversations", "/insights", "/calendar", "/clients", "/sales", "/callbacks", "/settings"].map(page);
   const hrefs = (ps: { href: string }[]) => ps.map((p) => p.href);
 
   it("puts Diary and Conversations up front, Settings apart, the rest under More in order", () => {
     const { primary, more, settings } = splitNav(salon, null);
     expect(hrefs(primary)).toEqual([DIARY, "/conversations"]);
-    expect(hrefs(more)).toEqual(["/dashboard", "/calls", "/clients", "/sales", "/callbacks"]);
+    expect(hrefs(more)).toEqual(["/insights", "/clients", "/sales", "/callbacks"]);
     expect(settings?.href).toBe("/settings");
   });
 
@@ -175,9 +166,9 @@ describe("the menu's three parts", () => {
   });
 
   it("never leaves an organisation with nothing up front", () => {
-    const chatless = ["/dashboard", "/leads", "/settings"].map(page);
-    expect(hrefs(splitNav(chatless, null).primary)).toEqual(["/dashboard"]);
-    expect(hrefs(splitNav(chatless, null).more)).toEqual(["/leads"]);
+    const chatless = ["/websites", "/insights", "/settings"].map(page);
+    expect(hrefs(splitNav(chatless, null).primary)).toEqual(["/websites"]);
+    expect(hrefs(splitNav(chatless, null).more)).toEqual(["/insights"]);
   });
 
   it("does not offer Settings as a start page up front", () => {
@@ -188,7 +179,7 @@ describe("the menu's three parts", () => {
 describe("start page choices", () => {
   it("are the working pages, not Settings or the lab", () => {
     expect(isStartPageChoice(DIARY)).toBe(true);
-    expect(isStartPageChoice(DASHBOARD)).toBe(true);
+    expect(isStartPageChoice("/clients")).toBe(true);
     expect(isStartPageChoice("/settings")).toBe(false);
     expect(isStartPageChoice("/receptionist")).toBe(false);
     // Super-admin only, so never a salon's start page.
