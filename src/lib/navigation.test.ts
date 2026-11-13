@@ -111,13 +111,17 @@ describe("owner-only pages", () => {
   const insights = NAV_PAGES.find((p) => p.href === "/insights")!;
   const diary = NAV_PAGES.find((p) => p.href === DIARY)!;
 
-  it("keep the websites and chatbot pages from members", () => {
-    for (const page of [websites, insights]) {
-      expect(isNavAllowed(page, "member")).toBe(false);
-      expect(isNavAllowed(page, "admin")).toBe(true);
-      expect(isNavAllowed(page, "superAdmin")).toBe(true);
-    }
+  it("keep Insights from members", () => {
+    expect(isNavAllowed(insights, "member")).toBe(false);
+    expect(isNavAllowed(insights, "admin")).toBe(true);
+    expect(isNavAllowed(insights, "superAdmin")).toBe(true);
     expect(isNavAllowed(diary, "member")).toBe(true);
+  });
+
+  it("leave Websites to us: a salon sets its chat up in Settings", () => {
+    expect(isNavAllowed(websites, "admin")).toBe(false);
+    expect(isNavAllowed(websites, "superAdmin")).toBe(true);
+    expect(isStartPageChoice("/websites")).toBe(false);
   });
 
   it("show Insights to a salon with the receptionist but no chatbot", () => {

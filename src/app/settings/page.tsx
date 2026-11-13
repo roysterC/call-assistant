@@ -4,7 +4,6 @@ import { hasDiary } from "@/lib/navigation";
 import { bookingReadiness, missingText } from "@/lib/booking/readiness";
 import { useTradeWords } from "@/components/providers/language-provider";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Users, MessageCircle, Phone, Camera, Send, Globe } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
@@ -585,6 +584,7 @@ export default function SettingsPage() {
               notReady={readiness.ready ? null : missingText(readiness)}
               staff={w("stylist")}
               chatbotEnabled={settings.chatbotEnabled}
+              businessName={settings.businessName}
             />
           )}
 
@@ -609,10 +609,10 @@ export default function SettingsPage() {
                         <p className="text-xs text-muted-foreground">
                           {c.name === "Website chat" ? (
                             <>
-                              A chat on your website or your booking page, set up in{" "}
-                              <Link href="/websites" className="font-medium underline underline-offset-2">
-                                Websites
-                              </Link>
+                              A chat on your booking page or your own website, set up in{" "}
+                              <a href="#online" className="font-medium underline underline-offset-2">
+                                Online booking
+                              </a>
                             </>
                           ) : (
                             c.does
