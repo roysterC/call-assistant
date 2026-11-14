@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { clientIp, loginThrottle } from "@/lib/login-throttle";
 import { isTenantRole } from "@/lib/tenant-roles";
+import { authLogger } from "@/lib/auth-logger";
 
 /** Too many wrong passwords; the login page says so instead of "invalid". */
 class TooManyAttempts extends CredentialsSignin {
@@ -99,4 +100,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   pages: { signIn: "/login" },
+  // A wrong password is a warning, not a Sentry error (auth-logger.ts).
+  logger: authLogger,
 });
