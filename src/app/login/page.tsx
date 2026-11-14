@@ -60,7 +60,9 @@ function LoginForm() {
       return;
     }
 
-    router.push(callbackUrl);
+    // Replaced, not pushed: a back swipe from the diary should not land on
+    // the sign-in form again.
+    router.replace(callbackUrl);
     router.refresh();
   }
 
@@ -132,7 +134,7 @@ function LoginForm() {
                 type="button"
                 variant="outline"
                 className="mt-2 w-full"
-                onClick={() => router.push(callbackUrl)}
+                onClick={() => router.replace(callbackUrl)}
               >
                 {t("login.continueAs", { name: signedInAs })}
               </Button>
