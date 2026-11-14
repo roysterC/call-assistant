@@ -228,8 +228,6 @@ export interface ChatPromptExtras {
   canBook?: boolean;
   /** The salon's number, offered when the chat cannot book. */
   contactPhone?: string | null;
-  /** The newest of the earlier messages carried over, when they are from a while ago. */
-  earlierFrom?: Date | null;
   /** Someone from the salon has written in this conversation. */
   colleague?: boolean;
 }
@@ -284,12 +282,6 @@ export function buildChatSystem(
       : canBook
         ? `They are messaging on ${CHAT_LABEL[channel]}, which gives no phone number: ask for a mobile number for the confirmation text before you book.`
         : `They are messaging on ${CHAT_LABEL[channel]}, which gives no phone number: ask for a mobile number if the salon is to ring them.`,
-    ...(extras.earlierFrom
-      ? [
-          ``,
-          `The messages before their latest are from ${dayLabel(extras.earlierFrom, cfg.timeZone)}. What they wanted then may have changed: confirm the service and the day rather than assume them.`,
-        ]
-      : []),
     ...(extras.colleague
       ? [
           ``,
@@ -302,11 +294,6 @@ export function buildChatSystem(
     { type: "text", text: stable, cache_control: { type: "ephemeral" } },
     { type: "text", text: context },
   ];
-}
-
-/** "Monday 9 November", in the salon's time zone. */
-function dayLabel(at: Date, timeZone: string): string {
-  return at.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone });
 }
 
 /**

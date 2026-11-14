@@ -46,10 +46,8 @@ export const CHAT_SESSION_IDLE_MS = 12 * 60 * 60_000;
 /** Saved history is cut to about this many entries, from the front. */
 const KEEP_MESSAGES = 60;
 
-/** Starting afresh, at most this many of the conversation's own messages are carried over… */
+/** Starting afresh, at most this many of the conversation's own messages are carried over. */
 export const CARRY_MESSAGES = 10;
-/** …and none older than this. */
-export const CARRY_DAYS = 14;
 
 /** What is kept between messages besides the history. */
 interface SavedState {
@@ -300,7 +298,6 @@ async function reply(turn: ChatTurn): Promise<string> {
       {
         canBook,
         contactPhone: settings?.contactPhone ?? null,
-        earlierFrom: carried?.olderThanASession ?? null,
         colleague,
       }
     ),
@@ -366,21 +363,28 @@ export function fromMessages(rows: ChatRow[]): Anthropic.MessageParam[] {
 }
 
 /**
- * Starting afresh: the last CARRY_MESSAGES of the past CARRY_DAYS, so a chat
- * from months ago is not read again, and how old they are, when they are
- * from before a quiet spell, for the receptionist to check rather than assume.
+ * Starting afresh: only what was said within a session's span (the last
+ * CARRY_MESSAGES of the past CHAT_SESSION_IDLE_MS), so a message after a
+ * quiet spell is a new conversation. Older messages used to come back, up to
+ * a fortnight of them, with a note to check rather than assume; the
+ * receptionist still picked up where it left off, offering a time found days
+ * before that had since gone. What is kept is a recent reply from the salon's
+ * staff, which their message may well be answering.
  */
-export function carryOver(
-  rows: ChatRow[],
-  now: Date
-): { messages: Anthropic.MessageParam[]; olderThanASession: Date | null } {
-  const since = now.getTime() - CARRY_DAYS * 86_400_000;
-  const recent = rows.filter((r) => !r.createdAt || r.createdAt.getTime() >= since).slice(-CARRY_MESSAGES);
-  const messages = fromMessages(recent);
-  const newest = recent.reduce<Date | null>((d, r) => (r.createdAt && (!d || r.createdAt > d) ? r.createdAt : d), null);
-  const old = messages.length > 0 && newest !== null && now.getTime() - newest.getTime() > CHAT_SESSION_IDLE_MS;
-  return { messages, olderThanASession: old ? newest : null };
+export function carryOver(rows: ChatRow[], now: Date): { messages: Anthropic.MessageParam[] } {
+  const since = now.getTime() - CHAT_SESSION_IDLE_MS;
+  const recent = rows
+    .filter((r) => r.content?.trim() && (!r.createdAt || r.createdAt.getTime() >= since))
+    .slice(-CARRY_MESSAGES);
+  // A history starts with their words; one that starts with the salon's
+  // (a staff reply after the quiet spell) says what came before is left out,
+  // rather than losing the reply they are likely answering.
+  const lead: ChatRow[] = recent.length > 0 && recent[0].role !== "user" ? [{ role: "user", content: EARLIER_LEFT_OUT }] : [];
+  return { messages: fromMessages([...lead, ...recent]) };
 }
+
+/** Stands in for their messages from before a quiet spell. */
+export const EARLIER_LEFT_OUT = "[Their earlier messages, from before a quiet spell, are left out.]";
 
 /** The saved history with what the salon's staff wrote since, as the salon's side of it. */
 export function withColleague(history: Anthropic.MessageParam[], staff: ChatRow[]): Anthropic.MessageParam[] {
