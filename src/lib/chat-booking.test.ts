@@ -220,6 +220,22 @@ describe("booking by message", () => {
     expect(call[1]).not.toHaveProperty("callerNumber");
   });
 
+  it("on the website chat, tells it the number they gave, books with no photos, and says where it was booked", async () => {
+    const contacts: Array<{ phone: string; name: string | null }> = [];
+    const web = { channel: "website" as const, phone: null, conversationId: "w1", onContact: (c: { phone: string; name: string | null }) => contacts.push(c) };
+    const withNumber = { tool: { name: "prepare_booking", input: { ...prepare.tool.input, customerPhone: "07700 900123" } } };
+    await bookingChatReply(turn("BIAB Thursday 3, Roy, 07700 900123", model([withNumber, readBack]).client, web));
+    expect(contacts).toEqual([{ phone: "07700 900123", name: "Roy" }]);
+    photos.attachPhotosToBooking.mockClear();
+    await bookingChatReply(turn("yes please", model([book, booked]).client, web));
+    expect(actions.runAction).toHaveBeenCalledWith(
+      "book_appointment",
+      "org",
+      expect.objectContaining({ notes: "Booked by website chat message." })
+    );
+    expect(photos.attachPhotosToBooking).not.toHaveBeenCalled();
+  });
+
   it("starts again from the messages after a quiet spell, with nothing read back", async () => {
     await bookingChatReply(turn("BIAB Thursday 3, Roy", model([prepare, readBack]).client));
     const later = new Date(Date.now() + CHAT_SESSION_IDLE_MS + 60_000);
@@ -499,6 +515,12 @@ describe("the instructions for a chat", () => {
     expect(stable.text).toContain('No openers: no "Great.", "Got');
     // The phone keeps its own, spoken, rules.
     expect(buildSystem(cfg, "Polished", null, now, null)[0].text).not.toContain("reads like a form");
+  });
+
+  it("ask the website chat for a number, naming it as the salon's own", () => {
+    const [stable, context] = buildChatSystem(cfg, "Polished", "website", null, now, null);
+    expect(stable.text).toContain("You answer the salon's website chat messages for Polished");
+    expect(context.text).toContain("messaging on the salon's website chat, which gives no phone number");
   });
 
   it("ask Instagram and Messenger for a number", () => {

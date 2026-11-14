@@ -115,6 +115,12 @@ export interface ChatTurn {
   mode?: ChatMode;
   /** Filled in as the reply goes, so a failure after a booking still says it is booked. */
   outcome?: ChatOutcome;
+  /**
+   * Told the number (and name) they gave, each time a tool is given one: for
+   * a channel with no number of its own (the website chat) to find the
+   * client the booking or message was filed under.
+   */
+  onContact?: (contact: { phone: string; name: string | null }) => void;
 }
 
 export interface ChatOutcome {
@@ -267,7 +273,8 @@ async function reply(turn: ChatTurn): Promise<string> {
           };
         }
         // Any photo they sent (the design they want) goes with the booking.
-        if (n?.success && typeof n.bookingNumber === "number") {
+        // The website chat takes none.
+        if (n?.success && typeof n.bookingNumber === "number" && channel !== "website") {
           await attachPhotosToBooking({ organizationId, channel, conversationId, bookingNumber: n.bookingNumber, now }).catch(
             (err) => console.error("[CHAT BOOKING] photos not linked to the booking:", err)
           );
@@ -300,6 +307,12 @@ async function reply(turn: ChatTurn): Promise<string> {
     tools,
     execute: async (name, said) => {
       const input = clientTypes.apply(name, said);
+      if (turn.onContact && typeof input.customerPhone === "string" && input.customerPhone.trim()) {
+        turn.onContact({
+          phone: input.customerPhone.trim(),
+          name: typeof input.customerName === "string" && input.customerName.trim() ? input.customerName.trim() : null,
+        });
+      }
       if (name === "prepare_booking" && allowed.has(name)) return readBack.prepare(input);
       if (name === "book_appointment" && allowed.has(name)) return readBack.book(input);
       if (!allowed.has(name) || !isActionName(name)) return { error: `There is no tool called ${name}.` };

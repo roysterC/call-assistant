@@ -137,12 +137,13 @@ export function buildSystem(
   ];
 }
 
-export type ChatChannel = "whatsapp" | "instagram" | "facebook";
+export type ChatChannel = "whatsapp" | "instagram" | "facebook" | "website";
 
 const CHAT_LABEL: Record<ChatChannel, string> = {
   whatsapp: "WhatsApp",
   instagram: "Instagram",
   facebook: "Facebook Messenger",
+  website: "the salon's website chat",
 };
 
 /** SPOKEN_STYLE, for messages: read on a phone screen, not heard. */

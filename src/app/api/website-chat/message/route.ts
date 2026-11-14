@@ -19,6 +19,8 @@ import {
 import { rateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 import { requestHostname } from "@/lib/booking-host";
 import { upsertWebsiteLead } from "@/lib/website-lead";
+import { chatReply, splitPending } from "@/lib/chat-booking";
+import { normalisePhone } from "@/lib/phone";
 
 export async function OPTIONS(req: NextRequest) {
   return new Response(null, {
@@ -211,8 +213,38 @@ export async function POST(req: NextRequest) {
           : {}),
       },
       orderBy: { createdAt: "asc" },
-      select: { role: true, content: true },
+      select: { role: true, content: true, createdAt: true },
     });
+
+    // A salon's chat is its receptionist, the same as on WhatsApp, Instagram
+    // and Messenger (chat-booking.ts): it answers from Settings, takes a
+    // message or a call back, and books where booking by message is on. The
+    // plain chat below is left for a business without the diary.
+    const { earlier, pending } = splitPending(history);
+    let contact: { phone: string; name: string | null } | null = null;
+    const receptionist = await chatReply({
+      organizationId: site.organizationId,
+      channel: "website",
+      conversationId: conversation.id,
+      earlier,
+      text: pending.map((m) => m.content).join("\n"),
+      phone: null,
+      resetAt: conversation.personaResetAt,
+      onContact: (c) => {
+        contact = c;
+      },
+    });
+    if (receptionist !== null) {
+      await linkClient(site.organizationId, conversation, contact);
+      await prisma.websiteMessage.create({
+        data: { conversationId: conversation.id, role: "assistant", content: receptionist },
+      });
+      await prisma.websiteConversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date(), isRead: false },
+      });
+      return streamReply(receptionist, headers);
+    }
 
     // Maps operator ("agent") rows onto the roles the API accepts, and returns
     // the system prompt that makes sense of them. Shared with the WhatsApp and
@@ -302,6 +334,40 @@ export async function POST(req: NextRequest) {
       JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
     );
+  }
+}
+
+/**
+ * The website gives no number, so a visitor is nobody's client until they
+ * give one: when the receptionist was given a number (to book, or for the
+ * salon to ring), the conversation is filed under the client with it, the
+ * same client a phone call or a WhatsApp from that number reaches.
+ */
+async function linkClient(
+  organizationId: string,
+  conversation: { id: string; leadId: string | null; visitorName: string | null },
+  contact: { phone: string; name: string | null } | null
+): Promise<void> {
+  if (!contact) return;
+  const parsed = normalisePhone(contact.phone);
+  if (!parsed.ok) return;
+  try {
+    const lead = await prisma.lead.findUnique({
+      where: { organizationId_phone: { organizationId, phone: parsed.e164 } },
+      select: { id: true },
+    });
+    await prisma.websiteConversation.update({
+      where: { id: conversation.id },
+      data: {
+        visitorPhone: parsed.e164,
+        ...(contact.name && !conversation.visitorName ? { visitorName: contact.name } : {}),
+        // A conversation already filed under someone keeps them.
+        ...(lead && !conversation.leadId ? { leadId: lead.id } : {}),
+      },
+    });
+  } catch (err) {
+    // The reply has been written: a client not linked is no reason to lose it.
+    console.error("[WEBSITE CHAT] could not file the conversation under its client:", err);
   }
 }
 
