@@ -245,3 +245,28 @@
     background: transparent;
   }
 }
+
+/*
+ * Feeling like an app on a phone. Outside @layer on purpose: unlayered rules
+ * win over Tailwind's utilities, which every text box sets its size with.
+ */
+
+/* iPhones zoom the whole page into any text box whose writing is under 16px,
+   and leave it zoomed. 16px stops that; pinch-zoom still works. iOS only
+   (-webkit-touch-callout exists nowhere else): Android and computers do not
+   zoom, so they keep the smaller writing. No text box here is bigger than
+   16px, so nothing shrinks. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* No pull-to-refresh reloading the page, and no sideways overscroll that
+   Chrome on Android turns into "go back". The diary refreshes itself. */
+html,
+body {
+  overscroll-behavior: none;
+}

@@ -542,6 +542,16 @@ const TAB_LABEL: Record<string, MessageKey> = { "/conversations": "nav.chats" };
  * the bottom where a thumb reaches them. More opens the rest just above the
  * bar, so the bar itself stays put and tapping More again closes it.
  */
+/**
+ * The phone's tab bar and its More sheet.
+ *
+ * Moving between sections replaces the page rather than adding to the
+ * history, as a native app's tabs do: a back swipe (which iOS gives even a
+ * home-screen web app, and which no page can switch off) then has no
+ * section to go back to, while back within a section, from a client to the
+ * list, still works. Phones only: on a computer the browser's Back button
+ * between sections is expected.
+ */
 function MobileTabs({ model }: { model: NavModel }) {
   const { t } = useT();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -590,6 +600,7 @@ function MobileTabs({ model }: { model: NavModel }) {
                   <Link
                     key={item.href}
                     href={item.href + navSuffix}
+                    replace
                     aria-current={active ? "page" : undefined}
                     aria-label={badge ? t("nav.waiting", { label, n: badge }) : undefined}
                     className="flex flex-col items-center gap-1.5 rounded-2xl px-1 py-2.5 text-center text-xs font-medium text-foreground"
@@ -720,7 +731,7 @@ function Tab({
   );
   const className = "flex h-16 flex-1 flex-col items-center justify-center gap-1 min-w-0";
   return href ? (
-    <Link href={href} aria-current={active ? "page" : undefined} className={className}>
+    <Link href={href} replace aria-current={active ? "page" : undefined} className={className}>
       {body}
     </Link>
   ) : (
