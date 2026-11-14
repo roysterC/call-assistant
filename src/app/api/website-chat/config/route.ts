@@ -32,7 +32,6 @@ export async function GET(req: NextRequest) {
         name: true,
         botName: true,
         greeting: true,
-        quickReplies: true,
         brandColor: true,
         enabled: true,
         launcherPosition: true,

@@ -19,11 +19,15 @@ const nextConfig: NextConfig = {
   // Pages that were removed. Old bookmarks, home-screen icons and links in
   // past emails land on the start page instead of a 404 (and keep ?asOrg).
   async redirects() {
-    return ["/dashboard", "/calls", "/leads"].map((source) => ({
-      source,
-      destination: "/start",
-      permanent: false,
-    }));
+    return [
+      ...["/dashboard", "/calls", "/leads"].map((source) => ({
+        source,
+        destination: "/start",
+        permanent: false,
+      })),
+      // A salon's chat is set up in Settings › Online booking now.
+      { source: "/websites/:path*", destination: "/settings#online", permanent: false },
+    ];
   },
   async headers() {
     return securityHeaders({

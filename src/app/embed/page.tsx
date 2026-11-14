@@ -11,7 +11,6 @@ interface Config {
   name: string;
   botName: string;
   greeting: string | null;
-  quickReplies: string[];
   brandColor: string;
   enabled: boolean;
   launcherPosition: "left" | "right";
@@ -932,32 +931,6 @@ function EmbedContent() {
       >
         {announcement}
       </div>
-
-      {/* Quick replies (only show before any user message) */}
-      {config.quickReplies &&
-        config.quickReplies.length > 0 &&
-        !messages.some((m) => m.role === "user") && (
-          <div
-            className="px-3 pb-2 flex flex-wrap gap-1.5"
-            style={{ backgroundColor: pal.msgArea }}
-          >
-            {config.quickReplies.map((reply, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(reply)}
-                disabled={sending}
-                className="text-xs px-2.5 py-1.5 rounded-full border hover:opacity-80 transition-opacity disabled:opacity-50"
-                style={{
-                  backgroundColor: pal.chipBg,
-                  color: pal.chipText,
-                  borderColor: pal.chipBorder,
-                }}
-              >
-                {reply}
-              </button>
-            ))}
-          </div>
-        )}
 
       {/*
         Route to the client's own booking or contact form.
