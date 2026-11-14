@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   MessageCircle,
-  Globe,
   CalendarClock,
   Contact,
   Settings,
@@ -63,7 +62,6 @@ import {
 /** Each page's icon; the pages themselves are in src/lib/navigation.ts. */
 const ICONS: Record<string, typeof LayoutDashboard> = {
   "/conversations": MessageCircle,
-  "/websites": Globe,
   "/insights": TrendingUp,
   "/calendar": CalendarDays,
   "/clients": Contact,

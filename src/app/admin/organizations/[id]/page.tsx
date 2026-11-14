@@ -42,9 +42,6 @@ import {
   ExternalLink,
   Phone,
   Users as UsersIcon,
-  Globe,
-  Copy,
-  Check,
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
@@ -229,48 +226,12 @@ export default function OrganizationDetailPage() {
   const [resetFor, setResetFor] = useState<{ id: string; email: string } | null>(null);
   const [resetPassword, setResetPassword] = useState("");
 
-  // Websites
-  type WebsiteRow = {
-    id: string;
-    siteId: string;
-    name: string;
-    botName: string;
-    enabled: boolean;
-    _count: { conversations: number };
-  };
-  const [websites, setWebsites] = useState<WebsiteRow[]>([]);
-  const [websiteDialog, setWebsiteDialog] = useState(false);
-  const [creatingSite, setCreatingSite] = useState(false);
-  const [copiedSiteId, setCopiedSiteId] = useState<string | null>(null);
-
-  // Features & prompts (super-admin-only edits to this org's settings) —
-  // saved via the unified `save()` button at the top of the page.
-  const [websiteForm, setWebsiteForm] = useState({
-    siteId: "",
-    name: "",
-    botName: "Assistant",
-    systemPrompt: "",
-    greeting: "",
-    allowedOrigins: "",
-  });
-
-
-  // Both wrapped so the effect below can depend on them honestly. They were
-  // plain functions, re-created every render, so listing them as dependencies
-  // would have refetched on every render — which is why the dependency was
+  // Wrapped so the effect below can depend on it honestly. It was a plain
+  // function, re-created every render, so listing it as a dependency would
+  // have refetched on every render — which is why the dependency was
   // omitted and the lint rule suppressed rather than satisfied.
-  const loadWebsites = useCallback(async (organizationId: string) => {
-    try {
-      const res = await fetch(`/api/websites?asOrg=${organizationId}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setWebsites(data.sites || []);
-    } catch (err) {
-      console.error("Failed to load websites:", err);
-    }
-  }, []);
-
-  // Reloaded after adding a number, a website or a login too: unsaved edits
+  //
+  // Reloaded after adding a number or a login too: unsaved edits
   // to the form are kept through those (they used to vanish), and dropped
   // only after a save.
   const load = useCallback(async (opts: { keepEdits?: boolean } = {}) => {
@@ -287,80 +248,10 @@ export default function OrganizationDetailPage() {
         opts.keepEdits !== false && current && savedRef.current && snapshot(current) !== snapshot(savedRef.current);
       setSavedOrg(data);
       setOrg(edited && current ? withEdits(data, current) : data);
-      await loadWebsites(data.id);
     } finally {
       setLoading(false);
     }
-  }, [params.id, loadWebsites]);
-
-  async function createWebsite() {
-    if (!org) return;
-    if (!websiteForm.siteId || !websiteForm.name || !websiteForm.systemPrompt) {
-      notify("Site ID, display name and system prompt are required");
-      return;
-    }
-    setCreatingSite(true);
-    try {
-      const res = await fetch("/api/websites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          organizationId: org.id,
-          siteId: websiteForm.siteId,
-          name: websiteForm.name,
-          botName: websiteForm.botName || "Assistant",
-          systemPrompt: websiteForm.systemPrompt,
-          greeting: websiteForm.greeting || null,
-          allowedOrigins: websiteForm.allowedOrigins
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean),
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        notify(err.error || "Failed to create website");
-        return;
-      }
-      setWebsiteDialog(false);
-      setWebsiteForm({
-        siteId: "",
-        name: "",
-        botName: "Assistant",
-        systemPrompt: "",
-        greeting: "",
-        allowedOrigins: "",
-      });
-      await loadWebsites(org.id);
-    } finally {
-      setCreatingSite(false);
-    }
-  }
-
-  async function deleteWebsite(id: string, name: string) {
-    if (!org) return;
-    const yes = await confirm({
-      title: `Delete the website "${name}"?`,
-      body: "Its chat stops working at once, and this cannot be undone.",
-      confirmLabel: "Delete website",
-      destructive: true,
-    });
-    if (!yes) return;
-    const res = await fetch(`/api/websites/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      notify("Failed to delete website");
-      return;
-    }
-    await loadWebsites(org.id);
-  }
-
-  function copyEmbedForSite(siteId: string) {
-    const origin = window.location.origin;
-    const snippet = `<script src="${origin}/widget.js" data-site-id="${siteId}" async></script>`;
-    navigator.clipboard.writeText(snippet);
-    setCopiedSiteId(siteId);
-    setTimeout(() => setCopiedSiteId(null), 2000);
-  }
+  }, [params.id]);
 
   useEffect(() => {
     load();
@@ -626,44 +517,6 @@ export default function OrganizationDetailPage() {
     },
   ];
 
-  const websiteColumns: ColumnDef<WebsiteRow>[] = [
-    {
-      id: "name",
-      header: "Website",
-      accessorKey: "name",
-      cell: ({ row: { original: w } }) => <PersonCell name={w.name} detail={<code className="text-xs">{w.siteId}</code>} />,
-    },
-    { id: "bot", header: "Bot", accessorKey: "botName" },
-    { id: "conversations", header: "Conversations", accessorFn: (w) => w._count.conversations, meta: { align: "right" } },
-    {
-      id: "status",
-      header: "Status",
-      accessorFn: (w) => (w.enabled ? "Enabled" : "Disabled"),
-      cell: ({ row: { original: w } }) =>
-        w.enabled ? (
-          <Pill className="bg-tea-green-800 text-tea-green-100">Enabled</Pill>
-        ) : (
-          <Pill className="bg-red-50 text-red-800">Disabled</Pill>
-        ),
-    },
-    {
-      id: "actions",
-      header: () => <span className="sr-only">Actions</span>,
-      enableSorting: false,
-      meta: { align: "right" },
-      cell: ({ row: { original: w } }) => (
-        <span className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="sm" onClick={() => copyEmbedForSite(w.siteId)} aria-label={`Copy embed code for ${w.name}`} title="Copy embed code">
-            {copiedSiteId === w.siteId ? <Check className="h-4 w-4 text-tea-green-200" /> : <Copy className="h-4 w-4" />}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => deleteWebsite(w.id, w.name)} aria-label={`Delete ${w.name}`} title="Delete">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </span>
-      ),
-    },
-  ];
-
   const userColumns: ColumnDef<Org["users"][number]>[] = [
     {
       id: "user",
@@ -787,7 +640,6 @@ export default function OrganizationDetailPage() {
         <span>{businessTypesOf(org.businessType, org.alsoOffers).map((t) => PROFILES[t].label).join(" + ")}</span>
         <span>{plural(org._count.leads, "lead")}</span>
         <span>{plural(org._count.calls, "call")}</span>
-        <span>{plural(org._count.websites, "site")}</span>
         <span className={org.enabled ? "text-tea-green-200" : "text-red-600"}>
           {org.enabled ? "Enabled" : "Disabled"}
         </span>
@@ -886,7 +738,7 @@ export default function OrganizationDetailPage() {
 
               <FeatureToggle
                 label="Website chatbot"
-                description="Embeddable widget on client websites"
+                description="Chat on the salon's booking page and own website, set up in its Settings"
                 enabled={org.settings.chatbotEnabled}
                 onToggle={(v) => updateFeature("chatbotEnabled", v)}
               />
@@ -1290,29 +1142,6 @@ export default function OrganizationDetailPage() {
         />
       </section>
 
-      <section className="space-y-3" aria-labelledby="org-websites">
-        <div className="flex items-center justify-between">
-          <h2 id="org-websites" className="flex items-center gap-2 font-heading text-base font-semibold">
-            <Globe className="h-5 w-5" />
-            Websites
-          </h2>
-          <Button size="sm" onClick={() => setWebsiteDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add website
-          </Button>
-        </div>
-        <DataTable
-          columns={websiteColumns}
-          data={websites}
-          getRowId={(w) => w.id}
-          onRowClick={(w) => router.push(`/websites/${w.id}?asOrg=${org.id}`)}
-          rowLabel={(w) => w.name}
-          empty={
-            <EmptyState icon={Globe} title="No websites yet" hint="Each site gets its own chatbot, prompt and embed snippet." />
-          }
-        />
-      </section>
-
       <section className="space-y-3" aria-labelledby="org-users">
         <div className="flex items-center justify-between">
           <h2 id="org-users" className="flex items-center gap-2 font-heading text-base font-semibold">
@@ -1429,123 +1258,6 @@ export default function OrganizationDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Website dialog */}
-      <Dialog open={websiteDialog} onOpenChange={setWebsiteDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Add website</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium">
-                Site ID (unique across all orgs)
-              </label>
-              <Input
-                value={websiteForm.siteId}
-                onChange={(e) =>
-                  setWebsiteForm({
-                    ...websiteForm,
-                    siteId: e.target.value.toLowerCase(),
-                  })
-                }
-                placeholder="client-abc"
-                className="mt-1"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Lowercase letters, numbers, dashes only. Appears in the embed
-                tag.
-              </p>
-            </div>
-            <div>
-              <label className="text-xs font-medium">Display name</label>
-              <Input
-                value={websiteForm.name}
-                onChange={(e) =>
-                  setWebsiteForm({ ...websiteForm, name: e.target.value })
-                }
-                placeholder="Client ABC"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium">Bot Name</label>
-              <Input
-                value={websiteForm.botName}
-                onChange={(e) =>
-                  setWebsiteForm({ ...websiteForm, botName: e.target.value })
-                }
-                placeholder="Assistant"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium">
-                Greeting (first message shown)
-              </label>
-              <Input
-                value={websiteForm.greeting}
-                onChange={(e) =>
-                  setWebsiteForm({ ...websiteForm, greeting: e.target.value })
-                }
-                placeholder="Hi! How can I help?"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium">System prompt</label>
-              <Textarea
-                value={websiteForm.systemPrompt}
-                onChange={(e) =>
-                  setWebsiteForm({
-                    ...websiteForm,
-                    systemPrompt: e.target.value,
-                  })
-                }
-                rows={6}
-                className="mt-1 font-mono text-xs"
-                placeholder="You are a helpful assistant for..."
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium">
-                Allowed Origins (one per line)
-              </label>
-              <Textarea
-                value={websiteForm.allowedOrigins}
-                onChange={(e) =>
-                  setWebsiteForm({
-                    ...websiteForm,
-                    allowedOrigins: e.target.value,
-                  })
-                }
-                rows={3}
-                className="mt-1"
-                placeholder="https://client.com&#10;https://www.client.com"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Leave empty to allow any origin. Supports *.example.com.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setWebsiteDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={createWebsite}
-              disabled={
-                creatingSite ||
-                !websiteForm.siteId ||
-                !websiteForm.name ||
-                !websiteForm.systemPrompt
-              }
-            >
-              {creatingSite ? "Creating…" : "Create"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Add User dialog */}
       <Dialog open={userDialog} onOpenChange={setUserDialog}>
         <DialogContent>
@@ -1588,8 +1300,8 @@ export default function OrganizationDetailPage() {
               </Select>
               <p className="text-[10px] text-muted-foreground mt-1">
                 {userForm.role === "member"
-                  ? "Day-to-day: diary, clients, calls, conversations and takings. Settings are read-only; no websites, chatbot or charges."
-                  : "Everything for this salon: settings, websites and chatbot, and charges."}
+                  ? "Day-to-day: diary, clients, calls, conversations and takings. Settings are read-only; no chat set-up or charges."
+                  : "Everything for this salon: settings, the chat and charges."}
               </p>
             </div>
             <div>

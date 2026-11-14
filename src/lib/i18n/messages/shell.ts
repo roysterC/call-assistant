@@ -21,7 +21,6 @@ export const shell = {
 
   // --- Menu -------------------------------------------------------------------------------
   "nav.conversations": ["Conversations", "Hội thoại"],
-  "nav.websites": ["Websites", "Trang web"],
   "nav.insights": ["Insights", "Phân tích"],
   "nav.diary": ["Diary", "Lịch hẹn"],
   "nav.clients": ["Clients", "Khách hàng"],

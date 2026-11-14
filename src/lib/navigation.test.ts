@@ -107,7 +107,6 @@ describe("resolveStartPage", () => {
 });
 
 describe("owner-only pages", () => {
-  const websites = NAV_PAGES.find((p) => p.href === "/websites")!;
   const insights = NAV_PAGES.find((p) => p.href === "/insights")!;
   const diary = NAV_PAGES.find((p) => p.href === DIARY)!;
 
@@ -118,9 +117,8 @@ describe("owner-only pages", () => {
     expect(isNavAllowed(diary, "member")).toBe(true);
   });
 
-  it("leave Websites to us: a salon sets its chat up in Settings", () => {
-    expect(isNavAllowed(websites, "admin")).toBe(false);
-    expect(isNavAllowed(websites, "superAdmin")).toBe(true);
+  it("no longer include Websites: a salon sets its chat up in Settings", () => {
+    expect(NAV_PAGES.some((p) => p.href === "/websites")).toBe(false);
     expect(isStartPageChoice("/websites")).toBe(false);
   });
 
@@ -170,9 +168,9 @@ describe("the menu's three parts", () => {
   });
 
   it("never leaves an organisation with nothing up front", () => {
-    const chatless = ["/websites", "/insights", "/settings"].map(page);
-    expect(hrefs(splitNav(chatless, null).primary)).toEqual(["/websites"]);
-    expect(hrefs(splitNav(chatless, null).more)).toEqual(["/insights"]);
+    const chatless = ["/insights", "/clients", "/settings"].map(page);
+    expect(hrefs(splitNav(chatless, null).primary)).toEqual(["/insights"]);
+    expect(hrefs(splitNav(chatless, null).more)).toEqual(["/clients"]);
   });
 
   it("does not offer Settings as a start page up front", () => {

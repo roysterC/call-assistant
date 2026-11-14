@@ -12,7 +12,6 @@ const TENANT_FIELDS = [
   "name",
   "botName",
   "greeting",
-  "quickReplies",
   "brandColor",
   "allowedOrigins",
   "enabled",
