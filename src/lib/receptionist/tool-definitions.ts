@@ -68,6 +68,13 @@ const CHECK_AVAILABILITY: ToolDefinition = {
     parameters: {
       type: "object",
       properties: {
+        minutes: {
+          type: "number",
+          description:
+            "Only for a design the salon has quoted a time for in this conversation: " +
+            "that time in minutes (about 2 hours is 120). Leave it out otherwise; " +
+            "the service's own length is used.",
+        },
         date: {
           type: "string",
           description:
@@ -224,6 +231,13 @@ const BOOKING_DETAILS: ToolDefinition = {
             "their name and number, as is a patch test on the salon's records. " +
             "Only send it once a tool has asked you to find out.",
         },
+        minutes: {
+          type: "number",
+          description:
+            "Only for a design the salon has quoted a time for in this conversation: " +
+            "that time in minutes (about 2 hours is 120). Leave it out otherwise; " +
+            "the service's own length is used.",
+        },
         notes: { type: "string", description: "Anything the stylist should know" },
       },
       required: ["date", "time", "service", "customerPhone", "customerName"],
@@ -338,6 +352,43 @@ const TAKE_MESSAGE: ToolDefinition = {
         },
       },
       required: ["customerName", "message"],
+    },
+  },
+};
+
+/**
+ * A price for designs from pictures, which only a technician can give
+ * (src/lib/quotes.ts). Chats that take photos only: added by chat-booking.ts,
+ * never on the phone.
+ */
+export const REQUEST_QUOTE: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "request_quote",
+    description:
+      "Send the pictures of designs they sent in this chat to the salon's team for a price. " +
+      "Use it when they ask what a design, nail art or anything shown in a picture would cost: " +
+      "a design is priced by a technician, never by you, and this replaces a call back for it. " +
+      "Every picture they sent in this chat in the last day goes with it, one design each; if they " +
+      "sent some for another reason, ask which ones first. Before calling, ask only what changes the " +
+      "price and is not clear yet: the base service (gel, BIAB, acrylic), length and shape. Then tell " +
+      "them the team will reply here with a price shortly.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerName: { type: "string", description: "Their name, if they have given it." },
+        customerPhone: {
+          type: "string",
+          description: "Their mobile number, if they have given one: the price is texted if the chat has gone quiet.",
+        },
+        request: {
+          type: "string",
+          description:
+            "What they asked for, for the technician: the base service, length, shape, how many designs and anything " +
+            "they said about them, and when they would like it. In a sentence or two.",
+        },
+      },
+      required: ["request"],
     },
   },
 };

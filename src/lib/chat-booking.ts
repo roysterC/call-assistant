@@ -27,7 +27,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
-import { buildVoiceTools } from "@/lib/receptionist/tool-definitions";
+import { buildVoiceTools, REQUEST_QUOTE } from "@/lib/receptionist/tool-definitions";
+import { isQuoteChannel, requestQuote } from "@/lib/quotes";
 import { runAction, handleBookAppointment, isActionName, normaliseParameters } from "@/lib/receptionist/actions";
 import { ReadBackGate, type ReadBackState } from "@/lib/receptionist/read-back";
 import { ClientTypeMemory } from "@/lib/receptionist/client-type-memory";
@@ -213,7 +214,11 @@ async function reply(turn: ChatTurn): Promise<string> {
   if (!turn.client && !key) throw new Error("No Anthropic API key for this salon.");
   const cfg = await getSalonConfig(organizationId);
   const canBook = turn.mode !== "messages";
-  const tools = toClaudeTools(buildVoiceTools(canBook ? selectProvider(cfg).capabilities : manualProvider.capabilities));
+  // A price for designs from their pictures, in the chats that take pictures.
+  const tools = toClaudeTools([
+    ...buildVoiceTools(canBook ? selectProvider(cfg).capabilities : manualProvider.capabilities),
+    ...(isQuoteChannel(channel) ? [REQUEST_QUOTE] : []),
+  ]);
   const allowed = new Set(tools.map((t) => t.name));
 
   const saved = await prisma.chatSession.findUnique({
@@ -312,6 +317,17 @@ async function reply(turn: ChatTurn): Promise<string> {
       }
       if (name === "prepare_booking" && allowed.has(name)) return readBack.prepare(input);
       if (name === "book_appointment" && allowed.has(name)) return readBack.book(input);
+      if (name === "request_quote" && allowed.has(name) && isQuoteChannel(channel)) {
+        return requestQuote({
+          organizationId,
+          channel,
+          conversationId,
+          customerName: input.customerName,
+          customerPhone: input.customerPhone,
+          request: input.request,
+          now,
+        });
+      }
       if (!allowed.has(name) || !isActionName(name)) return { error: `There is no tool called ${name}.` };
       return runAction(name, organizationId, withCallerContext(name, input, phone));
     },

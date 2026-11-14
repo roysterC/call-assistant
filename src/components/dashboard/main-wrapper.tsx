@@ -7,6 +7,7 @@ import { LanguageFlags } from "@/components/i18n/language-flags";
 import { BrandMark, Navigation } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
 import { BookingAlerts } from "@/components/notifications/booking-alerts";
+import { QuoteAlerts } from "@/components/notifications/quote-alerts";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -61,6 +62,8 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         <Assistant />
         {/* The receptionist's new bookings, until each is closed or opened. */}
         <BookingAlerts />
+        {/* Clients waiting for a price on their designs. */}
+        <QuoteAlerts />
 
         {/* On a phone, clear of the tab bar along the bottom. */}
         <main className="flex-1 overflow-auto min-w-0 max-md:pb-[calc(4rem+env(safe-area-inset-bottom))]">

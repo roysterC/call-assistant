@@ -107,7 +107,7 @@ async function resolveOrgFor(
 }
 
 /** The same, found by the salon rather than by the account Meta names. */
-async function orgContextFor(organizationId: string, channel: SocialChannel): Promise<OrgContext | null> {
+export async function orgContextFor(organizationId: string, channel: SocialChannel): Promise<OrgContext | null> {
   const settings = await prisma.organizationSettings.findUnique({
     where: { organizationId },
     select: { instagramBusinessId: true, facebookPageId: true },
@@ -223,7 +223,7 @@ function messagesUrl(ctx: OrgContext, channel: SocialChannel): string {
     : `${GRAPH_API_BASE}/${ctx.accountId}/messages`;
 }
 
-async function sendText(
+export async function sendText(
   ctx: OrgContext,
   channel: SocialChannel,
   recipientId: string,

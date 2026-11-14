@@ -2,7 +2,8 @@
  * Where a conversation stands, for the Conversations list: does it need
  * someone, is Kikai dealing with it, or is it done, and what happened.
  *
- *   you   Needs you: Kikai took a message for the team that nobody has
+ *   you   Needs you: a client is waiting for a price on designs they sent
+ *         (a quote, src/lib/quotes.ts); Kikai took a message for the team that nobody has
  *         dealt with yet; the client's last message has gone unanswered
  *         for more than REPLY_GRACE_MS (Kikai answers within seconds, so
  *         this is a chat it could not or did not answer); or staff took a
@@ -21,6 +22,7 @@
 export type ConversationGroup = "you" | "bot" | "done";
 
 export type ConversationKind =
+  | "quote" // a client is waiting for a price on their designs
   | "callback" // a message Kikai took is waiting for the team
   | "waiting" // the client is waiting for a reply
   | "staff" // staff took over from Kikai (website)
@@ -35,8 +37,10 @@ export interface ConversationState {
   kind: ConversationKind;
   /** For "booked": what and when. */
   booking?: { service: string; startsAt: string };
-  /** For "callback": when the message was taken, for how long it has waited. */
+  /** For "callback" and "quote": when it was asked, for how long it has waited. */
   since?: string;
+  /** For "quote": how many designs. */
+  designs?: number;
 }
 
 /** Kikai waits for a quiet spell before answering a burst of messages; give it that, and a little more. */
@@ -53,6 +57,8 @@ export interface StateInput {
   booking?: { createdAt: Date; service: string; startsAt: Date } | null;
   /** The client's most recent callback, if any, and whether it is still to be dealt with. */
   callback?: { createdAt: Date; pending: boolean } | null;
+  /** A quote still waiting for a price in this chat, if any. */
+  quote?: { createdAt: Date; designs: number } | null;
   now?: Date;
 }
 
@@ -68,6 +74,11 @@ export function inOutcomeWindow(at: Date, lastMessageAt: Date): boolean {
 export function conversationState(input: StateInput): ConversationState {
   const now = input.now ?? new Date();
   if (input.handoffState === "human") return { group: "you", kind: "staff" };
+  // Kikai told them the team would reply with a price: nothing else the chat
+  // did matters until someone has.
+  if (input.quote) {
+    return { group: "you", kind: "quote", since: input.quote.createdAt.toISOString(), designs: input.quote.designs };
+  }
   // Kikai told the client someone will get back to them: until someone has,
   // the chat is not done, however it ended.
   const callback = input.callback && inOutcomeWindow(input.callback.createdAt, input.lastMessageAt) ? input.callback : null;

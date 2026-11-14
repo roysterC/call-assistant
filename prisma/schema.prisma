@@ -50,6 +50,7 @@ model Organization {
   assistantSessions     AssistantSession[]
   chatSessions          ChatSession[]
   chatPhotos            ChatPhoto[]
+  quotes                Quote[]
   rebookTexts           RebookText[]
   usageRecords          UsageRecord[]
   callbacks             Callback[]
@@ -387,6 +388,40 @@ model ChatPhoto {
   @@index([channel, conversationId])
   @@index([appointmentId])
   @@map("ca_chat_photos")
+}
+
+// A client's request for a price on designs they sent in a chat (photos),
+// and the salon's answer (src/lib/quotes.ts). The receptionist files it
+// instead of a call back; whoever answers enters a price, and optionally a
+// time, for each design, and the reply goes back in the same chat.
+model Quote {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // The chat it came from: whatsapp, instagram or facebook, and its conversation.
+  channel        String
+  conversationId String
+  clientName     String?
+  // E.164, when they gave one: the reply goes by text once the chat's
+  // 24-hour window has closed.
+  clientPhone    String?
+  // What they asked for, in the receptionist's words: service, length,
+  // shape, when they would like it.
+  request        String
+  // One per design, in the order sent: { photoId, priceMinor, minutes, declined }.
+  items          Json
+  // requested, then sent.
+  status         String       @default("requested")
+  sentAt         DateTime?
+  sentBy         String?
+  // How the reply went: "chat", or "sms" after the chat's window closed.
+  sentVia        String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([channel, conversationId])
+  @@map("ca_quotes")
 }
 
 // A rebooking text: "your infill is due, Thursday 3pm is free", with a short

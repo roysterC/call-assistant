@@ -66,6 +66,7 @@ export function waitedFor(dateStr: string): string {
 
 /** The tag under each row: what the chat needs, or what came of it. */
 const TAG_STYLE: Record<ConversationState["kind"], string> = {
+  quote: "bg-orange-100 text-orange-800",
   callback: "bg-orange-100 text-orange-800",
   waiting: "bg-orange-100 text-orange-800",
   staff: "bg-violet-100 text-violet-800",
@@ -214,6 +215,8 @@ export function ConversationListItem({
 
 function tagText(state: ConversationState, lastMessageAt: string, clock: "12h" | "24h"): string {
   switch (state.kind) {
+    case "quote":
+      return `Quote needed · ${state.designs ?? 1} design${state.designs === 1 ? "" : "s"} · ${waitedFor(state.since ?? lastMessageAt)}`;
     case "callback":
       return `Message for the team · ${waitedFor(state.since ?? lastMessageAt)}`;
     case "waiting":

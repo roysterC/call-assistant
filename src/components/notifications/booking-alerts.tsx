@@ -15,6 +15,7 @@ import { CalendarPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api-fetch";
+import { openQuote } from "@/components/notifications/quote-alerts";
 import { onServiceWorkerMessage } from "@/lib/push-client";
 import { NEW_BOOKING } from "@/lib/service-colours";
 import { hideNotice, noticesChanged, useBookingNotices, type BookingNotice } from "@/lib/use-booking-notices";
@@ -67,8 +68,12 @@ export function BookingAlerts() {
       const date = url.searchParams.get("date");
       const id = url.searchParams.get("booking");
       // The diary marks it seen as it opens it.
+      const c = url.searchParams.get("c");
+      const ch = url.searchParams.get("ch");
       if (date && id) {
         openBooking(date, id);
+      } else if (url.pathname === "/conversations" && c && ch) {
+        openQuote(ch, c, pathname, router.push);
       } else {
         router.push(url.pathname + url.search);
       }
