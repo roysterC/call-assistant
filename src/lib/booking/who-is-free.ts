@@ -1,7 +1,6 @@
 /**
  * Who is free now, for a salon: loads today's diary and hands it to
- * whoIsFree (free-now.ts). Used by the Diary's "Who's free" panel
- * (api/diary/free-now) and the assistant's who_is_free_now.
+ * whoIsFree (free-now.ts). Used by the assistant's who_is_free_now.
  */
 
 import { prisma } from "@/lib/prisma";
