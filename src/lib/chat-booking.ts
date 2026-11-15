@@ -329,7 +329,9 @@ async function reply(turn: ChatTurn): Promise<string> {
         });
       }
       if (!allowed.has(name) || !isActionName(name)) return { error: `There is no tool called ${name}.` };
-      return runAction(name, organizationId, withCallerContext(name, input, phone));
+      // A message left in a chat says which, so the Callbacks page can open it.
+      const where = name === "take_message" ? { channel, conversationId } : {};
+      return runAction(name, organizationId, withCallerContext(name, { ...input, ...where }, phone));
     },
   });
   engine.messages.push(...history);

@@ -147,6 +147,14 @@ export function mergeMessage(before: string, next: string): string {
   return old.size > 0 && kept / old.size >= 0.6 ? next : `${before}\n${next}`;
 }
 
+const CHAT_CHANNELS = ["whatsapp", "instagram", "facebook", "website"];
+
+/** Where a message was left: the chat it came from, or a call. */
+export function messageSource(channel?: string, conversationId?: string): { channel: string; conversationId: string | null } {
+  if (channel && CHAT_CHANNELS.includes(channel) && conversationId) return { channel, conversationId };
+  return { channel: "call", conversationId: null };
+}
+
 /**
  * A message for the salon to ring the caller back: they asked for a person,
  * or for something the receptionist cannot do or answer.
@@ -167,6 +175,9 @@ export async function handleTakeMessage(
     callerNumber?: string;
     message?: string;
     forStylist?: string;
+    /** Set by the chat it was left in; a call leaves none. */
+    channel?: string;
+    conversationId?: string;
   }
 ) {
   const parsedName = normaliseCallerName(params.customerName);
@@ -229,6 +240,7 @@ export async function handleTakeMessage(
         // rang. The column is required, so it holds that same moment.
         scheduledAt: now,
         notes: message,
+        ...messageSource(params.channel, params.conversationId),
       },
     });
   }
