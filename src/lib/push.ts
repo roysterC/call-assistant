@@ -19,6 +19,8 @@ export interface PushMessage {
   url: string;
   /** A second message with the same tag replaces the first on the device. */
   tag?: string;
+  /** What it is about: an open CRM looks again at just that (public/sw.js). */
+  kind?: "booking" | "quote" | "callback";
 }
 
 /** The key browsers subscribe with, or null when push is not set up. */

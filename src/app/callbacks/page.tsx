@@ -11,10 +11,10 @@
  * and Not needed move it to Done; No answer counts the try and keeps it.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, ChevronDown } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
-import { callbacksChanged } from "@/lib/use-pending-callbacks";
+import { callbacksChanged, usePendingCallbacks } from "@/lib/use-pending-callbacks";
 import { useT } from "@/components/providers/language-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +30,8 @@ import { cn } from "@/lib/utils";
 import { useIsPhone } from "@/lib/use-is-phone";
 
 type View = "todo" | "done";
+/** How often an open Callbacks page checks for new ones. */
+const CHECK_MS = 60_000;
 const ALL = "";
 
 export default function CallbacksPage() {
@@ -49,28 +51,68 @@ export default function CallbacksPage() {
   const [todoCount, setTodoCount] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const isPhone = useIsPhone();
+  // The one open now, for a quiet reload (load, below) to keep open.
+  const openId = useRef<string | null>(null);
 
-  const load = useCallback(async (v: View) => {
-    setLoading(true);
-    setFailed(false);
+  /**
+   * The list. `quiet`: a check for new callbacks while the page is open, with
+   * no loading state, and a failed answer left alone rather than shown.
+   */
+  const load = useCallback(async (v: View, quiet = false) => {
+    if (!quiet) {
+      setLoading(true);
+      setFailed(false);
+    }
     try {
       const res = await apiFetch(`/api/callbacks?view=${v}`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        if (quiet) return;
+        throw new Error();
+      }
       const data = await res.json();
       const list: CallbackRow[] = data.callbacks ?? [];
+      // A new one arriving at the top does not swap what is open under them;
+      // one dealt with elsewhere takes the note being typed for it with it.
+      const open = openId.current;
+      if (quiet && open) {
+        if (list.some((r) => r.id === open)) setSelectedId((id) => id ?? open);
+        else setNote("");
+      }
       setRows(list);
       setTimeZone(data.timeZone ?? "Europe/London");
       if (v === "todo") setTodoCount(list.length);
       setNow(Date.now());
     } catch {
-      setFailed(true);
+      if (!quiet) setFailed(true);
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load(view);
+  }, [view, load]);
+
+  // New callbacks show without a refresh: when the menu's count changes
+  // (checked every minute, on focus, and at once on a push), every minute
+  // while the page is on screen, and when the window comes back into focus.
+  const pending = usePendingCallbacks(true);
+  const seenPending = useRef(pending);
+  useEffect(() => {
+    if (pending === seenPending.current) return;
+    seenPending.current = pending;
+    void load(view, true);
+  }, [pending, view, load]);
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState === "visible") void load(view, true);
+    };
+    const timer = setInterval(check, CHECK_MS);
+    window.addEventListener("focus", check);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", check);
+    };
   }, [view, load]);
 
   // The waits keep counting while the page is open.
@@ -90,6 +132,9 @@ export default function CallbacksPage() {
   );
   // On a wide screen the first is open from the start.
   const selected = shown.find((r) => r.id === selectedId) ?? shown[0] ?? null;
+  useEffect(() => {
+    openId.current = selected?.id ?? null;
+  }, [selected]);
 
   function pick(id: string) {
     setSelectedId(id);

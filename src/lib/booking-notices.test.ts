@@ -77,6 +77,7 @@ describe("telling the salon about the receptionist's booking", () => {
       body: "Cut and finish with Jo, tomorrow at 2pm",
       url: "/calendar?date=2026-10-01&booking=appt1",
       tag: "booking-appt1",
+      kind: "booking",
     });
   });
 

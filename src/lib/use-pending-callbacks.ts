@@ -5,19 +5,21 @@
  * the menu (and the dot on the phone's menu button).
  *
  * One count shared by everything that shows it, fetched once a minute, again
- * when the window comes back into focus, and at once when a callback is
- * ticked off (callbacksChanged). A message the receptionist takes therefore
+ * when the window comes back into focus, at once when a callback's push
+ * reaches this device, and when a callback is ticked off (callbacksChanged). A message the receptionist takes therefore
  * shows within the minute, without anyone opening the page.
  */
 
 import { useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api-fetch";
+import { onServiceWorkerMessage } from "@/lib/push-client";
 
 const CHANGED = "kikai:callbacks-changed";
 const EVERY_MS = 60_000;
 
 let count = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
+let stopSw: (() => void) | null = null;
 const listeners = new Set<() => void>();
 
 function set(next: number) {
@@ -45,6 +47,10 @@ function subscribe(listener: () => void) {
     timer = setInterval(refresh, EVERY_MS);
     window.addEventListener("focus", refresh);
     window.addEventListener(CHANGED, refresh);
+    // A callback's push on this device: count again now (callback-notices.ts).
+    stopSw = onServiceWorkerMessage((msg) => {
+      if (msg.kind === "callback") void refresh();
+    });
   }
   return () => {
     listeners.delete(listener);
@@ -53,6 +59,8 @@ function subscribe(listener: () => void) {
       timer = null;
       window.removeEventListener("focus", refresh);
       window.removeEventListener(CHANGED, refresh);
+      stopSw?.();
+      stopSw = null;
     }
   };
 }

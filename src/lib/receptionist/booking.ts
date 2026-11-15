@@ -1,4 +1,5 @@
 import { formatMoneyShort } from "@/lib/money";
+import { noticeNewCallback } from "@/lib/callback-notices";
 import { prisma } from "@/lib/prisma";
 import { bookAppointment } from "@/lib/booking/diary";
 import {
@@ -615,22 +616,26 @@ async function writeBooking(organizationId: string, b: CheckedBooking, source: B
 
     // Anything else is the diary failing, and the caller has been told the
     // salon will ring. A callback is what makes that true.
-    await prisma.callback.create({
+    const notBookedNotes = [
+      `COULD NOT BOOK: ${written.reason}`,
+      `Wanted: ${service.name} with ${stylist.name} at ${startsAt.toISOString()}`,
+      bookingNotes,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const callback = await prisma.callback.create({
       data: {
         organizationId,
         leadId: lead.id,
         assignedTo: stylist.name,
         // Listed by when the caller rang, like every message.
         scheduledAt: new Date(),
-        notes: [
-          `COULD NOT BOOK: ${written.reason}`,
-          `Wanted: ${service.name} with ${stylist.name} at ${startsAt.toISOString()}`,
-          bookingNotes,
-        ]
-          .filter(Boolean)
-          .join("\n"),
+        notes: notBookedNotes,
       },
     });
+    if (callback) {
+      void noticeNewCallback(organizationId, { id: callback.id, kind: "not_booked", clientName, notes: notBookedNotes });
+    }
 
     return {
       success: false,

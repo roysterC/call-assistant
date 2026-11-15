@@ -129,9 +129,12 @@ export async function signOutOfDevice(): Promise<void> {
  * alert was tapped. Registered on every signed-in page, so an alert tapped
  * on a computer finds the CRM already open.
  */
-export function onServiceWorkerMessage(handler: (msg: { type?: string; url?: string }) => void): () => void {
+export function onServiceWorkerMessage(
+  handler: (msg: { type?: string; url?: string; kind?: "booking" | "quote" | "callback" }) => void
+): () => void {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return () => {};
-  const listener = (e: MessageEvent) => handler((e.data ?? {}) as { type?: string; url?: string });
+  const listener = (e: MessageEvent) =>
+    handler((e.data ?? {}) as { type?: string; url?: string; kind?: "booking" | "quote" | "callback" });
   navigator.serviceWorker.addEventListener("message", listener);
   return () => navigator.serviceWorker.removeEventListener("message", listener);
 }
