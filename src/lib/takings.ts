@@ -82,7 +82,8 @@ export async function computeTakings(
   const byService = new Map<string, { minor: number; count: number }>();
 
   const rows = appointments.map((a) => {
-    const list = listPriceFor(a.serviceText);
+    // A design quoted in the chat: its quoted price, not the plain service's.
+    const list = a.quotedPriceMinor ?? listPriceFor(a.serviceText);
     const settled = a.status === "completed";
     // Only a recorded amount counts as taken. Falling back to list price
     // here would quietly turn a guess into revenue.

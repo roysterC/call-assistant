@@ -1,3 +1,4 @@
+import { formatMoneyShort } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { bookAppointment } from "@/lib/booking/diary";
 import {
@@ -214,6 +215,8 @@ interface CheckedBooking {
   onFile: string | null;
   notes?: string;
   today: string;
+  /** A design quoted in the chat: its price, in pence. */
+  quotedPriceMinor: number | null;
 }
 
 export async function handleBookAppointment(
@@ -232,10 +235,17 @@ export async function handleBookAppointment(
      * exactly the same rules and written the same way.
      */
     source?: BookingSource;
+    /**
+     * A design the salon quoted in the chat: booked at its price. Here rather
+     * than in params, which come from the model: a price is never its to set.
+     * Its length comes as params.minutes, checked like any quoted length.
+     */
+    quote?: { priceMinor: number };
   } = {}
 ) {
   const checked = await checkBooking(organizationId, params);
   if (checked.ok !== true) return checked;
+  checked.booking.quotedPriceMinor = opts.quote?.priceMinor ?? null;
   return opts.dryRun
     ? readBackDetails(checked.booking)
     : writeBooking(organizationId, checked.booking, opts.source ?? "voice");
@@ -425,6 +435,8 @@ async function checkBooking(organizationId: string, params: BookingParams) {
         // time from check_availability arrives with no separate date.
         date: zonedDateString(startsAt, cfg.timeZone),
         serviceName: service.name,
+        // At the quoted length, when there is one, as check_availability offered it.
+        durationMinutes: service.durationMinutes,
         // As check_availability offered it: a returning client's colour, or
         // one with a patch test on record, has no 48-hour wait. Left out,
         // every colour slot inside 48 hours looked taken.
@@ -503,6 +515,7 @@ async function checkBooking(organizationId: string, params: BookingParams) {
       onFile,
       notes,
       today,
+      quotedPriceMinor: null as number | null,
     } satisfies CheckedBooking,
   };
 }
@@ -530,6 +543,7 @@ function readBackDetails(b: CheckedBooking) {
     usedCallerId: b.usedCallerId,
     patchTestRequired: b.needsSkinTest,
     ...(b.onFile ? { patchTestOnRecord: b.onFile } : {}),
+    ...(b.quotedPriceMinor !== null ? { quotedPrice: formatMoneyShort(b.quotedPriceMinor) } : {}),
   };
 }
 
@@ -576,6 +590,7 @@ async function writeBooking(organizationId: string, b: CheckedBooking, source: B
       clientType,
       patchTestRequired: needsSkinTest,
       notes: bookingNotes ?? null,
+      ...(b.quotedPriceMinor !== null ? { quotedPriceMinor: b.quotedPriceMinor } : {}),
       source,
     }
   );

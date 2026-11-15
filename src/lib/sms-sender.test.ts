@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseSmsSender, textsStatus } from "./sms-sender";
-import { textFailureKey } from "./text-failure";
+import { shownFailureReason, textFailureKey } from "./text-failure";
 
 const db = vi.hoisted(() => ({
   smsRow: null as { number: string; smsSenderId: string | null } | null,
@@ -82,6 +82,9 @@ describe("sending, with the sender from Admin", () => {
   });
 });
 
+/** Shaped like a Twilio account id, and not one. */
+const FAKE_SID = "AC" + "0".repeat(32);
+
 describe("why a text did not go, in words", () => {
   it("knows our own reasons and Twilio's common ones", () => {
     expect(textFailureKey("Twilio credentials are not set")).toBe("textFail.notConfigured");
@@ -93,10 +96,20 @@ describe("why a text did not go, in words", () => {
     expect(textFailureKey("Attempt to send to unsubscribed recipient")).toBe("textFail.optedOut");
     expect(textFailureKey("The 'To' number +4412 is not a valid phone number.")).toBe("textFail.invalid");
     expect(textFailureKey("fetch failed")).toBe("textFail.network");
+    // The server's Twilio keys refused, as Twilio words it now.
+    expect(
+      textFailureKey(`authentication failed, auth token is not valid for account ${FAKE_SID}`)
+    ).toBe("textFail.account");
   });
 
   it("leaves one it does not know to be shown as it is", () => {
     expect(textFailureKey("Something new from Twilio")).toBeNull();
     expect(textFailureKey(null)).toBeNull();
+  });
+
+  it("shows one it does not know without Twilio's account ids", () => {
+    expect(shownFailureReason(`Something new for account ${FAKE_SID}.`)).toBe(
+      "Something new for account."
+    );
   });
 });

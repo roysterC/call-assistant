@@ -91,7 +91,9 @@ export async function runAction(
   name: string,
   organizationId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  parameters: Record<string, any>
+  parameters: Record<string, any>,
+  /** book_appointment only: a design quoted in the chat, booked at its price. Never from the model. */
+  opts: { quote?: { priceMinor: number } } = {}
 ): Promise<unknown> {
   parameters = normaliseParameters(parameters);
   switch (name) {
@@ -103,7 +105,7 @@ export async function runAction(
       return handleCheckAvailability(organizationId, parameters as Parameters<typeof handleCheckAvailability>[1]);
     case "book_appointment":
       return saysNotBooked(
-        await handleBookAppointment(organizationId, parameters as Parameters<typeof handleBookAppointment>[1])
+        await handleBookAppointment(organizationId, parameters as Parameters<typeof handleBookAppointment>[1], opts)
       );
     case "find_appointment":
       return handleFindAppointment(organizationId, parameters as Parameters<typeof handleFindAppointment>[1]);
