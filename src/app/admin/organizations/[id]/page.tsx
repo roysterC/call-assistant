@@ -9,6 +9,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { parseSmsSender, SENDER_NAME_MAX, textsStatus } from "@/lib/sms-sender";
 import { Textarea } from "@/components/ui/textarea";
 import { DataTable, PersonCell, Pill, type ColumnDef } from "@/components/ui/data-table";
 import {
@@ -89,6 +90,8 @@ interface Org {
     instagramBusinessId: string | null;
     /** The handle, for ig.me links in rebooking texts (src/lib/rebook.ts). */
     instagramUsername: string | null;
+    /** Who the salon's texts come from: a name of up to 11 characters, or a number. */
+    smsSender: string | null;
     instagramAccessToken: string | null;
     facebookEnabled: boolean;
     facebookSystemPrompt: string | null;
@@ -113,9 +116,13 @@ interface Org {
     number: string;
     channel: string;
     whatsappPhoneNumberId: string | null;
+    smsSenderId?: string | null;
+    active?: boolean;
     label: string | null;
   }>;
   _count: { leads: number; calls: number; websites: number };
+  /** Whether texts are set up on the server, and its shared sender (sms-sender.ts). */
+  textSending?: { configured: boolean; defaultSender: string | null };
 }
 
 /** The organisation's own fields this page saves (PUT /api/admin/organizations/[id]). */
@@ -134,6 +141,7 @@ function orgBody(o: Org) {
 /** The settings this page saves (PUT /api/settings): features, keys and prompts. */
 function settingsBody(s: NonNullable<Org["settings"]>) {
   return {
+    smsSender: s.smsSender,
     chatbotEnabled: s.chatbotEnabled,
     whatsappEnabled: s.whatsappEnabled,
     chatBookingEnabled: s.chatBookingEnabled,
@@ -784,6 +792,28 @@ export default function OrganizationDetailPage() {
                 onToggle={(v) => switchOnWithDiary("voiceEnabled", v)}
               />
               <BookingStatus org={org} />
+            </div>
+
+            {/* Texts: confirmations, reminders and rebooking texts. Without a
+                sender every one of them fails (src/lib/sms-sender.ts). */}
+            <div className="border-t border-border pt-5 space-y-2">
+              <label htmlFor="sms-sender" className="text-sm font-medium">
+                Text sender name
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Who confirmation, reminder and rebooking texts come from, as the client&apos;s phone shows it: up
+                to {SENDER_NAME_MAX} letters, numbers and spaces, e.g. &ldquo;HOANG NAILS&rdquo;. Clients cannot
+                reply to a name, so every text carries the salon&apos;s contact number.
+              </p>
+              <Input
+                id="sms-sender"
+                value={org.settings.smsSender ?? ""}
+                maxLength={16}
+                placeholder={org.textSending?.defaultSender ? `Blank: ${org.textSending.defaultSender}` : "HOANG NAILS"}
+                onChange={(e) => updateFeature("smsSender", e.target.value || null)}
+                className="max-w-xs"
+              />
+              <TextsStatusLine org={org} />
             </div>
 
             {/* The salon's own Meta app: signs WhatsApp, Instagram and Messenger webhooks */}
@@ -1493,6 +1523,44 @@ function randomPassword(): string {
  * page does not edit. Until it can, the phone and the chats take messages
  * instead, and nothing else says so.
  */
+/** Whether the salon's texts can go, from what is on screen as the sender is typed. */
+function TextsStatusLine({ org }: { org: Org }) {
+  const typed = parseSmsSender(org.settings?.smsSender ?? null);
+  const own = org.phoneNumbers.find((p) => p.channel === "sms" && p.active !== false);
+  const status = textsStatus({
+    configured: org.textSending?.configured ?? false,
+    smsNumber: own ? own.smsSenderId || own.number : null,
+    salonSender: typed.ok ? typed.value : null,
+    defaultSender: org.textSending?.defaultSender ?? null,
+  });
+  if (!typed.ok) {
+    return (
+      <p className="flex items-start gap-2 rounded-md border border-papaya-whip-400 bg-papaya-whip-700 px-3 py-2 text-xs text-papaya-whip-100">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>{typed.reason}</span>
+      </p>
+    );
+  }
+  return status.ready ? (
+    <p className="flex items-start gap-2 rounded-md border border-tea-green-600 bg-tea-green-900 px-3 py-2 text-xs text-tea-green-200">
+      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        Texts go out from <strong>{status.sender}</strong>
+        {own ? " (the salon's own texting number)" : !typed.value ? " (the shared default)" : ""}.
+      </span>
+    </p>
+  ) : (
+    <p className="flex items-start gap-2 rounded-md border border-papaya-whip-400 bg-papaya-whip-700 px-3 py-2 text-xs text-papaya-whip-100">
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        {status.problem === "not_configured"
+          ? "Texts are not set up on the server (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN), so no salon's texts can go."
+          : "This salon cannot send texts: no sender. Confirmations, reminders and rebooking texts all fail until one is set here."}
+      </span>
+    </p>
+  );
+}
+
 function BookingStatus({ org }: { org: Org }) {
   const s = org.settings;
   if (!s || !hasDiary(s)) return null;

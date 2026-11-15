@@ -212,6 +212,10 @@ model OrganizationSettings {
   // into the salon's WhatsApp or Instagram chat to book (src/lib/rebook.ts).
   // The salon's own choice, in Settings; off until switched on.
   rebookTextsEnabled      Boolean      @default(false)
+  // Who the salon's texts come from: a name of up to 11 characters ("HOANG
+  // NAILS") or a number, set by Kikai in Admin (src/lib/sms-sender.ts). Null:
+  // a texting number of its own, else the server's TWILIO_DEFAULT_SENDER.
+  smsSender               String?
   // The salon's Instagram @username, for the link in a rebooking text when it
   // has no WhatsApp: ig.me/m/<username>. Without the @.
   instagramUsername       String?

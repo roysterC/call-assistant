@@ -59,6 +59,48 @@ export const clients = {
   "client.history": ["History", "Lịch sử"],
   "client.testNeeded": ["Patch test needed", "Cần thử dị ứng"],
   "client.textFailed": ["Confirmation text didn't send", "Tin nhắn xác nhận không gửi được"],
+  // Why, in words a salon can act on (src/lib/text-failure.ts).
+  "textFail.noSender": [
+    "No text sender is set up for this salon yet. Kikai sets this up.",
+    "Tiệm chưa có tên người gửi tin nhắn. Kikai sẽ thiết lập.",
+  ],
+  "textFail.notConfigured": [
+    "Texts aren't switched on yet. Kikai sets this up.",
+    "Tin nhắn chưa được bật. Kikai sẽ thiết lập.",
+  ],
+  "textFail.notMobile": [
+    "The number isn't a UK mobile, so it can't get texts.",
+    "Số này không phải số di động ở Anh nên không nhận được tin nhắn.",
+  ],
+  "textFail.noNumber": ["There's no number to text.", "Không có số để nhắn."],
+  "textFail.trial": [
+    "The text account is on a trial, so it only texts numbers added to it. Kikai can fix this.",
+    "Tài khoản nhắn tin đang dùng thử nên chỉ nhắn được các số đã thêm vào. Kikai có thể sửa.",
+  ],
+  "textFail.optedOut": [
+    "This number replied STOP to the salon's texts, so it can't be texted.",
+    "Số này đã trả lời STOP nên không thể nhắn tin.",
+  ],
+  "textFail.region": [
+    "Texts to that country aren't switched on.",
+    "Chưa bật nhắn tin tới quốc gia đó.",
+  ],
+  "textFail.badSender": [
+    "The text service didn't accept the salon's sender name. Kikai can fix this.",
+    "Dịch vụ nhắn tin không chấp nhận tên người gửi của tiệm. Kikai có thể sửa.",
+  ],
+  "textFail.invalid": [
+    "The text service says the number isn't valid.",
+    "Dịch vụ nhắn tin báo số này không hợp lệ.",
+  ],
+  "textFail.account": [
+    "The text account has a problem (its login or credit). Kikai can fix this.",
+    "Tài khoản nhắn tin có vấn đề (đăng nhập hoặc tín dụng). Kikai có thể sửa.",
+  ],
+  "textFail.network": [
+    "The text service couldn't be reached. It may have been a blip.",
+    "Không kết nối được dịch vụ nhắn tin. Có thể chỉ là lỗi tạm thời.",
+  ],
   "client.deleteHeading": ["Delete client", "Xóa khách hàng"],
   "client.deleteHint": [
     "Wipes their name, number, email and notes for good. Their past bookings stay, as “Deleted client”, so your takings don't change.",

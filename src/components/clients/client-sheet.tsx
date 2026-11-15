@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api-fetch";
 import { formatMoney } from "@/lib/money";
 import { appointmentStatus, PATCH_TEST_BADGE, SMS_STATUS, STATUS_BADGE } from "@/lib/status-styles";
+import { textFailureKey } from "@/lib/text-failure";
 import { cn } from "@/lib/utils";
 import { useT } from "@/components/providers/language-provider";
 import { useMe } from "@/components/providers/me-provider";
@@ -516,6 +517,11 @@ function BookingList({
 }) {
   const { t, lang, clock } = useT();
   if (bookings.length === 0) return null;
+  // Why it did not go, in words, or as stored when it is not one we know.
+  const textFailureText = (reason: string | null) => {
+    const key = textFailureKey(reason);
+    return key ? t(key) : reason;
+  };
   return (
     <div>
       <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{title}</p>
@@ -548,6 +554,7 @@ function BookingList({
                   )}
                 </div>
               )}
+              {textFailed && <p className="text-xs text-muted-foreground">{textFailureText(b.confirmationError)}</p>}
             </li>
           );
         })}
