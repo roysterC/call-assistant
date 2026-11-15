@@ -17,6 +17,8 @@ import { joinName, parseClientQuery } from "@/lib/client-name";
 import { normalisePhone } from "@/lib/phone";
 import { nameKey, sameNameCounts } from "@/lib/client-link";
 import { patchTestDay } from "@/lib/patch-test";
+import { getSalonConfig } from "@/lib/booking";
+import { dueBackLeadIds, summaryJson, visitSummaries } from "@/lib/client-summary";
 
 const SORTABLE = ["firstName", "lastName", "phone", "email", "lastVisit", "nextBooking"] as const;
 type SortKey = (typeof SORTABLE)[number];
@@ -88,6 +90,49 @@ function searchSql(q: string | null): Prisma.Sql {
   }
 }
 
+/** The Clients page's groups: who needs the salon's attention. */
+const GROUPS = ["due", "new", "lapsed", "patch"] as const;
+type Group = (typeof GROUPS)[number];
+/** "New": first on the books within this many days. */
+const NEW_DAYS = 60;
+/** "Haven't been in": nothing past or booked for this long. */
+const LAPSED_DAYS = 90;
+
+/** A group as SQL on ca_leads. `due` is worked out beforehand (client-summary). */
+function groupSql(group: Group | null, organizationId: string, now: Date, dueIds: string[]): Prisma.Sql {
+  switch (group) {
+    case null:
+      return Prisma.sql`TRUE`;
+    case "due":
+      return dueIds.length ? Prisma.sql`id IN (${Prisma.join(dueIds)})` : Prisma.sql`FALSE`;
+    case "new":
+      return Prisma.sql`"createdAt" >= ${new Date(now.getTime() - NEW_DAYS * 86_400_000)}`;
+    case "lapsed":
+      return Prisma.sql`(
+        EXISTS (
+          SELECT 1 FROM ca_appointments a
+          WHERE a."leadId" = ca_leads.id AND a."organizationId" = ${organizationId}
+            AND a.status IN (${Prisma.join(VISITED)}) AND a."startsAt" < ${now}
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ca_appointments a
+          WHERE a."leadId" = ca_leads.id AND a."organizationId" = ${organizationId}
+            AND a.status IN (${Prisma.join(VISITED)})
+            AND a."startsAt" >= ${new Date(now.getTime() - LAPSED_DAYS * 86_400_000)}
+        )
+      )`;
+    case "patch":
+      // Booked for something that needs a skin test, with none on record.
+      return Prisma.sql`(
+        "patchTestAt" IS NULL AND EXISTS (
+          SELECT 1 FROM ca_appointments a
+          WHERE a."leadId" = ca_leads.id AND a."organizationId" = ${organizationId}
+            AND a.status = 'booked' AND a."startsAt" >= ${now} AND a."patchTestRequired" = TRUE
+        )
+      )`;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
@@ -104,17 +149,28 @@ export async function GET(req: NextRequest) {
     // A walk-in booked with no details is a lead with nothing on it. It
     // belongs to its appointment, not in a list someone picks clients from,
     // where it would be a blank row nobody can tell apart.
-    const where = Prisma.sql`
+    const now = new Date();
+    const groupParam = searchParams.get("group");
+    const group: Group | null = GROUPS.includes(groupParam as Group) ? (groupParam as Group) : null;
+    const wantCounts = searchParams.get("counts") === "1";
+    const detail = searchParams.get("detail") === "1";
+    const cfg = group === "due" || wantCounts || detail ? await getSalonConfig(ctx.organizationId) : null;
+    const dueIds = cfg && (group === "due" || wantCounts) ? await dueBackLeadIds(ctx.organizationId, cfg, now) : [];
+
+    const base = Prisma.sql`
       "organizationId" = ${ctx.organizationId}
       AND "anonymisedAt" IS NULL
       AND (name IS NOT NULL OR phone IS NOT NULL OR email IS NOT NULL)
+    `;
+    const where = Prisma.sql`
+      ${base}
+      AND ${groupSql(group, ctx.organizationId, now, dueIds)}
       AND ${searchSql(searchParams.get("q"))}
     `;
 
     // Column names come from the whitelist above, never from the request.
     // The two visit dates are worked out per client from their appointments,
     // exactly as the rows below report them, so the order matches what shows.
-    const now = new Date();
     const col =
       sort === "lastVisit"
         ? Prisma.sql`(
@@ -197,7 +253,29 @@ export async function GET(req: NextRequest) {
       possibleDuplicates: sameName.get(nameKey(r.name) ?? "") ?? 0,
     }));
 
-    return NextResponse.json({ clients, total, limit: take, offset: skip });
+    // The Clients page: what they usually have, when due back, and so on.
+    const summaries = detail && cfg ? await visitSummaries(ctx.organizationId, ids, now, cfg) : null;
+    const withDetail = summaries
+      ? clients.map((c) => {
+          const sm = summaries.get(c.id);
+          return { ...c, summary: sm ? summaryJson(sm) : null };
+        })
+      : clients;
+
+    // How many are in each group, for the page's chips (whatever is searched).
+    let counts: Record<string, number> | undefined;
+    if (wantCounts) {
+      const n = async (g: Group | null) => {
+        const r = await prisma.$queryRaw<{ count: bigint }[]>`
+          SELECT count(*) AS count FROM ca_leads WHERE ${base} AND ${groupSql(g, ctx.organizationId, now, dueIds)}
+        `;
+        return Number(r[0]?.count ?? 0);
+      };
+      const [all, ...each] = await Promise.all([n(null), ...GROUPS.map((g) => n(g))]);
+      counts = { all, ...Object.fromEntries(GROUPS.map((g, i) => [g, each[i]])) };
+    }
+
+    return NextResponse.json({ clients: withDetail, total, limit: take, offset: skip, ...(counts ? { counts } : {}) });
   } catch (error) {
     console.error("[CLIENTS API] GET error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   combineServices,
+  withQuotedMinutes,
   constrainWorkingDays,
   describeTeamForPrompt,
   matchService,
@@ -473,5 +474,18 @@ describe("parseServices prices", () => {
     expect(nul.priceMinor).toBeNull();
     expect(blank.priceMinor).toBeNull();
     expect(zero.priceMinor).toBe(0);
+  });
+});
+
+describe("a quoted length", () => {
+  const service = { name: "BIAB new set", durationMinutes: 60 };
+  it("books as long as the quote said, to the nearest five minutes", () => {
+    expect(withQuotedMinutes(service, 120).durationMinutes).toBe(120);
+    expect(withQuotedMinutes(service, "92").durationMinutes).toBe(90);
+  });
+  it("leaves the service as it is for anything not a sensible length", () => {
+    for (const m of [undefined, null, "", "two hours", 5, 1000, Number.NaN]) {
+      expect(withQuotedMinutes(service, m)).toBe(service);
+    }
   });
 });

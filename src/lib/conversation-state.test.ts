@@ -88,3 +88,12 @@ describe("conversationState", () => {
     expect(conversationState({ lastRole: null, lastMessageAt: ago(HOUR), now: NOW }).group).toBe("bot");
   });
 });
+
+describe("a quote waiting for a price", () => {
+  it("needs you, whatever else the chat did, until it is sent", () => {
+    const asked = ago(5 * 60_000);
+    expect(
+      conversationState({ lastRole: "assistant", lastMessageAt: ago(60_000), quote: { createdAt: asked, designs: 3 }, now: NOW })
+    ).toEqual({ group: "you", kind: "quote", since: asked.toISOString(), designs: 3 });
+  });
+});

@@ -40,6 +40,26 @@ afterEach(() => vi.useRealTimers());
 const saved = () => db.callback.create.mock.calls[0][0].data;
 
 describe("take_message", () => {
+  it("notes the chat a message was left in, so the Callbacks page can open it, and a call otherwise", async () => {
+    await handleTakeMessage("org", {
+      customerName: "Priya Shah",
+      customerPhone: "07700 900456",
+      message: "Broke a nail before her wedding.",
+      channel: "whatsapp",
+      conversationId: "wa-1",
+    });
+    expect(saved()).toMatchObject({ channel: "whatsapp", conversationId: "wa-1" });
+    db.callback.create.mockClear();
+    await handleTakeMessage("org", {
+      customerName: "Tom Reed",
+      callerNumber: "+447700900789",
+      message: "Gift voucher.",
+      channel: "pigeon",
+      conversationId: "x",
+    });
+    expect(saved()).toMatchObject({ channel: "call", conversationId: null });
+  });
+
   it("puts the message on the callback list, stamped with when they rang", async () => {
     vi.useFakeTimers({ now: new Date("2026-09-29T13:00:00Z"), toFake: ["Date"] }); // Tuesday 2pm
     const r = await handleTakeMessage("org", {

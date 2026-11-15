@@ -680,3 +680,21 @@ export function stylistDoesService(
     (name) => normalise(name) === normalise(service.name)
   );
 }
+
+/** Shortest and longest a quoted length can be, in minutes. */
+export const QUOTED_MINUTES_MIN = 15;
+export const QUOTED_MINUTES_MAX = 480;
+
+/**
+ * The service as long as a quote said, when the salon quoted a time for a
+ * design (src/lib/quotes.ts): "3D flowers, about 2 hours" books 2 hours of
+ * the diary, not the service's usual hour. Anything not a sensible length
+ * leaves the service as it is.
+ */
+export function withQuotedMinutes<T extends { durationMinutes: number }>(service: T, minutes: unknown): T {
+  const m = typeof minutes === "string" ? Number(minutes) : minutes;
+  if (typeof m !== "number" || !Number.isFinite(m)) return service;
+  const rounded = Math.round(m / 5) * 5;
+  if (rounded < QUOTED_MINUTES_MIN || rounded > QUOTED_MINUTES_MAX) return service;
+  return { ...service, durationMinutes: rounded };
+}

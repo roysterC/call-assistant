@@ -299,6 +299,12 @@ async function addStates(organizationId: string, rows: NormalizedConversation[])
   const leadIds = [...new Set(rows.map((r) => r.lead?.id).filter((x): x is string => Boolean(x)))];
   const oldest = rows.reduce((t, r) => Math.min(t, new Date(r.lastMessageAt).getTime()), Date.now());
   const since = new Date(oldest - OUTCOME_WINDOW_MS);
+  // Quotes waiting for a price, by chat: a quote belongs to its conversation,
+  // not to a client, who may not have given a number yet.
+  const waiting = await prisma.quote.findMany({
+    where: { organizationId, status: "requested", conversationId: { in: rows.map((r) => r.id) } },
+    select: { channel: true, conversationId: true, createdAt: true, items: true },
+  });
   const [bookings, callbacks] = leadIds.length
     ? await Promise.all([
         prisma.appointment.findMany({
@@ -320,7 +326,9 @@ async function addStates(organizationId: string, rows: NormalizedConversation[])
     const fits = (at: Date) => at.getTime() <= last.getTime() + 5 * 60 * 1000;
     const booking = r.lead ? bookings.find((b) => b.leadId === r.lead!.id && fits(b.createdAt)) : undefined;
     const callback = r.lead ? callbacks.find((c) => c.leadId === r.lead!.id && fits(c.createdAt)) : undefined;
+    const quote = waiting.find((q) => q.conversationId === r.id && q.channel === r.channel);
     r.state = conversationState({
+      quote: quote ? { createdAt: quote.createdAt, designs: Array.isArray(quote.items) ? quote.items.length : 1 } : null,
       lastRole: r.lastRole ?? null,
       lastMessageAt: last,
       handoffState: r.handoffState,

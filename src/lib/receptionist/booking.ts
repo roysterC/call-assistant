@@ -13,6 +13,7 @@ import { colourStatus, slotProblem, stylistServiceProblem } from "@/lib/booking/
 import {
   matchStylist,
   resolveBookedService,
+  withQuotedMinutes,
   type SalonService,
   type Stylist,
 } from "@/lib/salon-config";
@@ -179,6 +180,8 @@ export async function handleSaveCustomerDetails(
 
 /** What book_appointment is sent. */
 type BookingParams = {
+    /** A design quoted with a length: how long, in minutes, instead of the service's own. */
+    minutes?: number | string;
     date?: string;
     day?: string;
     time: string;
@@ -302,7 +305,7 @@ async function checkBooking(organizationId: string, params: BookingParams) {
   }
   // One appointment covering everything they asked for: its length is the sum
   // of the parts, and it carries the patch-test rule of any colour in it.
-  const service = bookedService.service;
+  const service = withQuotedMinutes(bookedService.service, params.minutes);
 
   const requestedStylist = blankToUndefined(params.stylist);
   let stylist = matchStylist(requestedStylist, cfg.stylists);

@@ -20,6 +20,8 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { getSalonConfig } from "@/lib/booking";
 import { parsePatchTestDate, patchTestDay } from "@/lib/patch-test";
+import { summariseVisits, summaryJson } from "@/lib/client-summary";
+import { readCouldNotBook } from "@/lib/callback-notes";
 import { joinName } from "@/lib/client-name";
 import { checkClientEmail, checkClientPhone } from "@/lib/client-details";
 import { deleteClient } from "@/lib/client-delete";
@@ -85,10 +87,44 @@ export async function GET(req: NextRequest, { params }: Params) {
       getSalonConfig(ctx.organizationId),
     ]);
 
+    // For the profile: their visits summed up, the rebooking text they were
+    // last sent, the messages they left, and their chats.
+    const [rebookText, callbacks, wa, social] = await Promise.all([
+      prisma.rebookText.findFirst({
+        where: { organizationId: ctx.organizationId, leadId: id, sendError: null },
+        orderBy: { sentAt: "desc" },
+        select: { sentAt: true, service: true, openedAt: true },
+      }),
+      prisma.callback.findMany({
+        where: { organizationId: ctx.organizationId, leadId: id },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, createdAt: true, notes: true, status: true, outcome: true, handledBy: true, channel: true },
+      }),
+      prisma.whatsAppConversation.findMany({
+        where: { organizationId: ctx.organizationId, leadId: id },
+        select: { id: true, lastMessageAt: true, createdAt: true },
+      }),
+      prisma.socialConversation.findMany({
+        where: { organizationId: ctx.organizationId, leadId: id },
+        select: { id: true, channel: true, lastMessageAt: true, createdAt: true },
+      }),
+    ]);
+    const chats = [...wa.map((w) => ({ ...w, channel: "whatsapp" })), ...social].sort(
+      (a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime()
+    );
+
     return NextResponse.json({
       client: { ...client, patchTestAt: patchTestDay(client.patchTestAt) },
       appointments,
       timeZone: cfg.timeZone,
+      summary: summaryJson(summariseVisits(appointments, new Date(), cfg.services, cfg.timeZone)),
+      rebookText,
+      callbacks: callbacks.map((c) => {
+        const cnb = readCouldNotBook(c.notes);
+        return { ...c, notes: cnb ? cnb.rest ?? `${cnb.service ?? ""}`.trim() : c.notes, couldNotBook: Boolean(cnb) };
+      }),
+      chats,
     });
   } catch (error) {
     console.error("[CLIENTS API] GET one error:", error);
