@@ -14,7 +14,7 @@ import {
   type Stylist,
 } from "@/lib/salon-config";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
-import { featureFlags, isStartPageChoice, resolveStartPage } from "@/lib/navigation";
+import { featureFlags, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
 import { checkSiteChat } from "@/lib/salon-chat";
@@ -78,7 +78,6 @@ const WRITABLE_FIELDS = [
   "instagramAppSecret",
   "metaVerifyToken",
   "whatsappAccessToken",
-  "startPage",
   // Online booking and the salon's own website (src/lib/online-booking):
   // the salon's own choice, like rebooking texts.
   "onlineBookingEnabled",
@@ -114,9 +113,7 @@ function sanitiseSettingsPayload(
   // teamMembers carries stylist calendar ids and working days now, so it goes
   // through the same treatment rather than being stored as arbitrary JSON.
   if ("teamMembers" in out) out.teamMembers = parseStylists(out.teamMembers);
-  // Only a page the CRM has; anything else (or empty) is "automatic".
   if ("salonFaq" in out) out.salonFaq = parseSalonFaq(out.salonFaq);
-  if ("startPage" in out) out.startPage = isStartPageChoice(out.startPage) ? out.startPage : null;
   if ("rebookTextsEnabled" in out) out.rebookTextsEnabled = out.rebookTextsEnabled === true;
   if ("onlineBookingEnabled" in out) out.onlineBookingEnabled = out.onlineBookingEnabled === true;
   if ("onlineStylistChoice" in out) out.onlineStylistChoice = out.onlineStylistChoice !== false;
@@ -210,10 +207,8 @@ export async function GET(req: NextRequest) {
     // route agree without each re-deriving the diary's state.
     const cfg = await getSalonConfig(ctx.organizationId);
     const startPage = resolveStartPage({
-      chosen: settings.startPage,
       flags: featureFlags(settings),
       diaryTakesBookings: selectProvider(cfg).capabilities.createBooking,
-      isOwner: ctx.role !== "member",
     });
 
     // The name the sidebar heads with: this organisation's, including the one
