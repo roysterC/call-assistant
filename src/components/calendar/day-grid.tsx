@@ -60,6 +60,8 @@ export interface CalendarAppointment {
   /** The confirmation text: when it went, or why it did not. */
   confirmationSentAt?: string | null;
   confirmationError?: string | null;
+  /** A design quoted in the chat: its price, in pence, instead of the price list's. */
+  quotedPriceMinor?: number | null;
   lead: {
     id: string;
     name: string | null;

@@ -28,6 +28,14 @@ export interface AvailabilityQuery {
   serviceName?: string;
   /** Caller's stylist preference, if any. */
   stylistName?: string;
+  /**
+   * How long it takes, when that is not the service's own length: a design
+   * the salon quoted "about 2h" for. Left out, the service's length is used.
+   * The booking is written at the quoted length, so the times offered must
+   * be found at it too: found at the service's 60 minutes, 11am was offered
+   * for a two-hour design with a client at 12, and then refused at booking.
+   */
+  durationMinutes?: number;
   /** Drives the patch-test lead time for colour services. */
   clientType?: "new" | "returning" | "unknown";
   /**

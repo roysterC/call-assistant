@@ -27,8 +27,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
-import { buildVoiceTools, REQUEST_QUOTE } from "@/lib/receptionist/tool-definitions";
-import { isQuoteChannel, requestQuote } from "@/lib/quotes";
+import { buildVoiceTools, REQUEST_QUOTE, type ToolDefinition } from "@/lib/receptionist/tool-definitions";
+import { bookableQuote, isQuoteChannel, markQuoteBooked, requestQuote } from "@/lib/quotes";
+import { pickQuotedDesign, type QuotedDesign } from "@/lib/quote-text";
 import { runAction, handleBookAppointment, isActionName, normaliseParameters } from "@/lib/receptionist/actions";
 import { ReadBackGate, type ReadBackState } from "@/lib/receptionist/read-back";
 import { ClientTypeMemory } from "@/lib/receptionist/client-type-memory";
@@ -49,6 +50,81 @@ const KEEP_MESSAGES = 60;
 
 /** Starting afresh, at most this many of the conversation's own messages are carried over. */
 export const CARRY_MESSAGES = 10;
+
+/**
+ * A design quoted in this chat, as the booking takes it: put on the
+ * receptionist's input by the server (never by the model, whose own is
+ * thrown away), kept with what is read back, and booked from there.
+ */
+const QUOTED = "_quoted";
+type Quoted = Pick<QuotedDesign, "quoteId" | "priceMinor">;
+
+/** The tools that find or check a time for a quoted design. */
+const QUOTED_TOOLS = new Set(["check_availability", "prepare_booking"]);
+
+/** `design` on the tools that take one, in the chats that take quotes. */
+export function withDesignParam(tools: ToolDefinition[]): ToolDefinition[] {
+  return tools.map((t) => {
+    if (!QUOTED_TOOLS.has(t.function.name)) return t;
+    const params = t.function.parameters as { properties?: Record<string, unknown> };
+    return {
+      ...t,
+      function: {
+        ...t.function,
+        parameters: {
+          ...params,
+          properties: {
+            ...params.properties,
+            design: {
+              type: "number",
+              description:
+                "When the salon has quoted designs in this chat: which one this is for, by its number in the " +
+                "quote (1 for the 1st). Its quoted length and price are then used. With one design quoted, " +
+                "leave it out. Send 0 for something that is none of the quoted designs.",
+            },
+          },
+        },
+      },
+    };
+  });
+}
+
+/**
+ * The receptionist's input with the quoted design applied: its length as
+ * `minutes` (the service's own when the salon gave none) and its price,
+ * for check_availability and prepare_booking. Anything else is as it was.
+ */
+export function applyQuotedDesign(
+  name: string,
+  input: Record<string, unknown>,
+  designs: QuotedDesign[]
+): { ok: true; input: Record<string, unknown> } | { ok: false; message: string } {
+  const { [QUOTED]: _forged, design, ...rest } = input;
+  void _forged;
+  if (!QUOTED_TOOLS.has(name)) return { ok: true, input: rest };
+  const picked = pickQuotedDesign(designs, design);
+  if (!picked.ok) return picked;
+  if (!picked.design) return { ok: true, input: rest };
+  const { minutes: _said, ...withoutMinutes } = rest;
+  void _said;
+  const quoted: Quoted = { quoteId: picked.design.quoteId, priceMinor: picked.design.priceMinor };
+  return {
+    ok: true,
+    input: {
+      ...withoutMinutes,
+      ...(picked.design.minutes ? { minutes: picked.design.minutes } : {}),
+      [QUOTED]: quoted,
+    },
+  };
+}
+
+/** The quoted design on an input, taken off it, for handleBookAppointment's options. */
+function takeQuoted(input: Record<string, unknown>): { params: Record<string, unknown>; quoted: Quoted | null } {
+  const { [QUOTED]: raw, ...params } = input;
+  const q = raw as Partial<Quoted> | undefined;
+  const quoted = q && typeof q.quoteId === "string" && typeof q.priceMinor === "number" ? { quoteId: q.quoteId, priceMinor: q.priceMinor } : null;
+  return { params, quoted };
+}
 
 /** What is kept between messages besides the history. */
 interface SavedState {
@@ -216,8 +292,9 @@ async function reply(turn: ChatTurn): Promise<string> {
   const canBook = turn.mode !== "messages";
   // A price for designs from their pictures, in the chats that take pictures.
   const tools = toClaudeTools([
-    ...buildVoiceTools(canBook ? selectProvider(cfg).capabilities : manualProvider.capabilities),
-    ...(isQuoteChannel(channel) ? [REQUEST_QUOTE] : []),
+    ...(isQuoteChannel(channel)
+      ? [...withDesignParam(buildVoiceTools(canBook ? selectProvider(cfg).capabilities : manualProvider.capabilities)), REQUEST_QUOTE]
+      : buildVoiceTools(canBook ? selectProvider(cfg).capabilities : manualProvider.capabilities)),
   ]);
   const allowed = new Set(tools.map((t) => t.name));
 
@@ -244,20 +321,22 @@ async function reply(turn: ChatTurn): Promise<string> {
   const readBack = new ReadBackGate(
     {
       turn: () => engine.turns,
-      check: (input) =>
-        handleBookAppointment(
+      check: (input) => {
+        const { params, quoted } = takeQuoted(input);
+        return handleBookAppointment(
           organizationId,
-          normaliseParameters(withCallerContext("book_appointment", input, phone)) as Parameters<
+          normaliseParameters(withCallerContext("book_appointment", params, phone)) as Parameters<
             typeof handleBookAppointment
           >[1],
-          { dryRun: true }
-        ),
-      book: async (input) => {
-        const result = await runAction(
-          "book_appointment",
-          organizationId,
-          withCallerContext("book_appointment", { ...input, notes: withChannelNote(input.notes, channel) }, phone)
+          { dryRun: true, ...(quoted ? { quote: { priceMinor: quoted.priceMinor } } : {}) }
         );
+      },
+      book: async (input) => {
+        const { params, quoted } = takeQuoted(input);
+        const bookParams = withCallerContext("book_appointment", { ...params, notes: withChannelNote(params.notes, channel) }, phone);
+        const result = quoted
+          ? await runAction("book_appointment", organizationId, bookParams, { quote: { priceMinor: quoted.priceMinor } })
+          : await runAction("book_appointment", organizationId, bookParams);
         const n = (result as {
           success?: boolean;
           bookingNumber?: unknown;
@@ -266,6 +345,8 @@ async function reply(turn: ChatTurn): Promise<string> {
           startsAt?: string;
           textSent?: boolean;
         } | null) ?? null;
+        // The quote is used: a later booking in this chat is at the price list's.
+        if (n?.success && quoted) await markQuoteBooked(quoted.quoteId, now);
         if (n?.success && turn.outcome && n.service && n.stylist && n.startsAt) {
           turn.outcome.booked = {
             service: n.service,
@@ -308,7 +389,15 @@ async function reply(turn: ChatTurn): Promise<string> {
     ),
     tools,
     execute: async (name, said) => {
-      const input = clientTypes.apply(name, said);
+      // A design the salon quoted here goes in at its length and price,
+      // whatever the receptionist remembered to send.
+      const quotedInput = applyQuotedDesign(
+        name,
+        clientTypes.apply(name, said),
+        canBook && QUOTED_TOOLS.has(name) ? await bookableQuote(organizationId, channel, conversationId, now) : []
+      );
+      if (!quotedInput.ok) return { success: false, available: null, message: quotedInput.message };
+      const input = quotedInput.input;
       if (turn.onContact && typeof input.customerPhone === "string" && input.customerPhone.trim()) {
         turn.onContact({
           phone: input.customerPhone.trim(),

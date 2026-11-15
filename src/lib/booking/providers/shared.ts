@@ -52,7 +52,11 @@ export async function readAvailability(
   // one appointment of both lengths rather than a name no single service has.
   const resolved = resolveBookedService(q.serviceName, cfg.services);
   if (!resolved.ok) return [];
-  const service = resolved.service;
+  // Already rounded and bounded by whoever asked (withQuotedMinutes).
+  const service =
+    typeof q.durationMinutes === "number" && q.durationMinutes > 0
+      ? { ...resolved.service, durationMinutes: q.durationMinutes }
+      : resolved.service;
 
   let pool = stylistsForService(service, cfg.stylists);
   const preferred = matchStylist(q.stylistName, cfg.stylists);

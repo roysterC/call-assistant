@@ -26,7 +26,7 @@ import { MessageSquareText, MoreHorizontal, Phone, StickyNote, TriangleAlert } f
 import { Dialog, DialogContent, DialogTitle, PHONE_SHEET } from "@/components/ui/dialog";
 import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { bookedByMessage } from "@/lib/booked-by";
-import { textFailureKey } from "@/lib/text-failure";
+import { shownFailureReason, textFailureKey } from "@/lib/text-failure";
 import { formatMoney, minorToInput, parseMoney } from "@/lib/money";
 import { speakablePhone } from "@/lib/phone";
 import { minutesTime } from "@/lib/i18n";
@@ -62,7 +62,7 @@ export function AppointmentSheet({
   appointment,
   timeZone,
   tones,
-  listPriceMinor,
+  listPriceMinor: priceListMinor,
   onClose,
   onChanged,
   onEdit,
@@ -80,6 +80,10 @@ export function AppointmentSheet({
   const [changed, setChanged] = useState<{ status: string; amountMinor: number | null } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { t, locale, clock } = useT();
+  // A design quoted in the chat is at its quoted price, not the price list's
+  // for the plain service.
+  const quoted = appointment?.quotedPriceMinor != null;
+  const listPriceMinor = quoted ? appointment!.quotedPriceMinor! : priceListMinor;
 
   // Start from whatever is already recorded, then the price list. Reset per
   // appointment so last client's figure never rides along into this one.
@@ -306,7 +310,7 @@ export function AppointmentSheet({
                 <span className="font-semibold">{t("client.textFailed")}.</span>{" "}
                 {(() => {
                   const key = textFailureKey(a.confirmationError);
-                  return key ? t(key) : a.confirmationError;
+                  return key ? t(key) : shownFailureReason(a.confirmationError);
                 })()}
               </span>
             </p>
@@ -384,7 +388,7 @@ export function AppointmentSheet({
             </span>
             {listPriceMinor != null && (
               <span className="text-[12.5px] text-muted-foreground max-md:hidden">
-                {t("sheet.listPrice", { price: formatMoney(listPriceMinor) })}
+                {t(quoted ? "sheet.quotedPrice" : "sheet.listPrice", { price: formatMoney(listPriceMinor) })}
               </span>
             )}
           </div>

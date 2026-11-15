@@ -20,11 +20,20 @@ const REASONS: Array<{ test: RegExp; key: MessageKey }> = [
   { test: /permission to send an sms has not been enabled for the region|21408/i, key: "textFail.region" },
   { test: /'from'|from phone number|alphanumeric sender|21212|21606/i, key: "textFail.badSender" },
   { test: /not a valid phone number|21211|21614/i, key: "textFail.invalid" },
-  { test: /authenticate|20003|insufficient|balance|suspended/i, key: "textFail.account" },
+  // "Authenticate" (20003), or "authentication failed, auth token is not valid": the server's Twilio keys.
+  { test: /authenticat|auth token|20003|insufficient|balance|suspended/i, key: "textFail.account" },
   { test: /fetch failed|econn|etimedout|timed out|network|socket/i, key: "textFail.network" },
 ];
 
 export function textFailureKey(reason: string | null | undefined): MessageKey | null {
   if (!reason) return null;
   return REASONS.find((r) => r.test.test(reason))?.key ?? null;
+}
+
+/**
+ * A reason we do not know, as it may be shown: without Twilio account and
+ * message ids, which mean nothing to a salon and are ours to keep.
+ */
+export function shownFailureReason(reason: string): string {
+  return reason.replace(/\b(AC|SM|MM)[0-9a-f]{32}\b/gi, "").replace(/\s+([,.])/g, "$1").replace(/\s{2,}/g, " ").trim();
 }

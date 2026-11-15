@@ -85,3 +85,48 @@ export function quoteReply(items: QuoteItem[], from: string | null): string {
 function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/** A priced design from the quote answered in a chat, as the booking takes it. */
+export interface QuotedDesign {
+  quoteId: string;
+  /** Its number in the reply: "1st design" is 1. */
+  n: number;
+  priceMinor: number;
+  /** Null when the salon gave no time: the service's own length. */
+  minutes: number | null;
+}
+
+/** The priced designs of a quote, numbered as its reply numbers them. */
+export function quotedDesigns(quoteId: string, items: QuoteItem[]): QuotedDesign[] {
+  return items.flatMap((item, i) =>
+    item.declined || item.priceMinor === null ? [] : [{ quoteId, n: i + 1, priceMinor: item.priceMinor, minutes: item.minutes }]
+  );
+}
+
+/**
+ * Which quoted design a booking is for. `design` is what the receptionist
+ * sent: the design's number, 0 for a booking that is none of them, or
+ * nothing. Nothing, with one design quoted, is that design: "would you like
+ * to book it?" "yes". With several, it has to ask which.
+ */
+export function pickQuotedDesign(
+  designs: QuotedDesign[],
+  design: unknown
+): { ok: true; design: QuotedDesign | null } | { ok: false; message: string } {
+  if (designs.length === 0) return { ok: true, design: null };
+  const n = typeof design === "string" && design.trim() ? Number(design) : design;
+  if (n === 0) return { ok: true, design: null };
+  if (typeof n === "number" && Number.isInteger(n)) {
+    const found = designs.find((d) => d.n === n);
+    if (found) return { ok: true, design: found };
+  } else if (designs.length === 1) {
+    return { ok: true, design: designs[0] };
+  }
+  const list = designs.map((d) => `${ordinal(d.n)} design (${formatMoneyShort(d.priceMinor)})`).join(", ");
+  return {
+    ok: false,
+    message:
+      `The salon quoted ${list} in this chat. Ask which one they want, then send design with its number ` +
+      "(1 for the 1st), or design 0 if this booking is none of them.",
+  };
+}

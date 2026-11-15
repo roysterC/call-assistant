@@ -117,6 +117,15 @@ describe("the read-back sentence", () => {
     expect(readBackSentence(checked)).not.toMatch(/skin test/);
   });
 
+  it("says the quoted price of a design quoted in the chat", () => {
+    expect(readBackSentence({ ...checked, service: "Acrylic infill", durationMinutes: 120, quotedPrice: "£55" })).toMatch(
+      /^Acrylic infill, two hours, at the quoted £55, with Chloe/
+    );
+    expect(readBackSentence({ ...checked, service: "Acrylic infill", quotedPrice: "£55" })).toMatch(
+      /^Acrylic infill, at the quoted £55, with Chloe/
+    );
+  });
+
   it("says how long a long appointment takes, and not a short one", () => {
     const cutAndColour = { ...checked, service: "Ladies cut and blow dry, full colour short hair", durationMinutes: 150 };
     expect(readBackSentence(cutAndColour)).toMatch(/full colour short hair, two and a half hours, with Chloe/);

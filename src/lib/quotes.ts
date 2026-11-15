@@ -25,7 +25,7 @@ import { sendSms } from "@/lib/sms";
 import { orgContextFor, sendText, type SocialChannel } from "@/lib/meta-messaging";
 import { whatsappSender } from "@/lib/meta-credentials";
 import { sendTextMessage } from "@/lib/whatsapp";
-import { parseQuoteItems, quoteReady, quoteReply, type QuoteItem } from "@/lib/quote-text";
+import { parseQuoteItems, quoteReady, quoteReply, quotedDesigns, type QuoteItem, type QuotedDesign } from "@/lib/quote-text";
 
 /** The chats a quote can come from: those that take photos. */
 export const QUOTE_CHANNELS = ["whatsapp", "instagram", "facebook"] as const;
@@ -40,6 +40,9 @@ export const QUOTE_PHOTO_WINDOW_MS = 24 * 60 * 60_000;
 
 /** Meta lets a business message someone this long after their last message. */
 export const CHAT_REPLY_WINDOW_MS = 24 * 60 * 60_000;
+
+/** A quote answered this long ago is still booked at its prices; after that, at the price list's. */
+export const QUOTE_BOOKABLE_MS = 30 * 24 * 60 * 60_000;
 
 /** At most this many designs in one quote: a client sending a whole album is asked to pick. */
 export const MAX_DESIGNS = 8;
@@ -285,4 +288,41 @@ async function sendOnChannel(
   return r.success
     ? { ok: true, messageId: r.messageId }
     : { ok: false, error: `${CHANNEL_LABEL[channel]} did not take it: ${r.error ?? "unknown error"}.` };
+}
+
+/**
+ * The designs quoted in this chat that can still be booked at their price:
+ * from the latest answered quote, within a month of it, and not yet booked.
+ * A booking from the chat then goes in at the quoted length and price
+ * whatever the receptionist remembered to send: it once checked the diary
+ * at the service's own hour, offered 11am for a two-hour design with a
+ * client at 12, and booked the price list's £27 for a £55 quote.
+ */
+export async function bookableQuote(
+  organizationId: string,
+  channel: string,
+  conversationId: string,
+  now: Date = new Date()
+): Promise<QuotedDesign[]> {
+  if (!isQuoteChannel(channel)) return [];
+  const quote = await prisma.quote.findFirst({
+    where: {
+      organizationId,
+      channel,
+      conversationId,
+      status: "sent",
+      bookedAt: null,
+      sentAt: { gte: new Date(now.getTime() - QUOTE_BOOKABLE_MS) },
+    },
+    orderBy: { sentAt: "desc" },
+    select: { id: true, items: true },
+  });
+  return quote ? quotedDesigns(quote.id, parseQuoteItems(quote.items)) : [];
+}
+
+/** A design from the quote has been booked: the quote is used. Never throws. */
+export async function markQuoteBooked(quoteId: string, now: Date = new Date()): Promise<void> {
+  await prisma.quote
+    .update({ where: { id: quoteId }, data: { bookedAt: now } })
+    .catch((err) => console.error("[QUOTES] Could not mark a quote booked:", err));
 }
