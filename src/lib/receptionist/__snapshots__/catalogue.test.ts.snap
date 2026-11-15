@@ -669,7 +669,7 @@ exports[`the reply catalogue > check: 'Saturday' said on a Saturday 1`] = `
     "canCheck": true,
     "date": "2026-10-03",
     "durationMinutes": 45,
-    "message": "Today is Saturday, so "Saturday" was taken as a week today, not today; if they meant today, check "today". Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Today is Saturday, so "Saturday" was taken as a week today, not today; if they meant today, check "today". Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-10-03",
@@ -700,7 +700,7 @@ exports[`the reply catalogue > check: a closed day 1`] = `
     "canCheck": true,
     "closed": true,
     "date": "2026-09-28",
-    "message": "The salon is closed on Monday — say that, not that it is booked up. Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 11am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "The salon is closed on Monday — say that, not that it is booked up. Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 11am. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "nextAvailable": {
       "date": "2026-09-29",
       "options": [
@@ -749,7 +749,7 @@ exports[`the reply catalogue > check: a day nobody who does it works 1`] = `
     "canCheck": true,
     "closed": false,
     "date": "2026-09-29",
-    "message": "Nobody who does blow dry works Tuesday — say that it is not a day we offer it, not that it is booked up, so they do not ask again for the same day next week. Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Nobody who does blow dry works Tuesday — say that it is not a day we offer it, not that it is booked up, so they do not ask again for the same day next week. Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "nextAvailable": {
       "date": "2026-10-03",
       "options": [
@@ -784,7 +784,7 @@ exports[`the reply catalogue > check: a day with plenty free 1`] = `
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -911,7 +911,7 @@ exports[`the reply catalogue > check: a window wider than an hour stays a window
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -942,7 +942,7 @@ exports[`the reply catalogue > check: after six, which has nothing 1`] = `
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "Nothing free in the window they asked for. Say so plainly, then: Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Nothing free in the window they asked for. Say so plainly, then: Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -974,7 +974,7 @@ exports[`the reply catalogue > check: an afternoon 1`] = `
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "Offer these two, each with its day, and nothing else: Tuesday at half past 12, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at half past 12, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1005,7 +1005,7 @@ exports[`the reply catalogue > check: colour for a regular found on her record 1
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 90,
-    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1036,7 +1036,7 @@ exports[`the reply catalogue > check: colour for someone new, inside the skin-te
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 90,
-    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1067,7 +1067,7 @@ exports[`the reply catalogue > check: colour for someone new, the day they named
     "canCheck": true,
     "closed": false,
     "date": "2026-09-29",
-    "message": "Root tint needs a skin patch test at least 48 hours beforehand for a new client, done at the salon while it is open, so the earliest is Thursday. Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Root tint needs a skin patch test at least 48 hours beforehand for a new client, done at the salon while it is open, so the earliest is Thursday. Offer these two, each with its day, and nothing else: Saturday the 3rd at half past 8, or at 1pm. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "nextAvailable": {
       "date": "2026-10-03",
       "options": [
@@ -1103,7 +1103,7 @@ exports[`the reply catalogue > check: colour for someone with a patch test on re
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 90,
-    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Offer these two, each with its day, and nothing else: Tuesday at 9am, or at half past 12. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1200,7 +1200,7 @@ exports[`the reply catalogue > check: one time asked for as a narrow window, fre
     "date": "2026-09-29",
     "durationMinutes": 45,
     "exact": true,
-    "message": "2pm on Tuesday is free, and it is the time they asked for. If you have their name, call prepare_booking with the exact startsAt value now and read that back; do not ask whether to book it first. If not, say it is free and ask their name. Do not read out other times. Do not name a stylist; who it is with is read back before it is booked.",
+    "message": "2pm on Tuesday is free, and it is the time they asked for. If you have their name, call prepare_booking with the exact startsAt value now and read that back; do not ask whether to book it first. If not, say it is free and ask their name. Do not read out other times. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1286,7 +1286,7 @@ exports[`the reply catalogue > check: the soonest 1`] = `
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "Offer just the soonest, with its day, and nothing else: Tuesday at 9am. If it does not suit, offer the next: Tuesday at 11am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "Offer just the soonest, with its day, and nothing else: Tuesday at 9am. If it does not suit, offer the next: Tuesday at 11am. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1318,7 +1318,7 @@ exports[`the reply catalogue > check: the time asked for is after closing 1`] = 
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "7pm is after closing: the salon closes at 6pm on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "7pm is after closing: the salon closes at 6pm on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1349,7 +1349,7 @@ exports[`the reply catalogue > check: the time asked for is before opening 1`] =
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "8am is before the salon opens: it opens at 9am on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 10am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "8am is before the salon opens: it opens at 9am on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 10am. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1381,7 +1381,7 @@ exports[`the reply catalogue > check: the time asked for is free 1`] = `
     "date": "2026-09-29",
     "durationMinutes": 45,
     "exact": true,
-    "message": "2pm on Tuesday is free, and it is the time they asked for. If you have their name, call prepare_booking with the exact startsAt value now and read that back; do not ask whether to book it first. If not, say it is free and ask their name. Do not read out other times. Do not name a stylist; who it is with is read back before it is booked.",
+    "message": "2pm on Tuesday is free, and it is the time they asked for. If you have their name, call prepare_booking with the exact startsAt value now and read that back; do not ask whether to book it first. If not, say it is free and ask their name. Do not read out other times. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1406,7 +1406,7 @@ exports[`the reply catalogue > check: the time asked for is taken 1`] = `
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "1pm is taken. Say so, then: Offer these two, each with its day, and nothing else: Tuesday at half past 12, or at 2pm. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "1pm is taken. Say so, then: Offer these two, each with its day, and nothing else: Tuesday at half past 12, or at 2pm. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1437,7 +1437,7 @@ exports[`the reply catalogue > check: the time asked for runs past closing 1`] =
     "canCheck": true,
     "date": "2026-09-29",
     "durationMinutes": 45,
-    "message": "half past 5 is too late for blow dry, which takes 45 minutes: the salon closes at 6pm on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "half past 5 is too late for blow dry, which takes 45 minutes: the salon closes at 6pm on Tuesday. Say that, not that it is taken, then: Offer these two, each with its day, and nothing else: Tuesday at 2pm, or at half past 3. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "options": [
       {
         "date": "2026-09-29",
@@ -1468,7 +1468,7 @@ exports[`the reply catalogue > check: too late today 1`] = `
     "canCheck": true,
     "closed": false,
     "date": "2026-09-26",
-    "message": "It is too late in the day for that today: the salon is closing or has closed. Say that, not that it is booked up. Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 11am. Do not name a stylist; who it is with is read back before it is booked. When they choose, use the exact startsAt value for that option.",
+    "message": "It is too late in the day for that today: the salon is closing or has closed. Say that, not that it is booked up. Offer these two, each with its day, and nothing else: Tuesday at 9am, or at 11am. Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working. When they choose, use the exact startsAt value for that option.",
     "nextAvailable": {
       "date": "2026-09-29",
       "options": [

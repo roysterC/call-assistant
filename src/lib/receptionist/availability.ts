@@ -523,7 +523,9 @@ function availabilityReply(
       : options.length === 1
         ? said(options[0])
         : "";
-  const noStylist = stylistName ? "" : " Do not name a stylist; who it is with is read back before it is booked.";
+  const noStylist = stylistName
+    ? ""
+    : " Do not name a stylist; who it is with is read back before it is booked. If they ask who, call who_is_working.";
   // Asked for the soonest, they hear the soonest: one time, not a choice of
   // two. The next is kept back for if it does not suit.
   const howToOffer =

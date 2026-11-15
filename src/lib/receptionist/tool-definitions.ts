@@ -58,6 +58,40 @@ const SAVE_CUSTOMER_DETAILS: ToolDefinition = {
   },
 };
 
+const WHO_IS_WORKING: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "who_is_working",
+    description:
+      "Who is in on a day, and with a time and service, who could do it then. Call it whenever " +
+      "they ask who is in, who is working, or who would do their appointment. Never say you do " +
+      "not know the rota.",
+    parameters: {
+      type: "object",
+      properties: {
+        date: {
+          type: "string",
+          description: "The day, in their own words ('Monday', 'the 23rd'), resolved on the salon's clock.",
+        },
+        time: {
+          type: "string",
+          description: "A time they asked about, as they said it ('11', '2pm'). Needs the service too.",
+        },
+        service: {
+          type: "string",
+          description: "What they want done, when you know it: only those who do it are named.",
+        },
+        minutes: {
+          type: "number",
+          description:
+            "Only for a design the salon has quoted a time for in this conversation: that time in minutes.",
+        },
+      },
+      required: ["date"],
+    },
+  },
+};
+
 const CHECK_AVAILABILITY: ToolDefinition = {
   type: "function",
   function: {
@@ -567,7 +601,7 @@ export function buildVoiceTools(caps: BookingCapabilities): ToolDefinition[] {
   // description said, and on a shared phone it left a stray message on the
   // other person's record.
   if (!caps.createBooking) tools.push(SAVE_CUSTOMER_DETAILS);
-  if (caps.readAvailability) tools.push(CHECK_AVAILABILITY);
+  if (caps.readAvailability) tools.push(CHECK_AVAILABILITY, WHO_IS_WORKING);
   if (caps.createBooking) {
     tools.push(PREPARE_BOOKING, BOOK_PREPARED);
     // Changing a booking needs the same write access as making one. On an

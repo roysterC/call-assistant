@@ -2,6 +2,7 @@ import { handleBookCallback, handleTakeMessage } from "./messages";
 import { handleBookAppointment, handleSaveCustomerDetails } from "./booking";
 import { handleCancelAppointment, handleFindAppointment, handleRescheduleAppointment } from "./changes";
 import { handleCheckAvailability } from "./availability";
+import { handleWhoIsWorking } from "./who-is-working";
 
 /**
  * What the receptionist can do: check availability, book, find, move and
@@ -23,6 +24,7 @@ export {
   handleRescheduleAppointment,
   handleSaveCustomerDetails,
   handleTakeMessage,
+  handleWhoIsWorking,
 };
 
 export type ActionName =
@@ -33,7 +35,8 @@ export type ActionName =
   | "find_appointment"
   | "cancel_appointment"
   | "reschedule_appointment"
-  | "take_message";
+  | "take_message"
+  | "who_is_working";
 
 export const ACTION_NAMES: ActionName[] = [
   "save_customer_details",
@@ -44,6 +47,7 @@ export const ACTION_NAMES: ActionName[] = [
   "cancel_appointment",
   "reschedule_appointment",
   "take_message",
+  "who_is_working",
 ];
 
 export function isActionName(name: string): name is ActionName {
@@ -115,6 +119,8 @@ export async function runAction(
       return handleRescheduleAppointment(organizationId, parameters as Parameters<typeof handleRescheduleAppointment>[1]);
     case "take_message":
       return handleTakeMessage(organizationId, parameters as Parameters<typeof handleTakeMessage>[1]);
+    case "who_is_working":
+      return handleWhoIsWorking(organizationId, parameters as Parameters<typeof handleWhoIsWorking>[1]);
     default:
       return { error: `Unknown function: ${name}` };
   }
