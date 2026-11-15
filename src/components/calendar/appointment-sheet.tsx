@@ -35,6 +35,7 @@ import { toneFor, type ServiceTone } from "@/lib/service-colours";
 import { clientLabel, type CalendarAppointment } from "./day-grid";
 import { ClientAvatar, CloseButton } from "./client-picker";
 import { useT } from "@/components/providers/language-provider";
+import { PhotoViewer } from "@/components/ui/photo-viewer";
 
 interface AppointmentSheetProps {
   appointment: CalendarAppointment | null;
@@ -72,6 +73,8 @@ export function AppointmentSheet({
   const [notice, setNotice] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [menu, setMenu] = useState(false);
+  // Which of the client's photos is open full size.
+  const [photoAt, setPhotoAt] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [textOnCancel, setTextOnCancel] = useState(true);
   // What this card has done to the booking since it opened, so the result
@@ -309,12 +312,12 @@ export function AppointmentSheet({
           {a.photos && a.photos.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {a.photos.map((p, i) => (
-                <a
+                <button
                   key={p.id}
-                  href={withAsOrg(`/api/chat-photos/${p.id}`)}
-                  target="_blank"
-                  rel="noopener"
-                  className="block overflow-hidden rounded-xl border"
+                  type="button"
+                  onClick={() => setPhotoAt(i)}
+                  aria-label={t("photo.open", { n: i + 1 })}
+                  className="block overflow-hidden rounded-xl border transition-opacity hover:opacity-90"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image */}
                   <img
@@ -323,7 +326,7 @@ export function AppointmentSheet({
                     className="h-20 w-20 object-cover"
                     loading="lazy"
                   />
-                </a>
+                </button>
               ))}
             </div>
           )}
@@ -485,6 +488,14 @@ export function AppointmentSheet({
             </div>
           )}
         </div>
+        {/* Inside the booking, so it opens over it as a nested dialog. */}
+        <PhotoViewer
+          photoIds={(a.photos ?? []).map((p) => p.id)}
+          index={photoAt}
+          onIndex={setPhotoAt}
+          onClose={() => setPhotoAt(null)}
+          title={t("photo.fromClient")}
+        />
       </DialogContent>
     </Dialog>
   );

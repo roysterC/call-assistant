@@ -20,7 +20,7 @@ import { ClientPanel } from "@/components/conversations/client-panel";
 import { QuotePanel, type OpenQuote } from "@/components/conversations/quote-panel";
 import { OPEN_QUOTE, quoteSeen } from "@/components/notifications/quote-alerts";
 import type { Channel, ConversationDetail, ThreadEvent } from "@/components/conversations/types";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { PhotoViewer } from "@/components/ui/photo-viewer";
 import { withAsOrg } from "@/lib/api-fetch";
 import { useLanguage } from "@/components/providers/language-provider";
 import { MessageBubble } from "@/components/conversations/message-bubble";
@@ -473,6 +473,10 @@ export default function ConversationsPage() {
   }
 
   const title = activeConversation ? conversationTitle(activeConversation) : "";
+  // Every photo in the chat, oldest first, for the viewer's arrows.
+  const chatPhotoIds = activeConversation
+    ? activeConversation.messages.flatMap((m) => activeConversation.photos?.[m.id] ?? [])
+    : [];
   const activeState = conversations.find((c) => c.id === activeConversation?.id)?.state;
   // A quote filed while the chat is open (the list refreshes on its own):
   // fetch it, so its bar appears without reopening the chat.
@@ -962,20 +966,14 @@ export default function ConversationsPage() {
         </div>
       )}
 
-      {/* A photo the client sent, full size. */}
-      <Dialog open={photoOpen !== null} onOpenChange={(open) => !open && setPhotoOpen(null)}>
-        <DialogContent className="max-w-[min(92vw,44rem)] p-2 sm:max-w-[min(92vw,44rem)]">
-          <DialogTitle className="sr-only">Photo from {title}</DialogTitle>
-          {photoOpen && (
-            // eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image
-            <img
-              src={withAsOrg(`/api/chat-photos/${photoOpen}`)}
-              alt={`Photo from ${title}`}
-              className="max-h-[80vh] w-full rounded-lg object-contain"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* A photo the client sent, full size; the arrows step through the chat's others. */}
+      <PhotoViewer
+        photoIds={chatPhotoIds}
+        index={photoOpen === null ? null : chatPhotoIds.indexOf(photoOpen)}
+        onIndex={(i) => setPhotoOpen(chatPhotoIds[i] ?? null)}
+        onClose={() => setPhotoOpen(null)}
+        title={`Photo from ${title}`}
+      />
     </div>
   );
 }

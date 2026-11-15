@@ -17,6 +17,7 @@ import { parseMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { minutesText, quoteReady, quoteReply, type QuoteItem } from "@/lib/quote-text";
 import { useMe } from "@/components/providers/me-provider";
+import { PhotoViewer } from "@/components/ui/photo-viewer";
 
 export interface OpenQuote {
   id: string;
@@ -55,6 +56,8 @@ export function QuotePanel({
     quote.items.map(() => ({ price: "", minutes: "", declined: false }))
   );
   const [sel, setSel] = useState(0);
+  // The design open full size, over the panel.
+  const [photoAt, setPhotoAt] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -187,12 +190,19 @@ export function QuotePanel({
           )}
 
           <div className="mx-4 mt-3 flex flex-col gap-3.5 rounded-2xl bg-tea-green-900 p-3.5 md:mx-5 md:flex-row">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image */}
-            <img
-              src={withAsOrg(`/api/chat-photos/${quote.items[sel].photoId}`)}
-              alt={`Design ${sel + 1}`}
-              className="h-56 w-full shrink-0 rounded-xl bg-muted object-cover md:h-[150px] md:w-[120px]"
-            />
+            <button
+              type="button"
+              onClick={() => setPhotoAt(sel)}
+              aria-label={`Open design ${sel + 1} full size`}
+              className="h-56 w-full shrink-0 overflow-hidden rounded-xl bg-muted transition-opacity hover:opacity-90 md:h-[150px] md:w-[120px]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image */}
+              <img
+                src={withAsOrg(`/api/chat-photos/${quote.items[sel].photoId}`)}
+                alt={`Design ${sel + 1}`}
+                className="h-full w-full object-cover"
+              />
+            </button>
             <div className="flex min-w-0 flex-1 flex-col gap-2.5">
               <p className="text-sm font-bold max-md:hidden">Design {sel + 1}</p>
               {cur.declined ? (
@@ -318,6 +328,13 @@ export function QuotePanel({
           )}
         </div>
       </div>
+      <PhotoViewer
+        photoIds={quote.items.map((it) => it.photoId)}
+        index={photoAt}
+        onIndex={setPhotoAt}
+        onClose={() => setPhotoAt(null)}
+        title={`Design from ${name}`}
+      />
     </div>
   );
 }

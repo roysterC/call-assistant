@@ -102,13 +102,16 @@ function DialogCard({ className, ...props }: BaseDialog.Popup.Props) {
 function DialogContent({
   children,
   showCloseButton = true,
+  dimNested = false,
   ...props
 }: BaseDialog.Popup.Props & {
   showCloseButton?: boolean
+  /** Dim the page even when this opens over another dialog (base-ui leaves a nested one's backdrop out). */
+  dimNested?: boolean
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay forceRender={dimNested || undefined} />
       <DialogCard {...props}>
         {children}
         {showCloseButton && (
