@@ -399,7 +399,12 @@ export default function SettingsPage() {
       <div
         role="tablist"
         aria-label="Settings"
-        className="-mx-1 flex gap-1 overflow-x-auto border-b border-border px-1"
+        // Scrolls sideways on a phone, never up and down: the line under the
+        // tabs is drawn inside the bar (an inset shadow) rather than as a
+        // border the tabs overlap, which overflowed by a pixel and gave the
+        // bar a vertical scrollbar. The scrollbar itself is hidden; a swipe
+        // still scrolls it.
+        className="-mx-1 flex gap-1 overflow-x-auto overflow-y-hidden px-1 shadow-[inset_0_-1px_0_var(--color-border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onKeyDown={(e) => {
           if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
           const i = tabs.indexOf(tab) + (e.key === "ArrowRight" ? 1 : -1);
@@ -419,7 +424,7 @@ export default function SettingsPage() {
             tabIndex={t === tab ? 0 : -1}
             onClick={() => choose(t)}
             className={cn(
-              "-mb-px inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm transition-colors",
+              "inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm transition-colors",
               t === tab
                 ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
