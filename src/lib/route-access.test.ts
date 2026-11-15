@@ -22,6 +22,8 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   // Each person's own pop-ups and "new" colours.
   "booking-notices": { GET: "members", POST: "members" },
   callbacks: { GET: "members", PATCH: "members" },
+  quotes: { GET: "members" },
+  "quotes/[id]/send": { POST: "members" },
   // Deleting a client cannot be undone and changes past takings.
   "clients/[id]": { GET: "members", PATCH: "members", DELETE: "owner" },
   clients: { GET: "members", POST: "members" },

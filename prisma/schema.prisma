@@ -50,6 +50,7 @@ model Organization {
   assistantSessions     AssistantSession[]
   chatSessions          ChatSession[]
   chatPhotos            ChatPhoto[]
+  quotes                Quote[]
   rebookTexts           RebookText[]
   usageRecords          UsageRecord[]
   callbacks             Callback[]
@@ -389,6 +390,40 @@ model ChatPhoto {
   @@map("ca_chat_photos")
 }
 
+// A client's request for a price on designs they sent in a chat (photos),
+// and the salon's answer (src/lib/quotes.ts). The receptionist files it
+// instead of a call back; whoever answers enters a price, and optionally a
+// time, for each design, and the reply goes back in the same chat.
+model Quote {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // The chat it came from: whatsapp, instagram or facebook, and its conversation.
+  channel        String
+  conversationId String
+  clientName     String?
+  // E.164, when they gave one: the reply goes by text once the chat's
+  // 24-hour window has closed.
+  clientPhone    String?
+  // What they asked for, in the receptionist's words: service, length,
+  // shape, when they would like it.
+  request        String
+  // One per design, in the order sent: { photoId, priceMinor, minutes, declined }.
+  items          Json
+  // requested, then sent.
+  status         String       @default("requested")
+  sentAt         DateTime?
+  sentBy         String?
+  // How the reply went: "chat", or "sms" after the chat's window closed.
+  sentVia        String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([channel, conversationId])
+  @@map("ca_quotes")
+}
+
 // A rebooking text: "your infill is due, Thursday 3pm is free", with a short
 // link (/r/<id>) into the salon's WhatsApp or Instagram chat to book it
 // (src/lib/rebook.ts). Kept so a client is not texted twice for one visit,
@@ -537,13 +572,27 @@ model Callback {
   lead            Lead         @relation(fields: [leadId], references: [id])
   assignedTo      String
   scheduledAt     DateTime
-  status          String       @default("pending") // pending | completed | cancelled
-  // Outcome captured when operator marks the callback complete.
-  // One of: converted | no_answer | not_interested | follow_up | other
+  status          String       @default("pending") // pending | completed | missed
+  // Outcome captured when the salon marks the callback done.
+  // Now one of: booked | sorted | not_needed. Older rows may hold
+  // converted | no_answer | not_interested | follow_up | other.
   outcome         String?
   completedAt     DateTime?
   notes           String?
   calendarEventId String?
+  // Where the message was left: "call", or the chat it came from
+  // (whatsapp, instagram, facebook, website), with that chat's id so the
+  // Callbacks page can open it. Null on messages from before this was kept.
+  channel         String?
+  conversationId  String?
+  // Rung with no answer: how many times, and the last, so the list says
+  // "Tried 2× · no answer" and the callback stays on it.
+  attempts        Int          @default(0)
+  lastAttemptAt   DateTime?
+  // Who marked it done (a name, as the screens show it), and what they
+  // noted about it ("booked Thu 3:30 with Lan").
+  handledBy       String?
+  resultNote      String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

@@ -18,7 +18,7 @@ import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
 import { OPEN_BOOKING } from "@/components/notifications/booking-alerts";
 import { noticesChanged } from "@/lib/use-booking-notices";
 import { useT } from "@/components/providers/language-provider";
-import { apiFetch } from "@/lib/api-fetch";
+import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { MonthPanel } from "@/components/calendar/month-panel";
 import {
   PHONE_HOUR_HEIGHT_PX,
@@ -60,6 +60,7 @@ import {
   NewBookingDialog,
   type BookingSlot,
 } from "@/components/calendar/new-booking-dialog";
+import type { ClientRow } from "@/components/calendar/client-picker";
 import {
   parseServices,
   resolveBookedService,
@@ -168,6 +169,24 @@ function rebookSlot(
   };
 }
 
+/** A client from their page's details, as the booking pop-up takes one. */
+function clientRowFrom(
+  c: Omit<ClientRow, "lastVisit" | "visits" | "nextBooking">,
+  appointments: { startsAt: string; status: string }[]
+): ClientRow {
+  const now = Date.now();
+  const past = appointments.filter((a) => (a.status === "booked" || a.status === "completed") && new Date(a.startsAt).getTime() < now);
+  const next = appointments
+    .filter((a) => a.status === "booked" && new Date(a.startsAt).getTime() >= now)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
+  return {
+    ...c,
+    lastVisit: past.map((a) => a.startsAt).sort().at(-1) ?? null,
+    visits: past.length,
+    nextBooking: next?.startsAt ?? null,
+  };
+}
+
 /** A new block's form, starting from a day, a person and a time. An hour long. */
 function newBlockForm(
   date: string,
@@ -227,6 +246,8 @@ export default function CalendarPage() {
   // A booking asked for by a pop-up or an alert, opened once its day has
   // loaded (loadedFor), so a day still on its way is not searched too soon.
   const [wanted, setWanted] = useState<{ id: string; date: string } | null>(null);
+  // "Book" from Callbacks or Clients: the next free time tapped is for them.
+  const [bookingFor, setBookingFor] = useState<ClientRow | null>(null);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // Until settings arrive we know nothing about the team, and "no stylists
@@ -402,6 +423,16 @@ export default function CalendarPage() {
   // today.
   const isPhone = useIsPhone();
   const [phonePick, setPhonePick] = useState<string | null>(null);
+
+  /** A free time tapped: for the client being booked for, if there is one. */
+  const pickSlot = (base: BookingSlot) => {
+    if (bookingFor) {
+      setSlot({ ...base, client: bookingFor });
+      setBookingFor(null);
+    } else {
+      setSlot(base);
+    }
+  };
   const phoneColumn =
     columns.find((c) => c.name === phonePick) ??
     columns.find((c) => c.worksToday) ??
@@ -435,10 +466,17 @@ export default function CalendarPage() {
     const params = new URLSearchParams(window.location.search);
     const date = params.get("date");
     const id = params.get("booking");
+    const bookFor = params.get("bookFor");
     const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
     if (day) jump(day);
     if (day && id) setWanted({ id, date: day });
-    if (date || id) window.history.replaceState(null, "", "/calendar");
+    if (bookFor) {
+      apiFetch(`/api/clients/${encodeURIComponent(bookFor)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d?.client && setBookingFor(clientRowFrom(d.client, d.appointments ?? [])))
+        .catch(() => {});
+    }
+    if (date || id || bookFor) window.history.replaceState(null, "", withAsOrg("/calendar"));
   }, []);
 
   // A pop-up's "View booking" while the diary is already open.
@@ -557,6 +595,22 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {bookingFor && (
+        <div
+          role="status"
+          className="flex items-center gap-3 rounded-xl border border-tea-green-600 bg-tea-green-900 px-3.5 py-2.5 text-sm"
+        >
+          <CalendarDays className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <strong>{t("diary.bookingFor", { name: bookingFor.name ?? t("diary.thisClient") })}</strong>{" "}
+            <span className="text-muted-foreground">{t("diary.bookingForHint")}</span>
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => setBookingFor(null)}>
+            {t("common.cancel")}
+          </Button>
+        </div>
+      )}
+
       <div className="flex gap-4 flex-1 min-h-0 overflow-hidden flex-col-reverse lg:flex-row">
         {!settingsLoaded ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground py-16">
@@ -578,9 +632,7 @@ export default function CalendarPage() {
             nowMinutes={nowMinutes}
             isPastDay={isPastDay}
             tones={tones}
-            onPickSlot={(stylistName, time) =>
-              setSlot({ stylistName, time, date: selected })
-            }
+            onPickSlot={(stylistName, time) => pickSlot({ stylistName, time, date: selected })}
             onOpenAppointment={showAppointment}
             onMoveAppointment={(appointment, stylistName, time) =>
               setPendingMove({ appointment, stylistName, time, date: selected })
@@ -670,7 +722,7 @@ export default function CalendarPage() {
         timeZone={timeZone}
         onBook={(stylistName, time) => {
           setShowFree(false);
-          setSlot({ stylistName, time, date: today });
+          pickSlot({ stylistName, time, date: today });
         }}
       />
 

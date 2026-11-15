@@ -15,7 +15,7 @@ import {
 import type { TimeSlot } from "@/lib/booking/types";
 import { chooseOffer } from "@/lib/booking/offer";
 import { stylistServiceProblem } from "@/lib/booking/rules";
-import { matchStylist, resolveBookedService, type SalonService } from "@/lib/salon-config";
+import { matchStylist, resolveBookedService, withQuotedMinutes, type SalonService } from "@/lib/salon-config";
 import { normaliseCallerName } from "@/lib/caller-name";
 import {
   openWindowFor,
@@ -180,6 +180,8 @@ export async function handleCheckAvailability(
 
 /** What check_availability is asked. */
 interface AvailabilityParams {
+  /** A design quoted with a length: how long, in minutes, instead of the service's own. */
+  minutes?: number | string;
   date?: string;
   /** The model sometimes sends a weekday under `day`. */
   day?: string;
@@ -325,7 +327,7 @@ async function availabilityRequest(
       },
     };
   }
-  const service = resolvedService.service;
+  const service = withQuotedMinutes(resolvedService.service, params.minutes);
 
   let clientType = normaliseClientType(
     params.clientType ?? (params.newClient === true ? "new" : params.newClient === false ? "returning" : undefined)

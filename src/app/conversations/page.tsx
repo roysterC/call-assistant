@@ -17,6 +17,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ConversationListItem } from "@/components/conversations/conversation-list-item";
 import { ClientPanel } from "@/components/conversations/client-panel";
+import { QuotePanel, type OpenQuote } from "@/components/conversations/quote-panel";
+import { OPEN_QUOTE, quoteSeen } from "@/components/notifications/quote-alerts";
 import type { Channel, ConversationDetail, ThreadEvent } from "@/components/conversations/types";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { withAsOrg } from "@/lib/api-fetch";
@@ -198,6 +200,10 @@ export default function ConversationsPage() {
   const [contactPanelOpen, setContactPanelOpen] = useState(false);
   // A photo the client sent, open full size.
   const [photoOpen, setPhotoOpen] = useState<string | null>(null);
+  // The open chat's latest quote for designs (src/lib/quotes.ts), and
+  // whether its panel is open.
+  const [quote, setQuote] = useState<OpenQuote | null>(null);
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const { clock } = useLanguage();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -224,6 +230,53 @@ export default function ConversationsPage() {
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  const loadQuote = useCallback(async (id: string, channel: Channel) => {
+    if (channel === "website") {
+      setQuote(null);
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/quotes?channel=${channel}&conversationId=${encodeURIComponent(id)}`);
+      const data = res.ok ? await res.json() : null;
+      const found = (data?.quote as OpenQuote | null) ?? null;
+      setQuote(found);
+      if (found?.status === "requested") quoteSeen(found.id);
+    } catch {
+      // Without it the chat still shows; the bar and panel just wait.
+    }
+  }, []);
+
+  // A quote's notification links to /conversations?c=…&ch=…&quote=1: open
+  // that chat with its quote, once.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const c = q.get("c");
+    const ch = q.get("ch") as Channel | null;
+    if (!c || !ch) return;
+    void selectConversation(c, ch);
+    if (q.get("quote") === "1") setQuoteOpen(true);
+    q.delete("c");
+    q.delete("ch");
+    q.delete("quote");
+    window.history.replaceState(null, "", `${window.location.pathname}${q.size ? `?${q}` : ""}`);
+    // Once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // "Quote now" in the corner alert, while this page is open.
+  useEffect(() => {
+    const open = (e: Event) => {
+      const { c, ch } = (e as CustomEvent<{ c: string; ch: Channel }>).detail ?? {};
+      if (!c || !ch) return;
+      void selectConversation(c, ch);
+      setQuoteOpen(true);
+    };
+    window.addEventListener(OPEN_QUOTE, open);
+    return () => window.removeEventListener(OPEN_QUOTE, open);
+    // selectConversation reads the current selection each time it runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   // Background refetch of the active conversation's messages — used by the
   // polling effect below. Does NOT trigger the read PATCH or mobile view
@@ -335,6 +388,9 @@ export default function ConversationsPage() {
   async function selectConversation(id: string, channel: Channel) {
     setSelectedId(id);
     setSelectedChannel(channel);
+    if (id !== selectedId) setQuoteOpen(false);
+    setQuote(null);
+    void loadQuote(id, channel);
     setMobileView("chat");
     setLoadingDetail(true);
     try {
@@ -418,6 +474,14 @@ export default function ConversationsPage() {
 
   const title = activeConversation ? conversationTitle(activeConversation) : "";
   const activeState = conversations.find((c) => c.id === activeConversation?.id)?.state;
+  // A quote filed while the chat is open (the list refreshes on its own):
+  // fetch it, so its bar appears without reopening the chat.
+  const activeKind = activeState?.kind;
+  useEffect(() => {
+    if (activeKind === "quote" && selectedId && quote?.status !== "requested") void loadQuote(selectedId, selectedChannel);
+    // Only when the chat's state turns to "quote".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKind]);
   const time = (iso: string) => format(new Date(iso), clock === "24h" ? "HH:mm" : "h:mmaaa");
 
   const panel = activeConversation ? (
@@ -796,6 +860,33 @@ export default function ConversationsPage() {
                   </Button>
                 </form>
               </div>
+            ) : quote?.status === "requested" && !quoteOpen ? (
+              // A client waiting for a price on their designs.
+              <div className="flex items-center gap-3 border-t-[1.5px] border-papaya-whip-400 bg-card px-4 py-3 max-md:flex-col max-md:items-stretch max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="flex shrink-0">
+                    {quote.items.slice(0, 3).map((it) => (
+                      // eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image
+                      <img
+                        key={it.photoId}
+                        src={withAsOrg(`/api/chat-photos/${it.photoId}`)}
+                        alt=""
+                        className="-mr-2 h-9 w-9 rounded-[9px] border-2 border-card bg-muted object-cover"
+                      />
+                    ))}
+                  </div>
+                  <p className="min-w-0 pl-2 text-[13.5px]">
+                    <strong>
+                      {quote.clientName ?? "They"} {quote.clientName ? "wants" : "want"} a price for{" "}
+                      {quote.items.length === 1 ? "a design" : `${quote.items.length} designs`}.
+                    </strong>{" "}
+                    <span className="text-muted-foreground">Kikai has said you&rsquo;ll reply shortly.</span>
+                  </p>
+                </div>
+                <Button onClick={() => setQuoteOpen(true)} className="shrink-0 max-md:h-12 max-md:text-base">
+                  Quote now
+                </Button>
+              </div>
             ) : (
               // WhatsApp, Instagram and Messenger replies go back out through
               // their own provider APIs, which this inbox does not send to yet.
@@ -811,8 +902,28 @@ export default function ConversationsPage() {
         ) : null}
       </section>
 
+      {/* Pricing the client's designs: beside the chat, or over it on a phone. */}
+      {quoteOpen && quote?.status === "requested" && (
+        <QuotePanel
+          key={quote.id}
+          quote={quote}
+          onClose={() => setQuoteOpen(false)}
+          onSent={(via) => {
+            setQuoteOpen(false);
+            if (selectedId) void loadQuote(selectedId, selectedChannel);
+            refetchActive();
+            fetchConversations(true);
+            notify(
+              via === "sms"
+                ? "Quote sent by text message: the chat's 24 hours had passed."
+                : "Quote sent. Kikai books it if they say yes."
+            );
+          }}
+        />
+      )}
+
       {/* RIGHT PANEL: the client, once there is a chat open. */}
-      {panel && (
+      {panel && !(quoteOpen && quote?.status === "requested") && (
         <aside className="hidden xl:flex xl:w-[22rem] 2xl:w-96 shrink-0 flex-col border-l border-border bg-card">
           {panel}
         </aside>

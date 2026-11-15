@@ -98,6 +98,7 @@ import {
   bookedText,
   bookingChatReply,
   carryOver,
+  EARLIER_LEFT_OUT,
   chatReply,
   CHAT_SESSION_IDLE_MS,
   forSaving,
@@ -412,24 +413,37 @@ describe("what is kept between messages", () => {
     ).toEqual([{ role: "user", content: "Hi\n\nCan I book?" }]);
   });
 
-  it("carries over only the last ten, from the past fortnight, and says when they were from", () => {
-    const now = new Date("2026-11-11T12:00:00Z");
-    const ago = (days: number) => new Date(now.getTime() - days * 86_400_000);
-    const rows = [
-      { role: "user", content: "Last month", createdAt: ago(30) },
-      ...Array.from({ length: 12 }, (_, i) => ({
-        role: i % 2 ? "assistant" : "user",
-        content: `m${i}`,
-        createdAt: ago(3 - i * 0.01),
-      })),
+  it("carries over only the last ten, and nothing from before a quiet spell", () => {
+    const now = new Date("2026-11-14T11:43:00Z");
+    const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000);
+    // The chat in question: a time offered on Wednesday night, a new message on Saturday morning.
+    const stale = [
+      { role: "user", content: "Full set and can i get the earliest available time pls", createdAt: hoursAgo(37) },
+      { role: "assistant", content: "The earliest is tomorrow, Thursday 12 November at 9am. Does that suit you?", createdAt: hoursAgo(37) },
     ];
-    const { messages, olderThanASession } = carryOver(rows, now);
-    expect(JSON.stringify(messages)).not.toContain("Last month");
+    expect(carryOver(stale, now).messages).toEqual([]);
+
+    const recent = Array.from({ length: 12 }, (_, i) => ({
+      role: i % 2 ? "assistant" : "user",
+      content: `m${i}`,
+      createdAt: hoursAgo(6 - i * 0.1),
+    }));
+    const { messages } = carryOver([...stale, ...recent], now);
+    expect(JSON.stringify(messages)).not.toContain("Thursday");
     expect(JSON.stringify(messages)).not.toContain('"m1"');
     expect(messages[0]).toEqual({ role: "user", content: "m2" });
-    expect(olderThanASession).toEqual(rows.at(-1)!.createdAt);
-    // From earlier today: nothing to warn about.
-    expect(carryOver([{ role: "user", content: "hi", createdAt: new Date(now.getTime() - 60_000) }], now).olderThanASession).toBeNull();
+  });
+
+  it("keeps a reply the salon's staff wrote within the last few hours", () => {
+    const now = new Date("2026-11-14T11:43:00Z");
+    const rows = [
+      { role: "user", content: "Can I come Saturday?", createdAt: new Date(now.getTime() - 20 * 3_600_000) },
+      { role: "agent", content: "We can do 2pm Saturday, shall I book it?", createdAt: new Date(now.getTime() - 3 * 3_600_000) },
+    ];
+    expect(carryOver(rows, now).messages).toEqual([
+      { role: "user", content: EARLIER_LEFT_OUT },
+      { role: "assistant", content: "[From the salon's team] We can do 2pm Saturday, shall I book it?" },
+    ]);
   });
 
   it("joins the salon's replies onto the last one", () => {
