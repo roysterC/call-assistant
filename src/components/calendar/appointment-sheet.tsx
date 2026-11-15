@@ -26,6 +26,7 @@ import { MessageSquareText, MoreHorizontal, Phone, StickyNote, TriangleAlert } f
 import { Dialog, DialogContent, DialogTitle, PHONE_SHEET } from "@/components/ui/dialog";
 import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { bookedByMessage } from "@/lib/booked-by";
+import { textFailureKey } from "@/lib/text-failure";
 import { formatMoney, minorToInput, parseMoney } from "@/lib/money";
 import { speakablePhone } from "@/lib/phone";
 import { minutesTime } from "@/lib/i18n";
@@ -294,6 +295,22 @@ export function AppointmentSheet({
             </div>
           </div>
 
+          {/* The confirmation text that did not go, and why (text-failure.ts). */}
+          {a.confirmationError && !a.confirmationSentAt && (
+            <p
+              role="status"
+              className="flex items-start gap-2.5 rounded-xl border border-papaya-whip-400 bg-papaya-whip-900 px-3 py-2.5 text-[13px] leading-normal"
+            >
+              <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0 text-light-bronze-300" aria-hidden="true" />
+              <span>
+                <span className="font-semibold">{t("client.textFailed")}.</span>{" "}
+                {(() => {
+                  const key = textFailureKey(a.confirmationError);
+                  return key ? t(key) : a.confirmationError;
+                })()}
+              </span>
+            </p>
+          )}
           {a.lead.notes?.trim() && (
             <p className="flex items-start gap-2.5 whitespace-pre-line rounded-xl border border-papaya-whip-400 bg-cornsilk-700 px-3 py-2.5 text-[13px] leading-normal">
               <StickyNote className="mt-0.5 h-4 w-4 shrink-0 text-light-bronze-300" aria-hidden="true" />

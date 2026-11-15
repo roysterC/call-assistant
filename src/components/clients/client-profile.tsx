@@ -35,6 +35,7 @@ import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { formatMoney, formatMoneyShort } from "@/lib/money";
 import { appointmentStatus, PATCH_TEST_BADGE, SMS_STATUS, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
+import { textFailureKey } from "@/lib/text-failure";
 import { useT } from "@/components/providers/language-provider";
 import { useMe } from "@/components/providers/me-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
@@ -701,6 +702,8 @@ function BookingRow({
   const { t, lang, clock } = useT();
   const status = appointmentStatus(b.status);
   const textFailed = Boolean(b.confirmationError && !b.confirmationSentAt);
+  const failureKey = textFailed ? textFailureKey(b.confirmationError) : null;
+  const failureReason = failureKey ? t(failureKey) : b.confirmationError;
   const needsTest = b.patchTestRequired && !testOnRecord;
   const label = (STATUS_KEYS as readonly string[]).includes(b.status) ? t(`status.${b.status as (typeof STATUS_KEYS)[number]}`) : status.label;
   const icon = b.status === "completed" ? <Check className="h-3.5 w-3.5" /> : b.status === "booked" ? <CalendarPlus className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />;
@@ -715,6 +718,8 @@ function BookingRow({
           {textFailed && <span className={cn(STATUS_BADGE, SMS_STATUS.failed.className)}>{t("client.textFailed")}</span>}
         </span>
       )}
+      {/* Why it did not go, in words, or as stored when it is not one we know. */}
+      {textFailed && <span className="mt-0.5 block text-xs">{failureReason}</span>}
     </>
   );
   return (

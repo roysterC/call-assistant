@@ -5,7 +5,8 @@ import { bookingReadiness, missingText } from "@/lib/booking/readiness";
 import { useTradeWords } from "@/components/providers/language-provider";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Users, MessageCircle, Phone, Camera, Send, Globe } from "lucide-react";
+import { Users, MessageCircle, MessageSquareText, Phone, Camera, Send, Globe } from "lucide-react";
+import type { TextsStatus } from "@/lib/sms-sender";
 import { apiFetch } from "@/lib/api-fetch";
 import { PageHeader } from "@/components/ui/page-header";
 import { SaveBar, useLeaveGuard } from "@/components/ui/unsaved-changes";
@@ -129,6 +130,8 @@ export default function SettingsPage() {
   const [slug, setSlug] = useState<string | null>(null);
   // Where salons' pages are given out, when that is not this app's address.
   const [bookingOrigin, setBookingOrigin] = useState<string | null>(null);
+  // Whether the salon's texts can go, and from whom (sms-sender.ts).
+  const [texts, setTexts] = useState<TextsStatus | null>(null);
 
   useEffect(() => {
     async function fetchAll() {
@@ -160,6 +163,7 @@ export default function SettingsPage() {
         };
         setSlug(data.organizationSlug ?? null);
         setBookingOrigin(data.bookingOrigin ?? null);
+        setTexts(data.texts ?? null);
         setSettings(s);
         setSaved(editable(s));
         if (!s.startPage && data.startPage) setAutomaticStart(data.startPage);
@@ -327,6 +331,22 @@ export default function SettingsPage() {
       ? "Answers questions, and gives your number or takes a call-back request to book"
       : "Answers questions";
   const channels: ChannelRow[] = [
+    // Every booking's confirmation and reminder go this way, so first, and
+    // never "Off": without a sender they all fail (sms-sender.ts).
+    ...(texts
+      ? [
+          {
+            name: "Texts to clients",
+            icon: MessageSquareText,
+            address: texts.ready && texts.sender ? `from ${texts.sender}` : "",
+            does: texts.ready
+              ? "Booking confirmations, day-before reminders and rebooking texts"
+              : "Not sending: no confirmation or reminder texts go until Kikai sets up the salon's text sender",
+            status: (texts.ready ? "on" : "waiting") as ChannelState,
+            statusText: texts.ready ? "On" : "Not set up",
+          },
+        ]
+      : []),
     {
       name: "Phone receptionist",
       icon: Phone,

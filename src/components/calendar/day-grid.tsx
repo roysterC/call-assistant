@@ -57,6 +57,9 @@ export interface CalendarAppointment {
   photos?: { id: string }[];
   /** Booked by the receptionist and not yet opened by whoever is looking. */
   unseen?: boolean;
+  /** The confirmation text: when it went, or why it did not. */
+  confirmationSentAt?: string | null;
+  confirmationError?: string | null;
   lead: {
     id: string;
     name: string | null;
