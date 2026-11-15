@@ -8,11 +8,16 @@
  * anything entered directly in Google will not appear here.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CalendarDays, UserCheck } from "lucide-react";
-import { WhoIsFree } from "@/components/calendar/who-is-free";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { CalendarDays, ChevronDown, Phone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { clockTime, type MessageKey } from "@/lib/i18n";
+import { WeekStrip, weekOf } from "@/components/calendar/week-strip";
+import { WeekView } from "@/components/calendar/week-view";
+import { usePendingCallbacks } from "@/lib/use-pending-callbacks";
+import { openQuote } from "@/components/notifications/quote-alerts";
+import { INTL_LOCALE, type MessageKey } from "@/lib/i18n";
 import { useMe } from "@/components/providers/me-provider";
 import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
 import { OPEN_BOOKING } from "@/components/notifications/booking-alerts";
@@ -108,16 +113,6 @@ function hhmmToMin(v: string | undefined): number | null {
   return h * 60 + m;
 }
 
-function prettyDate(date: string, locale: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  });
-}
-
 function shiftDate(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number);
   const next = new Date(Date.UTC(y, m - 1, d + days));
@@ -211,7 +206,7 @@ function newBlockForm(
 }
 
 export default function CalendarPage() {
-  const { t, locale, clock: clockKind } = useT();
+  const { t, lang } = useT();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const [selected, setSelected] = useState(() => dateIn(DEFAULT_TZ));
   const [view, setView] = useState(() => {
@@ -239,8 +234,12 @@ export default function CalendarPage() {
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
   const [slot, setSlot] = useState<BookingSlot | null>(null);
-  // The "Who's free" panel (who-is-free.tsx), today only.
-  const [showFree, setShowFree] = useState(false);
+  // Day, or the week around it (desktop).
+  const [mode, setMode] = useState<"day" | "week">("day");
+  // The week around the day showing: its dots, and the Week view.
+  const [weekAppointments, setWeekAppointments] = useState<CalendarAppointment[]>([]);
+  // Clients waiting for a price (src/lib/quotes.ts), for the chip beside the controls.
+  const [quotes, setQuotes] = useState<{ id: string; channel: string; conversationId: string }[]>([]);
   const [openAppointment, setOpenAppointment] =
     useState<CalendarAppointment | null>(null);
   // A booking asked for by a pop-up or an alert, opened once its day has
@@ -297,7 +296,13 @@ export default function CalendarPage() {
     })();
   }, []);
 
+  // Only the latest request's answer is shown. The diary can ask for two
+  // days at once (today as it opens, then the day a link asked for, or again
+  // when the salon's time zone arrives), and an older answer arriving last
+  // used to show the wrong day's bookings, or none.
+  const dayRequest = useRef(0);
   const loadDay = useCallback(async () => {
+    const mine = ++dayRequest.current;
     setLoading(true);
     try {
       const { from, to } = salonDayRange(selected, timeZone);
@@ -305,6 +310,7 @@ export default function CalendarPage() {
         apiFetch(`/api/appointments?status=all&from=${from}&to=${to}`),
         apiFetch(`/api/time-blocks?from=${from}&to=${to}`),
       ]);
+      if (mine !== dayRequest.current) return;
       const data = await res.json();
       setAppointments(data.appointments ?? []);
       const blockData = blockRes.ok ? await blockRes.json() : {};
@@ -324,11 +330,14 @@ export default function CalendarPage() {
         )
       );
     } catch {
+      if (mine !== dayRequest.current) return;
       setAppointments([]);
       setBlocks([]);
     } finally {
-      setLoading(false);
-      setLoadedFor(selected);
+      if (mine === dayRequest.current) {
+        setLoading(false);
+        setLoadedFor(selected);
+      }
     }
   }, [selected, timeZone]);
 
@@ -375,6 +384,50 @@ export default function CalendarPage() {
   useEffect(() => {
     loadMonth();
   }, [loadMonth]);
+
+  const weekStart = weekOf(selected)[0];
+  const weekRequest = useRef(0);
+  const loadWeek = useCallback(async () => {
+    const mine = ++weekRequest.current;
+    try {
+      const { from } = salonDayRange(weekStart, timeZone);
+      const { from: to } = salonDayRange(shiftDate(weekStart, 7), timeZone);
+      const res = await apiFetch(`/api/appointments?status=all&from=${from}&to=${to}`);
+      const data = await res.json();
+      if (mine === weekRequest.current) setWeekAppointments(data.appointments ?? []);
+    } catch {
+      if (mine === weekRequest.current) setWeekAppointments([]);
+    }
+  }, [weekStart, timeZone]);
+
+  useEffect(() => {
+    loadWeek();
+  }, [loadWeek]);
+
+  const weekBusy = useMemo(() => {
+    const days = new Set<string>();
+    for (const a of weekAppointments) if (a.status !== "cancelled") days.add(salonDate(new Date(a.startsAt), timeZone));
+    return days;
+  }, [weekAppointments, timeZone]);
+
+  // What is waiting elsewhere: callbacks (the menu's own count) and quotes.
+  const callbacksWaiting = usePendingCallbacks(true);
+  useEffect(() => {
+    let live = true;
+    const load = () =>
+      apiFetch("/api/quotes")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => live && d && setQuotes(Array.isArray(d.quotes) ? d.quotes : []))
+        .catch(() => {});
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const weekday = weekdayOf(selected);
 
@@ -506,94 +559,177 @@ export default function CalendarPage() {
       if (date && date !== selected) jump(date);
       loadDay();
       loadMonth();
+      loadWeek();
     };
     window.addEventListener(DIARY_CHANGED, onChanged);
     return () => window.removeEventListener(DIARY_CHANGED, onChanged);
   });
 
+  // A day the salon is shut, by its opening hours.
+  const closedOn = (date: string) => {
+    const row = hours.find((h) => h.day === weekdayOf(date));
+    return !row || Boolean(row.closed) || !row.open || !row.close;
+  };
+  // "Mon 16 Nov", and on today "Today, Mon 16 Nov": short, so the header
+  // never shifts with the length of a month's name.
+  const shortDate = (date: string) =>
+    new Date(`${date}T12:00:00Z`).toLocaleDateString(INTL_LOCALE[lang], {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+  const title =
+    mode === "week"
+      ? t("diary.weekOf", { date: shortDate(weekStart) })
+      : selected === today
+        ? t("diary.todayHeading", { date: shortDate(selected) })
+        : shortDate(selected);
+
+  /** "+ New booking": the day showing, someone working, the next quarter hour (or opening). */
+  const newBooking = () => {
+    const col = columns.find((c) => c.worksToday && c.bookable) ?? columns.find((c) => !c.former);
+    if (!col) return;
+    const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    let start = open ? open.openMin : 9 * 60;
+    if (open && nowMinutes !== null) start = Math.min(Math.max(Math.ceil(nowMinutes / 15) * 15, open.openMin), open.closeMin - 15);
+    pickSlot({ stylistName: col.name, time: hhmm(start), date: selected });
+  };
+
+  const pickDay = (date: string) => {
+    jump(date);
+    setMode("day");
+  };
+
+  const firstQuote = quotes[0];
+
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6">
-      {/* The day, large, and on today the time: what the diary is showing
-          and where in it we are, readable from a step back. The page's own
-          "Diary" title gave way to it; the menu already says where you are. */}
-      <div className="flex items-center gap-x-3 gap-y-2 pb-3 shrink-0 flex-wrap">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6 max-md:pt-2.5">
+      {/* A wide screen: the date on the left, the controls on the right where
+          they never move, and the week below in seven equal days. */}
+      <div className="hidden md:flex h-12 shrink-0 items-center gap-2.5">
         {/* "Today" is worked out on the server too, which may be either side
             of midnight from the browser; the browser's is the one that counts. */}
-        <h1 suppressHydrationWarning className="font-heading text-xl md:text-[26px] font-bold tracking-tight">
-          {selected === today
-            ? t("diary.todayHeading", { date: prettyDate(selected, locale) })
-            : prettyDate(selected, locale)}
+        <h1 suppressHydrationWarning className="min-w-0 flex-1 truncate font-heading text-[23px] font-extrabold tracking-tight">
+          {title}
         </h1>
-        {selected === today && clock && (
-          <span className="inline-flex h-8 items-center gap-2 rounded-full bg-sidebar px-3.5 text-sm md:text-base font-bold tabular-nums text-cornsilk-500">
-            <span aria-hidden className="h-2 w-2 rounded-full bg-[#e07b39]" />
-            {t("diary.now", { time: clockTime(clock, clockKind, timeZone) })}
-          </span>
-        )}
-        {settingsLoaded && !open && (
-          <span className="text-sm text-muted-foreground">{t("diary.closed")}</span>
-        )}
-        {loading && (
-          <span className="text-sm text-muted-foreground">{t("diary.loading")}</span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" aria-label={t("diary.prevDay")} onClick={() => jump(shiftDate(selected, -1))}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" aria-label={t("diary.nextDay")} onClick={() => jump(shiftDate(selected, 1))}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => jump(today)}
-            disabled={selected === today}
+        {callbacksWaiting > 0 && (
+          <Link
+            href={withAsOrg("/callbacks")}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-cornsilk-800 px-3 text-[13px] font-bold text-cornsilk-100 hover:bg-cornsilk-700"
           >
-            {t("diary.today")}
-          </Button>
-          {selected === today && open && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowFree(true)}>
-              <UserCheck className="h-3.5 w-3.5" />
-              {t("free.button")}
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 lg:hidden"
-            aria-expanded={showMonth}
-            onClick={() => setShowMonth((v) => !v)}
+            <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+            {t(callbacksWaiting === 1 ? "diary.callbackOne" : "diary.callbackMany", { n: callbacksWaiting })}
+          </Link>
+        )}
+        {firstQuote && (
+          <button
+            type="button"
+            onClick={() => openQuote(firstQuote.channel, firstQuote.conversationId, pathname, router.push)}
+            className="inline-flex h-8 shrink-0 items-center rounded-full bg-red-50 px-3 text-[13px] font-bold text-red-800 hover:bg-red-100"
           >
-            <CalendarDays className="h-3.5 w-3.5" />
-            {t("diary.month")}
-          </Button>
+            {t(quotes.length === 1 ? "diary.quoteOne" : "diary.quoteMany", { n: quotes.length })}
+          </button>
+        )}
+        {(callbacksWaiting > 0 || firstQuote) && <span aria-hidden="true" className="mx-0.5 h-6 w-px shrink-0 bg-border" />}
+        <Button variant="outline" className="h-9 shrink-0 px-3" onClick={() => pickDay(today)} disabled={selected === today && mode === "day"}>
+          {t("diary.today")}
+        </Button>
+        <div role="tablist" aria-label={t("diary.view")} className="flex shrink-0 rounded-[11px] bg-muted p-[3px]">
+          {(["day", "week"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`h-[30px] rounded-lg px-3.5 text-[13px] font-semibold transition-colors ${
+                mode === m ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t(m === "day" ? "diary.dayView" : "diary.weekView")}
+            </button>
+          ))}
         </div>
+        <Button
+          variant="outline"
+          className="h-9 shrink-0 gap-1.5 px-3 lg:hidden"
+          aria-expanded={showMonth}
+          onClick={() => setShowMonth((v) => !v)}
+        >
+          <CalendarDays className="h-3.5 w-3.5" />
+          {t("diary.month")}
+        </Button>
+        <Button className="h-9 shrink-0 gap-1.5 px-3.5 font-bold" onClick={newBooking} disabled={columns.length === 0}>
+          <Plus className="h-4 w-4" />
+          {t("diary.newBooking")}
+        </Button>
+      </div>
+      <div className="hidden md:block shrink-0 pb-3 pt-2.5">
+        <WeekStrip
+          long
+          selected={selected}
+          today={today}
+          busy={weekBusy}
+          closed={closedOn}
+          onSelect={pickDay}
+          onShiftWeek={(n) => jump(shiftDate(selected, n))}
+        />
       </div>
 
-      {isPhone && columns.length > 1 && (
-        <div className="shrink-0 -mx-4 px-4 pb-3 flex gap-2 overflow-x-auto" role="tablist" aria-label={t("diary.stylist")}>
-          {columns.map((c) => {
-            const on = c.name === phoneColumn?.name;
-            return (
-              <button
-                key={c.name}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                onClick={() => setPhonePick(c.name)}
-                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3.5 text-sm ${
-                  on
-                    ? "border-primary bg-primary text-primary-foreground shadow-[0_1px_2px_0_rgb(79_70_229/0.25)]"
-                    : "border-input bg-card text-muted-foreground"
-                } ${c.worksToday ? "" : "opacity-60"}`}
-              >
-                <StylistBadge stylist={{ ...c, worksToday: true }} size="sm" />
-                {c.name}
-              </button>
-            );
-          })}
+      {/* A phone: the date (which opens the month) and Today on one slim
+          line, the week, and whose day as equal tabs. */}
+      <div className="md:hidden shrink-0 space-y-2 pb-2.5">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowMonth((v) => !v)}
+            aria-expanded={showMonth}
+            aria-label={t("diary.month")}
+            className="flex min-w-0 items-center gap-1 py-1 font-heading text-[19px] font-extrabold tracking-tight"
+          >
+            <span suppressHydrationWarning className="truncate">{title}</span>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showMonth ? "rotate-180" : ""}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => pickDay(today)}
+            disabled={selected === today}
+            className="ml-auto h-8 shrink-0 rounded-full border border-input bg-card px-3.5 text-[13px] font-bold disabled:bg-muted disabled:text-muted-foreground"
+          >
+            {t("diary.today")}
+          </button>
         </div>
-      )}
+        <WeekStrip selected={selected} today={today} busy={weekBusy} closed={closedOn} onSelect={pickDay} />
+        {columns.length > 1 && (
+          <div
+            role="tablist"
+            aria-label={t("diary.stylist")}
+            className={columns.length <= 4 ? "grid gap-0.5 rounded-xl bg-muted p-[3px]" : "flex gap-0.5 overflow-x-auto rounded-xl bg-muted p-[3px]"}
+            style={columns.length <= 4 ? { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` } : undefined}
+          >
+            {columns.map((c) => {
+              const on = c.name === phoneColumn?.name;
+              return (
+                <button
+                  key={c.name}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  aria-label={c.name}
+                  onClick={() => setPhonePick(c.name)}
+                  className={`flex h-[34px] min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[9px] px-2 text-[13.5px] font-semibold transition-colors ${
+                    on ? "bg-card shadow-sm" : "text-muted-foreground"
+                  } ${c.worksToday ? "" : "opacity-60"}`}
+                >
+                  <StylistBadge stylist={{ ...c, worksToday: true }} size="sm" />
+                  <span className="truncate">{c.name.split(/\s+/)[0]}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {bookingFor && (
         <div
@@ -611,6 +747,20 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {mode === "week" && !isPhone ? (
+        <WeekView
+          days={weekOf(selected)}
+          selected={selected}
+          today={today}
+          appointments={weekAppointments}
+          stylists={stylistNames}
+          tones={tones}
+          timeZone={timeZone}
+          closed={closedOn}
+          priceOf={(a) => a.amountMinor ?? listPriceFor(a.serviceText, services)}
+          onOpenDay={pickDay}
+        />
+      ) : (
       <div className="flex gap-4 flex-1 min-h-0 overflow-hidden flex-col-reverse lg:flex-row">
         {!settingsLoaded ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground py-16">
@@ -627,6 +777,7 @@ export default function CalendarPage() {
             timeZone={timeZone}
             stylists={visibleColumns}
             hourHeightPx={isPhone ? PHONE_HOUR_HEIGHT_PX : undefined}
+            showHeader={!isPhone}
             appointments={appointments}
             open={open}
             nowMinutes={nowMinutes}
@@ -652,32 +803,8 @@ export default function CalendarPage() {
         )}
 
         <aside
-          className={`${showMonth ? "flex" : "hidden"} lg:flex w-full lg:w-60 shrink-0 overflow-y-auto max-h-[50vh] lg:max-h-none lg:border-l lg:border-border lg:pl-4 flex-col gap-5`}
+          className={`${showMonth ? "flex" : "hidden"} lg:flex w-full lg:w-60 shrink-0 overflow-y-auto max-h-[50vh] lg:max-h-none lg:border-l lg:border-border lg:pl-4 flex-col gap-4`}
         >
-          {legend.length > 0 && (
-            <div className="hidden lg:block">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
-                {t("diary.services")}
-              </p>
-              <ul className="grid gap-1.5">
-                {legend.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-xs">
-                    <span
-                      className="h-2.5 w-2.5 rounded-sm shrink-0 border"
-                      style={{
-                        background: `${familyHue(f, businessTypes)}2e`,
-                        borderColor: `${familyHue(f, businessTypes)}b3`,
-                      }}
-                    />
-                    <span className="text-muted-foreground truncate">
-                      {t(`family.${f}` as MessageKey)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           <MonthPanel
             selected={selected}
             today={today}
@@ -689,9 +816,28 @@ export default function CalendarPage() {
               setShowMonth(false);
             }}
             busyDates={monthBusy}
+            showYear={false}
           />
+          {legend.length > 0 && (
+            <ul aria-label={t("diary.services")} className="hidden lg:flex flex-wrap gap-x-3 gap-y-1.5 px-1">
+              {legend.map((f) => (
+                <li key={f} className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                  <span
+                    aria-hidden="true"
+                    className="h-2 w-2 rounded-[3px] shrink-0 border"
+                    style={{
+                      background: `${familyHue(f, businessTypes)}2e`,
+                      borderColor: `${familyHue(f, businessTypes)}b3`,
+                    }}
+                  />
+                  {t(`family.${f}` as MessageKey)}
+                </li>
+              ))}
+            </ul>
+          )}
         </aside>
       </div>
+      )}
 
       <AppointmentSheet
         appointment={openAppointment}
@@ -711,18 +857,7 @@ export default function CalendarPage() {
         onChanged={() => {
           loadDay();
           loadMonth();
-        }}
-      />
-
-      <WhoIsFree
-        open={showFree}
-        onClose={() => setShowFree(false)}
-        services={services}
-        columns={columns}
-        timeZone={timeZone}
-        onBook={(stylistName, time) => {
-          setShowFree(false);
-          pickSlot({ stylistName, time, date: today });
+          loadWeek();
         }}
       />
 
@@ -738,6 +873,7 @@ export default function CalendarPage() {
         onBooked={() => {
           loadDay();
           loadMonth();
+          loadWeek();
         }}
         onBlockInstead={(s) => {
           setSlot(null);
@@ -759,6 +895,7 @@ export default function CalendarPage() {
         onSaved={() => {
           loadDay();
           loadMonth();
+          loadWeek();
         }}
       />
 
@@ -769,6 +906,7 @@ export default function CalendarPage() {
         onMoved={() => {
           loadDay();
           loadMonth();
+          loadWeek();
         }}
       />
 
@@ -777,7 +915,10 @@ export default function CalendarPage() {
         stylists={stylistNames}
         timeZone={timeZone}
         onClose={() => setBlockDialog(null)}
-        onSaved={loadDay}
+        onSaved={() => {
+          loadDay();
+          loadWeek();
+        }}
       />
     </div>
   );
