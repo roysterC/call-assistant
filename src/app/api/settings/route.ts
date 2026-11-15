@@ -16,6 +16,8 @@ import {
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { featureFlags, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
+import { parseSmsSender } from "@/lib/sms-sender";
+import { smsStatus } from "@/lib/sms";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
 import { checkSiteChat } from "@/lib/salon-chat";
 import { bookingOrigin } from "@/lib/booking-host";
@@ -78,6 +80,8 @@ const WRITABLE_FIELDS = [
   "instagramAppSecret",
   "metaVerifyToken",
   "whatsappAccessToken",
+  // Who the salon's texts come from (src/lib/sms-sender.ts).
+  "smsSender",
   // Online booking and the salon's own website (src/lib/online-booking):
   // the salon's own choice, like rebooking texts.
   "onlineBookingEnabled",
@@ -158,6 +162,8 @@ const SUPER_ADMIN_ONLY_FIELDS = [
   "instagramAppSecret",
   "metaVerifyToken",
   "whatsappAccessToken",
+  // Set by Kikai: a sender name has to be one the text service accepts.
+  "smsSender",
 ];
 
 /**
@@ -230,6 +236,8 @@ export async function GET(req: NextRequest) {
       // Where salons' pages are given out (BOOKING_URL), or null for /s/<slug>
       // on the app's own address (src/lib/booking-host.ts).
       bookingOrigin: bookingOrigin(),
+      // Whether the salon's texts can go, and from whom (sms-sender.ts).
+      texts: await smsStatus(ctx.organizationId),
     });
   } catch (error) {
     console.error("[SETTINGS API] GET error:", error);
@@ -263,6 +271,16 @@ export async function PUT(req: NextRequest) {
         );
       }
       data.contactPhone = contact.value;
+    }
+
+    // A sender name the networks accept, or a number; refused with why, as
+    // the contact number is, rather than stored and failing every text.
+    if ("smsSender" in data) {
+      const sender = parseSmsSender(data.smsSender);
+      if (!sender.ok) {
+        return NextResponse.json({ error: `That text sender does not look right: ${sender.reason}` }, { status: 400 });
+      }
+      data.smsSender = sender.value;
     }
 
     // Only one of this salon's own chats, from Websites.

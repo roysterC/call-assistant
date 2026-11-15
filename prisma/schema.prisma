@@ -213,6 +213,10 @@ model OrganizationSettings {
   // into the salon's WhatsApp or Instagram chat to book (src/lib/rebook.ts).
   // The salon's own choice, in Settings; off until switched on.
   rebookTextsEnabled      Boolean      @default(false)
+  // Who the salon's texts come from: a name of up to 11 characters ("HOANG
+  // NAILS") or a number, set by Kikai in Admin (src/lib/sms-sender.ts). Null:
+  // a texting number of its own, else the server's TWILIO_DEFAULT_SENDER.
+  smsSender               String?
   // The salon's Instagram @username, for the link in a rebooking text when it
   // has no WhatsApp: ig.me/m/<username>. Without the @.
   instagramUsername       String?
@@ -417,6 +421,9 @@ model Quote {
   sentBy         String?
   // How the reply went: "chat", or "sms" after the chat's window closed.
   sentVia        String?
+  // When the client booked a design from it in the chat: a quote is used
+  // for one booking, so a later one in the same chat is at the price list.
+  bookedAt       DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -654,6 +661,10 @@ model Appointment {
   // done — the price list is a guide, and the figure that belongs in a sales
   // report is the one the client paid, not the one the catalogue hoped for.
   amountMinor Int?
+  // The price the salon quoted for this design in the chat, in pence:
+  // what the diary shows instead of the price list's, which is for the
+  // plain service ("Acrylic infill £27" for a £55 design).
+  quotedPriceMinor Int?
 
   status String  @default("booked") // booked | cancelled | completed | no_show
   source String  @default("voice") // voice | manual | website

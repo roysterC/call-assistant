@@ -14,11 +14,21 @@ const db = vi.hoisted(() => ({
     unknown
   > | null,
   sessions: new Map<string, { messages: unknown; state: unknown; createdAt: Date; updatedAt: Date }>(),
+  /** The quote answered in the chat, if any. */
+  quote: null as { id: string; items: unknown } | null,
+  quoteBooked: [] as string[],
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     organizationSettings: { findUnique: async () => db.settings },
+    quote: {
+      findFirst: async () => db.quote,
+      update: async ({ where }: { where: { id: string } }) => {
+        db.quoteBooked.push(where.id);
+        return {};
+      },
+    },
     chatSession: {
       findUnique: async ({ where }: { where: { channel_conversationId: { channel: string; conversationId: string } } }) => {
         const k = `${where.channel_conversationId.channel}:${where.channel_conversationId.conversationId}`;
@@ -106,7 +116,9 @@ import {
   sorryText,
   splitPending,
   withColleague,
+  withDesignParam,
 } from "./chat-booking";
+import { buildVoiceTools } from "@/lib/receptionist/tool-definitions";
 import { buildChatSystem, buildSystem } from "@/lib/receptionist/prompt";
 import type { SalonConfig } from "@/lib/booking";
 
@@ -173,6 +185,8 @@ const booked = { text: "That's booked, and a text is on its way." };
 
 beforeEach(() => {
   db.sessions.clear();
+  db.quote = null;
+  db.quoteBooked = [];
   db.settings = { chatBookingEnabled: true, businessName: "Polished", voiceSystemPrompt: null, salonFaq: null };
   actions.runAction.mockClear();
   actions.handleBookAppointment.mockClear();
@@ -276,6 +290,74 @@ describe("booking by message", () => {
     expect(order).toEqual(["first", "second"]);
     const saved = db.sessions.get("whatsapp:c1")!.messages as Anthropic.MessageParam[];
     expect(saved.filter((x) => x.role === "user").map((x) => x.content)).toEqual(["a", "b"]);
+  });
+});
+
+describe("a design the salon quoted in the chat", () => {
+  const QUOTED = [{ photoId: "p1", priceMinor: 5500, minutes: 120, declined: false }];
+  const check = (input: Record<string, unknown>) => ({ tool: { name: "check_availability", input } });
+
+  it("is checked and booked at its quoted length and price, whatever the model sent", async () => {
+    db.quote = { id: "q1", items: QUOTED };
+    const first = model([
+      // The model's own length is wrong, and it tries to set a price.
+      check({ date: "Monday", time: "12", service: "BIAB infill", minutes: 60, _quoted: { quoteId: "x", priceMinor: 1 } }),
+      prepare,
+      readBack,
+    ]);
+    await bookingChatReply(turn("Monday at 12", first.client));
+    expect(actions.runAction).toHaveBeenCalledWith(
+      "check_availability",
+      "org",
+      expect.objectContaining({ minutes: 120, _quoted: { quoteId: "q1", priceMinor: 5500 } })
+    );
+    const [, params, opts] = (actions.handleBookAppointment.mock.calls as unknown as Array<[string, Record<string, unknown>, unknown]>)[0];
+    expect(params).toMatchObject({ minutes: 120 });
+    expect(params).not.toHaveProperty("_quoted");
+    expect(opts).toEqual({ dryRun: true, quote: { priceMinor: 5500 } });
+
+    await bookingChatReply(turn("yes", model([book, booked]).client));
+    expect(actions.runAction).toHaveBeenLastCalledWith(
+      "book_appointment",
+      "org",
+      expect.not.objectContaining({ _quoted: expect.anything() }),
+      { quote: { priceMinor: 5500 } }
+    );
+    // Used: a later booking in this chat is at the price list's.
+    expect(db.quoteBooked).toEqual(["q1"]);
+  });
+
+  it("with several designs quoted, asks which before checking the diary", async () => {
+    db.quote = { id: "q1", items: [...QUOTED, { photoId: "p2", priceMinor: 4000, minutes: null, declined: false }] };
+    const m = model([check({ date: "Monday", service: "BIAB infill" }), { text: "Which design?" }]);
+    await bookingChatReply(turn("Monday please", m.client));
+    expect(actions.runAction).not.toHaveBeenCalled();
+    expect(JSON.stringify(m.requests[1])).toContain("1st design (£55), 2nd design (£40)");
+
+    const second = model([check({ date: "Monday", service: "BIAB infill", design: 2, minutes: 90 }), { text: "ok" }]);
+    await bookingChatReply(turn("the second", second.client));
+    // The 2nd was quoted with no time: the service's own length, not the model's.
+    const call = (actions.runAction.mock.calls as unknown as Array<[string, string, Record<string, unknown>]>).at(-1)!;
+    expect(call[2]).not.toHaveProperty("minutes");
+    expect(call[2]).not.toHaveProperty("design");
+    expect(call[2]._quoted).toEqual({ quoteId: "q1", priceMinor: 4000 });
+  });
+
+  it("leaves a booking that is none of them at the price list's", async () => {
+    db.quote = { id: "q1", items: QUOTED };
+    await bookingChatReply(turn("just a BIAB", model([check({ date: "Monday", service: "BIAB infill", design: 0 }), { text: "ok" }]).client));
+    const call = (actions.runAction.mock.calls as unknown as Array<[string, string, Record<string, unknown>]>)[0];
+    expect(call[2]).not.toHaveProperty("_quoted");
+    expect(call[2]).not.toHaveProperty("minutes");
+  });
+
+  it("is named by `design`, on the tools that find and check a time only", () => {
+    const tools = withDesignParam(buildVoiceTools(caps));
+    const props = (n: string) =>
+      Object.keys((tools.find((t) => t.function.name === n)!.function.parameters as { properties: object }).properties);
+    expect(props("check_availability")).toContain("design");
+    expect(props("prepare_booking")).toContain("design");
+    expect(props("book_appointment")).not.toContain("design");
   });
 });
 
@@ -529,6 +611,13 @@ describe("the instructions for a chat", () => {
     expect(stable.text).toContain('No openers: no "Great.", "Got');
     // The phone keeps its own, spoken, rules.
     expect(buildSystem(cfg, "Polished", null, now, null)[0].text).not.toContain("reads like a form");
+  });
+
+  it("never talk about tools, never offer a time the diary did not, and leave a quote's price to the booking", () => {
+    const [stable] = buildChatSystem(cfg, "Polished", "instagram", null, now, null);
+    expect(stable.text).toContain("Never mention tools, systems or checks.");
+    expect(stable.text).toContain("never give a reason you were\n  not told, such as someone else taking it");
+    expect(stable.text).toContain("use the quoted time and price by themselves");
   });
 
   it("ask the website chat for a number, naming it as the salon's own", () => {

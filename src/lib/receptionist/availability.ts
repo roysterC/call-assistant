@@ -470,6 +470,7 @@ async function readFreeSlots(
       organizationId,
       date: req.date,
       serviceName: req.service.name,
+      durationMinutes: req.service.durationMinutes,
       stylistName: req.stylistName,
       clientType: req.clientType,
       searchDays,

@@ -18,6 +18,7 @@
 import { prisma } from "@/lib/prisma";
 import { normalisePhone } from "@/lib/phone";
 import { smsSize, toGsm } from "@/lib/sms-encoding";
+import { textsStatus, type TextsStatus } from "@/lib/sms-sender";
 
 const TWILIO_API = "https://api.twilio.com/2010-04-01";
 
@@ -31,21 +32,34 @@ export function smsConfigured(): boolean {
   );
 }
 
+/** Who a salon's texts come from, and whether they can go (sms-sender.ts). */
+export async function smsStatus(organizationId: string): Promise<TextsStatus> {
+  const [row, settings] = await Promise.all([
+    prisma.phoneNumber.findFirst({
+      where: { organizationId, channel: "sms", active: true },
+      select: { number: true, smsSenderId: true },
+    }),
+    prisma.organizationSettings.findUnique({ where: { organizationId }, select: { smsSender: true } }),
+  ]);
+  return textsStatus({
+    configured: smsConfigured(),
+    smsNumber: row ? row.smsSenderId || row.number : null,
+    salonSender: settings?.smsSender ?? null,
+    defaultSender: process.env.TWILIO_DEFAULT_SENDER || null,
+  });
+}
+
 /**
  * The sender a given organization's texts come from.
  *
- * A `PhoneNumber` row with channel "sms" wins; otherwise the shared default.
- * An alphanumeric sender ID ("SHOGO") is allowed and is what we recommend —
- * it is cheap and needs no number, at the cost of being one-way. That is why
- * every message body carries the salon's landline.
+ * A `PhoneNumber` row with channel "sms" wins; then the name set in Admin
+ * (OrganizationSettings.smsSender); otherwise the shared default. An
+ * alphanumeric sender ID ("SHOGO") is what we recommend: it is cheap and
+ * needs no number, at the cost of being one-way. That is why every message
+ * body carries the salon's landline.
  */
 async function resolveSender(organizationId: string): Promise<string | null> {
-  const row = await prisma.phoneNumber.findFirst({
-    where: { organizationId, channel: "sms", active: true },
-    select: { number: true, smsSenderId: true },
-  });
-  if (row) return row.smsSenderId || row.number;
-  return process.env.TWILIO_DEFAULT_SENDER || null;
+  return (await smsStatus(organizationId)).sender;
 }
 
 export async function sendSms(
@@ -82,6 +96,7 @@ export async function sendSms(
     return {
       ok: false,
       configured: false,
+      // Read by textFailureKey (text-failure.ts): keep the wording.
       reason: "No SMS sender configured for this organization",
     };
   }

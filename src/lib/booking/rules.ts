@@ -107,6 +107,7 @@ export async function slotProblem(
         organizationId,
         date: zonedDateString(startsAt, cfg.timeZone),
         serviceName: service.name,
+        durationMinutes: service.durationMinutes,
         stylistName: stylist.name,
         clientType: opts.clientType,
       });

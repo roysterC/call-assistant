@@ -2,6 +2,7 @@ import { businessTypesOf } from "@/lib/business-types";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
+import { smsConfigured } from "@/lib/sms";
 
 export async function GET(
   _req: NextRequest,
@@ -26,7 +27,12 @@ export async function GET(
     if (!org) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    return NextResponse.json(org);
+    // What the page needs to say whether the salon's texts can go, as its
+    // sender is typed (src/lib/sms-sender.ts).
+    return NextResponse.json({
+      ...org,
+      textSending: { configured: smsConfigured(), defaultSender: process.env.TWILIO_DEFAULT_SENDER || null },
+    });
   } catch (error) {
     console.error("[ADMIN ORG] GET error:", error);
     return NextResponse.json(

@@ -48,6 +48,20 @@ function freeAll(asked: string[] = []): LoadBusy {
 }
 
 describe("readAvailability", () => {
+  it("finds times at a quoted length, not the service's own", async () => {
+    // A two-hour design quoted for a 45-minute service, with a client at 12.
+    const loadBusy: LoadBusy = async (pool) => pool.map((stylist) => ({ stylist, busy: [{ start: at(12), end: at(13) }] }));
+    const q = { organizationId: "org", date: DAY, serviceName: "Cut and finish" };
+    const own = await readAvailability(cfg([person("Jo", { bookable: true })]), q, loadBusy);
+    const quoted = await readAvailability(cfg([person("Jo", { bookable: true })]), { ...q, durationMinutes: 120 }, loadBusy);
+    expect(own.map((s) => s.start)).toContain(at(11).toISOString());
+    // 11 to 1 runs into the client at 12; 10 to 12 and 1 to 3 fit.
+    expect(quoted.map((s) => s.start)).not.toContain(at(11).toISOString());
+    expect(quoted.map((s) => s.start)).toContain(at(10).toISOString());
+    expect(quoted.map((s) => s.start)).toContain(at(13).toISOString());
+    for (const s of quoted) expect(new Date(s.end).getTime() - new Date(s.start).getTime()).toBe(120 * 60_000);
+  });
+
   it("times two services as one appointment of both lengths", async () => {
     const slots = await readAvailability(
       cfg([person("Jo", { bookable: true })]),

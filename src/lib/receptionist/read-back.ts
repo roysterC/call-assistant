@@ -37,6 +37,8 @@ export interface PreparedBooking {
   usedCallerId: boolean;
   patchTestRequired: boolean;
   patchTestOnRecord?: string;
+  /** A design the salon quoted in the chat: its price, as quoted ("£55"). */
+  quotedPrice?: string;
 }
 
 export interface ReadBackDeps {
@@ -64,7 +66,9 @@ export function readBackSentence(p: PreparedBooking): string {
   // A long appointment says how long: a caller booking cut and colour had
   // to ask, and it is what they plan the day around.
   const length = p.durationMinutes >= LONG_MINUTES ? `, ${spokenLength(p.durationMinutes)},` : "";
-  return `${p.service}${length} with ${p.stylist} on ${p.when}, for ${p.clientName}${textTo}.${skinTest}`;
+  // A quoted design: the price they were quoted, not the price list's.
+  const price = p.quotedPrice ? `${length ? "" : ","} at the quoted ${p.quotedPrice},` : "";
+  return `${p.service}${length}${price} with ${p.stylist} on ${p.when}, for ${p.clientName}${textTo}.${skinTest}`;
 }
 
 /** From an hour and a half, the read-back says how long it takes. */

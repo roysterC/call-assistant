@@ -92,6 +92,7 @@ export const diary = {
   "sheet.phone": ["Phone", "Điện thoại"],
   "sheet.taken": ["Taken", "Đã thu"],
   "sheet.listPrice": ["list {price}", "giá niêm yết {price}"],
+  "sheet.quotedPrice": ["quoted {price}", "giá đã báo {price}"],
   "sheet.takenHint": [
     "Saved when you mark it done. This is the figure the sales report counts.",
     "Được lưu khi bạn đánh dấu hoàn thành. Đây là số tiền được tính trong báo cáo doanh thu.",
