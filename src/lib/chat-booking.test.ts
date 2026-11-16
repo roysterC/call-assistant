@@ -222,6 +222,17 @@ describe("booking by message", () => {
     expect(history.at(-1)).toEqual({ role: "user", content: "yes please" });
   });
 
+  it("on Instagram, says who it booked once it is booked, so the chat is filed under them", async () => {
+    const contacts: Array<{ phone: string; name: string | null }> = [];
+    const onContact = (c: { phone: string; name: string | null }) => contacts.push(c);
+    const ig = { channel: "instagram", phone: null, onContact };
+    const prep = { tool: { name: "prepare_booking", input: { ...prepare.tool.input, customerPhone: "07725 194661", customerName: "Luna" } } };
+    await bookingChatReply(turn("Thursday 3pm, Luna, 07725 194661", model([prep, readBack]).client, ig));
+    contacts.length = 0;
+    await bookingChatReply(turn("yes", model([book, booked]).client, ig));
+    expect(contacts).toEqual([{ phone: "07725 194661", name: "Luna" }]);
+  });
+
   it("never books in the same message as the read-back", async () => {
     const m = model([prepare, book, readBack]);
     await bookingChatReply(turn("Book me BIAB Thursday 3, Roy", m.client));

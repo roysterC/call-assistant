@@ -23,6 +23,7 @@ import { downloadLinkedPhoto, photoLine, savePhoto } from "@/lib/chat-photos";
 import { chatReply, splitPending } from "@/lib/chat-booking";
 import { afterQuiet } from "@/lib/chat-burst";
 import { prisma } from "@/lib/prisma";
+import { linkSocialClient } from "@/lib/social-client";
 import {
   buildChatContext,
   buildSystemPrompt,
@@ -385,42 +386,29 @@ async function processMessageEvent(
     // Cached on the conversation + lead so future messages don't refetch.
     const profile = await fetchSocialProfile(channel, ctx, senderId);
 
-    // Best-effort lead linkage: social users don't give us a phone number,
-    // so we park them as a synthetic phone using the sender id. This
-    // matches how the website chat handles phone-less leads today.
-    const syntheticPhone = `${channel}-${senderId.slice(0, 16)}`;
-    // Atomic upsert — concurrent inbound DMs from the same sender used to
-    // race here (findUnique-then-create) and one would hit P2002 → 500 →
-    // Meta retried. upsert eliminates the race. Update branch is empty:
-    // we don't want to clobber an operator-edited name. (See WA webhook
-    // for the same trade-off.)
-    const lead = await prisma.lead.upsert({
-      where: {
-        organizationId_phone: {
+    // No client yet: Meta gives no number, and a client is someone the salon
+    // can reach. The chat is filed under one once they give a number
+    // (social-client.ts). The profile name and handle name the chat.
+    try {
+      conversation = await prisma.socialConversation.create({
+        data: {
           organizationId: ctx.organizationId,
-          phone: syntheticPhone,
+          channel,
+          externalUserId: senderId,
+          contactName: profile.name,
+          contactHandle: profile.handle,
+          profilePicUrl: profile.profilePicUrl,
         },
-      },
-      create: {
-        organizationId: ctx.organizationId,
-        phone: syntheticPhone,
-        name: profile.name,
-        source: channel,
-      },
-      update: {},
-    });
-
-    conversation = await prisma.socialConversation.create({
-      data: {
-        organizationId: ctx.organizationId,
-        channel,
-        externalUserId: senderId,
-        leadId: lead.id,
-        contactName: profile.name,
-        contactHandle: profile.handle,
-        profilePicUrl: profile.profilePicUrl,
-      },
-    });
+      });
+    } catch (err) {
+      // Two first messages at once: the other made it.
+      conversation = await prisma.socialConversation.findUnique({
+        where: {
+          organizationId_channel_externalUserId: { organizationId: ctx.organizationId, channel, externalUserId: senderId },
+        },
+      });
+      if (!conversation) throw err;
+    }
   }
 
   // Save the user's inbound message.
@@ -475,6 +463,9 @@ export async function answerSocial(
   if (pending.length === 0) return;
 
   void sendTyping(ctx, channel, senderId);
+  // The number they gave, to book, for a quote, or to be rung: the chat is
+  // then filed under that client.
+  let contact: { phone: string; name: string | null } | null = null;
   const booked = await chatReply({
     organizationId: ctx.organizationId,
     channel,
@@ -483,7 +474,13 @@ export async function answerSocial(
     text: pending.map((m) => m.content).join("\n"),
     phone: null,
     resetAt: conversation.personaResetAt,
+    onContact: (c) => {
+      contact = c;
+    },
   });
+  if (booked !== null) {
+    await linkSocialClient({ organizationId: ctx.organizationId, channel, conversation, contact });
+  }
 
   const aiResponse =
     booked ??
@@ -498,7 +495,17 @@ export async function answerSocial(
         allowCLI: true,
         // Let Claude extract issue / name / email / company onto the lead
         // when the customer shares them. Mirrors the phone receptionist.
-        extractToLead: conversation.leadId ? { leadId: conversation.leadId } : undefined,
+        // With no client yet, one is made only for an email: a name alone
+        // already names the chat.
+        extractToLead: conversation.leadId
+          ? { leadId: conversation.leadId }
+          : {
+              organizationId: ctx.organizationId,
+              source: channel,
+              onLead: async (leadId: string) => {
+                await prisma.socialConversation.update({ where: { id: conversationId }, data: { leadId } });
+              },
+            },
       }).catch((err) => {
         console.error("[META] Plain chat reply failed:", err);
         return CHAT_UNAVAILABLE;
