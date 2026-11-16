@@ -230,6 +230,8 @@ interface DayGridProps {
   onOpenBlock: (block: DiaryBlock) => void;
   /** Taller on a phone, so a quarter-hour is about a fingertip high. */
   hourHeightPx?: number;
+  /** The stylists' names above their columns. A phone leaves them out: its tabs say whose day it is. */
+  showHeader?: boolean;
   /**
    * A booking was dragged to a stylist and time. Asks, never moves: the page
    * confirms before anything changes. Absent, bookings cannot be dragged.
@@ -262,6 +264,7 @@ export function DayGrid({
   onOpenBlock,
   onMoveAppointment,
   hourHeightPx = HOUR_HEIGHT_PX,
+  showHeader = true,
 }: DayGridProps) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [dropAt, setDropAt] = useState<{ stylistName: string; row: number } | null>(null);
@@ -294,6 +297,7 @@ export function DayGrid({
           letting four stylists squeeze into thumbnails on a laptop. One
           column (a phone) needs no such help. */}
       <div className={stylists.length > 1 ? "min-w-[560px]" : undefined}>
+        {showHeader && (
         <div className="flex sticky top-0 z-20 bg-card/95 backdrop-blur border-b border-border">
           <div className="w-16 shrink-0" />
           {stylists.map((s) => (
@@ -315,13 +319,14 @@ export function DayGrid({
                     : !s.bookable
                       ? t("grid.noCalendar")
                       : s.worksToday
-                        ? t("grid.working")
+                        ? null
                         : t("grid.notIn")}
                 </div>
               </div>
             </div>
           ))}
         </div>
+        )}
 
         <EdgeStrip count={stylists.length} />
         <div

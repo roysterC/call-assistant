@@ -76,7 +76,7 @@ export const DIARY = "/calendar";
 const CONVERSATIONS = "/conversations";
 const SETTINGS = "/settings";
 
-/** In the order the sidebar lists them, before the start page is moved up. */
+/** In the order the sidebar lists them. */
 export const NAV_PAGES: NavPage[] = [
   {
     href: CONVERSATIONS,
@@ -95,19 +95,6 @@ export const NAV_PAGES: NavPage[] = [
   { href: "/receptionist", label: "Receptionist lab", labelKey: "nav.receptionist", requires: "voice", superAdminOnly: true },
   { href: SETTINGS, label: "Settings", labelKey: "nav.settings" },
 ];
-
-/**
- * Pages an organisation may open on. Not Settings or the lab: a start page is
- * where the day's work is. An owner-only page may be chosen; members open on
- * the automatic page instead (see resolveStartPage).
- */
-export const START_PAGE_CHOICES = NAV_PAGES.filter(
-  (p) => p.href !== SETTINGS && !p.superAdminOnly
-).map((p) => p.href);
-
-export function isStartPageChoice(href: unknown): href is string {
-  return typeof href === "string" && START_PAGE_CHOICES.includes(href);
-}
 
 /** Whether this login's role may see the page at all. */
 export function isNavAllowed(page: NavPage, role: string | null | undefined): boolean {
@@ -131,38 +118,21 @@ export function isNavShown(page: NavPage, flags: FeatureFlags | null, role: stri
 }
 
 /**
- * The page an organisation opens on.
- *
- * Its own choice (Settings → Start page), when that page is one it can see.
- * Otherwise the diary for a salon whose diary takes bookings — that is where
- * a salon's day happens — Conversations for an organisation with no diary,
- * and Settings for a salon whose diary is not set up yet.
+ * The page an organisation opens on: the diary for a salon whose diary takes
+ * bookings (that is where a salon's day happens), Conversations for an
+ * organisation with no diary, and Settings for a salon whose diary is not
+ * set up yet. There is no choosing it: the diary is everyone's start page.
  */
-export function resolveStartPage(input: {
-  chosen: string | null | undefined;
-  flags: FeatureFlags;
-  diaryTakesBookings: boolean;
-  /** False for a member: an owner-only start page is passed over. */
-  isOwner?: boolean;
-}): string {
+export function resolveStartPage(input: { flags: FeatureFlags; diaryTakesBookings: boolean }): string {
   const visible = (href: string) => {
     const page = NAV_PAGES.find((p) => p.href === href);
-    return Boolean(
-      page && isNavVisible(page, input.flags) && (input.isOwner !== false || !page.ownerOnly)
-    );
+    return Boolean(page && isNavVisible(page, input.flags));
   };
-  if (isStartPageChoice(input.chosen) && visible(input.chosen)) return input.chosen;
   if (input.diaryTakesBookings && visible(DIARY)) return DIARY;
   // A diary that cannot take bookings yet has no services or team: Settings
   // is where those are added. Without one, the inbox is the day's work.
   if (!visible(DIARY) && visible(CONVERSATIONS)) return CONVERSATIONS;
   return SETTINGS;
-}
-
-/** The sidebar's order: the start page first, the rest as listed. */
-export function orderForStartPage<T extends { href: string }>(pages: T[], startPage: string | null): T[] {
-  const first = pages.find((p) => p.href === startPage);
-  return first ? [first, ...pages.filter((p) => p !== first)] : pages;
 }
 
 /**
@@ -172,24 +142,15 @@ export function orderForStartPage<T extends { href: string }>(pages: T[], startP
 export const PRIMARY_PAGES = [DIARY, CONVERSATIONS];
 
 /**
- * The menu in three parts: the pages up front (Diary, then Conversations, and
- * a start page the organisation chose for itself, first), the rest under More
- * in their usual order, and Settings, which sits at the foot on its own.
- *
- * `chosenStart` is the organisation's own choice, not the automatic one: a
- * salon left on automatic keeps exactly Diary and Conversations up front.
- * One with neither still gets something up front, its first page, so the
- * menu never opens on a bare More.
+ * The menu in three parts: the pages up front (Diary, then Conversations),
+ * the rest under More in their usual order, and Settings, which sits at the
+ * foot on its own. An organisation with neither still gets something up
+ * front, its first page, so the menu never opens on a bare More.
  */
-export function splitNav<T extends { href: string }>(
-  shown: T[],
-  chosenStart: string | null
-): { primary: T[]; more: T[]; settings: T | null } {
+export function splitNav<T extends { href: string }>(shown: T[]): { primary: T[]; more: T[]; settings: T | null } {
   const settings = shown.find((p) => p.href === SETTINGS) ?? null;
   const pages = shown.filter((p) => p.href !== SETTINGS);
   let primary = PRIMARY_PAGES.flatMap((href) => pages.filter((p) => p.href === href));
-  const chosen = pages.find((p) => p.href === chosenStart);
-  if (chosen) primary = [chosen, ...primary.filter((p) => p !== chosen)];
   if (primary.length === 0 && pages.length > 0) primary = [pages[0]];
   return { primary, more: pages.filter((p) => !primary.includes(p)), settings };
 }

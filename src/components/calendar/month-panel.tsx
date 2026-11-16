@@ -57,6 +57,8 @@ interface MonthPanelProps {
   onSelect: (date: string) => void;
   /** Days with at least one booking, for the dot marker. */
   busyDates?: Set<string>;
+  /** The twelve months below the grid. The diary leaves them out. */
+  showYear?: boolean;
 }
 
 export function MonthPanel({
@@ -67,6 +69,7 @@ export function MonthPanel({
   onViewChange,
   onSelect,
   busyDates,
+  showYear = true,
 }: MonthPanelProps) {
   const { t, lang } = useT();
   const grid = useMemo(() => {
@@ -153,52 +156,54 @@ export function MonthPanel({
         </div>
       </div>
 
+      {showYear && (
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <button
-            type="button"
-            onClick={() => onViewChange(viewYear - 1, viewMonth)}
-            aria-label={t("month.prevYear")}
-            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-sm font-semibold tabular-nums">{viewYear}</span>
-          <button
-            type="button"
-            onClick={() => onViewChange(viewYear + 1, viewMonth)}
-            aria-label={t("month.nextYear")}
-            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <div className="flex items-center justify-between mb-2">
+            <button
+              type="button"
+              onClick={() => onViewChange(viewYear - 1, viewMonth)}
+              aria-label={t("month.prevYear")}
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-semibold tabular-nums">{viewYear}</span>
+            <button
+              type="button"
+              onClick={() => onViewChange(viewYear + 1, viewMonth)}
+              aria-label={t("month.nextYear")}
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+  
+          <div className="grid grid-cols-3 gap-1">
+            {MONTH_SHORT[lang].map((label, i) => {
+              const m = i + 1;
+              const isViewing = m === viewMonth;
+              const holdsSelection = sel.year === viewYear && sel.month === m;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onViewChange(viewYear, m)}
+                  className={cn(
+                    "py-1.5 rounded-md text-xs transition-colors",
+                    isViewing
+                      ? "bg-accent text-foreground font-semibold"
+                      : holdsSelection
+                        ? "text-foreground ring-1 ring-inset ring-border"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-
-        <div className="grid grid-cols-3 gap-1">
-          {MONTH_SHORT[lang].map((label, i) => {
-            const m = i + 1;
-            const isViewing = m === viewMonth;
-            const holdsSelection = sel.year === viewYear && sel.month === m;
-            return (
-              <button
-                key={label}
-                type="button"
-                onClick={() => onViewChange(viewYear, m)}
-                className={cn(
-                  "py-1.5 rounded-md text-xs transition-colors",
-                  isViewing
-                    ? "bg-accent text-foreground font-semibold"
-                    : holdsSelection
-                      ? "text-foreground ring-1 ring-inset ring-border"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                )}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
