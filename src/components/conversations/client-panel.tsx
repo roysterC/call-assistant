@@ -244,7 +244,11 @@ export function ClientPanel({
               <p className="py-2 text-[13px] text-muted-foreground">No visits yet. Their first is the one above.</p>
             ) : (
               client.recent.map((v) => (
-                <div key={v.id} className="flex items-center gap-2.5 border-b border-tea-green-900 py-2 text-[13px] last:border-b-0">
+                <Link
+                  key={v.id}
+                  href={withAsOrg(`/calendar?date=${v.day}&booking=${encodeURIComponent(v.id)}`)}
+                  className="-mx-1.5 flex items-center gap-2.5 rounded-md border-b border-tea-green-900 px-1.5 py-2 text-[13px] transition-colors last:border-b-0 hover:bg-tea-green-900"
+                >
                   <span className="h-2 w-2 shrink-0 rounded-full bg-tea-green-500" aria-hidden />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate">{v.serviceText}</span>
@@ -255,7 +259,7 @@ export function ClientPanel({
                   {v.amountMinor !== null && (
                     <span className="font-semibold tabular-nums">{formatMoneyShort(v.amountMinor)}</span>
                   )}
-                </div>
+                </Link>
               ))
             )}
           </section>

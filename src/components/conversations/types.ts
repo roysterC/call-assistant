@@ -22,13 +22,13 @@ export interface ConversationClient {
   isClient: boolean;
   visits: number;
   next: (ClientVisit & { photos: number; bookedInChat: boolean; day: string }) | null;
-  recent: ClientVisit[];
+  recent: Array<ClientVisit & { day: string }>;
   booksFor: { id: string; name: string | null }[];
   waiting: { id: string; message: string | null; createdAt: string } | null;
 }
 
 export type ThreadEvent =
-  | { kind: "booked"; at: string; serviceText: string; startsAt: string; bookingNumber: number | null }
+  | { kind: "booked"; at: string; id: string; day: string; serviceText: string; startsAt: string; bookingNumber: number | null }
   | { kind: "message"; at: string };
 
 export interface DetailMessage {
