@@ -43,9 +43,14 @@ type Kept = ImportRow & { keep: boolean };
 export function ServicesImport({
   services,
   onApply,
+  short = false,
+  className,
 }: {
   services: SalonService[];
   onApply: (next: SalonService[]) => void;
+  /** "Fill from a photo", for beside the price list's Add service. */
+  short?: boolean;
+  className?: string;
 }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -121,9 +126,9 @@ export function ServicesImport({
 
   return (
     <>
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className={className}>
         <Camera className="h-4 w-4 mr-1" />
-        {t("import.button")}
+        {short ? t("import.buttonShort") : t("import.button")}
       </Button>
 
       <Dialog

@@ -512,17 +512,19 @@ export default function SettingsPage() {
               description="Length decides how much of the diary is blocked. Prices are quoted as “from”."
               attention={needs("services")}
             >
-              <div className="space-y-3">
-                <ServicesImport
-                  services={settings.services}
-                  onApply={(services) => setSettings({ ...settings, services })}
-                />
-                <ServicesEditor
-                  value={settings.services}
-                  onChange={(services) => setSettings({ ...settings, services })}
-                  rebook={settings.rebookTextsEnabled}
-                />
-              </div>
+              <ServicesEditor
+                value={settings.services}
+                onChange={(services) => setSettings({ ...settings, services })}
+                rebook={settings.rebookTextsEnabled}
+                importer={
+                  <ServicesImport
+                    short
+                    services={settings.services}
+                    onApply={(services) => setSettings({ ...settings, services })}
+                    className="h-11 w-full rounded-xl text-sm font-semibold"
+                  />
+                }
+              />
             </SettingsSection>
           )}
 
