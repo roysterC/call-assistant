@@ -109,9 +109,6 @@ function useNavModel() {
     // Another organisation (super-admin switcher): its own count.
     callbacksChanged();
   }, [asOrg]);
-  // A start page the organisation chose (Settings → Start page) joins the
-  // pages up front; left on automatic, it does not.
-  const [chosenStart, setChosenStart] = useState<string | null>(null);
   // The organisation's name, from the same request as the menu. Until it
   // arrives the header stays blank: showing the login's own organisation or a
   // placeholder first made the name visibly change on every reload.
@@ -143,7 +140,6 @@ function useNavModel() {
       .then((d) => {
         setOrgName(d?.organizationName || session?.user?.organizationName || "Call Assistant");
         if (!d?.settings) return;
-        setChosenStart(d.settings.startPage ?? null);
         setFeatures(featureFlags(d.settings));
       })
       .catch(() => setOrgName(session?.user?.organizationName || "Call Assistant"));
@@ -166,10 +162,7 @@ function useNavModel() {
     window.location.href = `${pathname}?${params.toString()}`;
   }
 
-  const { primary, more, settings } = splitNav(
-    navItems.filter((item) => isNavShown(item, features, role)),
-    chosenStart
-  );
+  const { primary, more, settings } = splitNav(navItems.filter((item) => isNavShown(item, features, role)));
   if (isSuperAdmin) more.push(ADMIN);
 
   const isActive = (href: string) =>

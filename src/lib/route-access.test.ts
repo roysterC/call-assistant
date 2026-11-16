@@ -34,7 +34,7 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "conversations/[id]/star": { PATCH: "members" },
   conversations: { GET: "members" },
   // The owner's question of the receptionist: is it earning its keep?
-  "insights/receptionist": { GET: "owner" },
+  "insights/booked": { GET: "owner" },
   me: { GET: "members", PUT: "members" },
   // Staff see the salon is being set up; only the owner sets it up.
   onboarding: { GET: "members", PUT: "owner", POST: "owner" },
@@ -60,7 +60,6 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "voice-booking/speech": { GET: "members" },
   "settings/services/import": { POST: "owner" },
   "chat-photos/[id]": { GET: "members" },
-  "website-chat/analytics": { GET: "owner" },
   // DELETE is requireSuperAdmin, so not listed here.
   "websites/[id]": { GET: "owner", PUT: "owner" },
   websites: { GET: "owner", POST: "owner" },
@@ -114,6 +113,5 @@ describe("signed-in API routes", () => {
     expect(actual.usage.GET).toBe("owner");
     expect(Object.values(actual.websites)).not.toContain("members");
     expect(Object.values(actual["websites/[id]"])).not.toContain("members");
-    expect(actual["website-chat/analytics"].GET).toBe("owner");
   });
 });

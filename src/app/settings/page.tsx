@@ -18,7 +18,6 @@ import { StylistsEditor } from "@/components/settings/stylists-editor";
 import { ServicesImport } from "@/components/settings/services-import";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
-import { DIARY, NAV_PAGES, isNavVisible, isStartPageChoice } from "@/lib/navigation";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 import { useMe } from "@/components/providers/me-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
@@ -32,8 +31,6 @@ import {
   onlineSettingsFrom,
   type OnlineSettings,
 } from "@/components/settings/online-booking-settings";
-
-const labelFor = (href: string) => NAV_PAGES.find((p) => p.href === href)?.label ?? "Dashboard";
 
 interface Settings {
   businessName: string;
@@ -55,8 +52,6 @@ interface Settings {
   facebookPageId: string | null;
   /** "native" (our own diary) or "google". */
   diaryProvider?: string;
-  /** The page the CRM opens on; null for automatic. */
-  startPage: string | null;
   /** The salon's own answers to common questions, for the bots. */
   salonFaq: string;
   /** Texts to clients due back for a service (src/lib/rebook.ts). */
@@ -76,7 +71,6 @@ type Editable = Pick<
   | "businessHours"
   | "services"
   | "teamMembers"
-  | "startPage"
   | "salonFaq"
   | "rebookTextsEnabled"
   | "online"
@@ -90,7 +84,6 @@ function editable(s: Settings): Editable {
     businessHours: s.businessHours,
     services: s.services,
     teamMembers: s.teamMembers,
-    startPage: s.startPage,
     salonFaq: s.salonFaq,
     rebookTextsEnabled: s.rebookTextsEnabled,
     online: s.online,
@@ -124,8 +117,6 @@ export default function SettingsPage() {
   // What a save did, as a snack bar. It used to say nothing either way, which
   // is how a contact number that never saved went unnoticed.
   const { notify } = useDialogs();
-  // What "automatic" currently means for this organisation, to show beside it.
-  const [automaticStart, setAutomaticStart] = useState<string>(DIARY);
   // The salon's web address, /s/<slug>.
   const [slug, setSlug] = useState<string | null>(null);
   // Where salons' pages are given out, when that is not this app's address.
@@ -155,7 +146,6 @@ export default function SettingsPage() {
           instagramBusinessId: data.settings?.instagramBusinessId ?? null,
           facebookEnabled: !!data.settings?.facebookEnabled,
           facebookPageId: data.settings?.facebookPageId ?? null,
-          startPage: data.settings?.startPage ?? null,
           salonFaq: data.settings?.salonFaq ?? "",
           rebookTextsEnabled: !!data.settings?.rebookTextsEnabled,
           instagramUsername: data.settings?.instagramUsername ?? null,
@@ -166,7 +156,6 @@ export default function SettingsPage() {
         setTexts(data.texts ?? null);
         setSettings(s);
         setSaved(editable(s));
-        if (!s.startPage && data.startPage) setAutomaticStart(data.startPage);
 
         // Parallel phone-number fetches (only for enabled features)
         const fetches: Promise<void>[] = [];
@@ -214,7 +203,6 @@ export default function SettingsPage() {
           businessHours: settings.businessHours,
           services: settings.services,
           teamMembers: settings.teamMembers,
-          startPage: settings.startPage ?? "",
           salonFaq: settings.salonFaq,
           rebookTextsEnabled: settings.rebookTextsEnabled,
           ...settings.online,
@@ -229,7 +217,6 @@ export default function SettingsPage() {
       const stored = {
         ...settings,
         contactPhone: data.settings?.contactPhone ?? null,
-        startPage: data.settings?.startPage ?? null,
         salonFaq: data.settings?.salonFaq ?? "",
         // As stored: blank text cleared, the colour checked.
         online: onlineSettingsFrom(data.settings),
@@ -419,7 +406,12 @@ export default function SettingsPage() {
       <div
         role="tablist"
         aria-label="Settings"
-        className="-mx-1 flex gap-1 overflow-x-auto border-b border-border px-1"
+        // Scrolls sideways on a phone, never up and down: the line under the
+        // tabs is drawn inside the bar (an inset shadow) rather than as a
+        // border the tabs overlap, which overflowed by a pixel and gave the
+        // bar a vertical scrollbar. The scrollbar itself is hidden; a swipe
+        // still scrolls it.
+        className="-mx-1 flex gap-1 overflow-x-auto overflow-y-hidden px-1 shadow-[inset_0_-1px_0_var(--color-border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onKeyDown={(e) => {
           if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
           const i = tabs.indexOf(tab) + (e.key === "ArrowRight" ? 1 : -1);
@@ -439,7 +431,7 @@ export default function SettingsPage() {
             tabIndex={t === tab ? 0 : -1}
             onClick={() => choose(t)}
             className={cn(
-              "-mb-px inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm transition-colors",
+              "inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm transition-colors",
               t === tab
                 ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -510,28 +502,6 @@ export default function SettingsPage() {
                 </SettingsSection>
               )}
 
-              <SettingsSection
-                id="start-page"
-                title="Start page"
-                description="The screen Kikai opens on after signing in, and the top of the menu."
-                actions={
-                  <select
-                    aria-label="Start page"
-                    value={settings.startPage ?? ""}
-                    onChange={(e) => setSettings({ ...settings, startPage: e.target.value || null })}
-                    className="flex h-9 min-w-56 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                  >
-                    <option value="">Automatic ({labelFor(automaticStart)})</option>
-                    {NAV_PAGES.filter(
-                      (p) => isStartPageChoice(p.href) && isNavVisible(p, { ...settings, diaryEnabled: settings.hasDiary })
-                    ).map((p) => (
-                      <option key={p.href} value={p.href}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                }
-              />
             </>
           )}
 

@@ -2,7 +2,8 @@
 
 /**
  * Where signing in lands: sends a signed-in user to their organisation's start
- * page (Settings → Start page; the diary for a salon, see resolveStartPage). The site's root is the login page, not this.
+ * page (the diary for a salon; see resolveStartPage). The site's root is the
+ * login page, not this.
  */
 
 import { Suspense, useEffect } from "react";

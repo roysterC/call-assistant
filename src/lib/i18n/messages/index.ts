@@ -5,6 +5,7 @@ import { diary } from "./diary";
 import { clients } from "./clients";
 import { setup } from "./setup";
 import { onboarding } from "./onboarding";
+import { insights } from "./insights";
 
 export const MESSAGES = {
   ...shell,
@@ -12,6 +13,7 @@ export const MESSAGES = {
   ...clients,
   ...setup,
   ...onboarding,
+  ...insights,
 } satisfies Record<string, readonly [string, string]>;
 
 export type MessageKey = keyof typeof MESSAGES;
