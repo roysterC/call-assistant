@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -1023,29 +1024,41 @@ function threadItems(c: ConversationDetail): ThreadItem[] {
 function EventChip({ event, time }: { event: ThreadEvent; time: (iso: string) => string }) {
   const booked = event.kind === "booked";
   const Icon = booked ? CalendarCheck : PhoneCall;
+  const chip = cn(
+    "inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs",
+    booked ? "border-tea-green-600 bg-card text-tea-green-100" : "border-papaya-whip-400 bg-papaya-whip-900 text-light-bronze-200"
+  );
+  const content = (
+    <>
+      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="truncate">
+        {event.kind === "booked" ? (
+          <>
+            <strong className="font-semibold">Booked</strong> · {event.serviceText},{" "}
+            {format(new Date(event.startsAt), "EEE d MMM")}, {time(event.startsAt)}
+            {event.bookingNumber !== null && ` · #${event.bookingNumber}`}
+          </>
+        ) : (
+          <>
+            <strong className="font-semibold">Message taken</strong> · in Callbacks
+          </>
+        )}
+      </span>
+    </>
+  );
   return (
     <div className="flex justify-center py-2.5">
-      <span
-        className={cn(
-          "inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs",
-          booked ? "border-tea-green-600 bg-card text-tea-green-100" : "border-papaya-whip-400 bg-papaya-whip-900 text-light-bronze-200"
-        )}
-      >
-        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span className="truncate">
-          {booked ? (
-            <>
-              <strong className="font-semibold">Booked</strong> · {event.serviceText},{" "}
-              {format(new Date(event.startsAt), "EEE d MMM")}, {time(event.startsAt)}
-              {event.bookingNumber !== null && ` · #${event.bookingNumber}`}
-            </>
-          ) : (
-            <>
-              <strong className="font-semibold">Message taken</strong> · in Callbacks
-            </>
-          )}
-        </span>
-      </span>
+      {event.kind === "booked" ? (
+        // A booking made in the chat opens itself in the diary.
+        <Link
+          href={withAsOrg(`/calendar?date=${event.day}&booking=${encodeURIComponent(event.id)}`)}
+          className={cn(chip, "transition-colors hover:bg-tea-green-900")}
+        >
+          {content}
+        </Link>
+      ) : (
+        <span className={chip}>{content}</span>
+      )}
     </div>
   );
 }

@@ -14,7 +14,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CalendarPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { apiFetch } from "@/lib/api-fetch";
+import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { openQuote } from "@/components/notifications/quote-alerts";
 import { onServiceWorkerMessage } from "@/lib/push-client";
 import { NEW_BOOKING } from "@/lib/service-colours";
@@ -56,7 +56,7 @@ export function BookingAlerts() {
     if (pathname?.startsWith("/calendar")) {
       window.dispatchEvent(new CustomEvent(OPEN_BOOKING, { detail: { date, id } }));
     } else {
-      router.push(`/calendar?date=${date}&booking=${encodeURIComponent(id)}`);
+      router.push(withAsOrg(`/calendar?date=${date}&booking=${encodeURIComponent(id)}`));
     }
   }
 

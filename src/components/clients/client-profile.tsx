@@ -35,6 +35,7 @@ import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { formatMoney, formatMoneyShort } from "@/lib/money";
 import { appointmentStatus, PATCH_TEST_BADGE, SMS_STATUS, STATUS_BADGE } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
+import { bookingHref } from "@/lib/booking-link";
 import { shownFailureReason, textFailureKey } from "@/lib/text-failure";
 import { useT } from "@/components/providers/language-provider";
 import { useMe } from "@/components/providers/me-provider";
@@ -558,8 +559,14 @@ export function ClientProfile({
             ) : (
               <ul className="flex flex-col gap-2">
                 {upcoming.map((b) => (
-                  <li key={b.id} className="rounded-2xl bg-muted px-4 py-3">
-                    <BookingRow b={b} timeZone={timeZone} testOnRecord={Boolean(client.patchTestAt)} upcoming />
+                  <li key={b.id}>
+                    <BookingRow
+                      b={b}
+                      timeZone={timeZone}
+                      testOnRecord={Boolean(client.patchTestAt)}
+                      upcoming
+                      className="rounded-2xl bg-muted px-4 py-3 hover:bg-tea-green-900"
+                    />
                   </li>
                 ))}
               </ul>
@@ -693,11 +700,14 @@ function BookingRow({
   timeZone,
   testOnRecord,
   upcoming,
+  className,
 }: {
   b: Booking;
   timeZone: string;
   testOnRecord: boolean;
   upcoming?: boolean;
+  /** How the link looks; a list row's hover by default. */
+  className?: string;
 }) {
   const { t, lang, clock } = useT();
   const status = appointmentStatus(b.status);
@@ -722,19 +732,28 @@ function BookingRow({
       {textFailed && <span className="mt-0.5 block text-xs">{failureReason}</span>}
     </>
   );
+  // A tap opens the booking itself in the diary, not just its day.
   return (
-    <HistoryLine
-      icon={icon}
-      tone={upcoming ? "bg-card text-primary" : tone}
-      title={upcoming ? `${b.serviceText} · ${b.stylistName}` : b.serviceText}
-      sub={sub}
-      right={
-        <>
-          {!upcoming && <p className="text-[12.5px] text-muted-foreground">{shortDay(b.startsAt, timeZone, lang)}</p>}
-          {b.amountMinor !== null && <p className="text-[13px] font-semibold">{formatMoney(b.amountMinor)}</p>}
-        </>
-      }
-    />
+    <Link
+      href={bookingHref(b.id, b.startsAt, timeZone)}
+      className={cn(
+        "block transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className ?? "-mx-2 rounded-lg px-2 py-1 hover:bg-muted"
+      )}
+    >
+      <HistoryLine
+        icon={icon}
+        tone={upcoming ? "bg-card text-primary" : tone}
+        title={upcoming ? `${b.serviceText} · ${b.stylistName}` : b.serviceText}
+        sub={sub}
+        right={
+          <>
+            {!upcoming && <p className="text-[12.5px] text-muted-foreground">{shortDay(b.startsAt, timeZone, lang)}</p>}
+            {b.amountMinor !== null && <p className="text-[13px] font-semibold">{formatMoney(b.amountMinor)}</p>}
+          </>
+        }
+      />
+    </Link>
   );
 }
 

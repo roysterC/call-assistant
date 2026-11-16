@@ -36,7 +36,8 @@ export interface ConversationClient {
   visits: number;
   /** `day` is its date in the salon's time zone, for opening the diary on it. */
   next: (ClientVisit & { photos: number; bookedInChat: boolean; day: string }) | null;
-  recent: ClientVisit[];
+  /** `day`, as for `next`: for opening the booking in the diary. */
+  recent: Array<ClientVisit & { day: string }>;
   /** People booked through this person's number (a child on a parent's phone). */
   booksFor: { id: string; name: string | null }[];
   /** A message Kikai took that nobody has dealt with yet. */
@@ -44,7 +45,7 @@ export interface ConversationClient {
 }
 
 export type ThreadEvent =
-  | { kind: "booked"; at: Date; serviceText: string; startsAt: Date; bookingNumber: number | null }
+  | { kind: "booked"; at: Date; id: string; day: string; serviceText: string; startsAt: Date; bookingNumber: number | null }
   | { kind: "message"; at: Date };
 
 export interface ConversationExtras {
@@ -143,10 +144,14 @@ export async function conversationExtras(p: {
     }),
   ]);
 
+  // The salon's date of a booking, for opening it in the diary on its day.
+  const dayOf = (at: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: p.timeZone }).format(at);
   const events: ThreadEvent[] = [
     ...made.map((a) => ({
       kind: "booked" as const,
       at: a.createdAt,
+      id: a.id,
+      day: dayOf(a.startsAt),
       serviceText: a.serviceText,
       startsAt: a.startsAt,
       bookingNumber: a.bookingNumber,
@@ -181,11 +186,11 @@ export async function conversationExtras(p: {
               ...visit,
               photos: _count.photos,
               bookedInChat: made.some((m) => m.id === next.id),
-              day: new Intl.DateTimeFormat("en-CA", { timeZone: p.timeZone }).format(next.startsAt),
+              day: dayOf(next.startsAt),
             };
           })()
         : null,
-      recent: recent.map(strip),
+      recent: recent.map((v) => ({ ...strip(v), day: dayOf(v.startsAt) })),
       booksFor: lead.dependents,
       waiting: pending ? { id: pending.id, message: pending.notes, createdAt: pending.createdAt } : null,
     },

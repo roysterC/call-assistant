@@ -15,6 +15,8 @@ import { ChevronDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { apiFetch } from "@/lib/api-fetch";
+import { bookingHref } from "@/lib/booking-link";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { formatMoney, formatMoneyShort } from "@/lib/money";
 import { plural } from "@/lib/plural";
@@ -73,6 +75,7 @@ function todayIn(tz: string): string {
 export default function SalesPage() {
   const w = useTradeWords();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
+  const router = useRouter();
   const [kind, setKind] = useState<PeriodKind>("month");
   const [anchor, setAnchor] = useState(() => todayIn(DEFAULT_TZ));
 
@@ -316,6 +319,9 @@ export default function SalesPage() {
         columns={columns}
         data={rows}
         getRowId={(r) => r.id}
+        // A sale is a booking: it opens in the diary, on its day.
+        onRowClick={(r) => router.push(bookingHref(r.id, r.startsAt, timeZone))}
+        rowLabel={(r) => `${r.clientName ?? "Walk-in"}, ${r.serviceText}`}
         loading={loading}
         initialSorting={[{ id: "date", desc: false }]}
         pageSize={50}
