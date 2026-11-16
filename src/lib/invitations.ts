@@ -84,6 +84,16 @@ type Fail = { ok: false; status: number; error: string; code: InviteCode };
 type Made = { id: string; email: string; role: string; expiresAt: Date };
 
 /**
+ * A login left behind by a salon that was deleted: no salon, and not one of
+ * Kikai's own. Deleting a salon used to keep its logins, detached, so their
+ * addresses could never be invited again. It deletes them now; any left from
+ * before give way to a new invite (replaced when it is accepted).
+ */
+export function isLeftoverLogin(user: { organizationId: string | null; role: string }): boolean {
+  return user.organizationId === null && user.role !== "superAdmin";
+}
+
+/**
  * Invite `email` to the salon. Replaces any link still open for the same
  * person there. Refused when the address already has a login: one login
  * belongs to one salon.
@@ -109,8 +119,8 @@ export async function createInvitation(input: {
   const org = await prisma.organization.findUnique({ where: { id: input.organizationId }, select: { id: true } });
   if (!org) return { ok: false, status: 404, error: "Organisation not found", code: "notFound" };
 
-  const existing = await prisma.user.findUnique({ where: { email }, select: { organizationId: true } });
-  if (existing) {
+  const existing = await prisma.user.findUnique({ where: { email }, select: { organizationId: true, role: true } });
+  if (existing && !isLeftoverLogin(existing)) {
     return {
       ok: false,
       status: 409,
@@ -236,8 +246,11 @@ export async function acceptInvitation(input: {
     const unusable = checkUsable(inv, now);
     if (unusable) return unusable;
     // Before the claim, so a refusal leaves the link as it was.
-    const taken = await tx.user.findUnique({ where: { email: inv!.email }, select: { id: true } });
-    if (taken) {
+    const taken = await tx.user.findUnique({
+      where: { email: inv!.email },
+      select: { id: true, organizationId: true, role: true },
+    });
+    if (taken && !isLeftoverLogin(taken)) {
       return { ok: false as const, status: 409, error: "That email already has a login. Sign in instead.", code: "taken" as const };
     }
     const claimed = await tx.invitation.updateMany({
@@ -247,6 +260,9 @@ export async function acceptInvitation(input: {
     if (claimed.count !== 1) {
       return { ok: false as const, status: 410, error: "This link has already been used. Sign in instead.", code: "used" as const };
     }
+    // A login left by a deleted salon: replaced, with its sign-ins and
+    // devices, by the one this invite makes.
+    if (taken) await tx.user.delete({ where: { id: taken.id } });
     const role = isAssignableRole(inv!.role) ? inv!.role : "member";
     await tx.user.create({
       data: {

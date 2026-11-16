@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => {
   const tx = {
     invitation: { findUnique: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
-    user: { findUnique: vi.fn(), create: vi.fn() },
+    user: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
   };
   return {
     tx,
@@ -131,6 +131,13 @@ describe("createInvitation", () => {
     expect(db.tx.invitation.create).not.toHaveBeenCalled();
   });
 
+  it("takes an address whose login was left by a deleted salon, but not a super-admin's", async () => {
+    db.user.findUnique.mockResolvedValue({ organizationId: null, role: "admin" });
+    expect(await createInvitation({ organizationId: "org1", email: "owner@salon.test", now: NOW })).toMatchObject({ ok: true });
+    db.user.findUnique.mockResolvedValue({ organizationId: null, role: "superAdmin" });
+    expect(await createInvitation({ organizationId: "org1", email: "owner@salon.test", now: NOW })).toMatchObject({ status: 409 });
+  });
+
   it("refuses a bad address or role, and a salon that is not there", async () => {
     expect(await createInvitation({ organizationId: "org1", email: "nope" })).toMatchObject({ status: 400 });
     expect(await createInvitation({ organizationId: "org1", email: "a@b.co", role: "superAdmin" })).toMatchObject({ status: 400 });
@@ -182,6 +189,23 @@ describe("acceptInvitation", () => {
       organizationId: "org1",
       passwordHash: "hashed:longenough",
     });
+  });
+
+  it("replaces a login left by a deleted salon, and never a live one", async () => {
+    db.tx.user.findUnique.mockResolvedValue({ id: "old", organizationId: null, role: "member" });
+    expect(await acceptInvitation({ token: TOKEN, name: "Sam", password: "longenough", now: NOW })).toMatchObject({ ok: true });
+    expect(db.tx.user.delete).toHaveBeenCalledWith({ where: { id: "old" } });
+    expect(db.tx.user.create).toHaveBeenCalledTimes(1);
+
+    vi.clearAllMocks();
+    db.tx.invitation.findUnique.mockResolvedValue(stored());
+    db.tx.user.findUnique.mockResolvedValue({ id: "live", organizationId: "org2", role: "admin" });
+    expect(await acceptInvitation({ token: TOKEN, name: "Sam", password: "longenough", now: NOW })).toMatchObject({
+      ok: false,
+      code: "taken",
+    });
+    expect(db.tx.user.delete).not.toHaveBeenCalled();
+    expect(db.tx.user.create).not.toHaveBeenCalled();
   });
 
   it("counts the address as confirmed only for an invite the app emailed", async () => {

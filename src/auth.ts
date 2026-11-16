@@ -51,6 +51,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         loginThrottle.succeed(email);
         // A withdrawn role (stylist logins) cannot sign in at all.
         if (!isTenantRole(user.role || "member")) return null;
+        // Nor a login whose salon was deleted (isLeftoverLogin in
+        // lib/invitations): it has nothing to sign in to.
+        if (!user.organizationId && user.role !== "superAdmin") return null;
 
         return {
           id: user.id,

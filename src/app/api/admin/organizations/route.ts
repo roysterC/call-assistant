@@ -3,7 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
-import { createInvitation, emailInvitation, normaliseEmail } from "@/lib/invitations";
+import { createInvitation, emailInvitation, isLeftoverLogin, normaliseEmail } from "@/lib/invitations";
 import { emailAvailable } from "@/lib/email";
 import { linkOrigin } from "@/lib/app-origin";
 
@@ -67,7 +67,11 @@ export async function POST(req: NextRequest) {
     if (body.ownerEmail && !ownerEmail) {
       return NextResponse.json({ error: "The owner's email address does not look right." }, { status: 400 });
     }
-    if (ownerEmail && (await prisma.user.findUnique({ where: { email: ownerEmail }, select: { id: true } }))) {
+    const ownerLogin = ownerEmail
+      ? await prisma.user.findUnique({ where: { email: ownerEmail }, select: { organizationId: true, role: true } })
+      : null;
+    // A login left by a deleted salon does not count: the invite replaces it.
+    if (ownerLogin && !isLeftoverLogin(ownerLogin)) {
       return NextResponse.json(
         { error: "The owner's email already has a login. Use a different address." },
         { status: 409 }

@@ -114,7 +114,13 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    await prisma.organization.delete({ where: { id } });
+    // Its logins go with it (their sign-ins and devices with them): kept, they
+    // belonged to no salon and their addresses could never be invited again.
+    // Kikai's own super-admin logins are only detached.
+    await prisma.$transaction([
+      prisma.user.deleteMany({ where: { organizationId: id, role: { not: "superAdmin" } } }),
+      prisma.organization.delete({ where: { id } }),
+    ]);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[ADMIN ORG] DELETE error:", error);
