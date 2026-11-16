@@ -21,6 +21,7 @@ import { QuotePanel, type OpenQuote } from "@/components/conversations/quote-pan
 import { OPEN_QUOTE, quoteSeen } from "@/components/notifications/quote-alerts";
 import type { Channel, ConversationDetail, ThreadEvent } from "@/components/conversations/types";
 import { PhotoViewer } from "@/components/ui/photo-viewer";
+import { ContactAvatar } from "@/components/conversations/contact-avatar";
 import { withAsOrg } from "@/lib/api-fetch";
 import { useLanguage } from "@/components/providers/language-provider";
 import { MessageBubble } from "@/components/conversations/message-bubble";
@@ -690,17 +691,16 @@ export default function ConversationsPage() {
                 aria-label={`${title}: client details`}
               >
                 <span className="relative shrink-0">
-                  <span
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold",
-                      avatarColorFor(title)
-                    )}
-                  >
-                    {initialsFor(
+                  <ContactAvatar
+                    src={activeConversation.profilePicUrl}
+                    initials={initialsFor(
                       activeConversation.contactName || activeConversation.lead?.name || null,
                       activeConversation.phoneNumber || title
                     )}
-                  </span>
+                    colourClass={avatarColorFor(title)}
+                    size={40}
+                    className="h-10 w-10 text-sm"
+                  />
                   {CHANNEL_META[activeConversation.channel] && (
                     <span
                       className={cn(

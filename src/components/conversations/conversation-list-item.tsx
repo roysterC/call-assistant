@@ -1,5 +1,3 @@
-import Image from "next/image";
-import { useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
@@ -11,6 +9,7 @@ import {
 } from "@/lib/channels";
 import type { ConversationState } from "@/lib/conversation-state";
 import { useLanguage } from "@/components/providers/language-provider";
+import { ContactAvatar } from "@/components/conversations/contact-avatar";
 
 // The conversation list only ever shows non-phone channels.
 type Channel = Exclude<SharedChannel, "phone">;
@@ -115,11 +114,6 @@ export function ConversationListItem({
     (handle ? `@${handle}` : null) ||
     phoneNumber ||
     channelPlaceholder;
-  // Meta CDN URLs for IG/FB profile pics expire (~24h). When the cached
-  // URL 404s the Image silently shows a broken icon. Track the load
-  // failure and fall back to the coloured initials avatar.
-  const [imgFailed, setImgFailed] = useState(false);
-  const showImage = profilePicUrl && !imgFailed;
 
   // Who spoke last, so "The earliest is tomorrow…" reads as Kikai's words.
   const speaker = lastRole === "assistant" ? "Kikai: " : lastRole === "agent" ? "You: " : "";
@@ -137,26 +131,13 @@ export function ConversationListItem({
       )}
     >
       <div className="relative shrink-0">
-        {showImage ? (
-          <Image
-            src={profilePicUrl}
-            alt={contactName || ""}
-            width={42}
-            height={42}
-            className="h-[42px] w-[42px] rounded-full object-cover"
-            unoptimized
-            onError={() => setImgFailed(true)}
-          />
-        ) : (
-          <div
-            className={cn(
-              "h-[42px] w-[42px] rounded-full flex items-center justify-center text-sm font-semibold",
-              avatarColor
-            )}
-          >
-            {initials}
-          </div>
-        )}
+        <ContactAvatar
+          src={profilePicUrl}
+          initials={initials}
+          colourClass={avatarColor}
+          size={42}
+          className="h-[42px] w-[42px] text-sm"
+        />
         {badge && ChannelIcon && (
           <div
             className={cn(
