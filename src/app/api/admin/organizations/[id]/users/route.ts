@@ -4,6 +4,7 @@ import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
 import { hashPassword, validatePassword } from "@/lib/password";
 import { parsePagination } from "@/lib/pagination";
 import { ASSIGNABLE_ROLES, USER_FIELDS, isAssignableRole } from "@/lib/admin-users";
+import { isLeftoverLogin } from "@/lib/invitations";
 
 export async function GET(
   req: NextRequest,
@@ -66,9 +67,14 @@ export async function POST(
     // organisation. This used to move whoever had the address into this
     // organisation with the new role — another salon's owner, or a
     // super-admin demoted to member by typing their own email.
-    const existing = await prisma.user.findUnique({
+    let existing = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
+    // A login left by a deleted salon belongs to nobody: replaced by this one.
+    if (existing && isLeftoverLogin(existing)) {
+      await prisma.user.delete({ where: { id: existing.id } });
+      existing = null;
+    }
     if (existing) {
       if (existing.organizationId !== organizationId || existing.role === "superAdmin") {
         return NextResponse.json(
