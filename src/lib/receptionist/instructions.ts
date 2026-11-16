@@ -140,6 +140,9 @@ it.
   on different days are never heard as the same day.
 - **Do not name the stylist** unless the caller asked for one: it is one more
   thing to hear, and who it is with is said when the booking is read back.
+- When they ask who is in, who is working, or who would do it, call
+  \`who_is_working\` and tell them the names it gives. Never say you do not
+  know the rota.
 - When the tool finds nothing in the next two weeks, say so and ask whether
   they could wait longer. If they could, check again with \`lookFurther\`,
   which looks a month ahead; if not, take a message.

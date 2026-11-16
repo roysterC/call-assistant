@@ -37,6 +37,7 @@ export function bookingPush(b: NoticeBooking, timeZone: string, now: Date = new 
     body: `${b.serviceText} with ${b.stylistName}, ${describeAppointmentWhen(b.startsAt, timeZone, now)}`,
     url: bookingUrl(b.id, b.startsAt, timeZone),
     tag: `booking-${b.id}`,
+    kind: "booking",
   };
 }
 

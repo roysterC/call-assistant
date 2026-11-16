@@ -156,6 +156,7 @@ async function tellTheSalon(
         body: `${q.designs} design${q.designs === 1 ? "" : "s"} on ${CHANNEL_LABEL[q.channel]}, waiting for a price`,
         url: quoteUrl(q.channel, q.conversationId),
         tag: `quote-${q.id}`,
+        kind: "quote",
       }
     );
   } catch (err) {

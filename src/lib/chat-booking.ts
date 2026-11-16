@@ -60,7 +60,9 @@ const QUOTED = "_quoted";
 type Quoted = Pick<QuotedDesign, "quoteId" | "priceMinor">;
 
 /** The tools that find or check a time for a quoted design. */
-const QUOTED_TOOLS = new Set(["check_availability", "prepare_booking"]);
+const QUOTED_TOOLS = new Set(["check_availability", "prepare_booking", "who_is_working"]);
+/** Of those, the ones that answer anyway when it is not clear which design: "who's in Monday?" */
+const QUOTE_OPTIONAL = new Set(["who_is_working"]);
 
 /** `design` on the tools that take one, in the chats that take quotes. */
 export function withDesignParam(tools: ToolDefinition[]): ToolDefinition[] {
@@ -103,7 +105,7 @@ export function applyQuotedDesign(
   void _forged;
   if (!QUOTED_TOOLS.has(name)) return { ok: true, input: rest };
   const picked = pickQuotedDesign(designs, design);
-  if (!picked.ok) return picked;
+  if (!picked.ok) return QUOTE_OPTIONAL.has(name) ? { ok: true, input: rest } : picked;
   if (!picked.design) return { ok: true, input: rest };
   const { minutes: _said, ...withoutMinutes } = rest;
   void _said;

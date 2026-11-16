@@ -21,7 +21,7 @@ import { INTL_LOCALE, type MessageKey } from "@/lib/i18n";
 import { useMe } from "@/components/providers/me-provider";
 import { DIARY_CHANGED } from "@/components/voice-booking/assistant";
 import { OPEN_BOOKING } from "@/components/notifications/booking-alerts";
-import { noticesChanged } from "@/lib/use-booking-notices";
+import { noticesChanged, useBookingNotices } from "@/lib/use-booking-notices";
 import { useT } from "@/components/providers/language-provider";
 import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { MonthPanel } from "@/components/calendar/month-panel";
@@ -205,6 +205,9 @@ function newBlockForm(
   };
 }
 
+/** How often an open diary checks for bookings made elsewhere. */
+const DIARY_CHECK_MS = 30_000;
+
 export default function CalendarPage() {
   const { t, lang } = useT();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
@@ -301,16 +304,23 @@ export default function CalendarPage() {
   // when the salon's time zone arrives), and an older answer arriving last
   // used to show the wrong day's bookings, or none.
   const dayRequest = useRef(0);
-  const loadDay = useCallback(async () => {
-    const mine = ++dayRequest.current;
-    setLoading(true);
+  /**
+   * The day's bookings and blocked time. `quiet`: a check for anything new
+   * (below), with no loading state, and a failed answer left alone rather
+   * than emptying the diary. A quiet check does not take over from a load
+   * the diary is waiting on: a day changed meanwhile makes its answer old.
+   */
+  const loadDay = useCallback(async (opts?: { quiet?: boolean }) => {
+    const quiet = opts?.quiet === true;
+    const mine = quiet ? dayRequest.current : ++dayRequest.current;
+    if (!quiet) setLoading(true);
     try {
       const { from, to } = salonDayRange(selected, timeZone);
       const [res, blockRes] = await Promise.all([
         apiFetch(`/api/appointments?status=all&from=${from}&to=${to}`),
         apiFetch(`/api/time-blocks?from=${from}&to=${to}`),
       ]);
-      if (mine !== dayRequest.current) return;
+      if (mine !== dayRequest.current || (quiet && !res.ok)) return;
       const data = await res.json();
       setAppointments(data.appointments ?? []);
       const blockData = blockRes.ok ? await blockRes.json() : {};
@@ -330,11 +340,11 @@ export default function CalendarPage() {
         )
       );
     } catch {
-      if (mine !== dayRequest.current) return;
+      if (quiet || mine !== dayRequest.current) return;
       setAppointments([]);
       setBlocks([]);
     } finally {
-      if (mine === dayRequest.current) {
+      if (!quiet && mine === dayRequest.current) {
         setLoading(false);
         setLoadedFor(selected);
       }
@@ -350,7 +360,7 @@ export default function CalendarPage() {
   // having to think of refreshing.
   useEffect(() => {
     const onShow = () => {
-      if (document.visibilityState === "visible") loadDay();
+      if (document.visibilityState === "visible") loadDay({ quiet: true });
     };
     document.addEventListener("visibilitychange", onShow);
     return () => document.removeEventListener("visibilitychange", onShow);
@@ -428,6 +438,34 @@ export default function CalendarPage() {
   }, []);
   const router = useRouter();
   const pathname = usePathname();
+
+  // A diary left open on the desk keeps up by itself: a booking the
+  // receptionist took, or one made on another phone or computer, shows
+  // without anyone refreshing. Checked every half minute while it is on
+  // screen, and at once when a new-booking pop-up arrives (the pop-up is
+  // fetched every half minute too, and straight away on a push).
+  const notices = useBookingNotices(true);
+  const newest = notices.notices[0]?.id ?? null;
+  const seenNewest = useRef(newest);
+  useEffect(() => {
+    if (newest === seenNewest.current) return;
+    seenNewest.current = newest;
+    if (newest) {
+      loadDay({ quiet: true });
+      loadMonth();
+      loadWeek();
+    }
+  }, [newest, loadDay, loadMonth, loadWeek]);
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      loadDay({ quiet: true });
+      loadMonth();
+      loadWeek();
+    };
+    const id = setInterval(tick, DIARY_CHECK_MS);
+    return () => clearInterval(id);
+  }, [loadDay, loadMonth, loadWeek]);
 
   const weekday = weekdayOf(selected);
 

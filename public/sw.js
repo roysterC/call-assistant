@@ -1,5 +1,6 @@
 /*
- * Booking alerts on a phone or computer (src/lib/push.ts). This is all the
+ * Alerts on a phone or computer (src/lib/push.ts): new bookings, quotes
+ * waiting for a price, and callbacks. This is all the
  * service worker does: it shows the push it is sent and opens the booking
  * when the alert is tapped. It caches nothing and handles no requests, so
  * the diary is always the live one (see src/app/manifest.ts).
@@ -17,9 +18,10 @@ self.addEventListener("push", (event) => {
   }
   event.waitUntil(
     (async () => {
-      // An open CRM shows the pop-up at once rather than at its next check.
+      // An open CRM shows it at once rather than at its next check: the
+      // booking pop-up, a quote's alert, or the Callbacks counter and list.
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      for (const w of windows) w.postMessage({ type: "booking-notice" });
+      for (const w of windows) w.postMessage({ type: "booking-notice", kind: data.kind || "booking" });
       // Always shown: phones stop delivering to a site whose pushes show nothing.
       await self.registration.showNotification(data.title || "New booking", {
         body: data.body || "",

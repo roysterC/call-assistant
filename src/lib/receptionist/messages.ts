@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { canCreateBooking, getBookingProvider, getSalonConfig } from "@/lib/booking";
+import { noticeNewCallback } from "@/lib/callback-notices";
 import { matchStylist } from "@/lib/salon-config";
 import { normalisePhone, speakablePhone } from "@/lib/phone";
 import { nameRequiredMessage, normaliseCallerName } from "@/lib/caller-name";
@@ -110,7 +111,7 @@ export async function handleBookCallback(
     }
   }
 
-  await prisma.callback.create({
+  const callback = await prisma.callback.create({
     data: {
       organizationId,
       leadId: lead.id,
@@ -120,6 +121,10 @@ export async function handleBookCallback(
       calendarEventId,
     },
   });
+  // Not awaited: the caller is on the line.
+  if (callback) {
+    void noticeNewCallback(organizationId, { id: callback.id, kind: "callback", clientName: lead.name, notes: notes || null });
+  }
 
   await prisma.lead.update({
     where: { id: lead.id },
@@ -231,7 +236,7 @@ export async function handleTakeMessage(
       },
     });
   } else {
-    await prisma.callback.create({
+    const callback = await prisma.callback.create({
       data: {
         organizationId,
         leadId: lead.id,
@@ -243,6 +248,15 @@ export async function handleTakeMessage(
         ...messageSource(params.channel, params.conversationId),
       },
     });
+    // A new message only: more detail added to one just taken sends nothing more.
+    if (callback) {
+      void noticeNewCallback(organizationId, {
+        id: callback.id,
+        kind: "message",
+        clientName: lead.name || parsedName.name,
+        notes: message,
+      });
+    }
   }
 
   // The caller hears no time: "today" or "when we open" is a promise the salon

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { X } from "lucide-react";
+import { onServiceWorkerMessage } from "@/lib/push-client";
 import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { Button } from "@/components/ui/button";
 import type { OpenQuote } from "@/components/conversations/quote-panel";
@@ -81,9 +82,14 @@ export function QuoteAlerts() {
     const timer = setInterval(() => void load(), POLL_MS);
     const onShow = () => document.visibilityState === "visible" && void load();
     document.addEventListener("visibilitychange", onShow);
+    // A quote's push on this device: show it now, not at the next check.
+    const stopSw = onServiceWorkerMessage((msg) => {
+      if (msg.kind === "quote") void load();
+    });
     return () => {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onShow);
+      stopSw();
     };
   }, [load]);
 
