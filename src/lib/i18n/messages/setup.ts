@@ -2,6 +2,7 @@
 
 export const setup = {
   "import.button": ["Fill from a photo or file", "Điền từ ảnh hoặc tệp"],
+  "import.buttonShort": ["Fill from a photo", "Điền từ ảnh"],
   "import.title": ["Fill your price list from a photo or file", "Điền bảng giá từ ảnh hoặc tệp"],
   "import.intro": [
     "Take a photo of your price list, or add a PDF or CSV: up to 5, front and back. Nothing is saved until you have checked it.",

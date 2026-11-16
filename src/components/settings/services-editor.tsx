@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SalonService } from "@/lib/salon-config";
@@ -33,6 +33,7 @@ export function ServicesEditor({
   rebook = false,
   skinTests,
   typical,
+  importer,
 }: {
   value: SalonService[];
   onChange: (next: SalonService[]) => void;
@@ -46,6 +47,8 @@ export function ServicesEditor({
   skinTests?: boolean;
   /** Which services still have the length we guessed, to mark for checking (onboarding). */
   typical?: (service: SalonService) => boolean;
+  /** "Fill from a photo" (services-import.tsx), to sit beside Add service. */
+  importer?: ReactNode;
 }) {
   const { t } = useT();
   const me = useMe();
@@ -98,6 +101,19 @@ export function ServicesEditor({
 
   return (
     <div className="space-y-3">
+      {/* Both ways in, side by side: from a photo of the price list, or one at a time. */}
+      <div className={cn("grid gap-2.5 md:max-w-[29rem]", importer ? "grid-cols-2" : "md:max-w-56")}>
+        {importer}
+        <button
+          type="button"
+          onClick={() => setOpen(add())}
+          className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          {t("svc.add")}
+        </button>
+      </div>
+
       {value.length === 0 && <p className="text-sm text-muted-foreground">{t("svc.empty")}</p>}
 
       {/* A line for each service: its name, length and price; click it for the rest. */}
@@ -145,14 +161,6 @@ export function ServicesEditor({
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setOpen(add())}
-        className="flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-card text-sm font-semibold hover:bg-tea-green-900 md:h-10 md:w-auto md:px-4"
-      >
-        <Plus className="h-4 w-4" aria-hidden="true" />
-        {t("svc.add")}
-      </button>
 
       <p className="text-xs text-muted-foreground">
         {t("svc.help")}
