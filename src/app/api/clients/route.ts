@@ -161,6 +161,9 @@ export async function GET(req: NextRequest) {
       "organizationId" = ${ctx.organizationId}
       AND "anonymisedAt" IS NULL
       AND (name IS NOT NULL OR phone IS NOT NULL OR email IS NOT NULL)
+      -- Not the made-up clients an Instagram or Messenger message once made
+      -- (src/lib/social-client.ts): someone who only messaged is not a client.
+      AND (phone IS NULL OR phone !~ '^(instagram|facebook)-')
     `;
     const where = Prisma.sql`
       ${base}

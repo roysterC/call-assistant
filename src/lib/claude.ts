@@ -93,10 +93,21 @@ export function buildChatContext(
   };
 }
 
-interface LeadExtractionTarget {
-  /** Lead row id to upsert extracted details onto. */
-  leadId: string;
-}
+type LeadExtractionTarget =
+  | {
+      /** Lead row id to upsert extracted details onto. */
+      leadId: string;
+    }
+  | {
+      /**
+       * No client yet (an Instagram or Messenger chat before they gave a
+       * number): one is found or made by the email they give, and handed to
+       * onLead to file the chat under. Nothing is made for a name alone.
+       */
+      organizationId: string;
+      source: string;
+      onLead: (leadId: string) => Promise<void>;
+    };
 
 interface ChatOptions {
   organizationId?: string;
@@ -191,7 +202,7 @@ type ContentBlock = ToolUseBlock | TextBlock | { type: string };
  * never blocks the user reply.
  */
 async function applyCustomerDetails(
-  leadId: string,
+  target: LeadExtractionTarget,
   details: {
     issue?: string;
     name?: string;
@@ -213,6 +224,25 @@ async function applyCustomerDetails(
     data.company = details.company.trim().slice(0, 200);
   }
   if (Object.keys(data).length === 0) return;
+
+  if (!("leadId" in target)) {
+    if (!data.email) return;
+    const email = data.email.toLowerCase();
+    try {
+      const found = await prisma.lead.findUnique({
+        where: { organizationId_email: { organizationId: target.organizationId, email } },
+        select: { id: true },
+      });
+      const lead = found
+        ? await prisma.lead.update({ where: { id: found.id }, data: { ...data, email } })
+        : await prisma.lead.create({ data: { ...data, email, organizationId: target.organizationId, source: target.source } });
+      await target.onLead(lead.id);
+    } catch (err) {
+      console.error("[CLAUDE] Lead from chat details failed:", err);
+    }
+    return;
+  }
+  const leadId = target.leadId;
 
   try {
     await prisma.lead.update({ where: { id: leadId }, data });
@@ -570,7 +600,7 @@ async function getChatResponseAPI(
     for (const block of toolUses) {
       if (block.name === "save_customer_details") {
         await applyCustomerDetails(
-          extractToLead.leadId,
+          extractToLead,
           block.input as {
             issue?: string;
             name?: string;

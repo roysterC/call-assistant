@@ -19,6 +19,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { splitName } from "../src/lib/client-name";
 import { applyShogoMenu, SHOGO_MENU_MIGRATION } from "./shogo-menu-apply";
+import { cleanUpSocialPlaceholders } from "../src/lib/social-placeholders";
 
 const BATCH = 500;
 
@@ -123,6 +124,17 @@ async function main() {
     });
     console.log(`  ✓ Diaries switched on for salons that had one through the phone or messages: ${diaries.count}`);
     console.log(`  ✓ Logins from copied invite links, email no longer counted as confirmed: ${await unverifyLinkInviteLogins(prisma)}`);
+    // The made-up clients Instagram and Messenger messages used to make:
+    // folded into the real client, or removed. Every deploy, for any the old
+    // build made while this one was on its way. Reported, not fatal.
+    try {
+      const social = await cleanUpSocialPlaceholders(prisma, { apply: true });
+      console.log(
+        `  ✓ Instagram/Messenger placeholder clients: ${social.merged} merged, ${social.removed} removed, ${social.kept} kept`
+      );
+    } catch (err) {
+      console.error("  ! Instagram/Messenger placeholder clients NOT cleared:", err instanceof Error ? err.message : err);
+    }
     // Shogo's official price list, exactly once: after it is in (here or by
     // hand) it is recorded, and the salon's own edits in Settings are never
     // overwritten. A failure is reported, not fatal: the CRM is already live

@@ -349,6 +349,15 @@ async function reply(turn: ChatTurn): Promise<string> {
         } | null) ?? null;
         // The quote is used: a later booking in this chat is at the price list's.
         if (n?.success && quoted) await markQuoteBooked(quoted.quoteId, now);
+        // Who it was booked for: the chat is filed under them (the client is
+        // made by the booking, so only now can it be found). The read-back
+        // gave the number when the client did not exist yet.
+        if (n?.success && turn.onContact && typeof params.customerPhone === "string" && params.customerPhone.trim()) {
+          turn.onContact({
+            phone: params.customerPhone.trim(),
+            name: typeof params.customerName === "string" && params.customerName.trim() ? params.customerName.trim() : null,
+          });
+        }
         if (n?.success && turn.outcome && n.service && n.stylist && n.startsAt) {
           turn.outcome.booked = {
             service: n.service,
