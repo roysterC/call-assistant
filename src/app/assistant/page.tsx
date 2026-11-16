@@ -9,11 +9,12 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { withAsOrg } from "@/lib/api-fetch";
 
 export default function AssistantLink() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/start?assistant=listen");
+    router.replace(withAsOrg("/start?assistant=listen"));
   }, [router]);
   return null;
 }

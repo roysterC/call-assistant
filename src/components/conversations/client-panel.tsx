@@ -15,7 +15,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { Check, ChevronRight, Copy, Pencil, Phone, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiFetch } from "@/lib/api-fetch";
+import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { formatMoneyShort } from "@/lib/money";
 import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
 import { useLanguage } from "@/components/providers/language-provider";
@@ -203,7 +203,7 @@ export function ClientPanel({
 
         {client?.next && (
           <Link
-            href={`/calendar?date=${client.next.day}&booking=${encodeURIComponent(client.next.id)}`}
+            href={withAsOrg(`/calendar?date=${client.next.day}&booking=${encodeURIComponent(client.next.id)}`)}
             className="flex items-center gap-3 rounded-2xl bg-primary px-4 py-3.5 text-primary-foreground hover:bg-tea-green-100"
           >
             <span className="w-[46px] shrink-0 rounded-[10px] bg-white/15 py-1.5 text-center">
@@ -235,7 +235,7 @@ export function ClientPanel({
             <div className="mb-1 flex items-baseline">
               <h3 className="flex-1 text-[13px] font-bold">Recent visits</h3>
               {client.visits > 0 && (
-                <Link href={`/clients?client=${encodeURIComponent(client.id)}`} className="text-[12.5px] font-semibold text-primary hover:underline">
+                <Link href={withAsOrg(`/clients?client=${encodeURIComponent(client.id)}`)} className="text-[12.5px] font-semibold text-primary hover:underline">
                   See all
                 </Link>
               )}
@@ -300,7 +300,7 @@ export function ClientPanel({
         <div className="flex items-center gap-4 border-t border-border px-[18px] py-3">
           {c.lead && (
             <Link
-              href={`/clients?client=${encodeURIComponent(c.lead.id)}`}
+              href={withAsOrg(`/clients?client=${encodeURIComponent(c.lead.id)}`)}
               className="text-[13px] font-semibold text-primary hover:underline"
             >
               Open client page
