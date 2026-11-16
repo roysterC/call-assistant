@@ -294,21 +294,17 @@ export function LengthStepper({
   minutes,
   onChange,
   t,
-  flag = false,
   className,
 }: {
   minutes: number;
   onChange: (minutes: number) => void;
   t: ReturnType<typeof useT>["t"];
-  /** Ring it: the length is our guess, to check (onboarding). */
-  flag?: boolean;
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        "inline-flex h-8 items-center rounded-[9px] border-[1.5px] bg-card",
-        flag ? "border-light-bronze-400 ring-2 ring-light-bronze-400/30" : "border-tea-green-700",
+        "inline-flex h-8 items-center rounded-[9px] border-[1.5px] border-tea-green-700 bg-card",
         className
       )}
     >

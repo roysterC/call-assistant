@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -428,9 +428,21 @@ export default function ConversationsPage() {
     }
   }
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeConversation?.messages]);
+  // Opening a chat lands on its latest message at once, before it is drawn,
+  // rather than scrolling down through it; a new message in the chat already
+  // open glides into view.
+  const shownThread = useRef<string | null>(null);
+  const threadKey = activeConversation ? `${activeConversation.channel}:${activeConversation.id}` : null;
+  const threadMessages = activeConversation?.messages;
+  useLayoutEffect(() => {
+    if (!threadKey || !threadMessages) {
+      shownThread.current = null;
+      return;
+    }
+    const opened = threadKey !== shownThread.current;
+    shownThread.current = threadKey;
+    messagesEndRef.current?.scrollIntoView({ behavior: opened ? "instant" : "smooth", block: "end" });
+  }, [threadKey, threadMessages]);
 
   async function toggleStar() {
     if (!activeConversation) return;
