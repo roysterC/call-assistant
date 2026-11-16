@@ -21,6 +21,7 @@ import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
 import { useLanguage } from "@/components/providers/language-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { waitedFor } from "@/components/conversations/conversation-list-item";
+import { ContactAvatar } from "@/components/conversations/contact-avatar";
 import type { ConversationDetail, ConversationState } from "@/components/conversations/types";
 
 interface ClientPanelProps {
@@ -113,14 +114,13 @@ export function ClientPanel({
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-border px-[18px] py-4">
         <span className="relative shrink-0">
-          <span
-            className={cn(
-              "flex h-[46px] w-[46px] items-center justify-center rounded-full text-[15px] font-bold",
-              avatarColorFor(title)
-            )}
-          >
-            {initialsFor(c.contactName || c.lead?.name || null, c.phoneNumber || title)}
-          </span>
+          <ContactAvatar
+            src={c.profilePicUrl}
+            initials={initialsFor(c.contactName || c.lead?.name || null, c.phoneNumber || title)}
+            colourClass={avatarColorFor(title)}
+            size={46}
+            className="h-[46px] w-[46px] text-[15px] font-bold"
+          />
           {meta && (
             <span
               title={meta.label}
