@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
     const stylist = matchStylist(stylistName, cfg.stylists);
     if (!stylist) {
       return NextResponse.json(
-        { error: `No stylist matching "${stylistName}"` },
+        { error: `No nail technician matching "${stylistName}"` },
         { status: 400 }
       );
     }

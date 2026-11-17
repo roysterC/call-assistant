@@ -9,7 +9,6 @@
  * that sums them is how a salon ends up arguing with its own accountant.
  */
 
-import { useTradeWords } from "@/components/providers/language-provider";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,7 +72,6 @@ function todayIn(tz: string): string {
 }
 
 export default function SalesPage() {
-  const w = useTradeWords();
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const router = useRouter();
   const [kind, setKind] = useState<PeriodKind>("month");
@@ -161,7 +159,7 @@ export default function SalesPage() {
       meta: { className: "whitespace-nowrap tabular-nums text-muted-foreground" },
       cell: ({ row: { original: r } }) => when.format(new Date(r.startsAt)),
     },
-    { id: "stylist", header: "Stylist", accessorKey: "stylistName", meta: { className: "whitespace-nowrap" } },
+    { id: "stylist", header: "Nail technician", accessorKey: "stylistName", meta: { className: "whitespace-nowrap" } },
     {
       id: "status",
       header: "Status",
@@ -310,7 +308,7 @@ export default function SalesPage() {
 
       {totals && totals.byStylist.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Breakdown title={w("By stylist")} noun={w("stylist")} items={totals.byStylist} />
+          <Breakdown title="By nail technician" noun="nail technician" items={totals.byStylist} />
           <Breakdown title="By service" noun="service" items={totals.byService.slice(0, 8)} />
         </div>
       )}

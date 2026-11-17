@@ -790,32 +790,29 @@ Not built yet: clients changing or cancelling online (they ring the salon,
 whose number is on the confirmation), a photo on the website, deposits, and
 booking several services at once.
 
-### Business types (hair, nails, beauty, barbers)
+### Nail salons only
 
-Each salon has a main **business type** and any others it **also offers**
-(`Organization.businessType` and `alsoOffers`), set by Kikai in Admin →
-Organizations, not by the salon. The profiles are in
-`src/lib/business-types.ts`. A type changes what the bots know about the
-trade, never how the diary works:
+Kikai is for nail salons (November 2026). The trade's profile is in
+`src/lib/business-types.ts`, kept as a list of one type (`nails`) so the
+bots' trade knowledge stays in one place. `Organization.businessType` and
+`alsoOffers` are still stored, but anything other than `nails` (older salons
+saved as `hair`) is read as a nail salon. The profile gives:
 
-- what the team are called (stylist, nail technician, therapist, barber),
-  in our own instructions only; a salon's own prompt is left as written;
+- what the team are called: nail technicians, on screen and in our own
+  instructions (a salon's own prompt is left as written);
 - the examples in the rules above (what to ask about, what "not on the list"
   looks like), why a price is a "from" price, and which health questions go
   to the team;
-- the example lines in the phone's, the chats' and the assistant's
-  instructions, which are written with hair examples and swapped for the
-  main type's own as they are put together (`src/lib/trade-examples.ts`):
-  a nail salon's read-back example is a BIAB infill, not a blow dry;
-- the trade's words the phone listens for (`keyterms.ts`);
-- extra phone rules: nails, beauty and barbers answer "can I come in now?"
-  from today's diary, and never suggest walking in otherwise;
-- the starter price list a new salon is created with (unpriced).
+- the trade's words the phone listens for (`keyterms.ts`), and the ordinary
+  words in nail service names it need not;
+- the phone rule for walk-ins: "can I come in now?" is answered from today's
+  diary, and walking in is never suggested otherwise;
+- the starter price list a new salon is created with: the demo salon's menu,
+  one service per treatment and finish, unpriced;
+- the diary's colour families: manicures, pedicures, sets & infills, nail
+  art & removals (`service-colours.ts`).
 
-A salon with several types gets the main type's word for the team and every
-type's examples and rules. Hair is the default, and a hair-only salon's
-instructions are held to exactly what they were before types existed
-(`business-types.test.ts`).
+The nail salon's prompts are held as snapshots (`business-types.test.ts`).
 
 ### WhatsApp, Instagram and Messenger keys
 

@@ -17,7 +17,6 @@ import { zonedDateString } from "@/lib/business-hours";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
 import { upcomingDays } from "@/lib/receptionist/prompt";
 import { inTradeWords, PROFILES, tradeFor, type Trade } from "@/lib/business-types";
-import { inTradeExamples } from "@/lib/trade-examples";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
 import {
   findClients,
@@ -209,17 +208,16 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-export function instructions(business: string, speaker: string, trade: Trade = tradeFor(["hair"])): string {
-  if (trade.staff === "stylist" && trade.types.length === 1) return hairInstructions(business, speaker);
+export function instructions(business: string, speaker: string, trade: Trade = tradeFor(["nails"])): string {
   const kinds = trade.types.map((t) => PROFILES[t].kind).join(" and ");
   return (
-    inTradeExamples(inTradeWords(hairInstructions(business, speaker), trade), trade.types[0]) +
+    inTradeWords(baseInstructions(business, speaker), trade) +
     `\n\nThe business is a ${kinds}. Use this trade's own services and words. ` +
     (trade.staff === "stylist" ? "" : `The team are ${trade.staff}s; the tools' "stylist" means the same person.`)
   ).trimEnd();
 }
 
-function hairInstructions(business: string, speaker: string): string {
+function baseInstructions(business: string, speaker: string): string {
   return `# You are the personal assistant in ${business}'s salon system
 
 Salon staff talk to you at the desk or on their phone, often with their hands
@@ -234,19 +232,19 @@ Be brief. They are busy and mid-task:
 - No filler ("Sure!", "Great question", "Let me check"), no repeating their
   question back, nothing they did not ask about.
 - A long answer (a full day, a client's history): the count and what matters
-  most, then stop. "Six in, first at nine, Sarah's colour at eleven." They
+  most, then stop. "Six in, first at nine, Sarah's BIAB infill at eleven." They
   will ask for more if they want it.
 
 Answering questions (these change nothing, just answer):
 - The day: day_schedule. "What's my afternoon like", "who's first in
   tomorrow", "who's free on Friday".
 - Right now: who_is_free_now, for "who's free?" or "can anyone take a
-  walk-in for a cut?", with the service if one was said. Who is free now
+  walk-in for a gel manicure?", with the service if one was said. Who is free now
   first, then who is next and when.
-- A time for a service: check_availability, for "when's the next gap for a
-  balayage".
+- A time for a service: check_availability, for "when's the next gap for an
+  acrylic full set".
 - A client: find_client, then client_history. "When was Sarah last in, and
-  what colour did we use?" Answer from their notes and visits; if it is not
+  what colour did she have?" Answer from their notes and visits; if it is not
   written down, say so rather than guess.
 - The phone: phone_messages, for "any messages?".
 - Money: takings. The amount taken and how many appointments; no-shows only
@@ -263,7 +261,7 @@ Doing things (every one of these only puts a card on screen):
 - "And text her": set textClient on that proposal.
 - Their details: find_client, then propose_client_details with only what
   changes. "Sarah's new number is…", "her email is…", "she's married, it's
-  Sarah Smith now", "Jo had her patch test today". Spell an email back if
+  Sarah Smith now". Spell an email back if
   any part of it is unclear. Removing a number or email is done on the
   client's page.
 - A note: propose_note. A text of its own (running late, a gap has opened):

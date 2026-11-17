@@ -26,15 +26,12 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandMark } from "@/components/dashboard/sidebar";
-import { BusinessTypePicker } from "@/components/admin/business-type-picker";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
 import { ServicesEditor } from "@/components/settings/services-editor";
 import { ServicesImport } from "@/components/settings/services-import";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
 import { LanguageFlags } from "@/components/i18n/language-flags";
-import { ME_CHANGED } from "@/components/providers/me-provider";
 import { useLanguage, useT } from "@/components/providers/language-provider";
-import { PROFILES, type BusinessType } from "@/lib/business-types";
 import { toMinutes, type DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
@@ -67,7 +64,6 @@ export default function OnboardingPage() {
   const { clock } = useLanguage();
   const [loaded, setLoaded] = useState<"loading" | "owner" | "staff" | "failed">("loading");
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [types, setTypes] = useState<{ main: BusinessType; also: BusinessType[] }>({ main: "hair", also: [] });
   const [answersCustomers, setAnswersCustomers] = useState(false);
   const [ownerName, setOwnerName] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -78,8 +74,6 @@ export default function OnboardingPage() {
 
   const steps = useMemo(() => stepsFor(answersCustomers), [answersCustomers]);
   const at = steps.indexOf(step);
-  const allTypes = useMemo(() => [types.main, ...types.also], [types]);
-  const skinTests = allTypes.some((ty) => PROFILES[ty].skinTestFor.length > 0);
 
   useEffect(() => {
     let live = true;
@@ -107,7 +101,6 @@ export default function OnboardingPage() {
           st.voiceEnabled || st.chatbotEnabled || st.whatsappEnabled || st.instagramEnabled || st.facebookEnabled
         );
         setDraft(d);
-        setTypes({ main: o.businessType, also: o.alsoOffers ?? [] });
         setAnswersCustomers(answers);
         setOwnerName(o.ownerName);
         setVoiceEnabled(Boolean(o.voiceEnabled));
@@ -151,12 +144,8 @@ export default function OnboardingPage() {
   async function save(d: Draft): Promise<boolean> {
     switch (step) {
       case "salon": {
-        const r = await put("/api/onboarding", { name: d.businessName, businessType: types.main, alsoOffers: types.also });
-        if (!r) return false;
-        if (Array.isArray(r.services)) setDraft({ ...d, services: r.services as SalonService[] });
-        // The CRM's own words for the team ("Add nail technician") follow the type.
-        window.dispatchEvent(new Event(ME_CHANGED));
-        return true;
+        const r = await put("/api/onboarding", { name: d.businessName });
+        return Boolean(r);
       }
       case "hours":
         return Boolean(
@@ -294,15 +283,6 @@ export default function OnboardingPage() {
                   autoFocus
                 />
               </div>
-              <BusinessTypePicker
-                audience="owner"
-                main={types.main}
-                also={types.also}
-                onChange={(main, also) => {
-                  setProblem(null);
-                  setTypes({ main, also });
-                }}
-              />
             </>
           )}
 
@@ -351,8 +331,7 @@ export default function OnboardingPage() {
               <ServicesEditor
                 value={d.services}
                 onChange={(services) => set({ services })}
-                skinTests={skinTests}
-                typical={(s) => hasTypicalLength(s, allTypes)}
+                typical={(s) => hasTypicalLength(s, ["nails"])}
               />
             </>
           )}
@@ -380,7 +359,6 @@ export default function OnboardingPage() {
                 value={d.teamMembers}
                 services={d.services}
                 businessHours={d.businessHours}
-                trade={types.main}
                 onChange={(teamMembers) => set({ teamMembers })}
               />
             </>
@@ -408,7 +386,7 @@ export default function OnboardingPage() {
                   [
                     "salon",
                     d.businessName,
-                    allTypes.map((ty) => t(`type.${ty}` as MessageKey)).join(", "),
+                    t("type.nails"),
                   ],
                   [
                     "hours",

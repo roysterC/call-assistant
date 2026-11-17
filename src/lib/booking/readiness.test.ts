@@ -26,7 +26,7 @@ describe("whether the diary can take bookings", () => {
 
   it("on Google's calendars, needs someone with a calendar", () => {
     const r = bookingReadiness({ services, teamMembers: team, businessHours: hours, diaryProvider: "google" });
-    expect(r.missing).toEqual(["no stylist with a Google calendar"]);
+    expect(r.missing).toEqual(["no nail technician with a Google calendar"]);
   });
 
   it("agrees with the booking code's own test, on the salon's own diary", () => {

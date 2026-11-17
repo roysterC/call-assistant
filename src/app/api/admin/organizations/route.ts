@@ -43,8 +43,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, slug, planTier } = body;
-    // Main type first; hair when not given (business-types.ts).
-    const types = businessTypesOf(body.businessType, body.alsoOffers);
+    // Every salon is a nail salon (business-types.ts).
+    const types = businessTypesOf("nails");
 
     if (!name || !slug) {
       return NextResponse.json(
@@ -93,8 +93,8 @@ export async function POST(req: NextRequest) {
             // is hours, services and team, and Settings shows them only
             // where there is a diary. On unless Kikai says otherwise.
             diaryEnabled: body.diaryEnabled === undefined ? Boolean(ownerEmail) : Boolean(body.diaryEnabled),
-            // A starting price list for its trades, unpriced: the salon
-            // edits it in Settings before the receptionist goes live.
+            // A starting nail price list, unpriced: the salon edits it in
+            // Settings before the receptionist goes live.
             services: starterServices(types) as unknown as Prisma.InputJsonValue,
           },
         },

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
           select: { name: true, email: true, language: true, clock: true },
         });
 
-  // What the salon calls its team, for the screens' own words.
+  // The salon's trade, for the diary's colours and the services editor.
   const org = await prisma.organization.findUnique({
     where: { id: ctx.organizationId },
     select: { businessType: true, alsoOffers: true },
@@ -31,7 +31,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     role: ctx.role,
-    staff: PROFILES[types[0]].staff,
     businessType: types[0],
     businessTypes: types,
     skinTests: types.some((t) => PROFILES[t].skinTestFor.length > 0),

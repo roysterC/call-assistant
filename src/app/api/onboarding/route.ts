@@ -4,22 +4,20 @@ import { notifyKikai } from "@/lib/notify";
 import { linkOrigin } from "@/lib/app-origin";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
-import { businessTypesOf, PROFILES } from "@/lib/business-types";
-import { parseServices } from "@/lib/salon-config";
+import { PROFILES } from "@/lib/business-types";
 import { bookingReadiness, missingText } from "@/lib/booking/readiness";
-import { ONBOARDING_STEPS, servicesAfterTypeChange, type OnboardingStep } from "@/lib/onboarding";
+import { ONBOARDING_STEPS, type OnboardingStep } from "@/lib/onboarding";
 
 /**
  * A salon's owner setting it up (src/app/onboarding). Hours, services and
  * team are saved through /api/settings like anywhere else; this is for what
- * only onboarding does: naming the salon and choosing its type, which Kikai
- * otherwise sets, and finishing.
+ * only onboarding does: naming the salon, and finishing.
  */
 
 async function readOrg(organizationId: string) {
   return prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { name: true, businessType: true, alsoOffers: true, needsOnboarding: true, onboardingStep: true },
+    select: { name: true, needsOnboarding: true, onboardingStep: true },
   });
 }
 
@@ -29,7 +27,6 @@ export async function GET(req: NextRequest) {
   if (isErrorResponse(ctx)) return ctx;
   const org = await readOrg(ctx.organizationId);
   if (!org) return NextResponse.json({ error: "Organisation not found" }, { status: 404 });
-  const types = businessTypesOf(org.businessType, org.alsoOffers);
   const [user, settings] = await Promise.all([
     ctx.userId === "dev-user" ? null : prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true } }),
     prisma.organizationSettings.findUnique({ where: { organizationId: ctx.organizationId }, select: { voiceEnabled: true } }),
@@ -44,17 +41,11 @@ export async function GET(req: NextRequest) {
     /** Whether the phone receptionist is already on, for "what's next". */
     voiceEnabled: Boolean(settings?.voiceEnabled),
     name: org.name,
-    businessType: types[0],
-    alsoOffers: types.slice(1),
-    staff: PROFILES[types[0]].staff,
+    staff: PROFILES.nails.staff,
   });
 }
 
-/**
- * { name?, businessType?, alsoOffers? }, only while onboarding. A new type
- * swaps the starter price list for the new type's, unless the owner has
- * already made it their own.
- */
+/** { name?, reached? }, only while onboarding. */
 export async function PUT(req: NextRequest) {
   const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
@@ -83,29 +74,13 @@ export async function PUT(req: NextRequest) {
     settingsData.businessName = name;
   }
 
-  let services: unknown;
-  if (body.businessType !== undefined || body.alsoOffers !== undefined) {
-    const from = businessTypesOf(org.businessType, org.alsoOffers);
-    const to = businessTypesOf(body.businessType ?? org.businessType, body.alsoOffers ?? org.alsoOffers);
-    orgData.businessType = to[0];
-    orgData.alsoOffers = to.slice(1);
-    const current = await prisma.organizationSettings.findUnique({
-      where: { organizationId: ctx.organizationId },
-      select: { services: true },
-    });
-    const next = servicesAfterTypeChange(parseServices(current?.services), from, to);
-    if (next) settingsData.services = next as unknown as Prisma.InputJsonValue;
-    services = next ?? undefined;
-  }
-
   await prisma.$transaction([
     prisma.organization.update({ where: { id: ctx.organizationId }, data: orgData }),
     ...(Object.keys(settingsData).length
       ? [prisma.organizationSettings.update({ where: { organizationId: ctx.organizationId }, data: settingsData })]
       : []),
   ]);
-  const types = businessTypesOf(orgData.businessType ?? org.businessType, orgData.alsoOffers ?? org.alsoOffers);
-  return NextResponse.json({ ok: true, staff: PROFILES[types[0]].staff, ...(services ? { services } : {}) });
+  return NextResponse.json({ ok: true });
 }
 
 /** Finish: refused while the diary could not take a booking. */
@@ -120,7 +95,7 @@ export async function POST(req: NextRequest) {
     }),
   ]);
   if (!org) return NextResponse.json({ error: "Organisation not found" }, { status: 404 });
-  const staff = PROFILES[businessTypesOf(org.businessType)[0]].staff;
+  const staff = PROFILES.nails.staff;
   const readiness = bookingReadiness({
     services: settings?.services,
     teamMembers: settings?.teamMembers,
