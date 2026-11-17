@@ -39,6 +39,8 @@ export const diary = {
   "grid.noCalendar": ["no calendar", "chưa có lịch"],
   "grid.working": ["working", "đang làm"],
   "grid.notIn": ["not in", "nghỉ"],
+  "grid.showEarlier": ["Show from {time}", "Hiện từ {time}"],
+  "grid.showLater": ["Show until {time}", "Hiện đến {time}"],
   "grid.everyone": ["{label} (everyone)", "{label} (mọi người)"],
   "grid.newBooking": ["New booking: ", "Lịch hẹn mới: "],
   "grid.new": ["New", "Mới"],
