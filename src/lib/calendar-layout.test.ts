@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   freeGaps,
+  dayWindow,
+  rowCount,
   spanGeometry,
   blockGeometry,
   closedBands,
@@ -16,6 +18,8 @@ import {
   wallTimeToUtc,
   ROW_COUNT,
   WINDOW_MINUTES,
+  WINDOW_START_MIN,
+  WINDOW_END_MIN,
 } from "./calendar-layout";
 
 const TZ = "Europe/London";
@@ -337,5 +341,57 @@ describe("freeGaps", () => {
   it("is the whole stretch when nothing is booked, and nothing when it is all booked", () => {
     expect(freeGaps([], 600, 660)).toEqual([[600, 660]]);
     expect(freeGaps([[500, 900]], 600, 660)).toEqual([]);
+  });
+});
+
+describe("dayWindow", () => {
+  const h = (hh: number, mm = 0) => hh * 60 + mm;
+  const nineToHalfFive = { openMin: h(9), closeMin: h(17, 30) };
+
+  it("is the day's hours with half an hour either side", () => {
+    expect(dayWindow({ open: nineToHalfFive })).toEqual({ startMin: h(8, 30), endMin: h(18) });
+  });
+
+  it("fits each day to its own hours, a late night included", () => {
+    expect(dayWindow({ open: { openMin: h(9), closeMin: h(20) } })).toEqual({ startMin: h(8, 30), endMin: h(20, 30) });
+    expect(dayWindow({ open: { openMin: h(10), closeMin: h(16) } })).toEqual({ startMin: h(9, 30), endMin: h(16, 30) });
+  });
+
+  it("rounds to the half hour", () => {
+    expect(dayWindow({ open: { openMin: h(9, 15), closeMin: h(17, 45) } })).toEqual({ startMin: h(8, 30), endMin: h(18, 30) });
+  });
+
+  it("shows the usual hours on a day the salon is shut", () => {
+    expect(dayWindow({ open: null, usual: nineToHalfFive })).toEqual({ startMin: h(8, 30), endMin: h(18) });
+    expect(dayWindow({ open: null })).toEqual({ startMin: WINDOW_START_MIN, endMin: WINDOW_END_MIN });
+  });
+
+  it("stretches over a booking outside the hours", () => {
+    expect(dayWindow({ open: nineToHalfFive, busy: [[h(7, 30), h(8, 30)]] })).toEqual({ startMin: h(7), endMin: h(18) });
+    expect(dayWindow({ open: nineToHalfFive, busy: [[h(19), h(20, 15)]] })).toEqual({ startMin: h(8, 30), endMin: h(21) });
+  });
+
+  it("adds the hours asked for, as far as 6am and 10pm", () => {
+    expect(dayWindow({ open: nineToHalfFive, earlierHours: 1 })).toEqual({ startMin: h(7, 30), endMin: h(18) });
+    expect(dayWindow({ open: nineToHalfFive, earlierHours: 9, laterHours: 9 })).toEqual({ startMin: h(6), endMin: h(22) });
+  });
+
+  it("never cuts back what a booking needs for the hours asked for", () => {
+    expect(dayWindow({ open: nineToHalfFive, busy: [[h(5), h(6)]], earlierHours: 1 })).toEqual({ startMin: h(4, 30), endMin: h(18) });
+  });
+});
+
+describe("geometry in a day's own window", () => {
+  const win = { startMin: 8 * 60 + 30, endMin: 18 * 60 };
+  it("places hours, rows and closed time inside it", () => {
+    expect(hourMarks(win)[0]).toMatchObject({ hour: 9 });
+    expect(hourMarks(win).at(-1)).toMatchObject({ hour: 18, topPct: 100 });
+    expect(rowCount(win)).toBe(38);
+    expect(timeOfRow(0, win)).toBe("08:30");
+    expect(rowFromOffset(0.999, win)).toBe(37);
+    expect(closedBands({ openMin: 9 * 60, closeMin: 17 * 60 + 30 }, win)).toEqual([
+      { topPct: 0, heightPct: (30 / 570) * 100 },
+      { topPct: (540 / 570) * 100, heightPct: 100 - (540 / 570) * 100 },
+    ]);
   });
 });

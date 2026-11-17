@@ -478,6 +478,16 @@ export default function CalendarPage() {
     return { openMin, closeMin };
   }, [hours, weekday]);
 
+  // The week's widest opening hours: the span a day the salon is shut shows.
+  const usual = useMemo(() => {
+    const days = hours
+      .filter((h) => !h.closed)
+      .map((h) => ({ openMin: hhmmToMin(h.open), closeMin: hhmmToMin(h.close) }))
+      .filter((h): h is { openMin: number; closeMin: number } => h.openMin !== null && h.closeMin !== null);
+    if (days.length === 0) return null;
+    return { openMin: Math.min(...days.map((d) => d.openMin)), closeMin: Math.max(...days.map((d) => d.closeMin)) };
+  }, [hours]);
+
   const stylistNames = stylists.map((s) => s.name);
 
   const columns: CalendarStylist[] = useMemo(
@@ -818,6 +828,7 @@ export default function CalendarPage() {
             showHeader={!isPhone}
             appointments={appointments}
             open={open}
+            usual={usual}
             nowMinutes={nowMinutes}
             isPastDay={isPastDay}
             tones={tones}
