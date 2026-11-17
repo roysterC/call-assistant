@@ -14,7 +14,6 @@
  * Plain code, no database, so the page and the API share the rules.
  */
 
-import { starterServices, type BusinessType } from "@/lib/business-types";
 import { bookingReadiness } from "@/lib/booking/readiness";
 import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
@@ -59,12 +58,6 @@ export function stepProblem(step: OnboardingStep, d: OnboardingDraft): StepProbl
         ? null
         : "notReady";
   }
-}
-
-/** Whether a service still has the length the starter list gave it: worth a second look. */
-export function hasTypicalLength(service: SalonService, types: readonly BusinessType[]): boolean {
-  const starter = starterServices(types).find((s) => s.name.toLowerCase() === service.name.trim().toLowerCase());
-  return Boolean(starter && starter.durationMinutes === service.durationMinutes);
 }
 
 /** The first step still to do: where someone coming back picks up. */

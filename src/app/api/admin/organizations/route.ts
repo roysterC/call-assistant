@@ -1,4 +1,4 @@
-import { businessTypesOf, starterServices } from "@/lib/business-types";
+import { businessTypesOf, starterMenu, starterServices } from "@/lib/business-types";
 import type { Prisma } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -93,8 +93,9 @@ export async function POST(req: NextRequest) {
             // is hours, services and team, and Settings shows them only
             // where there is a diary. On unless Kikai says otherwise.
             diaryEnabled: body.diaryEnabled === undefined ? Boolean(ownerEmail) : Boolean(body.diaryEnabled),
-            // A starting nail price list, unpriced: the salon edits it in
-            // Settings before the receptionist goes live.
+            // A starting nail price list, mostly unpriced: the salon edits it
+            // in Settings before the receptionist goes live.
+            menu: starterMenu(types) as unknown as Prisma.InputJsonValue,
             services: starterServices(types) as unknown as Prisma.InputJsonValue,
           },
         },

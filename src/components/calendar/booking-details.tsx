@@ -31,6 +31,8 @@ import { DialogTitle } from "@/components/ui/dialog";
 import { ClientAvatar, ClientLink, CloseButton, DuplicateFlag, type ClientRow } from "./client-picker";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
 import { useT } from "@/components/providers/language-provider";
+import type { SalonMenu } from "@/lib/nail-menu";
+import { MenuPicker, menuCovers } from "./menu-picker";
 
 export interface BookingDraft {
   date: string;
@@ -51,6 +53,8 @@ export interface EditingBooking {
 interface BookingDetailsProps {
   client: ClientRow | null;
   services: SalonService[];
+  /** The salon's menu (nail-menu.ts): treatments, finishes and extras to choose from. */
+  menu?: SalonMenu | null;
   stylists: string[];
   timeZone: string;
   dayAppointments: CalendarAppointment[];
@@ -110,6 +114,7 @@ function usualServices(history: { serviceText: string; status: string }[], servi
 export function BookingDetails({
   client,
   services,
+  menu,
   stylists,
   timeZone,
   dayAppointments,
@@ -144,6 +149,8 @@ export function BookingDetails({
   const [walkInName, setWalkInName] = useState("");
   const [notifyClient, setNotifyClient] = useState(true);
   const [family, setFamily] = useState<ServiceFamily | "all">("all");
+  // Chosen from the menu where it has finishes or extras and covers what is booked already.
+  const [byMenu] = useState(() => menuCovers(menu, initial.serviceNames ?? []));
   const [serviceQuery, setServiceQuery] = useState("");
   const [history, setHistory] = useState<{ serviceText: string; status: string }[]>([]);
   const dateRef = useRef<HTMLInputElement>(null);
@@ -261,7 +268,7 @@ export function BookingDetails({
       (family === "all" || familyOf(s) === family) &&
       (!query || s.name.toLowerCase().includes(query))
   );
-  const showUsual = usual.length > 0 && !usual.every((n) => picked.includes(n));
+  const showUsual = usual.length > 0 && !usual.every((n) => picked.includes(n)) && (!byMenu || menuCovers(menu, usual));
   const usualPrice = (() => {
     const parts = usual.map((n) => services.find((s) => s.name === n)).filter((s): s is SalonService => Boolean(s));
     return parts.length ? combineServices(parts) : null;
@@ -481,6 +488,10 @@ export function BookingDetails({
         {/* Services */}
         <section className="grid gap-2.5">
           <h3 className="text-[13px] font-bold">{t("form.services")}</h3>
+          {byMenu && menu ? (
+            <MenuPicker menu={menu} picked={picked} onChange={setPicked} />
+          ) : (
+            <>
           {(families.length > 1 || services.length > 10) && (
             <div className="flex flex-wrap items-center gap-1.5">
               {families.length > 1 &&
@@ -554,6 +565,8 @@ export function BookingDetails({
               <p className="col-span-full py-3 text-sm text-muted-foreground">{t("form.noServiceMatch", { q: serviceQuery.trim() })}</p>
             )}
           </div>
+            </>
+          )}
         </section>
 
         {/* Length: from the services, changed when the desk knows better. */}

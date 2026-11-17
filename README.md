@@ -807,12 +807,38 @@ saved as `hair`) is read as a nail salon. The profile gives:
   words in nail service names it need not;
 - the phone rule for walk-ins: "can I come in now?" is answered from today's
   diary, and walking in is never suggested otherwise;
-- the starter price list a new salon is created with: the demo salon's menu,
-  one service per treatment and finish, unpriced;
+- the starter menu a new salon is created with: the demo salon's own,
+  priced only for nail art;
 - the diary's colour families: manicures, pedicures, sets & infills, nail
   art & removals (`service-colours.ts`).
 
 The nail salon's prompts are held as snapshots (`business-types.test.ts`).
+
+### The price list: treatments, finishes and extras
+
+A salon's price list is a menu (`OrganizationSettings.menu`,
+`src/lib/nail-menu.ts`): treatments (Acrylic, BIAB, Pedicure), each with its
+services and their lengths and from-prices, the finishes they come in (the
+first included, the others adding price and minutes) and the extras that can
+go on them (nail art, a removal: never booked alone).
+
+Everything that books still reads the flat `services` list, which the
+settings API makes from the menu on every save: one service per service and
+finish, named as it is said ("Acrylic infill, French tip"), and one per extra,
+marked `extra`. So the phone, the chats, online booking, rebooking and sales
+work in service names as before, and a booking with an extra is two services
+in one appointment ("Acrylic infill, French tip + Nail art, tier 2").
+
+- Settings → Services and onboarding edit the menu (`price-list-editor.tsx`).
+- The desk books by treatment, finish and extras (`menu-picker.tsx`) where the
+  menu has finishes or extras; otherwise, and for a booking whose services the
+  menu no longer makes, it shows the services as cards.
+- The bots are told which services are extras and which are priced from a
+  photo; online booking never offers an extra on its own, and lists services
+  under their treatments.
+- A salon whose list was last written flat (`menu` null) is shown a menu made
+  from it, each service on its own under its diary colour, so saving it
+  changes nothing that books.
 
 ### WhatsApp, Instagram and Messenger keys
 

@@ -72,6 +72,7 @@ import {
   splitServiceText,
   type SalonService,
 } from "@/lib/salon-config";
+import type { SalonMenu } from "@/lib/nail-menu";
 import { addCalendarDays } from "@/lib/business-hours";
 
 interface Stylist {
@@ -219,6 +220,7 @@ export default function CalendarPage() {
 
   const [stylists, setStylists] = useState<Stylist[]>([]);
   const [services, setServices] = useState<SalonService[]>([]);
+  const [menu, setMenu] = useState<SalonMenu | null>(null);
   const [hours, setHours] = useState<BusinessHour[]>([]);
   // On the salon's own diary everyone can be booked; on Google, only
   // stylists with a calendar shared to us.
@@ -286,6 +288,7 @@ export default function CalendarPage() {
         const { settings } = await res.json();
         setStylists(settings?.teamMembers ?? []);
         setServices(parseServices(settings?.services));
+        setMenu(settings?.menu ?? null);
         setHours(settings?.businessHours ?? []);
         setUsesGoogle(settings?.diaryProvider === "google");
         // Column is `timezone`; SalonConfig renames it to `timeZone` but the
@@ -913,6 +916,7 @@ export default function CalendarPage() {
       <NewBookingDialog
         slot={slot}
         services={services}
+        menu={menu}
         stylists={stylistNames}
         timeZone={timeZone}
         dayAppointments={appointments}
@@ -936,6 +940,7 @@ export default function CalendarPage() {
       <EditBookingDialog
         appointment={editing}
         services={services}
+        menu={menu}
         stylists={stylistNames}
         timeZone={timeZone}
         dayAppointments={appointments}

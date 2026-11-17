@@ -27,7 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandMark } from "@/components/dashboard/sidebar";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
-import { ServicesEditor } from "@/components/settings/services-editor";
+import { PriceListEditor } from "@/components/settings/price-list-editor";
+import { addServicesToMenu, flattenMenu, type SalonMenu } from "@/lib/nail-menu";
 import { ServicesImport } from "@/components/settings/services-import";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
 import { LanguageFlags } from "@/components/i18n/language-flags";
@@ -37,7 +38,6 @@ import type { SalonService, Stylist } from "@/lib/salon-config";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 import { minutesTime, type MessageKey } from "@/lib/i18n";
 import {
-  hasTypicalLength,
   resumeAt,
   stepProblem,
   stepsFor,
@@ -49,6 +49,8 @@ interface Draft {
   contactPhone: string;
   businessHours: DayHours[];
   services: SalonService[];
+  /** The price list as treatments (nail-menu.ts); `services` is made from it. */
+  menu: SalonMenu;
   teamMembers: Stylist[];
   salonFaq: string;
 }
@@ -94,6 +96,7 @@ export default function OnboardingPage() {
           contactPhone: st.contactPhone ?? "",
           businessHours: st.businessHours?.length ? st.businessHours : STARTER_WEEK,
           services: st.services ?? [],
+          menu: st.menu ?? { treatments: [], extras: [] },
           teamMembers: st.teamMembers ?? [],
           salonFaq: st.salonFaq ?? "",
         };
@@ -155,7 +158,7 @@ export default function OnboardingPage() {
           })
         );
       case "services":
-        return Boolean(await put("/api/settings", { services: d.services.filter((s) => s.name.trim()) }));
+        return Boolean(await put("/api/settings", { menu: d.menu }));
       case "team":
         return Boolean(await put("/api/settings", { teamMembers: d.teamMembers.filter((m) => m.name.trim()) }));
       case "about":
@@ -320,7 +323,13 @@ export default function OnboardingPage() {
                       <p className="font-medium">{t("onb.photoTitle")}</p>
                       <p className="text-sm text-muted-foreground">{t("onb.photoIntro")}</p>
                     </div>
-                    <ServicesImport services={d.services} onApply={(services) => set({ services })} />
+                    <ServicesImport
+                      services={d.services}
+                      onApply={(services) => {
+                        const menu = addServicesToMenu(d.menu, services);
+                        set({ menu, services: flattenMenu(menu) });
+                      }}
+                    />
                   </div>
                 </div>
               </div>
@@ -328,11 +337,7 @@ export default function OnboardingPage() {
                 <p className="text-sm font-medium">{t("onb.orTypical")}</p>
                 <p className="text-xs text-muted-foreground">{t("onb.checkTimes")}</p>
               </div>
-              <ServicesEditor
-                value={d.services}
-                onChange={(services) => set({ services })}
-                typical={(s) => hasTypicalLength(s, ["nails"])}
-              />
+              <PriceListEditor value={d.menu} onChange={(menu) => set({ menu, services: flattenMenu(menu) })} />
             </>
           )}
 

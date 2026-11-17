@@ -12,7 +12,8 @@ import { SaveBar, useLeaveGuard } from "@/components/ui/unsaved-changes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Textarea } from "@/components/ui/textarea";
 import { OpeningHoursEditor } from "@/components/settings/opening-hours-editor";
-import { ServicesEditor } from "@/components/settings/services-editor";
+import { PriceListEditor } from "@/components/settings/price-list-editor";
+import { addServicesToMenu, flattenMenu, type SalonMenu } from "@/lib/nail-menu";
 import { StylistsEditor } from "@/components/settings/stylists-editor";
 import { ServicesImport } from "@/components/settings/services-import";
 import type { DayHours } from "@/lib/business-hours";
@@ -37,6 +38,8 @@ interface Settings {
   timezone: string;
   businessHours: DayHours[];
   services: SalonService[];
+  /** The price list as treatments (nail-menu.ts); `services` is made from it. */
+  menu: SalonMenu;
   teamMembers: Stylist[];
   chatbotEnabled: boolean;
   whatsappEnabled: boolean;
@@ -69,6 +72,7 @@ type Editable = Pick<
   | "timezone"
   | "businessHours"
   | "services"
+  | "menu"
   | "teamMembers"
   | "salonFaq"
   | "rebookTextsEnabled"
@@ -82,6 +86,7 @@ function editable(s: Settings): Editable {
     timezone: s.timezone,
     businessHours: s.businessHours,
     services: s.services,
+    menu: s.menu,
     teamMembers: s.teamMembers,
     salonFaq: s.salonFaq,
     rebookTextsEnabled: s.rebookTextsEnabled,
@@ -133,6 +138,7 @@ export default function SettingsPage() {
           timezone: data.settings?.timezone || "Europe/London",
           businessHours: data.settings?.businessHours || [],
           services: data.settings?.services || [],
+          menu: data.settings?.menu ?? { treatments: [], extras: [] },
           teamMembers: data.settings?.teamMembers || [],
           chatbotEnabled: !!data.settings?.chatbotEnabled,
           whatsappEnabled: !!data.settings?.whatsappEnabled,
@@ -199,7 +205,8 @@ export default function SettingsPage() {
           contactPhone: settings.contactPhone,
           timezone: settings.timezone,
           businessHours: settings.businessHours,
-          services: settings.services,
+          // The menu: the server makes the services from it.
+          menu: settings.menu,
           teamMembers: settings.teamMembers,
           salonFaq: settings.salonFaq,
           rebookTextsEnabled: settings.rebookTextsEnabled,
@@ -216,6 +223,9 @@ export default function SettingsPage() {
         ...settings,
         contactPhone: data.settings?.contactPhone ?? null,
         salonFaq: data.settings?.salonFaq ?? "",
+        // As stored: rows left without a name dropped.
+        menu: data.settings?.menu ?? settings.menu,
+        services: data.settings?.services ?? settings.services,
         // As stored: blank text cleared, the colour checked.
         online: onlineSettingsFrom(data.settings),
       };
@@ -507,18 +517,21 @@ export default function SettingsPage() {
             <SettingsSection
               id="price-list"
               title="Your price list"
-              description="Length decides how much of the diary is blocked. Prices are quoted as “from”."
+              description="Each treatment has its prices and lengths, the finishes it comes in, and the extras that can go on it. Prices are quoted as “from”."
               attention={needs("services")}
             >
-              <ServicesEditor
-                value={settings.services}
-                onChange={(services) => setSettings({ ...settings, services })}
+              <PriceListEditor
+                value={settings.menu}
+                onChange={(menu) => setSettings({ ...settings, menu, services: flattenMenu(menu) })}
                 rebook={settings.rebookTextsEnabled}
                 importer={
                   <ServicesImport
                     short
                     services={settings.services}
-                    onApply={(services) => setSettings({ ...settings, services })}
+                    onApply={(services) => {
+                      const menu = addServicesToMenu(settings.menu, services);
+                      setSettings({ ...settings, menu, services: flattenMenu(menu) });
+                    }}
                     className="h-11 w-full rounded-xl text-sm font-semibold"
                   />
                 }

@@ -37,6 +37,8 @@ export interface PublicService {
   requiresPatchTest: boolean;
   /** Who can do it, when clients may choose; empty otherwise. */
   stylists: string[];
+  /** The menu treatment it is under ("Acrylic"), to head the list with. */
+  treatment?: string;
 }
 
 export interface PublicStylist {
@@ -111,7 +113,8 @@ export function onlineServices(
   hidden: string[]
 ): SalonService[] {
   return services.filter(
-    (s) => !isHiddenOnline(s.name, hidden) && stylistsForService(s, stylists).length > 0
+    // An extra (nail art, a removal) goes on top of a treatment, never alone.
+    (s) => !s.extra && !isHiddenOnline(s.name, hidden) && stylistsForService(s, stylists).length > 0
   );
 }
 
@@ -153,6 +156,7 @@ export function buildPublicSalon(input: {
       priceMinor: s.priceMinor,
       requiresPatchTest: s.requiresPatchTest,
       stylists: choice ? stylistsForService(s, bookable).map((p) => p.name) : [],
+      ...(s.treatment ? { treatment: s.treatment } : {}),
     })),
     stylists: choice
       ? bookable

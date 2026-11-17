@@ -324,6 +324,15 @@ function NotTaking({ salon }: { salon: PublicSalon }) {
 function ServiceStep({ salon, onPick }: { salon: PublicSalon; onPick: (s: PublicService) => void }) {
   const [q, setQ] = useState("");
   const shown = salon.services.filter((s) => s.name.toLowerCase().includes(q.trim().toLowerCase()));
+  // Headed by treatment while browsing; a search lists what matches as one.
+  const headed = !q.trim() && shown.some((s) => s.treatment);
+  const groups: { heading: string | null; services: PublicService[] }[] = [];
+  for (const s of shown) {
+    const heading = headed ? (s.treatment ?? "Other") : null;
+    const g = groups.find((x) => x.heading === heading);
+    if (g) g.services.push(s);
+    else groups.push({ heading, services: [s] });
+  }
   return (
     <div className="space-y-4">
       <h1 className="font-heading text-[1.65rem] font-extrabold tracking-tight">What are you booking?</h1>
@@ -340,30 +349,36 @@ function ServiceStep({ salon, onPick }: { salon: PublicSalon; onPick: (s: Public
           />
         </label>
       )}
-      <ul className="space-y-2">
-        {shown.map((s) => (
-          <li key={s.name}>
-            <button
-              type="button"
-              onClick={() => onPick(s)}
-              className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-stone-200 px-4 py-3 text-left transition hover:border-stone-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
-            >
-              <span className="flex flex-1 flex-col gap-0.5">
-                <span className="font-semibold">{s.name}</span>
-                <span className="text-sm text-stone-600">
-                  {durationText(s.durationMinutes)}
-                  {s.requiresPatchTest ? " · skin test for new clients" : ""}
-                </span>
-              </span>
-              {s.priceMinor !== null && <span className="font-semibold">{formatMoneyShort(s.priceMinor)}</span>}
-              <ChevronRight className="h-4 w-4 text-stone-500" aria-hidden="true" />
-            </button>
-          </li>
-        ))}
-      </ul>
+      {/* Under the salon's treatments where it has a menu (nail-menu.ts), as one list otherwise. */}
+      {groups.map((g) => (
+        <section key={g.heading ?? "all"} className="space-y-2">
+          {g.heading && <h2 className="pt-1 text-sm font-bold uppercase tracking-wide text-stone-500">{g.heading}</h2>}
+          <ul className="space-y-2">
+            {g.services.map((s) => (
+              <li key={s.name}>
+                <button
+                  type="button"
+                  onClick={() => onPick(s)}
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-stone-200 px-4 py-3 text-left transition hover:border-stone-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+                >
+                  <span className="flex flex-1 flex-col gap-0.5">
+                    <span className="font-semibold">{s.name}</span>
+                    <span className="text-sm text-stone-600">
+                      {durationText(s.durationMinutes)}
+                      {s.requiresPatchTest ? " · skin test for new clients" : ""}
+                    </span>
+                  </span>
+                  {s.priceMinor !== null && <span className="font-semibold">{formatMoneyShort(s.priceMinor)}</span>}
+                  <ChevronRight className="h-4 w-4 text-stone-500" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
       {shown.length === 0 && <p className="text-stone-600">Nothing matches &ldquo;{q}&rdquo;.</p>}
       {salon.services.some((s) => s.priceMinor !== null) && (
-        <p className="text-xs text-stone-500">Prices are a guide and can vary with hair length and thickness.</p>
+        <p className="text-xs text-stone-500">Prices are a guide: nail art and designs are priced individually.</p>
       )}
     </div>
   );

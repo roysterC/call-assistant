@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { starterServices } from "@/lib/business-types";
-import { hasTypicalLength, resumeAt, stepProblem, stepsFor, type OnboardingDraft } from "./onboarding";
+import { resumeAt, stepProblem, stepsFor, type OnboardingDraft } from "./onboarding";
 
 const open = { day: 2, closed: false, open: "09:00", close: "17:00" };
 const cut = { name: "Cut", durationMinutes: 45, requiresPatchTest: false, priceMinor: 3000 };
@@ -40,14 +39,5 @@ describe("resumeAt", () => {
     expect(resumeAt(stepsFor(true), blank)).toBe("salon");
     expect(resumeAt(stepsFor(true), { ...done, services: [] })).toBe("services");
     expect(resumeAt(stepsFor(true), done)).toBe("ready");
-  });
-});
-
-describe("hasTypicalLength", () => {
-  it("marks a starter service whose length nobody has changed", () => {
-    const [first] = starterServices(["nails"]);
-    expect(hasTypicalLength(first, ["nails"])).toBe(true);
-    expect(hasTypicalLength({ ...first, durationMinutes: first.durationMinutes + 15 }, ["nails"])).toBe(false);
-    expect(hasTypicalLength({ ...first, name: "Our own special" }, ["nails"])).toBe(false);
   });
 });
