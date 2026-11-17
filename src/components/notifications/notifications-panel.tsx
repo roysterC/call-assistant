@@ -46,10 +46,10 @@ export function NotificationsBell({ variant, collapsed = false }: { variant: "me
           onClick={() => setOpen(true)}
           title={collapsed ? label : undefined}
           aria-label={aria}
-          className="group relative flex h-10 w-full items-center gap-3 rounded-[14px] px-[18px] text-sm font-medium whitespace-nowrap text-sidebar-foreground transition-colors hover:bg-white/8 hover:text-cornsilk-500"
+          className="group relative flex h-[52px] w-full items-center gap-3 rounded-[14px] px-[17px] text-[15px] font-semibold whitespace-nowrap text-cornsilk-500 transition-colors hover:bg-white/8"
         >
           <span className="relative shrink-0">
-            <Bell className="h-5 w-5 text-tea-green-400 group-hover:text-tea-green-700" strokeWidth={1.75} />
+            <Bell className="h-[22px] w-[22px] text-tea-green-600" strokeWidth={2} />
             {total > 0 && collapsed && (
               <span aria-hidden className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2 ring-sidebar" />
             )}

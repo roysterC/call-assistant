@@ -26,6 +26,7 @@ import {
   dayWindow,
   rowCount,
   HOUR_HEIGHT_PX,
+  PHONE_HOUR_HEIGHT_PX,
   OVERBOOK_GUTTER_PX,
   SLOT_MINUTES,
   EARLIEST_SHOWN_MIN,
@@ -251,6 +252,9 @@ interface Drag {
   grabOffsetPx: number;
 }
 
+/** The smallest an hour is drawn to fit the whole day on screen: the phone's. */
+const MIN_FIT_HOUR_PX = PHONE_HOUR_HEIGHT_PX;
+
 export function DayGrid({
   date,
   timeZone,
@@ -272,6 +276,7 @@ export function DayGrid({
   const [drag, setDrag] = useState<Drag | null>(null);
   const [dropAt, setDropAt] = useState<{ stylistName: string; row: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
 
   // Hours asked for above and below the day ("show earlier", "show later"),
   // for the day they were asked on.
@@ -296,6 +301,33 @@ export function DayGrid({
   ];
   const win = dayWindow({ open, usual, busy, earlierHours: extra.earlier, laterHours: extra.later });
 
+  // The day fills the screen it is on. A tall screen showed the day at its
+  // set size with a band of nothing below it; the hours stretch to fill it
+  // instead, up to twice their size. One a little short of the whole day
+  // shrinks the hours to fit it, but never below the phone's size, which is
+  // as small as a quarter-hour booking stays readable; shorter than that,
+  // the set size, and it scrolls.
+  const [fitPx, setFitPx] = useState<number | null>(null);
+  const hours = (win.endMin - win.startMin) / 60;
+  useEffect(() => {
+    const el = scroller.current;
+    const grid = body.current;
+    if (!el || !grid || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const content = el.firstElementChild as HTMLElement | null;
+      if (!content) return;
+      // Everything that is not the hours: the names, the "show earlier/later" strips.
+      const around = content.offsetHeight - grid.offsetHeight;
+      const px = Math.floor((el.clientHeight - around) / hours);
+      setFitPx(px > hourHeightPx ? Math.min(px, hourHeightPx * 2) : px >= MIN_FIT_HOUR_PX ? px : null);
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [hours, hourHeightPx]);
+  const hourPx = fitPx ?? hourHeightPx;
+
   // Open each day where it is worth looking: today an hour before now while
   // the salon is open, otherwise at opening time. Only when the day changes,
   // so the grid never moves under someone reading it.
@@ -309,7 +341,7 @@ export function DayGrid({
         : shown
           ? shown.openMin - SLOT_MINUTES
           : win.startMin;
-    const y = ((Math.max(target, win.startMin) - win.startMin) / 60) * hourHeightPx;
+    const y = ((Math.max(target, win.startMin) - win.startMin) / 60) * hourPx;
     el.scrollTop = Math.max(0, y);
     // The day is what decides; now and opening are read as they stand then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -368,9 +400,10 @@ export function DayGrid({
         )}
         <EdgeStrip count={stylists.length} />
         <div
+          ref={body}
           className="flex relative"
           style={{
-            height: `${((win.endMin - win.startMin) / 60) * hourHeightPx}px`,
+            height: `${hours * hourPx}px`,
             ...UNAVAILABLE_BG,
           }}
         >
@@ -382,7 +415,7 @@ export function DayGrid({
               <div
                 key={m.hour}
                 className={cn(
-                  "absolute inset-x-0 pl-1.5 pr-2.5 -translate-y-1/2 text-right text-[15px] font-bold leading-none tabular-nums text-foreground",
+                  "absolute inset-x-0 pl-1.5 pr-2.5 -translate-y-1/2 text-right text-[17px] font-bold leading-none tabular-nums text-foreground",
                   nearNow(m.hour * 60) && "invisible"
                 )}
                 style={{ top: `${m.topPct}%` }}
@@ -397,7 +430,7 @@ export function DayGrid({
                 <div
                   key={l.minutes}
                   className={cn(
-                    "absolute inset-x-0 pr-2.5 -translate-y-1/2 text-right text-[11px] font-medium leading-none tabular-nums text-tea-green-200",
+                    "absolute inset-x-0 pr-2.5 -translate-y-1/2 text-right text-[12.5px] font-medium leading-none tabular-nums text-tea-green-200",
                     nearNow(l.minutes) && "invisible"
                   )}
                   style={{ top: `${l.topPct}%` }}

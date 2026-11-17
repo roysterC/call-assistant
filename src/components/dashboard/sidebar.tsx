@@ -312,11 +312,12 @@ function Sidebar({
       </div>
 
       <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 pb-3 space-y-1 [scrollbar-width:thin]">
-        {/* Everything waiting on them, in one place. */}
-        <NotificationsBell variant="menu" collapsed={collapsed} />
         {primary.map((item) => (
           <NavLink key={item.href} item={item} model={model} collapsed={collapsed} big />
         ))}
+        {/* Everything waiting on them, in one place: after the pages up
+            front, at their size, so the Diary stays first. */}
+        <NotificationsBell variant="menu" collapsed={collapsed} />
 
         {more.length > 0 && (
           <>
