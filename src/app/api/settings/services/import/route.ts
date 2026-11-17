@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   try {
     const cfg = await getSalonConfig(ctx.organizationId);
     const { result, usage, model } = await readPriceList(new Anthropic({ apiKey: key.apiKey }), files, {
-      types: cfg.businessTypes ?? ["hair"],
+      types: cfg.businessTypes ?? ["nails"],
       existing: cfg.services,
     });
     void recordUsage(ctx.organizationId, {

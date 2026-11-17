@@ -29,13 +29,13 @@ export function bookingReadiness(input: {
   businessHours: unknown;
   /** "google" when the diary is the salon's Google calendars. */
   diaryProvider?: string | null;
-  /** What one of the team is called: "stylist", "nail technician" (business-types.ts). */
+  /** What one of the team is called (business-types.ts). */
   staff?: string;
 }): Readiness {
   const services = parseServices(input.services);
   const team = parseStylists(input.teamMembers);
   const hours = parseBusinessHours(input.businessHours);
-  const staff = input.staff || "stylist";
+  const staff = input.staff || "nail technician";
 
   const missing: string[] = [];
   if (services.length === 0) missing.push("no services");

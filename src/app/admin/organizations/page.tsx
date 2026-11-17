@@ -1,7 +1,5 @@
 "use client";
 
-import { BusinessTypePicker } from "@/components/admin/business-type-picker";
-import type { BusinessType } from "@/lib/business-types";
 import { useEffect, useState } from "react";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { useRouter } from "next/navigation";
@@ -72,8 +70,6 @@ export default function OrganizationsPage() {
     name: "",
     slug: "",
     planTier: "starter",
-    businessType: "hair" as BusinessType,
-    alsoOffers: [] as BusinessType[],
     ownerEmail: "",
     ownerLanguage: "en" as Lang,
     ownerNote: "",
@@ -257,13 +253,8 @@ export default function OrganizationsPage() {
                 Lowercase alphanumeric with dashes
               </p>
             </div>
-            <BusinessTypePicker
-              main={form.businessType}
-              also={form.alsoOffers}
-              onChange={(businessType, alsoOffers) => setForm({ ...form, businessType, alsoOffers })}
-            />
             <p className="text-xs text-muted-foreground">
-              It starts with a price list for these types, without prices, to edit in Settings.
+              It starts with a nail salon&apos;s price list, without prices, to edit in Settings.
             </p>
             <div>
               <label htmlFor="owner-email" className="text-xs font-medium">Owner&apos;s email (optional)</label>

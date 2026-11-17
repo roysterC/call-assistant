@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { starterServices } from "@/lib/business-types";
-import { hasTypicalLength, resumeAt, servicesAfterTypeChange, stepProblem, stepsFor, type OnboardingDraft } from "./onboarding";
+import { hasTypicalLength, resumeAt, stepProblem, stepsFor, type OnboardingDraft } from "./onboarding";
 
 const open = { day: 2, closed: false, open: "09:00", close: "17:00" };
 const cut = { name: "Cut", durationMinutes: 45, requiresPatchTest: false, priceMinor: 3000 };
@@ -40,22 +40,6 @@ describe("resumeAt", () => {
     expect(resumeAt(stepsFor(true), blank)).toBe("salon");
     expect(resumeAt(stepsFor(true), { ...done, services: [] })).toBe("services");
     expect(resumeAt(stepsFor(true), done)).toBe("ready");
-  });
-});
-
-describe("servicesAfterTypeChange", () => {
-  it("swaps the starter list for the new type's", () => {
-    expect(servicesAfterTypeChange(starterServices(["hair"]), ["hair"], ["nails"])).toEqual(starterServices(["nails"]));
-    expect(servicesAfterTypeChange([], ["hair"], ["barber"])).toEqual(starterServices(["barber"]));
-  });
-
-  it("leaves a list the owner has made their own", () => {
-    const edited = starterServices(["hair"]).map((s, i) => (i === 0 ? { ...s, priceMinor: 4500 } : s));
-    expect(servicesAfterTypeChange(edited, ["hair"], ["nails"])).toBeNull();
-  });
-
-  it("changes nothing when the type has not changed", () => {
-    expect(servicesAfterTypeChange(starterServices(["hair"]), ["hair"], ["hair"])).toBeNull();
   });
 });
 

@@ -3,8 +3,7 @@
  * with Settings (hours, services, team), the sign-in help pages, team logins
  * and the emails. [English, Vietnamese].
  *
- * English that says "stylist" is put in the salon's own word ("nail
- * technician") by useT; the Vietnamese "thợ" fits every trade.
+ * The team are nail technicians ("thợ" in Vietnamese).
  */
 
 export const onboarding = {
@@ -13,16 +12,7 @@ export const onboarding = {
   "lang.current": ["Language: {name}", "Ngôn ngữ: {name}"],
 
   // Kinds of salon (business-types.ts).
-  "type.hair": ["Hair salon", "Tiệm tóc"],
   "type.nails": ["Nail salon", "Tiệm nail"],
-  "type.beauty": ["Beauty salon", "Tiệm làm đẹp"],
-  "type.barber": ["Barbers", "Tiệm cắt tóc nam"],
-  "type.main": ["What kind of salon is it?", "Tiệm của bạn thuộc loại nào?"],
-  "type.also": ["Do you also offer…", "Tiệm còn làm thêm…"],
-  "type.ownerHint": [
-    "This tells the receptionist and chats what you do, and gives you a list of services to start from.",
-    "Giúp lễ tân và tin nhắn tự động biết tiệm làm gì, và gợi ý sẵn danh sách dịch vụ để bắt đầu.",
-  ],
 
   // Days, Monday first where listed.
   "day.0": ["Sunday", "Chủ nhật"],
@@ -78,7 +68,7 @@ export const onboarding = {
   "svc.typical": ["typical", "thông thường"],
   "svc.typicalTitle": ["Our typical time: check it's right for you", "Thời gian thông thường của chúng tôi: hãy kiểm tra"],
   "svc.help": [
-    "Duration decides how much of the stylist's day is blocked. The price is a starting figure: the desk starts from it, and the receptionist and chats quote it as \"from\". What counts in the sales report is what was actually taken.",
+    "Duration decides how much of the nail technician's day is blocked. The price is a starting figure: the desk starts from it, and the receptionist and chats quote it as \"from\". What counts in the sales report is what was actually taken.",
     "Thời lượng quyết định một lịch hẹn chiếm bao nhiêu thời gian của thợ. Giá là giá khởi điểm: quầy bắt đầu từ giá này, lễ tân và tin nhắn báo là giá \"từ\". Báo cáo doanh thu tính theo số tiền thực thu.",
   ],
   "svc.edit": ["Change {name}", "Sửa {name}"],
@@ -118,7 +108,7 @@ export const onboarding = {
   "pick.everything": ["None ticked, so they do everything.", "Không chọn gì nghĩa là làm tất cả."],
   "pick.choose": ["Choose services for {name}", "Chọn dịch vụ cho {name}"],
   "pick.title": ["Services {name} does", "Dịch vụ {name} làm"],
-  "pick.thisStylist": ["this stylist", "thợ này"],
+  "pick.thisStylist": ["this nail technician", "thợ này"],
   "pick.search": ["Search services", "Tìm dịch vụ"],
   "pick.ticked": ["{n} ticked", "Đã chọn {n}"],
   "pick.tickAll": ["Tick all", "Chọn hết"],
@@ -131,7 +121,7 @@ export const onboarding = {
   // Team editor.
   "sty.empty": ["No one added yet.", "Chưa có ai."],
   "sty.name": ["Name", "Tên"],
-  "sty.nameLabel": ["Stylist name", "Tên thợ"],
+  "sty.nameLabel": ["Nail technician name", "Tên thợ"],
   "sty.role": ["Role, e.g. {example}", "Vai trò, ví dụ: {example}"],
   "sty.roleLabel": ["Role", "Vai trò"],
   "sty.roleExample.hair": ["colour specialist", "chuyên nhuộm"],
@@ -139,7 +129,7 @@ export const onboarding = {
   "sty.roleExample.beauty": ["lash technician", "nối mi"],
   "sty.roleExample.barber": ["senior barber", "thợ chính"],
   "sty.remove": ["Remove {name}", "Xoá {name}"],
-  "sty.stylist": ["stylist", "thợ"],
+  "sty.stylist": ["nail technician", "thợ"],
   "sty.upcomingOne": ["{name} has 1 booking still to come.", "{name} còn 1 lịch hẹn sắp tới."],
   "sty.upcomingMany": ["{name} has {n} bookings still to come.", "{name} còn {n} lịch hẹn sắp tới."],
   "sty.cantCheck": ["Couldn't check {name}'s bookings.", "Không kiểm tra được lịch hẹn của {name}."],
@@ -162,7 +152,7 @@ export const onboarding = {
     "Struck-through days are ones the salon is closed. Change them under Opening hours.",
     "Ngày bị gạch là ngày tiệm đóng cửa. Đổi trong Giờ mở cửa.",
   ],
-  "sty.add": ["Add stylist", "Thêm thợ"],
+  "sty.add": ["Add nail technician", "Thêm thợ"],
 
   // Showing a password as it is typed.
   "pw.show": ["Show password", "Hiện mật khẩu"],
@@ -253,7 +243,7 @@ export const onboarding = {
   "onb.skip": ["Skip", "Bỏ qua"],
   "onb.finish": ["Finish", "Hoàn tất"],
   "onb.salon.title": ["Your salon", "Tiệm của bạn"],
-  "onb.salon.hint": ["Its name, as clients know it, and what you do.", "Tên tiệm mà khách biết, và tiệm làm gì."],
+  "onb.salon.hint": ["Its name, as clients know it.", "Tên tiệm mà khách biết."],
   "onb.hours.title": ["Opening hours", "Giờ mở cửa"],
   "onb.hours.hint": [
     "When clients can book. The receptionist tells callers these too.",
@@ -310,15 +300,15 @@ export const onboarding = {
   "onb.closedAll": ["Closed every day", "Đóng cửa cả tuần"],
   "onb.servicesCount": ["{n} services", "{n} dịch vụ"],
   "onb.servicesCount1": ["1 service", "1 dịch vụ"],
-  "onb.teamCount": ["{n} stylists", "{n} thợ"],
-  "onb.teamCount1": ["1 stylist", "1 thợ"],
+  "onb.teamCount": ["{n} nail technicians", "{n} thợ"],
+  "onb.teamCount1": ["1 nail technician", "1 thợ"],
   "onb.lines": ["{n} lines", "{n} dòng"],
   "onb.nothingYet": ["Nothing yet", "Chưa có"],
   "onb.err.name": ["Enter your salon's name.", "Hãy nhập tên tiệm."],
   "onb.err.openDay": ["Open at least one day.", "Hãy mở cửa ít nhất một ngày."],
   "onb.err.service": ["Add at least one service.", "Hãy thêm ít nhất một dịch vụ."],
   "onb.err.duration": ["Give every service how long it takes.", "Hãy nhập thời lượng cho mọi dịch vụ."],
-  "onb.err.team": ["Add at least one stylist.", "Hãy thêm ít nhất một thợ."],
+  "onb.err.team": ["Add at least one nail technician.", "Hãy thêm ít nhất một thợ."],
   "onb.err.notReady": [
     "Your diary can't take bookings yet. Check your hours, services and team.",
     "Sổ hẹn chưa nhận lịch được. Hãy kiểm tra giờ mở cửa, dịch vụ và nhân viên.",

@@ -21,7 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, Minus, Plus, Search, StickyNote, TriangleAlert } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { combineServices, splitServiceText, type SalonService } from "@/lib/salon-config";
-import { classifyService, type ServiceFamily } from "@/lib/service-colours";
+import { classifyService, familyChoices, type ServiceFamily } from "@/lib/service-colours";
 import { formatMoney } from "@/lib/money";
 import { speakablePhone } from "@/lib/phone";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
@@ -31,7 +31,6 @@ import { DialogTitle } from "@/components/ui/dialog";
 import { ClientAvatar, ClientLink, CloseButton, DuplicateFlag, type ClientRow } from "./client-picker";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
 import { useT } from "@/components/providers/language-provider";
-import { useMe } from "@/components/providers/me-provider";
 
 export interface BookingDraft {
   date: string;
@@ -76,7 +75,6 @@ interface BookingDetailsProps {
   onSubmit: (draft: BookingDraft) => void;
 }
 
-const FAMILY_ORDER: ServiceFamily[] = ["cutting", "colour", "finishing", "treatment", "other"];
 
 /** Every quarter hour of a working day, and the time already set if it falls between. */
 function timeOptions(current: string): string[] {
@@ -253,18 +251,14 @@ export function BookingDetails({
   const toggle = (name: string) =>
     setPicked((ps) => (ps.includes(name) ? ps.filter((p) => p !== name) : [...ps, name]));
 
-  // The diary's service families are read from hair words ("cut", "colour",
-  // "blow dry"), so they only sort a hair salon's or a barber's menu; a nail
-  // salon's "BIAB new set" would land under Finishing.
-  const businessType = useMe()?.businessType;
-  const families =
-    businessType === "hair" || businessType === "barber"
-      ? FAMILY_ORDER.filter((f) => services.some((s) => classifyService(s.name, s.requiresPatchTest) === f))
-      : [];
+  // The services under their diary colours (Manicures, Sets & infills…),
+  // in the salon's own groupings where it chose one.
+  const familyOf = (s: SalonService) => classifyService(s.name, s.requiresPatchTest, undefined, s.group);
+  const families = familyChoices().filter((f) => services.some((s) => familyOf(s) === f));
   const query = serviceQuery.trim().toLowerCase();
   const shown = services.filter(
     (s) =>
-      (family === "all" || classifyService(s.name, s.requiresPatchTest) === family) &&
+      (family === "all" || familyOf(s) === family) &&
       (!query || s.name.toLowerCase().includes(query))
   );
   const showUsual = usual.length > 0 && !usual.every((n) => picked.includes(n));

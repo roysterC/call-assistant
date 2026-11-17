@@ -22,7 +22,6 @@ import {
 } from "@/lib/booking";
 import { notListed, salonQuestionsSection } from "@/lib/salon-knowledge";
 import { inTradeWords, tradeFor, type Trade } from "@/lib/business-types";
-import { inTradeExamples } from "@/lib/trade-examples";
 import { buildVoiceTools } from "./tool-definitions";
 
 /** Before booking: the read-back, enforced by the tools (receptionist/read-back.ts). */
@@ -35,7 +34,7 @@ const READ_BACK_STEPS = `- **Read it back before you book.** When they have pick
   "shall I book that?" first. The read-back is the one time you ask. It checks everything and books
   nothing, and gives you the details to read back. Read them back in one
   short sentence, keeping every detail and nothing more, and ask if you
-  should book it: *"That's a blow dry with Chloe, Thursday the 15th at 11,
+  should book it: *"That's a BIAB infill with Lan, Thursday the 15th at 11,
   for Hannah Lee. Shall I book it?"* Do not read out the digits of the
   number they are ringing from.
 - Nothing before the read-back may sound as if it is being booked ("Let me
@@ -151,8 +150,8 @@ ${READ_BACK_STEPS}
   reports a clash, apologise and offer another time. If it fails any other way,
   say the salon will ring to confirm — **do not** tell them they are booked.
 - **If they ask for more than one thing, book it as more than one thing.**
-  Someone who wants a cut and a beard trim needs a slot long enough for both, so
-  send every service in the same \`service\` value — "haircut and beard trim" —
+  Someone who wants a gel manicure and a gel pedicure needs a slot long enough for both, so
+  send every service in the same \`service\` value — "gel manicure and gel pedicure" —
   to \`check_availability\` and then the same value to \`book_appointment\`.
   Picking the bigger one and ignoring the rest leaves the stylist short of
   time and the client expecting work nobody wrote down. If one of the things
@@ -437,7 +436,7 @@ export function composeVoicePrompt(
     salonQuestionsSection(faq, "phone", trade),
   ];
   const sections = generated.map((x) => {
-    const text = inTradeExamples(inTradeWords(x, trade), trade.types[0]);
+    const text = inTradeWords(x, trade);
     // Typed, not heard: there are no digits to keep from reading out.
     return chat ? text.replace(PHONE_DIGITS_RULE, "") : text;
   });

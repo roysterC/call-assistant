@@ -5,7 +5,6 @@ import {
   contentFor,
   fileKind,
   ImportError,
-  instructionsFor,
   mergeIntoServices,
   PRICE_IMPORT_MODEL,
   readPriceList,
@@ -144,15 +143,11 @@ describe("asking the model", () => {
 
   it("says plainly when it could not read the list", async () => {
     const files = [{ name: "m.jpg", type: "image/jpeg", data: Buffer.from("x") }];
-    const opts = { types: ["hair" as const], existing: [] };
+    const opts = { types: ["nails" as const], existing: [] };
     await expect(readPriceList(answer({ stop_reason: "refusal" }), files, opts)).rejects.toBeInstanceOf(ImportError);
     await expect(readPriceList(answer({ stop_reason: "max_tokens" }), files, opts)).rejects.toThrow(/a page at a time/);
     await expect(
       readPriceList(answer({ content: [{ type: "text", text: "not json", citations: null }] }), files, opts)
     ).rejects.toThrow(/clearer photo/);
-  });
-
-  it("describes a salon that does more than one thing", () => {
-    expect(instructionsFor(["nails", "beauty"])).toContain("UK nail salon and beauty salon's price list");
   });
 });

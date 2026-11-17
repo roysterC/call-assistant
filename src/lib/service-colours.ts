@@ -3,10 +3,10 @@
  *
  * Twelve unrelated hues would defeat the point — nobody memorises twelve, and
  * at the size of a fifteen-minute block they stop being recognisable and start
- * being decoration. So colour is assigned by *family* first: every cut sits in
- * one hue, every colour job in another. Services within a family differ by
- * step, which keeps them individually distinguishable while a busy Saturday
- * still reads as "mostly colour" from across the room.
+ * being decoration. So colour is assigned by *family* first: every manicure
+ * sits in one hue, every set and infill in another. Services within a family
+ * differ by step, which keeps them individually distinguishable while a busy
+ * Saturday still reads as "mostly infills" from across the room.
  *
  * The four family hues were checked with the dataviz validator against the
  * old dark chart surface: all four sit inside the L 0.48-0.67 band, clear the
@@ -18,12 +18,10 @@
  * The tint is solid: the hue mixed with white, not laid over the grid at 18%
  * alpha. See-through, the quarter-hour lines ran across every booking.
  *
- * The families are each trade's own (GROUPS): a nail salon's diary reads as
- * manicures, pedicures, sets and art, not as hair's cutting and colour, which
- * left nearly every nail booking grey. Each trade's families take the same
- * four validated hues (slots), and a salon of several trades is coloured by
- * trade instead: hair in one hue, nails in another. A salon can also choose a
- * service's family itself in Settings (SalonService.group), over the guess.
+ * The families are a nail salon's (GROUPS): manicures, pedicures, sets and
+ * infills, and nail art and removals, each in one of the four validated hues.
+ * A salon can also choose a service's family itself in Settings
+ * (SalonService.group), over the guess.
  *
  * Emitted as inline styles rather than Tailwind classes on purpose: the
  * service list comes from settings at runtime, and as the note in
@@ -34,14 +32,10 @@
 import { splitServiceText } from "@/lib/salon-config";
 import type { BusinessType } from "@/lib/business-types";
 
-/** Hair's families, which the four validated hues are named after. */
-export type HairFamily = "cutting" | "colour" | "finishing" | "treatment" | "other";
+/** The four validated hues, by what they are, and grey for Other. */
+type Hue = "blue" | "orange" | "purple" | "green" | "grey";
 
-/**
- * A family's id: one of a trade's groups ("cutting", "manicure"), a whole
- * trade for a salon of several ("nails"), or "other". Its label is the
- * i18n message `family.<id>`.
- */
+/** A family's id: one of the groups ("manicure"), or "other". Its label is the i18n message `family.<id>`. */
 export type ServiceFamily = string;
 
 export interface ServiceTone {
@@ -52,26 +46,18 @@ export interface ServiceTone {
   border: string;
 }
 
-export const FAMILY_LABEL: Record<HairFamily, string> = {
-  cutting: "Cutting",
-  colour: "Colour",
-  finishing: "Finishing",
-  treatment: "Treatments",
-  other: "Other",
-};
-
 /**
  * Base hue per family, then steps within it.
  *
  * Steps are written out rather than generated. A hue computed at runtime is
  * exactly how a palette drifts out of the band it was validated in.
  */
-export const FAMILY_STEPS: Record<HairFamily, string[]> = {
-  cutting: ["#3f88d4", "#6aa5e2", "#2b6cae", "#8fbcea"],
-  colour: ["#c47726", "#db9445", "#a3611a", "#e8ad6b"],
-  finishing: ["#8a6fd4", "#a78fe2", "#6d53b0", "#c0aeea"],
-  treatment: ["#2f9455", "#4cb071", "#227340", "#77c795"],
-  other: ["#7a8a86", "#95a3a0", "#61706c", "#b0bbb8"],
+export const FAMILY_STEPS: Record<Hue, string[]> = {
+  blue: ["#3f88d4", "#6aa5e2", "#2b6cae", "#8fbcea"],
+  orange: ["#c47726", "#db9445", "#a3611a", "#e8ad6b"],
+  purple: ["#8a6fd4", "#a78fe2", "#6d53b0", "#c0aeea"],
+  green: ["#2f9455", "#4cb071", "#227340", "#77c795"],
+  grey: ["#7a8a86", "#95a3a0", "#61706c", "#b0bbb8"],
 };
 
 /**
@@ -85,15 +71,6 @@ export function solidTint(hex: string, share = 0.18): string {
   const rgb = [mix((n >> 16) & 255), mix((n >> 8) & 255), mix(n & 255)];
   return `#${rgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
-
-/** The hue a family is known by, for the legend. */
-export const FAMILY_HUE: Record<HairFamily, string> = {
-  cutting: FAMILY_STEPS.cutting[0],
-  colour: FAMILY_STEPS.colour[0],
-  finishing: FAMILY_STEPS.finishing[0],
-  treatment: FAMILY_STEPS.treatment[0],
-  other: FAMILY_STEPS.other[0],
-};
 
 /**
  * A booking the receptionist took that this person has not opened yet, in
@@ -109,52 +86,28 @@ export const NEW_BOOKING = {
 
 /** One of the four validated hues, by position; "other" is grey. */
 type Slot = 0 | 1 | 2 | 3;
-const SLOT_HUES: HairFamily[] = ["cutting", "colour", "finishing", "treatment"];
+const SLOT_HUES: Hue[] = ["blue", "orange", "purple", "green"];
 
 interface Group {
   id: ServiceFamily;
   slot: Slot;
   /** Whole words (or their plurals) in a service's name that put it here. */
   words: string[];
-  /** Where a service needing a skin test goes, whatever it is called. */
-  skinTests?: boolean;
 }
 
 /**
- * Each trade's families, in the order a name is tried: the first with one of
- * its words in the name wins, so the more particular come first ("Gel
- * removal" is a removal before it is gel; "Beard trim" is the beard's).
- *
- * Hair's are the four this file began with, so a hair salon's diary is
- * coloured exactly as it was.
+ * The families, in the order a name is tried: the first with one of its words
+ * in the name wins, so the more particular come first ("Gel removal" is a
+ * removal before it is gel).
  */
 export const GROUPS: Record<BusinessType, Group[]> = {
-  hair: [
-    { id: "cutting", slot: 0, words: ["cut", "haircut", "trim", "restyle", "fringe", "barber", "clipper", "shave"] },
-    {
-      id: "finishing",
-      slot: 2,
-      words: ["blow", "blowdry", "dry", "style", "styling", "curl", "curly", "updo", "occasion", "bridal", "set", "hair up"],
-    },
-    {
-      id: "treatment",
-      slot: 3,
-      words: ["treatment", "olaplex", "mask", "condition", "conditioning", "keratin", "perm", "scalp", "straighten", "straightening", "yuko", "smoothing"],
-    },
-    {
-      id: "colour",
-      slot: 1,
-      skinTests: true,
-      words: ["colour", "colouring", "color", "coloring", "tint", "tinting", "highlight", "balayage", "toner", "tone", "bleach", "ombre", "ombré", "root", "regrowth", "foil", "gloss"],
-    },
-  ],
   nails: [
     {
       id: "nailart",
       slot: 3,
-      words: ["art", "design", "chrome", "french", "ombre", "ombré", "gem", "removal", "remove", "soak off", "soak-off", "repair", "fix"],
+      words: ["art", "design", "chrome", "ombre", "ombré", "gem", "removal", "remove", "soak off", "soak-off", "repair", "fix"],
     },
-    { id: "pedicure", slot: 1, words: ["pedicure", "pedi", "toe", "feet", "foot"] },
+    { id: "pedicure", slot: 1, words: ["pedicure", "pedi", "toe", "toenail", "feet", "foot"] },
     {
       id: "enhancement",
       slot: 2,
@@ -162,43 +115,19 @@ export const GROUPS: Record<BusinessType, Group[]> = {
     },
     { id: "manicure", slot: 0, words: ["manicure", "mani", "hand", "polish", "shellac", "cuticle", "gel", "nail"] },
   ],
-  beauty: [
-    { id: "brows", slot: 0, skinTests: true, words: ["brow", "eyebrow", "lash", "eyelash", "lamination", "henna", "lash lift"] },
-    { id: "waxing", slot: 1, words: ["wax", "waxing", "threading", "sugaring", "hair removal", "laser", "electrolysis", "brazilian", "hollywood"] },
-    {
-      id: "skin",
-      slot: 2,
-      words: ["facial", "skin", "peel", "microdermabrasion", "dermaplaning", "hydrafacial", "microneedling", "led", "acne"],
-    },
-    { id: "body", slot: 3, words: ["massage", "tan", "tanning", "spray tan", "body", "scrub", "wrap", "reflexology", "hot stone"] },
-  ],
-  barber: [
-    { id: "fades", slot: 1, words: ["fade", "skin fade", "taper", "buzz", "clipper", "zero"] },
-    { id: "cuts", slot: 0, words: ["cut", "haircut", "crop", "scissor", "restyle", "flat top", "short back"] },
-    {
-      id: "beard",
-      slot: 2,
-      words: ["beard", "shave", "moustache", "mustache", "hot towel", "line up", "lineup", "shape up", "shape-up", "edge up"],
-    },
-    { id: "extras", slot: 3, words: ["colour", "color", "grey blending", "camo", "bleach", "highlight", "facial", "mask", "wax", "treatment"] },
-  ],
 };
 
-/** What a salon's diary is coloured by: its trade's own families, or, for a salon of several, by trade. */
+/** What a salon's diary is coloured by: its trade's families. */
 export interface FamilyScheme {
   types: BusinessType[];
-  byTrade: boolean;
   /** In slot order, which is the legend's. */
   families: Array<{ id: ServiceFamily; slot: Slot }>;
 }
 
 export function familyScheme(types?: readonly BusinessType[] | null): FamilyScheme {
-  const list: BusinessType[] = types?.length ? [...new Set(types)] : ["hair"];
-  if (list.length === 1) {
-    const families = GROUPS[list[0]].map((g) => ({ id: g.id, slot: g.slot })).sort((a, b) => a.slot - b.slot);
-    return { types: list, byTrade: false, families };
-  }
-  return { types: list, byTrade: true, families: list.slice(0, 4).map((t, i) => ({ id: t, slot: i as Slot })) };
+  const trade: BusinessType = types?.find((t) => t in GROUPS) ?? "nails";
+  const families = GROUPS[trade].map((g) => ({ id: g.id, slot: g.slot })).sort((a, b) => a.slot - b.slot);
+  return { types: [trade], families };
 }
 
 /** The families a service can be put in by hand, in Settings: the salon's own, then Other. */
@@ -209,10 +138,9 @@ export function familyChoices(types?: readonly BusinessType[] | null): ServiceFa
 const patterns = new Map<string, RegExp>();
 
 /**
- * Whether `word` is in `text` as a word of its own, or its plural: "cut" is
- * in "Ladies cut" and "Two cuts", never in "Cuticle care"; "style" never in
- * "Freestyle art". Matching letters anywhere was how nail art became hair
- * finishing.
+ * Whether `word` is in `text` as a word of its own, or its plural: "set" is
+ * in "Full set" and "Two sets", never in "Settle"; "gel" never in "Angel
+ * art". Matching letters anywhere put services in the wrong family.
  */
 function hasWord(text: string, word: string): boolean {
   let re = patterns.get(word);
@@ -233,65 +161,31 @@ function firstGroup(text: string, groups: Group[]): { id: ServiceFamily; length:
   return null;
 }
 
-/** The longest of a trade's words in `text`: how surely a name is that trade's. */
-function longestWord(text: string, groups: Group[]): number {
-  let best = 0;
-  for (const g of groups) for (const w of g.words) if (w.length > best && hasWord(text, w)) best = w.length;
-  return best;
-}
-
-function classifyIn(scheme: FamilyScheme, name: string, requiresPatchTest?: boolean, group?: string): ServiceFamily {
+function classifyIn(scheme: FamilyScheme, name: string, group?: string): ServiceFamily {
   // The salon's own choice, where it is one of its families.
   if (group && (group === "other" || scheme.families.some((f) => f.id === group))) return group;
-
-  const text = String(name ?? "").toLowerCase();
-  if (!scheme.byTrade) {
-    const groups = GROUPS[scheme.types[0]];
-    // A skin test 48 hours ahead is data rather than a guess: colour work
-    // at a hair salon, a tint at a beauty salon, whatever it is called.
-    const skin = requiresPatchTest ? groups.find((g) => g.skinTests) : undefined;
-    if (skin) return skin.id;
-    return firstGroup(text, groups)?.id ?? "other";
-  }
-
-  // Several trades: the one whose words fit the name best, the longest word
-  // matched ("Acrylic full set" is nails' "acrylic", not hair's "set"), the
-  // main trade on a tie.
-  let best: { trade: BusinessType; length: number } | null = null;
-  for (const t of scheme.families.map((f) => f.id as BusinessType)) {
-    const length = longestWord(text, GROUPS[t]);
-    if (length > (best?.length ?? 0)) best = { trade: t, length };
-  }
-  if (best) return best.trade;
-  if (requiresPatchTest) {
-    const skin = scheme.families.find((f) => GROUPS[f.id as BusinessType].some((g) => g.skinTests));
-    if (skin) return skin.id;
-  }
-  return "other";
+  return firstGroup(String(name ?? "").toLowerCase(), GROUPS[scheme.types[0]])?.id ?? "other";
 }
 
 /**
  * Which family a service belongs to: the salon's own choice (`group`) where
- * it made one, else worked out from the skin test and the name, among the
- * families of the salon's trades (hair if not given).
- *
- * `requiresPatchTest` is checked before the name because it is data rather
- * than a guess. A service matching nothing falls to a neutral grey rather
- * than borrowing a family's meaning.
+ * it made one, else worked out from its name. A service matching nothing
+ * falls to a neutral grey rather than borrowing a family's meaning.
  */
 export function classifyService(
   name: string,
-  requiresPatchTest?: boolean,
+  // Was the skin test, which put colour work in its family; kept so callers need not change.
+  _requiresPatchTest?: boolean,
   types?: readonly BusinessType[] | null,
   group?: string
 ): ServiceFamily {
-  return classifyIn(familyScheme(types), name, requiresPatchTest, group);
+  return classifyIn(familyScheme(types), name, group);
 }
 
 /** A family's hue steps: its slot's, or grey for Other. */
 function stepsFor(scheme: FamilyScheme, family: ServiceFamily): string[] {
   const f = scheme.families.find((x) => x.id === family);
-  return f ? FAMILY_STEPS[SLOT_HUES[f.slot]] : FAMILY_STEPS.other;
+  return f ? FAMILY_STEPS[SLOT_HUES[f.slot]] : FAMILY_STEPS.grey;
 }
 
 /** The hue a family is known by, for the legend and Settings. */
@@ -332,7 +226,7 @@ export function buildServiceTones(
     const key = name.toLowerCase();
     if (out.has(key)) continue;
 
-    const family = classifyIn(scheme, name, s.requiresPatchTest, s.group);
+    const family = classifyIn(scheme, name, s.group);
     const index = seen[family] ?? 0;
     seen[family] = index + 1;
 
@@ -373,9 +267,8 @@ export function toneFor(
   // A service since renamed or deleted in settings still has appointments in
   // the diary. These used to be grey, so a new price list turned the whole
   // diary grey at once: every booking made before it carried an old name.
-  // Coloured by what the name says instead ("Root tint" is colour, "Cut and
-  // finish" is cutting), the way a current service is; grey only when the
-  // name says nothing.
+  // Coloured by what the name says instead ("Gel pedicure" is a pedicure),
+  // the way a current service is; grey only when the name says nothing.
   const scheme = SCHEMES.get(tones) ?? familyScheme();
   const family = classifyIn(scheme, parts[0] ?? text);
   const hex = stepsFor(scheme, family)[0];
@@ -388,7 +281,7 @@ export function familiesInUse(services: ServiceLike[], types?: readonly Business
   const present = new Set(
     services
       .filter((s) => String(s?.name ?? "").trim())
-      .map((s) => classifyIn(scheme, s.name, s.requiresPatchTest, s.group))
+      .map((s) => classifyIn(scheme, s.name, s.group))
   );
   return [...scheme.families.map((f) => f.id), "other"].filter((f) => present.has(f));
 }
