@@ -153,6 +153,26 @@ export const shell = {
   ],
   "push.errNotSaved": ["Could not save this device. Try again.", "Không lưu được thiết bị này. Hãy thử lại."],
 
+  // --- Notifications: the bell and its panel -----------------------------------------------
+  "notif.title": ["Notifications", "Thông báo"],
+  "notif.allClear": ["Nothing waiting. You're all caught up.", "Không có gì đang chờ."],
+  "notif.bookings": ["New bookings", "Lịch hẹn mới"],
+  "notif.callbacks": ["Callbacks waiting", "Cuộc gọi lại đang chờ"],
+  "notif.quotes": ["Quotes waiting for a price", "Báo giá đang chờ giá"],
+  "notif.markSeen": ["Mark all seen", "Đánh dấu đã xem"],
+  "notif.allCallbacks": ["Open Callbacks", "Mở Cuộc gọi lại"],
+  "notif.more": ["and {n} more", "và {n} mục khác"],
+  "notif.notBooked": ["Couldn't book: ring them", "Không đặt được: hãy gọi lại"],
+  "notif.design": ["1 design on {channel}", "1 mẫu trên {channel}"],
+  "notif.designs": ["{n} designs on {channel}", "{n} mẫu trên {channel}"],
+  "notif.sound": ["Sound when something new arrives", "Âm thanh khi có mục mới"],
+  "notif.soundHint": ["On this device", "Trên thiết bị này"],
+  "notif.alertsHint": [
+    "To get these on your phone when the CRM is closed, turn on alerts in Account.",
+    "Để nhận trên điện thoại khi CRM đang đóng, hãy bật thông báo trong Tài khoản.",
+  ],
+  "notif.account": ["Account", "Tài khoản"],
+
   // --- Booking pop-ups ----------------------------------------------------------------------
   "alerts.region": ["New bookings", "Lịch hẹn mới"],
   "alerts.newBooking": ["New booking · {ago}", "Lịch hẹn mới · {ago}"],

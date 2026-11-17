@@ -25,13 +25,13 @@ import { INTL_LOCALE, clockTime, type Clock, type Lang, type Translate } from "@
 /** Asks an open diary to show a booking: `detail` is { date, id }. */
 export const OPEN_BOOKING = "kikai:open-booking";
 
-function when(iso: string, timeZone: string, lang: Lang, clock: Clock): string {
+export function when(iso: string, timeZone: string, lang: Lang, clock: Clock): string {
   const at = new Date(iso);
   const day = at.toLocaleDateString(INTL_LOCALE[lang], { timeZone, weekday: "short", day: "numeric", month: "short" });
   return `${day}, ${clockTime(at, clock, timeZone)}`;
 }
 
-function ago(iso: string, t: Translate): string {
+export function ago(iso: string, t: Translate): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
   if (mins < 1) return t("alerts.justNow");
   if (mins < 60) return t("alerts.minAgo", { n: mins });
