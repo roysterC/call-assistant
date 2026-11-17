@@ -46,12 +46,12 @@ describe("the salon's FAQ as stored", () => {
 });
 
 describe("the rules for questions", () => {
-  it("allows general hair knowledge but not guessed salon facts", () => {
+  it("allows general nail knowledge but not guessed salon facts", () => {
     const text = salonQuestionsSection(null, "phone");
-    expect(text).toMatch(/what a toner or Olaplex does/);
+    expect(text).toMatch(/the difference between gel, acrylic and BIAB/);
     // The list is the whole list: sounding like a listed service is not a yes.
     expect(text).toMatch(/The services listed are everything the salon offers/);
-    expect(text).toMatch(/has not said it does balayage/);
+    expect(text).toMatch(/has not said it does BIAB/);
     expect(text).toMatch(/Never guess a fact about the salon/);
     expect(text).toMatch(/allergies/);
     expect(text).toContain("has not written any yet");

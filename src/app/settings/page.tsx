@@ -2,7 +2,6 @@
 
 import { hasDiary } from "@/lib/navigation";
 import { bookingReadiness, missingText } from "@/lib/booking/readiness";
-import { useTradeWords } from "@/components/providers/language-provider";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Users, MessageCircle, MessageSquareText, Phone, Camera, Send, Globe } from "lucide-react";
@@ -100,7 +99,6 @@ interface PhoneNumber {
 }
 
 export default function SettingsPage() {
-  const w = useTradeWords();
   const [settings, setSettings] = useState<Settings | null>(null);
   // Members see the settings but cannot change them; the API refuses them
   // too. Locked until the role has loaded, so nobody edits what they cannot
@@ -263,7 +261,7 @@ export default function SettingsPage() {
     teamMembers: settings.teamMembers,
     businessHours: settings.businessHours,
     diaryProvider: settings.diaryProvider,
-    staff: w("stylist"),
+    staff: "nail technician",
   });
   const usesGoogle = settings.diaryProvider === "google";
 
@@ -282,7 +280,7 @@ export default function SettingsPage() {
     serviceCount: settings.services.length,
     teamReady: usesGoogle ? settings.teamMembers.some((s) => s.googleCalendarId) : settings.teamMembers.length > 0,
     hoursOpen: settings.businessHours.some((d) => !d.closed),
-    staffPlural: w("stylists"),
+    staffPlural: "nail technicians",
   });
   const todo = settings.hasDiary && !readiness.ready ? steps.filter((s) => !s.done) : [];
   const needs = (t: SettingsTab) => todo.some((s) => s.tab === t);
@@ -533,7 +531,7 @@ export default function SettingsPage() {
               {settings.hasDiary && (
                 <SettingsSection
                   id="people"
-                  title={w("Your stylists")}
+                  title="Your nail technicians"
                   description={
                     usesGoogle
                       ? "Each needs a Google calendar shared with the service account before they can be booked."
@@ -545,7 +543,7 @@ export default function SettingsPage() {
                     <EmptyState
                       icon={Users}
                       title="No one added yet"
-                      hint={w("Add a stylist so the receptionist has someone to book with.")}
+                      hint="Add a nail technician so the receptionist has someone to book with."
                     />
                   )}
                   <StylistsEditor
@@ -574,7 +572,7 @@ export default function SettingsPage() {
               live={Boolean(saved?.online.onlineBookingEnabled)}
               services={settings.services}
               notReady={readiness.ready ? null : missingText(readiness)}
-              staff={w("stylist")}
+              staff="nail technician"
               chatbotEnabled={settings.chatbotEnabled}
               businessName={settings.businessName}
             />
@@ -650,7 +648,7 @@ export default function SettingsPage() {
                         <span className="font-medium">Text clients when they are due back</span>
                         <span className="block text-xs text-muted-foreground">
                           Sent in the morning, a few days before, to clients with nothing booked. It
-                          offers a free time with the same {w("stylist")} where there is one, and a
+                          offers a free time with the same nail technician where there is one, and a
                           link that opens your {rebookChat ?? "WhatsApp or Instagram"} chat with the
                           booking written for them. Each text has a link to stop them.
                         </span>

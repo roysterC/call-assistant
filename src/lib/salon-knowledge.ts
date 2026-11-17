@@ -24,7 +24,7 @@ import { orList, tradeFor, type Trade } from "@/lib/business-types";
  * a salon listing highlights does balayage, and one asked about a fringe trim
  * decided it came free with a cut.
  */
-export function notListed(trade: Trade = tradeFor(["hair"])): string {
+export function notListed(trade: Trade = tradeFor(["nails"])): string {
   return `The services listed are everything the salon offers. Anything not on the list, the salon does not offer by that name: do not say that it does, even if it sounds like a listed service (${trade.notListedExample}). And a listed service is only what its name says: do not say it includes or covers anything else, such as ${trade.notIncludedExample}, unless the salon's own answers say so.`;
 }
 
@@ -50,7 +50,7 @@ export function parseSalonFaq(value: unknown): string | null {
 export function salonQuestionsSection(
   faq: string | null,
   channel: "phone" | "chat",
-  trade: Trade = tradeFor(["hair"])
+  trade: Trade = tradeFor(["nails"])
 ): string {
   const staff = trade.staff;
   const skinTest = trade.skinTestFor.length ? `, and for ${orList(trade.skinTestFor)}, mention the skin test` : "";

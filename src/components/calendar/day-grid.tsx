@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   closedBands,
@@ -22,15 +23,14 @@ import {
   quarterMarks,
   freeGaps,
   timeOfRow,
+  dayWindow,
+  rowCount,
   HOUR_HEIGHT_PX,
-  ROW_COUNT,
   OVERBOOK_GUTTER_PX,
   SLOT_MINUTES,
-  WINDOW_END_HOUR,
-  WINDOW_END_MIN,
-  WINDOW_START_HOUR,
-  WINDOW_START_MIN,
-  WINDOW_MINUTES,
+  EARLIEST_SHOWN_MIN,
+  LATEST_SHOWN_MIN,
+  type DiaryWindow,
   type PlacedBlock,
 } from "@/lib/calendar-layout";
 import { NEW_BOOKING, toneFor, type ServiceTone } from "@/lib/service-colours";
@@ -219,6 +219,8 @@ interface DayGridProps {
   blocks: DiaryBlock[];
   /** Opening window in minutes past midnight, or null when shut. */
   open: { openMin: number; closeMin: number } | null;
+  /** The salon's widest opening hours in the week: what a day it is shut shows. */
+  usual?: { openMin: number; closeMin: number } | null;
   /** Minutes elapsed today, or null when the day shown is not today. */
   nowMinutes: number | null;
   /** The whole day is behind us. */
@@ -256,6 +258,7 @@ export function DayGrid({
   appointments,
   blocks,
   open,
+  usual = null,
   nowMinutes,
   isPastDay,
   tones,
@@ -270,24 +273,52 @@ export function DayGrid({
   const [dropAt, setDropAt] = useState<{ stylistName: string; row: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
-  // Open each day where it is worth looking: today an hour before now, any
-  // other day at opening time. Only when the day changes, so the grid never
-  // moves under someone reading it.
+  // Hours asked for above and below the day ("show earlier", "show later"),
+  // for the day they were asked on.
+  const [more, setMore] = useState<{ date: string; earlier: number; later: number }>({ date, earlier: 0, later: 0 });
+  const extra = more.date === date ? more : { date, earlier: 0, later: 0 };
+
+  // The stretch of the day shown: its opening hours and half an hour either
+  // side, stretched over anything on it outside them (calendar-layout.ts).
+  const busy: Array<[number, number]> = [
+    ...appointments
+      .filter((a) => isOnDate(new Date(a.startsAt), date, timeZone))
+      .map((a): [number, number] => {
+        const from = minutesOfDay(new Date(a.startsAt), timeZone);
+        const to = minutesOfDay(new Date(a.endsAt), timeZone);
+        return [from, to > from ? to : 24 * 60];
+      }),
+    // Blocked time within the day; a holiday across whole days is not a
+    // reason to show the small hours.
+    ...blocks
+      .filter((b) => isOnDate(new Date(b.start), date, timeZone) && isOnDate(new Date(b.end), date, timeZone))
+      .map((b): [number, number] => [minutesOfDay(new Date(b.start), timeZone), minutesOfDay(new Date(b.end), timeZone)]),
+  ];
+  const win = dayWindow({ open, usual, busy, earlierHours: extra.earlier, laterHours: extra.later });
+
+  // Open each day where it is worth looking: today an hour before now while
+  // the salon is open, otherwise at opening time. Only when the day changes,
+  // so the grid never moves under someone reading it.
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
+    const shown = open ?? usual;
     const target =
-      nowMinutes !== null ? nowMinutes - 60 : open ? open.openMin - SLOT_MINUTES : WINDOW_START_MIN;
-    const y = ((Math.max(target, WINDOW_START_MIN) - WINDOW_START_MIN) / 60) * hourHeightPx;
+      nowMinutes !== null && (!open || nowMinutes < open.closeMin)
+        ? nowMinutes - 60
+        : shown
+          ? shown.openMin - SLOT_MINUTES
+          : win.startMin;
+    const y = ((Math.max(target, win.startMin) - win.startMin) / 60) * hourHeightPx;
     el.scrollTop = Math.max(0, y);
     // The day is what decides; now and opening are read as they stand then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
   const { t, clock } = useT();
-  const marks = hourMarks();
-  const lines = quarterMarks();
-  const shaded = closedBands(open);
-  const nowShown = nowMinutes !== null && nowMinutes >= WINDOW_START_MIN && nowMinutes <= WINDOW_END_MIN;
+  const marks = hourMarks(win);
+  const lines = quarterMarks(win);
+  const shaded = closedBands(open, win);
+  const nowShown = nowMinutes !== null && nowMinutes >= win.startMin && nowMinutes <= win.endMin;
   /** A clock label the now pill would sit on top of. */
   const nearNow = (min: number) => nowShown && Math.abs(min - nowMinutes!) < 14;
 
@@ -328,11 +359,18 @@ export function DayGrid({
         </div>
         )}
 
+        {win.startMin > EARLIEST_SHOWN_MIN && (
+          <MoreHours
+            label={t("grid.showEarlier", { time: minutesTime(Math.max(EARLIEST_SHOWN_MIN, win.startMin - 60), clock) })}
+            up
+            onClick={() => setMore({ ...extra, earlier: extra.earlier + 1 })}
+          />
+        )}
         <EdgeStrip count={stylists.length} />
         <div
           className="flex relative"
           style={{
-            height: `${(WINDOW_END_HOUR - WINDOW_START_HOUR) * hourHeightPx}px`,
+            height: `${((win.endMin - win.startMin) / 60) * hourHeightPx}px`,
             ...UNAVAILABLE_BG,
           }}
         >
@@ -371,7 +409,7 @@ export function DayGrid({
               <div
                 aria-hidden="true"
                 className="absolute right-1 z-10 -translate-y-1/2 rounded-md px-1.5 py-0.5 text-xs font-bold tabular-nums text-tea-green-100"
-                style={{ top: `${minutePct(nowMinutes!)}%`, background: NOW_COLOUR }}
+                style={{ top: `${minutePct(nowMinutes!, win)}%`, background: NOW_COLOUR }}
               >
                 {shortTime(nowMinutes!, clock)}
               </div>
@@ -383,6 +421,7 @@ export function DayGrid({
               key={s.name}
               stylist={s}
               timeZone={timeZone}
+              win={win}
               open={open}
               shaded={shaded}
               lines={lines}
@@ -414,7 +453,7 @@ export function DayGrid({
               }
               onDrop={(row) => {
                 if (drag && onMoveAppointment) {
-                  onMoveAppointment(drag.appointment, s.name, timeOfRow(row));
+                  onMoveAppointment(drag.appointment, s.name, timeOfRow(row, win));
                 }
                 setDrag(null);
                 setDropAt(null);
@@ -427,19 +466,41 @@ export function DayGrid({
           ))}
         </div>
         <EdgeStrip count={stylists.length} />
+        {win.endMin < LATEST_SHOWN_MIN && (
+          <MoreHours
+            label={t("grid.showLater", { time: minutesTime(Math.min(LATEST_SHOWN_MIN, win.endMin + 60), clock) })}
+            onClick={() => setMore({ ...extra, later: extra.later + 1 })}
+          />
+        )}
       </div>
     </div>
   );
 }
 
+/** "Show from 7:30am" above the day, "Show until 7pm" below: an hour more, to book outside the usual hours. */
+function MoreHours({ label, up = false, onClick }: { label: string; up?: boolean; onClick: () => void }) {
+  const Icon = up ? ChevronUp : ChevronDown;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-8 w-full items-center justify-center gap-1.5 bg-muted/60 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      {label}
+    </button>
+  );
+}
+
 /** Where a time of day sits down the grid, as a percentage. */
-function minutePct(min: number): number {
-  return ((min - WINDOW_START_MIN) / WINDOW_MINUTES) * 100;
+function minutePct(min: number, win: DiaryWindow): number {
+  return ((min - win.startMin) / (win.endMin - win.startMin)) * 100;
 }
 
 function StylistColumn({
   stylist,
   timeZone,
+  win,
   open,
   shaded,
   lines,
@@ -461,6 +522,7 @@ function StylistColumn({
 }: {
   stylist: CalendarStylist;
   timeZone: string;
+  win: DiaryWindow;
   open: { openMin: number; closeMin: number } | null;
   shaded: Array<{ topPct: number; heightPct: number }>;
   lines: Array<{ minutes: number; topPct: number; major: boolean; half: boolean }>;
@@ -494,26 +556,27 @@ function StylistColumn({
         ? 100
         : 0
       : Math.min(
-          Math.max(((nowMinutes - WINDOW_START_MIN) / WINDOW_MINUTES) * 100, 0),
+          Math.max(((nowMinutes - win.startMin) / (win.endMin - win.startMin)) * 100, 0),
           100
         );
 
   const blockSpans = blocks.flatMap((b) => {
-    const g = spanGeometry(new Date(b.start), new Date(b.end), date, timeZone);
+    const g = spanGeometry(new Date(b.start), new Date(b.end), date, timeZone, win);
     return g ? [{ block: b, ...g }] : [];
   });
 
   const placed: PlacedBlock<CalendarAppointment>[] = layoutColumn(
     appointments,
     (a) => ({ startsAt: new Date(a.startsAt), endsAt: new Date(a.endsAt) }),
-    timeZone
+    timeZone,
+    win
   );
 
   // Room for another booking: every stretch of half an hour or more, from
   // now (or opening) to closing, around the bookings and blocked time. Read
   // off what is drawn, so a note never sits over a block beside it. Hidden
   // while a booking is being dragged, which has its own outline.
-  const toMin = (pct: number) => Math.round(WINDOW_START_MIN + (pct / 100) * WINDOW_MINUTES);
+  const toMin = (pct: number) => Math.round(win.startMin + (pct / 100) * (win.endMin - win.startMin));
   const gaps =
     bookable && open && !drag
       ? freeGaps(
@@ -525,10 +588,10 @@ function StylistColumn({
           ],
           Math.max(
             open.openMin,
-            WINDOW_START_MIN,
+            win.startMin,
             nowMinutes === null ? 0 : Math.ceil(nowMinutes / SLOT_MINUTES) * SLOT_MINUTES
           ),
-          Math.min(open.closeMin, WINDOW_END_MIN)
+          Math.min(open.closeMin, win.endMin)
         )
       : [];
 
@@ -541,8 +604,8 @@ function StylistColumn({
     if (!el || !drag || !bookable) return null;
     const box = el.getBoundingClientRect();
     const top = clientY - drag.grabOffsetPx - box.top;
-    const row = Math.min(Math.max(Math.round((top / box.height) * ROW_COUNT), 0), ROW_COUNT - 1);
-    if (nowMinutes !== null && WINDOW_START_MIN + row * SLOT_MINUTES < nowMinutes) return null;
+    const row = Math.min(Math.max(Math.round((top / box.height) * rowCount(win)), 0), rowCount(win) - 1);
+    if (nowMinutes !== null && win.startMin + row * SLOT_MINUTES < nowMinutes) return null;
     return row;
   };
 
@@ -568,18 +631,18 @@ function StylistColumn({
       return;
     }
     const box = el.getBoundingClientRect();
-    const row = rowFromOffset((clientY - box.top) / box.height);
+    const row = rowFromOffset((clientY - box.top) / box.height, win);
 
     // Refuse a time that has already passed. The phone path enforces a lead
     // time through `earliestBookableStart`; the desk had no equivalent, so a
     // click on this morning would happily book into it.
-    if (nowMinutes !== null && WINDOW_START_MIN + row * SLOT_MINUTES < nowMinutes) {
+    if (nowMinutes !== null && win.startMin + row * SLOT_MINUTES < nowMinutes) {
       const next = Math.ceil(nowMinutes / SLOT_MINUTES) * SLOT_MINUTES;
       notify(t("grid.refusePast", { time: minutesTime(next, clock) }), "info");
       return;
     }
 
-    onPickSlot(stylist.name, timeOfRow(row));
+    onPickSlot(stylist.name, timeOfRow(row, win));
   };
 
   return (
@@ -650,11 +713,11 @@ function StylistColumn({
         />
       ))}
 
-      {nowMinutes !== null && nowMinutes >= WINDOW_START_MIN && nowMinutes <= WINDOW_END_MIN && (
+      {nowMinutes !== null && nowMinutes >= win.startMin && nowMinutes <= win.endMin && (
         <div
           aria-hidden="true"
           className="absolute inset-x-0 z-[5] border-t-2 pointer-events-none"
-          style={{ top: `${minutePct(nowMinutes)}%`, borderColor: NOW_COLOUR }}
+          style={{ top: `${minutePct(nowMinutes, win)}%`, borderColor: NOW_COLOUR }}
         />
       )}
 
@@ -684,7 +747,7 @@ function StylistColumn({
         <span
           key={from}
           className="pointer-events-none absolute left-0 px-2 pt-1 text-[11.5px] font-medium leading-tight text-tea-green-200"
-          style={{ top: `${minutePct(from)}%` }}
+          style={{ top: `${minutePct(from, win)}%` }}
         >
           {t("grid.free", { len: lengthLabel(to - from, t) })}
         </span>
@@ -694,13 +757,13 @@ function StylistColumn({
         <div
           className="absolute inset-x-1 z-10 rounded-md border-2 border-dashed border-foreground/70 bg-foreground/5 pointer-events-none"
           style={{
-            top: `${(dropRow / ROW_COUNT) * 100}%`,
-            height: `${(drag.appointment.durationMinutes / WINDOW_MINUTES) * 100}%`,
+            top: `${(dropRow / rowCount(win)) * 100}%`,
+            height: `${(drag.appointment.durationMinutes / (win.endMin - win.startMin)) * 100}%`,
           }}
           aria-hidden="true"
         >
           <span className="block px-1.5 py-0.5 text-[11px] font-medium">
-            {timeOfRow(dropRow)}
+            {timeOfRow(dropRow, win)}
           </span>
         </div>
       )}

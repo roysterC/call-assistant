@@ -7,12 +7,8 @@ import { salonKeyterms } from "@/lib/receptionist/voice/keyterms";
 import { instructions } from "@/lib/voice-booking/assistant";
 import { businessTypesOf, inTradeWords, starterServices, tradeFor } from "./business-types";
 
-/**
- * A hair salon's words, held exactly as they were before business types:
- * these snapshots were taken first, and a hair-only salon must still match
- * them character for character.
- */
-const hair = {
+/** A nail salon's words, held as snapshots: changes to them show in review. */
+const salon = {
   diary: "native",
   timeZone: "Europe/London",
   hours: [
@@ -20,47 +16,43 @@ const hair = {
     { day: 6, closed: false, open: "08:30", close: "17:00" },
   ],
   services: [
-    { name: "Ladies cut and blow dry", durationMinutes: 60, requiresPatchTest: false, priceMinor: 4500 },
-    { name: "Root tint", durationMinutes: 90, requiresPatchTest: true, priceMinor: 5500 },
-    { name: "Yuko straightening", durationMinutes: 180, requiresPatchTest: false, priceMinor: null },
+    { name: "Gel manicure", durationMinutes: 45, requiresPatchTest: false, priceMinor: 2500 },
+    { name: "BIAB infill", durationMinutes: 60, requiresPatchTest: false, priceMinor: 3500 },
+    { name: "Acrylic full set", durationMinutes: 75, requiresPatchTest: false, priceMinor: null },
   ],
   stylists: [
     { name: "Jo Bloggs", workingDays: [2, 6], services: [], bookable: true },
-    { name: "Siobhan", workingDays: [2], services: ["Root tint"], bookable: true },
+    { name: "Lan", workingDays: [2], services: ["BIAB infill"], bookable: true },
   ],
   calComApiKey: null,
   calComEventTypeId: null,
 } as unknown as SalonConfig;
 
-describe("a hair salon's words, unchanged by business types", () => {
+describe("a nail salon's words, as snapshots", () => {
   it("the receptionist's instructions", () => {
-    expect(composeVoicePrompt(hair, "The salon's own words.", "Parking: on the street.").prompt).toMatchSnapshot();
-    expect(buildSystem(hair, "Shogo", null, new Date("2026-11-09T10:00:00Z"), "+447700900123")[0].text).toMatchSnapshot();
+    expect(composeVoicePrompt(salon, "The salon's own words.", "Parking: on the street.").prompt).toMatchSnapshot();
+    expect(buildSystem(salon, "Polished", null, new Date("2026-11-09T10:00:00Z"), "+447700900123")[0].text).toMatchSnapshot();
   });
 
   it("the chat bots' facts", () => {
     expect(
-      salonFactsForChat({ cfg: hair, faq: "Parking: on the street.", businessName: "Shogo", contactPhone: "01234 567890" })
+      salonFactsForChat({ cfg: salon, faq: "Parking: on the street.", businessName: "Polished", contactPhone: "01234 567890" })
     ).toMatchSnapshot();
   });
 
   it("the words the phone listens for", () => {
-    expect(salonKeyterms({ businessName: "Shogo", stylists: hair.stylists, services: hair.services })).toMatchSnapshot();
+    expect(
+      salonKeyterms({ businessName: "Polished", stylists: salon.stylists, services: salon.services, trade: tradeFor(["nails"]) })
+    ).toMatchSnapshot();
   });
 
   it("the assistant's instructions", () => {
-    expect(instructions("Shogo", "Roy (full access)")).toMatchSnapshot();
+    expect(instructions("Polished", "Roy (full access)")).toMatchSnapshot();
   });
 });
 
-const nails = {
-  ...hair,
-  services: [
-    { name: "Gel manicure", durationMinutes: 45, requiresPatchTest: false, priceMinor: 2500 },
-    { name: "BIAB infill", durationMinutes: 60, requiresPatchTest: false, priceMinor: 3500 },
-  ],
-  businessTypes: ["nails"],
-} as unknown as SalonConfig;
+// Saved as hair before the nails-only change: still a nail salon.
+const nails = { ...salon, businessTypes: ["hair"] } as unknown as SalonConfig;
 
 describe("a nail salon's words", () => {
   const prompt = composeVoicePrompt(nails, "Their own stylist words stay.", null).prompt;
@@ -81,7 +73,6 @@ describe("a nail salon's words", () => {
   it("asks nail questions, and answers walk-ins only when asked", () => {
     expect(prompt).toContain("(nails: gel, acrylic or BIAB; a new set or an infill; hands, feet or both)");
     expect(prompt).toContain("only if they ask whether they can come in now");
-    expect(composeVoicePrompt(hair, null, null).prompt).not.toContain("come in now");
   });
 
   it("listens for nail words, not hairdressing ones, and not for everyday ones", () => {
@@ -101,29 +92,12 @@ describe("a nail salon's words", () => {
   });
 });
 
-describe("a salon that does more than one thing", () => {
-  const both = { ...hair, businessTypes: ["hair", "beauty"] } as unknown as SalonConfig;
-  const prompt = composeVoicePrompt(both, null, null).prompt;
-
-  it("keeps the main type's word for the team, and adds the other's questions and rules", () => {
-    expect(prompt).not.toContain("never stylists");
-    expect(prompt).toContain("highlights on the top, half or full head; waxing: which area");
-    expect(prompt).toContain("General hair questions, such as what a toner or Olaplex does or how often to have a trim; or beauty questions");
-    expect(prompt).toContain("and for colour, lash and brow tints or lash extensions, mention the skin test");
-    expect(prompt).toContain("only if they ask whether they can come in now");
-  });
-
-  it("listens for both trades' words, in turn", () => {
-    const terms = tradeFor(["hair", "beauty"]).keyterms;
-    expect(terms.slice(0, 4)).toEqual(["Kérastase", "HD brows", "L'Oréal", "Henna brows"]);
-  });
-});
-
 describe("the types themselves", () => {
-  it("reads a salon's types: main first, once each, hair when unset or unknown", () => {
-    expect(businessTypesOf(undefined)).toEqual(["hair"]);
-    expect(businessTypesOf("tattoo", ["nails"])).toEqual(["hair", "nails"]);
-    expect(businessTypesOf("nails", ["beauty", "nails", "x", "beauty"])).toEqual(["nails", "beauty"]);
+  it("reads every salon as a nail salon, whatever was saved before", () => {
+    expect(businessTypesOf(undefined)).toEqual(["nails"]);
+    expect(businessTypesOf("hair", ["beauty"])).toEqual(["nails"]);
+    expect(businessTypesOf("nails", ["nails", "x"])).toEqual(["nails"]);
+    expect(tradeFor(["hair" as never]).staff).toBe("nail technician");
   });
 
   it("rewords only the prompts' own 'stylist', keeping capitals and plurals", () => {
@@ -132,9 +106,16 @@ describe("the types themselves", () => {
     expect(inTradeWords("a stylist", { staff: "stylist" })).toBe("a stylist");
   });
 
-  it("starts a new salon with every type's services, unpriced and without skin tests", () => {
-    const list = starterServices(["nails", "beauty"]);
-    expect(list.map((s) => s.name)).toEqual(expect.arrayContaining(["Gel manicure", "Eyebrow shape"]));
+  it("starts a new salon with a nail price list, unpriced and without skin tests", () => {
+    const list = starterServices(["nails"]);
+    expect(list.length).toBeGreaterThan(0);
     expect(list.every((s) => s.priceMinor === null && !s.requiresPatchTest)).toBe(true);
+  });
+
+  it("rebooks a new set as an infill that is on the same list", () => {
+    const list = starterServices(["nails"]);
+    const names = new Set(list.map((s) => s.name));
+    expect(names.size).toBe(list.length);
+    for (const s of list.filter((x) => x.rebookAs)) expect(names.has(s.rebookAs!)).toBe(true);
   });
 });

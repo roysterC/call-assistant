@@ -1,79 +1,87 @@
 import { describe, expect, it } from "vitest";
-import { HAIRDRESSING_TERMS, MAX_KEYTERMS, salonKeyterms, serviceWords } from "./keyterms";
+import { tradeFor } from "@/lib/business-types";
+import { MAX_KEYTERMS, salonKeyterms, serviceWords } from "./keyterms";
 import { deepgramListenUrl } from "./providers";
 
+const trade = tradeFor(["nails"]);
+const TRADE_TERMS = [...trade.keyterms];
+
 describe("salon keyterms", () => {
-  it("listens for the salon, its stylists by full and first name, and the unusual words in its services", () => {
+  it("listens for the salon, its nail technicians by full and first name, and the unusual words in its services", () => {
     expect(
       salonKeyterms({
-        businessName: "Shogo",
-        stylists: [{ name: "Siobhan O'Neill" }, { name: "Jo" }],
-        services: [{ name: "Yuko straightening" }, { name: "Cut & finish" }],
+        businessName: "Polished",
+        stylists: [{ name: "Siobhan O'Neill" }, { name: "Lan" }],
+        services: [{ name: "Polygel full set" }, { name: "Gel manicure" }],
+        trade,
       })
-    ).toEqual(["Shogo", "Siobhan O'Neill", "Siobhan", "Jo", "Yuko", ...HAIRDRESSING_TERMS]);
+    ).toEqual(["Polished", "Siobhan O'Neill", "Siobhan", "Lan", "Polygel", ...TRADE_TERMS.filter((t) => t !== "polygel")]);
   });
 
   it("takes from a service name only the words Deepgram is likely to mishear", () => {
-    expect(serviceWords("Wash and blow dry, medium hair")).toEqual([]);
-    expect(serviceWords("Children's cut age 0 to 6")).toEqual([]);
-    expect(serviceWords("Yuko straightening")).toEqual(["Yuko"]);
-    expect(serviceWords("Olaplex treatment")).toEqual(["Olaplex"]);
-    expect(serviceWords("Keratin treatment")).toEqual(["Keratin"]);
-    expect(serviceWords("Hair up / party style")).toEqual([]);
+    const own = (name: string) => salonKeyterms({ services: [{ name }], trade }).slice(0, -TRADE_TERMS.length);
+    expect(own("Acrylic infill French tip")).toEqual(["Acrylic"]);
+    expect(own("Take off & redo, gel colour")).toEqual([]);
+    expect(own("Toenail extension")).toEqual([]);
+    expect(own("Nail art tier 2")).toEqual([]);
+    expect(own("Full pedicure without colour")).toEqual([]);
+    expect(serviceWords("Polygel full set")).toEqual(["Polygel"]);
   });
 
   it("listens for brands before anything else of the trade's, so they are never the ones dropped", () => {
-    expect(HAIRDRESSING_TERMS.slice(0, 4)).toEqual(["Kérastase", "L'Oréal", "Wella", "Redken"]);
+    expect(TRADE_TERMS.slice(0, 3)).toEqual(["BIAB", "Shellac", "OPI"]);
   });
 
   it("tidies names and drops repeats and anything unusable", () => {
     expect(
       salonKeyterms({
-        businessName: "  Shogo  Hair ",
-        stylists: [{ name: "jo" }, { name: "Jo" }, { name: "(x)" }],
-        services: [{ name: "Colour: roots*" }, { name: "a".repeat(80) }, { name: "" }],
+        businessName: "  Polished  Nails ",
+        stylists: [{ name: "lan" }, { name: "Lan" }, { name: "(x)" }],
+        services: [{ name: "Gel: manicure*" }, { name: "a".repeat(80) }, { name: "" }],
+        trade,
       })
-    ).toEqual(["Shogo Hair", "jo", ...HAIRDRESSING_TERMS]);
+    ).toEqual(["Polished Nails", "lan", ...TRADE_TERMS]);
   });
 
   it("keeps the list short, dropping services before people", () => {
     const terms = salonKeyterms({
-      businessName: "Shogo",
-      stylists: Array.from({ length: 10 }, (_, i) => ({ name: `Stylist${i}` })),
-      services: Array.from({ length: 100 }, (_, i) => ({ name: `Zumba${i} treatment` })),
+      businessName: "Polished",
+      stylists: Array.from({ length: 10 }, (_, i) => ({ name: `Tech${i}` })),
+      services: Array.from({ length: 100 }, (_, i) => ({ name: `Zumba${i} manicure` })),
+      trade,
     });
     expect(terms).toHaveLength(MAX_KEYTERMS);
-    expect(terms.slice(0, 11)).toEqual(["Shogo", ...Array.from({ length: 10 }, (_, i) => `Stylist${i}`)]);
+    expect(terms.slice(0, 11)).toEqual(["Polished", ...Array.from({ length: 10 }, (_, i) => `Tech${i}`)]);
   });
 
   it("still listens for the trade's words for a salon with nothing set up", () => {
-    expect(salonKeyterms({})).toEqual(HAIRDRESSING_TERMS);
+    expect(salonKeyterms({ trade })).toEqual(TRADE_TERMS);
   });
 
   it("adds the trade's words after the salon's own, without repeating its services", () => {
-    const terms = salonKeyterms({ businessName: "Shogo", services: [{ name: "Balayage" }, { name: "Blow Dry" }] });
-    expect(terms.slice(0, 2)).toEqual(["Shogo", "Balayage"]);
-    expect(terms.filter((t) => t.toLowerCase() === "balayage")).toHaveLength(1);
-    expect(terms.filter((t) => t.toLowerCase() === "blow dry")).toHaveLength(1);
-    expect(terms).toContain("patch test");
+    const terms = salonKeyterms({ businessName: "Polished", services: [{ name: "Shellac" }, { name: "BIAB infill" }], trade });
+    expect(terms.slice(0, 3)).toEqual(["Polished", "Shellac", "BIAB"]);
+    expect(terms.filter((t) => t.toLowerCase() === "shellac")).toHaveLength(1);
+    expect(terms.filter((t) => t.toLowerCase() === "biab")).toHaveLength(1);
+    expect(terms).toContain("soak off");
   });
 
   it("keeps every trade word within Deepgram's limits", () => {
-    expect(HAIRDRESSING_TERMS.length).toBeLessThan(MAX_KEYTERMS);
-    expect(HAIRDRESSING_TERMS.join("").length).toBeLessThan(1000);
+    expect(TRADE_TERMS.length).toBeLessThan(MAX_KEYTERMS);
+    expect(TRADE_TERMS.join("").length).toBeLessThan(1000);
   });
 });
 
 describe("Deepgram address", () => {
   it("sends each keyterm to Nova-3", () => {
-    const url = new URL(deepgramListenUrl({ kind: "pcm16", sampleRate: 16000 }, { keyterms: ["Shogo", "Cut & finish"] }));
-    expect(url.searchParams.getAll("keyterm")).toEqual(["Shogo", "Cut & finish"]);
+    const url = new URL(deepgramListenUrl({ kind: "pcm16", sampleRate: 16000 }, { keyterms: ["Polished", "BIAB infill"] }));
+    expect(url.searchParams.getAll("keyterm")).toEqual(["Polished", "BIAB infill"]);
     expect(url.searchParams.get("encoding")).toBe("linear16");
     expect(url.searchParams.get("sample_rate")).toBe("16000");
   });
 
   it("leaves keyterms off older models, which refuse them", () => {
-    const url = new URL(deepgramListenUrl({ kind: "pcm16", sampleRate: 16000 }, { model: "nova-2", keyterms: ["Shogo"] }));
+    const url = new URL(deepgramListenUrl({ kind: "pcm16", sampleRate: 16000 }, { model: "nova-2", keyterms: ["Polished"] }));
     expect(url.searchParams.getAll("keyterm")).toEqual([]);
   });
 

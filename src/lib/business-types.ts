@@ -1,36 +1,32 @@
 /**
- * What kind of business a salon is: hair, nails, beauty or barbers.
+ * The trade Kikai serves: nail salons (Nov 2026; hair, beauty and barbers
+ * were supported before and were dropped when Kikai narrowed to nails).
  *
- * Chosen by Kikai when the salon is set up (Admin → Organizations), as a main
- * type and any others it also offers: plenty of UK salons are "hair and
- * beauty", and nail shops often do lashes and waxing. The type changes what
- * the receptionist, the chat bots and the diary's assistant know about the
- * trade, never how the diary works:
+ * The profile says what the receptionist, the chat bots and the diary's
+ * assistant know about the trade, never how the diary works:
  *
- * - what the team are called (stylist, nail technician, therapist, barber);
+ * - what the team are called (nail technician);
  * - the examples in the rules for questions (what to ask when a request could
  *   be several services, what "not on the list" looks like);
  * - why a price is a "from" price, and which health questions go to the team;
- * - which services need a skin test mentioned;
  * - the trade's words the phone listens for (keyterms.ts);
- * - extra phone rules (walk-ins, for the trades where they are common);
+ * - extra phone rules (walk-ins);
  * - the starter price list a new salon is given.
  *
- * Hair is the default, and a hair-only salon's instructions are exactly what
- * they were before types existed (business-types.test.ts holds them to it).
+ * Kept as a list of one, with the column it is stored in, so the machinery
+ * that reads it stays as it is; every salon is nails whatever is stored.
  */
 
 import type { SalonService } from "@/lib/salon-config";
-import { HAIRDRESSING_TERMS } from "@/lib/receptionist/voice/keyterms";
 
-export const BUSINESS_TYPES = ["hair", "nails", "beauty", "barber"] as const;
+export const BUSINESS_TYPES = ["nails"] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
 export interface BusinessProfile {
   id: BusinessType;
   /** As the admin shows it. */
   label: string;
-  /** In a sentence: "a nail salon", "a barber's". */
+  /** In a sentence: "a nail salon". */
   kind: string;
   /** What one of the team is called, to customers. */
   staff: string;
@@ -54,11 +50,7 @@ export interface BusinessProfile {
   everyday: readonly string[];
   /** Phone rules for this trade only, as bullet lines. */
   phoneRules: readonly string[];
-  /**
-   * A new salon's price list: names and lengths, prices left for the salon.
-   * No skin tests switched on: the skin-test booking rules are written for
-   * hair colour (parked, Nov 2026), so a beauty salon turns them on itself.
-   */
+  /** A new salon's price list: names and lengths, prices left for the salon. */
   starterServices: readonly Omit<SalonService, "priceMinor">[];
 }
 
@@ -66,31 +58,6 @@ export interface BusinessProfile {
 const WALK_INS =
   "- **Walk-ins:** only if they ask whether they can come in now, check today's diary and offer the " +
   "soonest free time today. Never suggest coming in without a booking otherwise.";
-
-const HAIR: BusinessProfile = {
-  id: "hair",
-  label: "Hair salon",
-  kind: "hair salon",
-  staff: "stylist",
-  generalQuestions: "hair questions, such as what a toner or Olaplex does or how often to have a trim",
-  notListedExample: "a salon that lists highlights has not said it does balayage",
-  notIncludedExample: "a fringe trim or a toner",
-  ambiguous:
-    "a haircut: ladies, men's or a child's; a blow dry for short, medium or long hair; highlights on the top, half or full head",
-  priceReason: "it depends on length and thickness",
-  healthTopics: ["allergies", "skin reactions", "pregnancy", "hair loss", "scalp conditions"],
-  skinTestFor: ["colour"],
-  keyterms: HAIRDRESSING_TERMS,
-  everyday: [],
-  phoneRules: [],
-  starterServices: [
-    { name: "Ladies cut and blow dry", durationMinutes: 60, requiresPatchTest: false },
-    { name: "Men's cut", durationMinutes: 30, requiresPatchTest: false },
-    { name: "Children's cut", durationMinutes: 30, requiresPatchTest: false },
-    { name: "Wash and blow dry", durationMinutes: 45, requiresPatchTest: false },
-    { name: "Fringe trim", durationMinutes: 15, requiresPatchTest: false },
-  ],
-};
 
 const NAILS: BusinessProfile = {
   id: "nails",
@@ -131,132 +98,52 @@ const NAILS: BusinessProfile = {
     "paraffin",
   ],
   everyday:
-    "nail nails manicure mani pedicure pedi hands hand feet foot toes toe gel polish removal remove soak off art design designs set sets fill fills shape file".split(
+    "nail nails manicure mani pedicure pedi hands hand feet foot toes toe toenail toenails gel polish removal remove soak off art design designs set sets fill fills infill infills shape file french tip tips take redo change extension extensions tier without normal".split(
       " "
     ),
   phoneRules: [WALK_INS],
+  // The demo salon's own menu (Nov 2026), one service per treatment and
+  // finish. Unpriced: the salon fills in its prices.
   starterServices: [
-    { name: "Gel manicure", durationMinutes: 45, requiresPatchTest: false, rebookWeeks: 3 },
-    { name: "Gel pedicure", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 4 },
-    { name: "BIAB new set", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "BIAB infill" },
-    { name: "BIAB infill", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3 },
-    { name: "Acrylic full set", durationMinutes: 75, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill" },
-    { name: "Acrylic infill", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3 },
-    { name: "Gel removal", durationMinutes: 20, requiresPatchTest: false },
-  ],
-};
-
-const BEAUTY: BusinessProfile = {
-  id: "beauty",
-  label: "Beauty salon",
-  kind: "beauty salon",
-  staff: "therapist",
-  generalQuestions:
-    "beauty questions, such as what a lash lift or dermaplaning involves or how long a wax usually lasts",
-  notListedExample: "a salon that lists a lash lift has not said it does lash extensions",
-  notIncludedExample: "a tint or a brow shape",
-  ambiguous: "waxing: which area; lashes: a lift, extensions or an infill; a facial: which one",
-  priceReason: "it depends on the treatment",
-  healthTopics: ["allergies", "skin reactions", "pregnancy", "medication", "skin conditions"],
-  skinTestFor: ["lash and brow tints", "lash extensions"],
-  keyterms: [
-    "HD brows",
-    "Henna brows",
-    "brow lamination",
-    "lash lift",
-    "lash extensions",
-    "Russian volume",
-    "hybrid lashes",
-    "threading",
-    "dermaplaning",
-    "microdermabrasion",
-    "Hydrafacial",
-    "chemical peel",
-    "microneedling",
-    "microblading",
-    "Hollywood wax",
-    "Brazilian wax",
-    "spray tan",
-    "St Tropez",
-    "Elemis",
-    "Dermalogica",
-    "Guinot",
-    "patch test",
-    "skin test",
-  ],
-  everyday:
-    "wax waxing brow brows eyebrow eyebrows lash lashes eyelash eyelashes facial facials massage tint lift leg legs arm arms underarm underarms lip chin face back body tan".split(
-      " "
-    ),
-  phoneRules: [WALK_INS],
-  starterServices: [
-    { name: "Eyebrow shape", durationMinutes: 15, requiresPatchTest: false },
-    { name: "Eyebrow tint", durationMinutes: 15, requiresPatchTest: false },
-    { name: "Lash lift and tint", durationMinutes: 60, requiresPatchTest: false },
-    { name: "Half leg wax", durationMinutes: 30, requiresPatchTest: false },
-    { name: "Express facial", durationMinutes: 30, requiresPatchTest: false },
-  ],
-};
-
-const BARBER: BusinessProfile = {
-  id: "barber",
-  label: "Barbers",
-  kind: "barber's",
-  staff: "barber",
-  generalQuestions: "barbering questions, such as what a skin fade or a taper is or how often to have a trim",
-  notListedExample: "a shop that lists fades has not said it does hot towel shaves",
-  notIncludedExample: "a beard trim or a hot towel",
-  ambiguous: "a haircut: men's or a child's; a fade: skin, low or high; a beard: a trim or a shape-up",
-  priceReason: "it depends on the cut",
-  healthTopics: ["allergies", "skin reactions", "hair loss", "scalp conditions"],
-  skinTestFor: [],
-  keyterms: [
-    "skin fade",
-    "taper",
-    "burst fade",
-    "drop fade",
-    "French crop",
-    "textured crop",
-    "buzz cut",
-    "line up",
-    "shape up",
-    "hot towel",
-    "cut-throat",
-    "beard sculpt",
-    "hair design",
-    "clipper cut",
-    "scissor cut",
-    "undercut",
-    "mullet",
-    "quiff",
-  ],
-  everyday: "fade fades taper beard shave shape line clipper clippers scissor scissors grade number skin hot towel".split(
-    " "
-  ),
-  phoneRules: [WALK_INS],
-  starterServices: [
-    { name: "Men's haircut", durationMinutes: 30, requiresPatchTest: false },
-    { name: "Skin fade", durationMinutes: 30, requiresPatchTest: false },
-    { name: "Beard trim", durationMinutes: 15, requiresPatchTest: false },
-    { name: "Haircut and beard", durationMinutes: 45, requiresPatchTest: false },
-    { name: "Children's haircut", durationMinutes: 30, requiresPatchTest: false },
+    { name: "Acrylic full set, gel colour", durationMinutes: 75, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill, gel colour" },
+    { name: "Acrylic full set, French tip", durationMinutes: 85, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill, French tip" },
+    { name: "Acrylic infill, gel colour", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3 },
+    { name: "Acrylic infill, French tip", durationMinutes: 70, requiresPatchTest: false, rebookWeeks: 3 },
+    { name: "Acrylic take off & redo, gel colour", durationMinutes: 90, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill, gel colour" },
+    { name: "Acrylic take off & redo, French tip", durationMinutes: 100, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill, French tip" },
+    { name: "Acrylic take off only", durationMinutes: 30, requiresPatchTest: false },
+    { name: "BIAB full set, colour", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "BIAB infill, colour" },
+    { name: "BIAB full set, French tip", durationMinutes: 70, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "BIAB infill, French tip" },
+    { name: "BIAB infill, colour", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3 },
+    { name: "BIAB infill, French tip", durationMinutes: 70, requiresPatchTest: false, rebookWeeks: 3 },
+    { name: "Manicure with gel", durationMinutes: 55, requiresPatchTest: false, rebookWeeks: 3 },
+    { name: "Manicure with colour", durationMinutes: 50, requiresPatchTest: false, rebookWeeks: 2 },
+    { name: "Manicure, no colour", durationMinutes: 45, requiresPatchTest: false },
+    { name: "Pedicure, gel colour", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 4 },
+    { name: "Pedicure, French tip", durationMinutes: 65, requiresPatchTest: false, rebookWeeks: 4 },
+    { name: "Pedicure, normal colour", durationMinutes: 55, requiresPatchTest: false, rebookWeeks: 4 },
+    { name: "Pedicure, no colour", durationMinutes: 50, requiresPatchTest: false },
+    { name: "Toenail colour change", durationMinutes: 20, requiresPatchTest: false },
+    { name: "Toenail extension", durationMinutes: 10, requiresPatchTest: false },
+    { name: "Toenail designs", durationMinutes: 15, requiresPatchTest: false },
+    { name: "Gel removal", durationMinutes: 15, requiresPatchTest: false },
+    { name: "Nail art tier 1", durationMinutes: 10, requiresPatchTest: false },
+    { name: "Nail art tier 2", durationMinutes: 20, requiresPatchTest: false },
+    { name: "Nail art tier 3", durationMinutes: 40, requiresPatchTest: false },
   ],
 };
 
 export const PROFILES: Record<BusinessType, BusinessProfile> = {
-  hair: HAIR,
   nails: NAILS,
-  beauty: BEAUTY,
-  barber: BARBER,
 };
 
 export function isBusinessType(v: unknown): v is BusinessType {
   return typeof v === "string" && (BUSINESS_TYPES as readonly string[]).includes(v);
 }
 
-/** The main type then the others, valid and once each; hair when nothing is set. */
+/** The main type then the others, valid and once each; nails whatever is stored (Kikai is for nail salons). */
 export function businessTypesOf(main: unknown, also: unknown = []): BusinessType[] {
-  const out: BusinessType[] = [isBusinessType(main) ? main : "hair"];
+  const out: BusinessType[] = [isBusinessType(main) ? main : "nails"];
   for (const t of Array.isArray(also) ? also : []) if (isBusinessType(t) && !out.includes(t)) out.push(t);
   return out;
 }
@@ -283,7 +170,8 @@ export interface Trade {
  * and its examples first, then each other type's added on.
  */
 export function tradeFor(types: readonly BusinessType[] | undefined): Trade {
-  const list = (types?.length ? types : (["hair"] as const)).map((t) => PROFILES[t]);
+  const list = (types?.length ? types.filter(isBusinessType) : []).map((t) => PROFILES[t]);
+  if (list.length === 0) list.push(NAILS);
   const main = list[0];
   const uniq = <T,>(xs: T[]) => [...new Set(xs)];
   return {

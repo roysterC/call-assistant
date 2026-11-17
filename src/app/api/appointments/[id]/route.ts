@@ -67,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const stylist = matchStylist(String(body.stylistName), cfg.stylists);
       if (!stylist) {
         return NextResponse.json(
-          { error: `No stylist matching "${body.stylistName}"` },
+          { error: `No nail technician matching "${body.stylistName}"` },
           { status: 400 }
         );
       }

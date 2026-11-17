@@ -1,7 +1,6 @@
 "use client";
 
-import { BusinessTypePicker } from "@/components/admin/business-type-picker";
-import { businessTypesOf, PROFILES } from "@/lib/business-types";
+import { PROFILES } from "@/lib/business-types";
 import { hasDiary } from "@/lib/navigation";
 import { bookingReadiness, missingText } from "@/lib/booking/readiness";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -130,8 +129,6 @@ function orgBody(o: Org) {
   return {
     name: o.name,
     planTier: o.planTier,
-    businessType: o.businessType,
-    alsoOffers: o.alsoOffers,
     anthropicApiKeyOverride: o.anthropicApiKeyOverride,
     usageMarkupPercent: o.usageMarkupPercent,
     enabled: o.enabled,
@@ -645,7 +642,6 @@ export default function OrganizationDetailPage() {
         <span>
           <span className="capitalize">{org.planTier}</span> plan
         </span>
-        <span>{businessTypesOf(org.businessType, org.alsoOffers).map((t) => PROFILES[t].label).join(" + ")}</span>
         <span>{plural(org._count.leads, "lead")}</span>
         <span>{plural(org._count.calls, "call")}</span>
         <span className={org.enabled ? "text-tea-green-200" : "text-red-600"}>
@@ -666,11 +662,6 @@ export default function OrganizationDetailPage() {
               className="mt-1"
             />
           </div>
-          <BusinessTypePicker
-            main={businessTypesOf(org.businessType)[0]}
-            also={businessTypesOf(org.businessType, org.alsoOffers).slice(1)}
-            onChange={(businessType, alsoOffers) => setOrg({ ...org, businessType, alsoOffers })}
-          />
           <div>
             <label className="text-sm font-medium">Plan tier</label>
             <Input
@@ -1506,7 +1497,7 @@ const ROLE_LABEL: Record<string, string> = {
   superAdmin: "Super admin",
   admin: "Admin (owner)",
   member: "Member (staff)",
-  stylist: "Stylist (withdrawn)",
+  stylist: "Nail technician (withdrawn)",
 };
 
 /** 12 characters from letters and digits that can't be misread (no 0/O, 1/l/I). */
@@ -1564,7 +1555,7 @@ function TextsStatusLine({ org }: { org: Org }) {
 function BookingStatus({ org }: { org: Org }) {
   const s = org.settings;
   if (!s || !hasDiary(s)) return null;
-  const staff = PROFILES[businessTypesOf(org.businessType)[0]].staff;
+  const staff = PROFILES.nails.staff;
   const r = bookingReadiness({
     services: s.services,
     teamMembers: s.teamMembers,

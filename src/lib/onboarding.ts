@@ -71,21 +71,3 @@ export function hasTypicalLength(service: SalonService, types: readonly Business
 export function resumeAt(steps: readonly OnboardingStep[], d: OnboardingDraft): OnboardingStep {
   return steps.find((s) => s !== "about" && stepProblem(s, d) !== null) ?? "ready";
 }
-
-/**
- * The salon's price list after its type changes. The starter list is swapped
- * for the new type's while it is still the one it was given; once the owner
- * has made it their own, it is theirs and is left alone (null).
- */
-export function servicesAfterTypeChange(
-  current: readonly SalonService[],
-  from: readonly BusinessType[],
-  to: readonly BusinessType[]
-): SalonService[] | null {
-  const key = (list: readonly SalonService[]) =>
-    JSON.stringify(list.map((s) => [s.name, s.durationMinutes, s.priceMinor ?? null]));
-  const untouched = current.length === 0 || key(current) === key(starterServices(from));
-  if (!untouched) return null;
-  const next = starterServices(to);
-  return key(next) === key(current) ? null : next;
-}

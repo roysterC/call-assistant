@@ -1,8 +1,7 @@
 "use client";
 
 import { useT } from "@/components/providers/language-provider";
-import { useMe } from "@/components/providers/me-provider";
-import { isBusinessType, type BusinessType } from "@/lib/business-types";
+import type { BusinessType } from "@/lib/business-types";
 import type { MessageKey } from "@/lib/i18n";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -47,8 +46,7 @@ export function StylistsEditor({
   onChange: (next: Stylist[]) => void;
 }) {
   const { t } = useT();
-  const me = useMe();
-  const kind: BusinessType = trade ?? (isBusinessType(me?.businessType) ? me.businessType : "hair");
+  const kind: BusinessType = trade ?? "nails";
   // Nobody works a day the salon is shut. With hours unconfigured every day
   // stays selectable — the alternative is an editor that silently refuses
   // every button before opening hours have been filled in.

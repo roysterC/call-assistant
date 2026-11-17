@@ -16,7 +16,6 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { SalonConfig } from "@/lib/booking";
 import { composeVoicePrompt } from "@/lib/receptionist/instructions";
 import { hoursForWeekday, zonedParts } from "@/lib/business-hours";
-import { inTradeExamples } from "@/lib/trade-examples";
 import { inTradeWords, tradeFor } from "@/lib/business-types";
 
 export const SPOKEN_STYLE = `# You are on the phone
@@ -187,13 +186,13 @@ rest has to be asked again.
 
 How it reads:
 
-- They: *"Can I book a cut?"* You: *"Is that a ladies' cut or a men's cut?"*
-- They: *"Ladies'."* You: *"Which day suits you?"*
+- They: *"Can I book a BIAB?"* You: *"Is that a full set or an infill?"*
+- They: *"Infill."* You: *"Which day suits you?"*
 - They: *"Thursday."* You: *"Thursday 12 November at 11am or 2:30pm?"*
 - They: *"2:30."* You: *"What name is it under?"*
 - Booked: *"That's booked, and a text is on its way."*
 
-Never like this: *"Great. Which cut would you like: ladies', men's or a child's, and a blow dry too? And what day suits you?"*
+Never like this: *"Great. Which BIAB would you like: natural nails or extensions, and a full set or an infill? And what day suits you?"*
 
 ## How to write things
 
@@ -269,7 +268,7 @@ export function buildChatSystem(
     CHAT_LABEL[channel]
   );
   const trade = tradeFor(cfg.businessTypes);
-  const stable = [inTradeExamples(inTradeWords(style, trade), trade.types[0]), composed.prompt].join("\n\n---\n\n");
+  const stable = [inTradeWords(style, trade), composed.prompt].join("\n\n---\n\n");
 
   const clock = new Intl.DateTimeFormat("en-GB", {
     timeZone: cfg.timeZone,

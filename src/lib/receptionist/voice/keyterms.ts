@@ -1,8 +1,8 @@
 /**
  * The words a general-purpose recogniser gets wrong on a salon's calls: its
  * own name, its stylists, the unusual words in its services, and the trade's
- * own vocabulary and brands. "Balayage" heard as "bally arj", or
- * "Siobhan" as "shove on", sends a booking to the wrong place, so Deepgram is
+ * own vocabulary and brands. "BIAB" heard as "bye ab", or "Siobhan" as
+ * "shove on", sends a booking to the wrong place, so Deepgram is
  * told to listen for them (Nova-3's keyterm prompting).
  *
  * Taken from the salon's settings when the call starts, so a stylist added in
@@ -21,56 +21,11 @@ import type { Trade } from "@/lib/business-types";
 export const MAX_KEYTERMS = 50;
 
 /**
- * Hairdressing words callers use that ordinary speech recognition mangles:
- * techniques, treatments, brands, and the skin test the booking rules turn
- * on. Everyday words ("cut", "trim", "colour") are left out on purpose: they
- * are heard fine already, and boosting short common words makes the
- * recogniser hear them where they were not said.
- */
-export const HAIRDRESSING_TERMS = [
-  // Brands and techniques first: the words most often misheard, so the last
-  // to be dropped if a salon's own list is long.
-  "Kérastase",
-  "L'Oréal",
-  "Wella",
-  "Redken",
-  "Olaplex",
-  "K18",
-  "balayage",
-  "babylights",
-  "ombré",
-  "lowlights",
-  "T-section",
-  "keratin treatment",
-  "Brazilian blow dry",
-  "patch test",
-  "skin test",
-  "toner",
-  "root tint",
-  "regrowth",
-  "half head",
-  "full head",
-  "foils",
-  "colour correction",
-  "bleach",
-  "blow dry",
-  "cut and finish",
-  "restyle",
-  "fringe trim",
-  "curtain fringe",
-  "skin fade",
-  "pixie cut",
-  "extensions",
-  "updo",
-  "bridal trial",
-];
-/**
  * Ordinary words in service names, which Deepgram hears fine already. A
- * service is listened for by its other words only: "Yuko straightening" by
- * "Yuko", "Olaplex treatment" by "Olaplex". Whole names made of these
- * ("Wash and blow dry, medium hair", "Children's cut age 0 to 6") took up
- * slots that brands and trade words then lost, and Deepgram advises boosting
- * only the words it gets wrong.
+ * service is listened for by its other words only: "Polygel full set" by
+ * "Polygel". Whole names made of these took up slots that brands and trade
+ * words then lost, and Deepgram advises boosting only the words it gets
+ * wrong. The trade adds its own (business-types.ts).
  */
 const EVERYDAY = new Set(
   (
@@ -100,10 +55,10 @@ export function salonKeyterms(input: {
   businessName?: string | null;
   stylists?: Pick<Stylist, "name">[];
   services?: Pick<SalonService, "name">[];
-  /** The salon's trade (business-types.ts): its words, and its everyday ones. Hair when unset. */
-  trade?: Pick<Trade, "keyterms" | "everyday">;
+  /** The salon's trade (business-types.ts): its words, and its everyday ones. */
+  trade: Pick<Trade, "keyterms" | "everyday">;
 }): string[] {
-  const everyday = input.trade?.everyday.length
+  const everyday = input.trade.everyday.length
     ? new Set([...EVERYDAY, ...input.trade.everyday.map((w) => w.toLowerCase())])
     : EVERYDAY;
   const candidates: string[] = [];
@@ -115,7 +70,7 @@ export function salonKeyterms(input: {
     if (first) candidates.push(first);
   }
   for (const s of input.services ?? []) candidates.push(...serviceWords(s.name, everyday));
-  candidates.push(...(input.trade?.keyterms ?? HAIRDRESSING_TERMS));
+  candidates.push(...input.trade.keyterms);
 
   const seen = new Set<string>();
   const out: string[] = [];

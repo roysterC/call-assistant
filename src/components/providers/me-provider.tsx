@@ -24,9 +24,7 @@ export interface Me {
   language: string | null;
   /** Their chosen clock ("12h", "24h"), or null to follow the language. */
   clock: string | null;
-  /** What the salon calls one of its team: "stylist", "nail technician" (business-types.ts). */
-  staff?: string;
-  /** The salon's main type ("hair", "nails"…), for examples in its own trade. */
+  /** The salon's trade: always "nails" (business-types.ts). */
   businessType?: string;
   /** All its types, main first: what the diary colours services by (service-colours.ts). */
   businessTypes?: BusinessType[];
