@@ -24,6 +24,7 @@ import { minutesTime } from "@/lib/i18n";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
 import { formatMoney } from "@/lib/money";
 import { combineServices, type SalonService } from "@/lib/salon-config";
+import type { SalonMenu } from "@/lib/nail-menu";
 import { ClientPicker, CloseButton, type ClientRow } from "./client-picker";
 import { BookingDetails, type BookingDraft } from "./booking-details";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
@@ -70,6 +71,8 @@ type Step =
 interface NewBookingDialogProps {
   slot: BookingSlot | null;
   services: SalonService[];
+  /** The salon\'s menu, to choose by treatment, finish and extras (nail-menu.ts). */
+  menu?: SalonMenu | null;
   stylists: string[];
   /** Salon zone, so the chosen wall-clock time is sent as the right instant. */
   timeZone: string;
@@ -100,6 +103,7 @@ function describeWhen(date: string, time: string, timeZone: string, locale: stri
 export function NewBookingDialog({
   slot,
   services,
+  menu,
   stylists,
   timeZone,
   dayAppointments,
@@ -219,6 +223,7 @@ export function NewBookingDialog({
           <BookingDetails
             client={step.client}
             services={services}
+            menu={menu}
             stylists={stylists}
             timeZone={timeZone}
             dayAppointments={dayAppointments}

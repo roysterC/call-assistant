@@ -106,10 +106,11 @@ describe("the types themselves", () => {
     expect(inTradeWords("a stylist", { staff: "stylist" })).toBe("a stylist");
   });
 
-  it("starts a new salon with a nail price list, unpriced and without skin tests", () => {
+  it("starts a new salon with a nail price list, priced only where the menu was, without skin tests", () => {
     const list = starterServices(["nails"]);
     expect(list.length).toBeGreaterThan(0);
-    expect(list.every((s) => s.priceMinor === null && !s.requiresPatchTest)).toBe(true);
+    expect(list.filter((s) => s.priceMinor !== null).every((s) => s.extra)).toBe(true);
+    expect(list.some((s) => s.requiresPatchTest)).toBe(false);
   });
 
   it("rebooks a new set as an infill that is on the same list", () => {

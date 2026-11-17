@@ -40,6 +40,15 @@ export interface SalonService {
    * service-colours.ts). Unset: worked out from its name.
    */
   group?: string;
+  /**
+   * An extra from the salon's menu (src/lib/nail-menu.ts): nail art, a
+   * removal. Booked only on top of a treatment, never on its own.
+   */
+  extra?: boolean;
+  /** Priced from a photo of the design: its price is where it starts. */
+  photoQuote?: boolean;
+  /** The menu treatment it was made from ("Acrylic"), for grouping lists. */
+  treatment?: string;
 }
 
 /** The weeks a rebooking text can be set to: a fortnight to six months. */
@@ -116,6 +125,7 @@ export function parseServices(raw: unknown): SalonService[] {
     const rebookAs = typeof e.rebookAs === "string" && e.rebookAs.trim() ? e.rebookAs.trim().slice(0, 120) : undefined;
     // The diary colour the salon chose (service-colours.ts); unset means worked out from the name.
     const group = typeof e.group === "string" && /^[a-z]{2,20}$/.test(e.group) ? e.group : undefined;
+    const treatment = typeof e.treatment === "string" && e.treatment.trim() ? e.treatment.trim().slice(0, 80) : undefined;
 
     seen.add(key);
     out.push({
@@ -126,6 +136,9 @@ export function parseServices(raw: unknown): SalonService[] {
       ...(rebookWeeks ? { rebookWeeks } : {}),
       ...(rebookWeeks && rebookAs ? { rebookAs } : {}),
       ...(group ? { group } : {}),
+      ...(e.extra === true ? { extra: true } : {}),
+      ...(e.photoQuote === true ? { photoQuote: true } : {}),
+      ...(treatment ? { treatment } : {}),
     });
   }
 
@@ -585,8 +598,7 @@ export function serviceIsStaffedOn(
  */
 export function describeServicesForPrompt(services: SalonService[]): string {
   if (services.length === 0) return "No services are configured.";
-  return services
-    .map((s) => {
+  const line = (s: SalonService) => {
       const hours = Math.floor(s.durationMinutes / 60);
       const mins = s.durationMinutes % 60;
       const dur =
@@ -597,9 +609,19 @@ export function describeServicesForPrompt(services: SalonService[]): string {
           : `${mins} minutes`;
       const patch = s.requiresPatchTest ? " (patch test for new clients)" : "";
       const price = s.priceMinor !== null ? `, from ${formatMoneyShort(s.priceMinor)}` : "";
-      return `- ${s.name} — about ${dur}${price}${patch}`;
-    })
-    .join("\n");
+      const photo = s.photoQuote ? " (priced from a photo of the design)" : "";
+      return `- ${s.name} — about ${dur}${price}${patch}${photo}`;
+  };
+  const main = services.filter((s) => !s.extra).map(line);
+  const extras = services.filter((s) => s.extra).map(line);
+  if (extras.length === 0) return main.join("\n");
+  // Extras (nail-menu.ts) add their time and price to the treatment they go on.
+  return [
+    ...main,
+    "",
+    "Extras, added on top of a treatment and never booked on their own: book them in the same booking as the treatment, naming both:",
+    ...extras,
+  ].join("\n");
 }
 
 const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

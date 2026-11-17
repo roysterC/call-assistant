@@ -167,7 +167,7 @@ export function SalonSite({
                 ))}
               </ul>
               {salon.services.some((s) => s.priceMinor !== null) && (
-                <p className="text-sm text-stone-600">Prices are a guide and can vary with hair length and thickness.</p>
+                <p className="text-sm text-stone-600">Prices are a guide: nail art and designs are priced individually.</p>
               )}
             </div>
           </section>

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api-fetch";
 import { salonDate, wallTimeToUtc } from "@/lib/calendar-layout";
 import { splitServiceText, type SalonService } from "@/lib/salon-config";
+import type { SalonMenu } from "@/lib/nail-menu";
 import { ClientPicker, type ClientRow } from "./client-picker";
 import { BookingDetails, type BookingDraft } from "./booking-details";
 import { BOOKING_CARD } from "./new-booking-dialog";
@@ -101,6 +102,8 @@ async function saveChanges(
 interface EditBookingDialogProps {
   appointment: CalendarAppointment | null;
   services: SalonService[];
+  /** The salon\'s menu, to choose by treatment, finish and extras (nail-menu.ts). */
+  menu?: SalonMenu | null;
   stylists: string[];
   timeZone: string;
   dayAppointments: CalendarAppointment[];
@@ -119,6 +122,7 @@ export function EditBookingDialog(props: EditBookingDialogProps) {
 function EditBooking({
   appointment: a,
   services,
+  menu,
   stylists,
   timeZone,
   dayAppointments,
@@ -197,6 +201,7 @@ function EditBooking({
             key={a.id}
             client={client}
             services={services}
+            menu={menu}
             stylists={stylists}
             timeZone={timeZone}
             dayAppointments={dayAppointments}

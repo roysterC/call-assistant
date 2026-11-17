@@ -108,8 +108,8 @@ export function serviceNotResolvedMessage(
   if (options.length > 1) {
     return (
       `${have}"${vague}" could be any of: ${options.map(name).join("; ")}. ` +
-      "Ask the caller which one, in plain words (for a blow dry or colour, how " +
-      "long their hair is), then use that exact service name. Do not pick one for them."
+      "Ask the caller which one, in plain words (for nails, which treatment and " +
+      "which finish), then use that exact service name. Do not pick one for them."
     );
   }
   if (options.length === 1) {

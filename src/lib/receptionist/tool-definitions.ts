@@ -122,10 +122,10 @@ const CHECK_AVAILABILITY: ToolDefinition = {
         service: {
           type: "string",
           description:
-            "Everything the caller wants done, e.g. 'cut and finish', " +
-            "'balayage'. Required — it determines how long is needed. If " +
+            "Everything the caller wants done, e.g. 'BIAB infill, colour', " +
+            "'Manicure, gel'. Required — it determines how long is needed. If " +
             "they asked for more than one thing, name them all in one " +
-            "string: 'haircut and balayage'. Checking for only one of them " +
+            "string: 'Manicure, gel and Pedicure, gel colour'. Checking for only one of them " +
             "offers a time too short for the work.",
         },
         timeOfDay: {
@@ -230,7 +230,7 @@ const BOOKING_DETAILS: ToolDefinition = {
           type: "string",
           description:
             "Everything being booked. If the caller asked for more than one " +
-            "thing, name them all in one string — 'haircut and balayage' — " +
+            "thing, name them all in one string — 'Acrylic infill, French tip and Nail art, tier 2' — " +
             "exactly as you checked availability for. Booking one of two " +
             "services puts half the appointment in the diary.",
         },

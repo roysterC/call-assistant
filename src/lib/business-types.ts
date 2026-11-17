@@ -18,6 +18,7 @@
  */
 
 import type { SalonService } from "@/lib/salon-config";
+import { flattenMenu, STARTER_MENU, type SalonMenu } from "@/lib/nail-menu";
 
 export const BUSINESS_TYPES = ["nails"] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
@@ -50,8 +51,8 @@ export interface BusinessProfile {
   everyday: readonly string[];
   /** Phone rules for this trade only, as bullet lines. */
   phoneRules: readonly string[];
-  /** A new salon's price list: names and lengths, prices left for the salon. */
-  starterServices: readonly Omit<SalonService, "priceMinor">[];
+  /** A new salon's price list (nail-menu.ts): lengths, prices mostly left for the salon. */
+  starterMenu: SalonMenu;
 }
 
 /** Walk-ins: answered when asked about, never suggested (Roy, Nov 2026). */
@@ -102,35 +103,7 @@ const NAILS: BusinessProfile = {
       " "
     ),
   phoneRules: [WALK_INS],
-  // The demo salon's own menu (Nov 2026), one service per treatment and
-  // finish. Unpriced: the salon fills in its prices.
-  starterServices: [
-    { name: "Acrylic full set, gel colour", durationMinutes: 75, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill, gel colour" },
-    { name: "Acrylic full set, French tip", durationMinutes: 85, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill, French tip" },
-    { name: "Acrylic infill, gel colour", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3 },
-    { name: "Acrylic infill, French tip", durationMinutes: 70, requiresPatchTest: false, rebookWeeks: 3 },
-    { name: "Acrylic take off & redo, gel colour", durationMinutes: 90, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill, gel colour" },
-    { name: "Acrylic take off & redo, French tip", durationMinutes: 100, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "Acrylic infill, French tip" },
-    { name: "Acrylic take off only", durationMinutes: 30, requiresPatchTest: false },
-    { name: "BIAB full set, colour", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "BIAB infill, colour" },
-    { name: "BIAB full set, French tip", durationMinutes: 70, requiresPatchTest: false, rebookWeeks: 3, rebookAs: "BIAB infill, French tip" },
-    { name: "BIAB infill, colour", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 3 },
-    { name: "BIAB infill, French tip", durationMinutes: 70, requiresPatchTest: false, rebookWeeks: 3 },
-    { name: "Manicure with gel", durationMinutes: 55, requiresPatchTest: false, rebookWeeks: 3 },
-    { name: "Manicure with colour", durationMinutes: 50, requiresPatchTest: false, rebookWeeks: 2 },
-    { name: "Manicure, no colour", durationMinutes: 45, requiresPatchTest: false },
-    { name: "Pedicure, gel colour", durationMinutes: 60, requiresPatchTest: false, rebookWeeks: 4 },
-    { name: "Pedicure, French tip", durationMinutes: 65, requiresPatchTest: false, rebookWeeks: 4 },
-    { name: "Pedicure, normal colour", durationMinutes: 55, requiresPatchTest: false, rebookWeeks: 4 },
-    { name: "Pedicure, no colour", durationMinutes: 50, requiresPatchTest: false },
-    { name: "Toenail colour change", durationMinutes: 20, requiresPatchTest: false },
-    { name: "Toenail extension", durationMinutes: 10, requiresPatchTest: false },
-    { name: "Toenail designs", durationMinutes: 15, requiresPatchTest: false },
-    { name: "Gel removal", durationMinutes: 15, requiresPatchTest: false },
-    { name: "Nail art tier 1", durationMinutes: 10, requiresPatchTest: false },
-    { name: "Nail art tier 2", durationMinutes: 20, requiresPatchTest: false },
-    { name: "Nail art tier 3", durationMinutes: 40, requiresPatchTest: false },
-  ],
+  starterMenu: STARTER_MENU,
 };
 
 export const PROFILES: Record<BusinessType, BusinessProfile> = {
@@ -217,16 +190,13 @@ export function inTradeWords(text: string, trade: Pick<Trade, "staff">): string 
   });
 }
 
-/** A new salon's price list, from all its types, unpriced. */
-export function starterServices(types: readonly BusinessType[]): SalonService[] {
-  const seen = new Set<string>();
-  const out: SalonService[] = [];
-  for (const t of types) {
-    for (const s of PROFILES[t].starterServices) {
-      if (seen.has(s.name.toLowerCase())) continue;
-      seen.add(s.name.toLowerCase());
-      out.push({ ...s, priceMinor: null });
-    }
-  }
-  return out;
+/** A new salon's menu (nail-menu.ts): every salon is a nail salon. */
+export function starterMenu(types?: readonly BusinessType[]): SalonMenu {
+  void types;
+  return structuredClone(PROFILES.nails.starterMenu);
+}
+
+/** A new salon's flat price list, made from its menu. */
+export function starterServices(types?: readonly BusinessType[]): SalonService[] {
+  return flattenMenu(starterMenu(types));
 }

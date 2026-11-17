@@ -255,6 +255,10 @@ model OrganizationSettings {
   // every message has to say where to ring if the time does not suit.
   contactPhone            String?
   services                Json         @default("[]")
+  // The price list as treatments, finishes and extras (src/lib/nail-menu.ts).
+  // When set, `services` is made from it on every save; null when the list
+  // was last written flat, and a menu is then made from `services` to show.
+  menu                    Json?
   // Voice prompt body, matching the per-channel convention used by
   // whatsappSystemPrompt / instagramSystemPrompt / facebookSystemPrompt. The
   // availability stance and opening hours are generated and prepended at sync

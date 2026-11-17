@@ -13,6 +13,8 @@ import {
   parseStylists,
   type Stylist,
 } from "@/lib/salon-config";
+import { Prisma } from "@/generated/prisma/client";
+import { flattenMenu, menuOf, parseMenu } from "@/lib/nail-menu";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { featureFlags, resolveStartPage } from "@/lib/navigation";
 import { contactNumberForTexts } from "@/lib/phone";
@@ -53,6 +55,8 @@ const WRITABLE_FIELDS = [
   "businessHours",
   "timezone",
   "services",
+  // The price list as treatments (src/lib/nail-menu.ts): `services` is made from it.
+  "menu",
   "voiceSystemPrompt",
   // The salon's FAQ, read by the receptionist and the chat bots.
   "salonFaq",
@@ -112,7 +116,19 @@ function sanitiseSettingsPayload(
   }
 
   if ("businessHours" in out) out.businessHours = parseBusinessHours(out.businessHours);
-  if ("services" in out) out.services = parseServices(out.services);
+  // The menu is the price list and the flat services are made from it, so
+  // the two cannot disagree. A flat list written on its own (an older screen)
+  // clears the menu, and one is then made from the list to show.
+  if ("menu" in out) {
+    const menu = parseMenu(out.menu);
+    if (menu) {
+      out.menu = menu;
+      out.services = flattenMenu(menu);
+    } else delete out.menu;
+  } else if ("services" in out) {
+    out.services = parseServices(out.services);
+    out.menu = Prisma.DbNull;
+  }
   if ("timezone" in out) out.timezone = parseTimezone(out.timezone);
   // teamMembers carries stylist calendar ids and working days now, so it goes
   // through the same treatment rather than being stored as arbitrary JSON.
@@ -186,6 +202,14 @@ function withoutSecrets<T extends Record<string, unknown>>(settings: T): T {
   return out as T;
 }
 
+/**
+ * The settings as the screens read them: keys masked for anyone but Kikai,
+ * and always a menu, made from the services where none is saved.
+ */
+function forClient<T extends Record<string, unknown>>(settings: T, superAdmin: boolean) {
+  return { ...(superAdmin ? settings : withoutSecrets(settings)), menu: menuOf(settings) };
+}
+
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
@@ -225,7 +249,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({
-      settings: ctx.isSuperAdmin ? settings : withoutSecrets(settings),
+      settings: forClient(settings, ctx.isSuperAdmin),
       // Onboarding first (src/app/onboarding), until the owner finishes it.
       // Never for a super-admin, who sets salons up from Admin instead.
       startPage: org?.needsOnboarding && !ctx.isSuperAdmin ? "/onboarding" : startPage,
@@ -337,7 +361,7 @@ export async function PUT(req: NextRequest) {
 
     // The same masking as GET: an owner saving their hours must not get the
     // salon's keys back in the response.
-    return NextResponse.json({ settings: ctx.isSuperAdmin ? settings : withoutSecrets(settings) });
+    return NextResponse.json({ settings: forClient(settings, ctx.isSuperAdmin) });
   } catch (error) {
     console.error("[SETTINGS API] PUT error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

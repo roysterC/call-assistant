@@ -159,6 +159,12 @@ export const diary = {
   "form.stylist": ["Nail technician", "Thợ"],
   "form.choose": ["Choose", "Chọn"],
   "form.services": ["Services", "Dịch vụ"],
+  // Choosing from the menu (menu-picker.tsx).
+  "form.treatment": ["Treatment", "Nhóm dịch vụ"],
+  "form.chosen": ["chosen", "đã chọn"],
+  "form.finish": ["Finish", "Kiểu hoàn thiện"],
+  "form.extras": ["Extras (any)", "Dịch vụ phụ (tuỳ chọn)"],
+  "form.photoQuote": ["price from a photo", "báo giá qua ảnh"],
   "form.minutesPrice": ["Minutes · Price", "Phút · Giá"],
   "form.serviceN": ["Service {n}", "Dịch vụ {n}"],
   "form.chooseService": ["Choose a service", "Chọn dịch vụ"],
