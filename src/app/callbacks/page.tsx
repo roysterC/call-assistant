@@ -93,6 +93,14 @@ export default function CallbacksPage() {
     void load(view);
   }, [view, load]);
 
+  // Opened from a notification (?c=…): that callback, open.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("c");
+    if (!wanted) return;
+    setSelectedId(wanted);
+    setSheetOpen(true);
+  }, []);
+
   // New callbacks show without a refresh: when the menu's count changes
   // (checked every minute, on focus, and at once on a push), every minute
   // while the page is on screen, and when the window comes back into focus.

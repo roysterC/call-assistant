@@ -46,6 +46,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { callbacksChanged, usePendingCallbacks } from "@/lib/use-pending-callbacks";
+import { useNotifications } from "@/lib/use-notifications";
+import { NotificationsBell } from "@/components/notifications/notifications-panel";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
 import { OPEN_ASSISTANT } from "@/components/voice-booking/assistant";
@@ -105,6 +107,10 @@ function useNavModel() {
   const [features, setFeatures] = useState<FeatureFlags | null>(null);
   // The counter beside Callbacks.
   const pending = usePendingCallbacks(Boolean(features?.diaryEnabled));
+  // And beside the Diary (new bookings) and Conversations (quotes waiting).
+  const waiting = useNotifications(Boolean(session?.user?.id));
+  const badgeFor = (href: string): number =>
+    href === "/callbacks" ? pending : href === "/calendar" ? waiting.counts.booking : href === "/conversations" ? waiting.counts.quote : 0;
   useEffect(() => {
     // Another organisation (super-admin switcher): its own count.
     callbacksChanged();
@@ -179,6 +185,7 @@ function useNavModel() {
     switchOrg,
     orgName,
     pending,
+    badgeFor,
     primary,
     more,
     settings,
@@ -248,14 +255,14 @@ function Sidebar({
   collapsed: boolean;
   onToggleCollapsed?: () => void;
 }) {
-  const { user, role, isSuperAdmin, asOrg, orgs, activeOrg, switchOrg, orgName, pending, primary, more, settings } = model;
+  const { user, role, isSuperAdmin, asOrg, orgs, activeOrg, switchOrg, orgName, primary, more, settings } = model;
   /** Hidden on the folded rail. */
   const wide = collapsed ? "hidden" : "";
   /** Hidden on the folded rail but still taking its space, so nothing below moves. */
   const keep = collapsed ? "invisible" : "";
   const { t } = useT();
   const [moreOpen, setMoreOpen] = useMoreOpen(model.inMore);
-  const callbacksUnderMore = more.some((p) => p.href === "/callbacks") ? pending : 0;
+  const callbacksUnderMore = more.reduce((n, p) => n + model.badgeFor(p.href), 0);
 
   return (
     <aside
@@ -305,6 +312,8 @@ function Sidebar({
       </div>
 
       <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 pb-3 space-y-1 [scrollbar-width:thin]">
+        {/* Everything waiting on them, in one place. */}
+        <NotificationsBell variant="menu" collapsed={collapsed} />
         {primary.map((item) => (
           <NavLink key={item.href} item={item} model={model} collapsed={collapsed} big />
         ))}
@@ -455,7 +464,7 @@ function NavLink({
 }) {
   const { t } = useT();
   const active = model.isActive(item.href);
-  const badge = item.href === "/callbacks" && model.pending > 0 ? model.pending : 0;
+  const badge = model.badgeFor(item.href);
   const label = t(item.labelKey);
   return (
     <Link
@@ -546,11 +555,11 @@ const TAB_LABEL: Record<string, MessageKey> = { "/conversations": "nav.chats" };
 function MobileTabs({ model }: { model: NavModel }) {
   const { t } = useT();
   const [moreOpen, setMoreOpen] = useState(false);
-  const { pathname, primary, more, settings, pending, navSuffix } = model;
+  const { pathname, primary, more, settings, navSuffix } = model;
   // The bar holds four or five; any further page up front waits under More.
   const tabs = primary.slice(0, 3);
   const sheet = [...primary.slice(3), ...more, ...(settings ? [settings] : [])];
-  const callbacksInSheet = sheet.some((p) => p.href === "/callbacks") ? pending : 0;
+  const callbacksInSheet = sheet.reduce((n, p) => n + model.badgeFor(p.href), 0);
   const sheetActive = sheet.some((p) => model.isActive(p.href));
 
   // Any page change, the sheet's own links included, closes it.
@@ -585,7 +594,7 @@ function MobileTabs({ model }: { model: NavModel }) {
             <nav aria-label={t("nav.morePages")} className="grid grid-cols-4 gap-1">
               {sheet.map((item) => {
                 const active = model.isActive(item.href);
-                const badge = item.href === "/callbacks" ? pending : 0;
+                const badge = model.badgeFor(item.href);
                 const label = t(item.labelKey);
                 return (
                   <Link
@@ -657,6 +666,12 @@ function MobileTabs({ model }: { model: NavModel }) {
             icon={item.icon}
             label={t(TAB_LABEL[item.href] ?? item.labelKey)}
             active={model.isActive(item.href) && !moreOpen}
+            dot={model.badgeFor(item.href) > 0}
+            dotLabel={
+              model.badgeFor(item.href) > 0
+                ? t("nav.waiting", { label: t(TAB_LABEL[item.href] ?? item.labelKey), n: model.badgeFor(item.href) })
+                : undefined
+            }
           />
         ))}
         <Tab
@@ -674,7 +689,7 @@ function MobileTabs({ model }: { model: NavModel }) {
             active={moreOpen || sheetActive}
             expanded={moreOpen}
             dot={callbacksInSheet > 0}
-            dotLabel={callbacksInSheet > 0 ? t("nav.callbacksWaiting", { n: callbacksInSheet }) : undefined}
+            dotLabel={callbacksInSheet > 0 ? t("nav.waiting", { label: t("nav.more"), n: callbacksInSheet }) : undefined}
             onClick={() => setMoreOpen(!moreOpen)}
           />
         )}

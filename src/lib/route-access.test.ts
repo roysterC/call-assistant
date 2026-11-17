@@ -20,6 +20,8 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   appointments: { GET: "members", PATCH: "members", POST: "members" },
   // Each person's own pop-ups and "new" colours.
   "booking-notices": { GET: "members", POST: "members" },
+  // The bell: what is waiting on this person.
+  "notifications": { GET: "members" },
   callbacks: { GET: "members", PATCH: "members" },
   quotes: { GET: "members" },
   "quotes/[id]/send": { POST: "members" },

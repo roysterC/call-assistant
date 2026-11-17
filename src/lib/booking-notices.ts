@@ -65,13 +65,13 @@ export async function noticeNewBooking(organizationId: string, booking: NoticeBo
 const SHOWN = 3;
 
 /** The pop-ups this person has not closed yet, newest first. */
-export async function openNotices(userId: string, organizationId: string) {
+export async function openNotices(userId: string, organizationId: string, limit = SHOWN) {
   const where = { userId, organizationId, dismissedAt: null };
   const [rows, total] = await Promise.all([
     prisma.bookingNotice.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      take: SHOWN,
+      take: limit,
       select: {
         id: true,
         createdAt: true,

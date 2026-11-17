@@ -8,6 +8,7 @@ import { BrandMark, Navigation } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
 import { BookingAlerts } from "@/components/notifications/booking-alerts";
 import { QuoteAlerts } from "@/components/notifications/quote-alerts";
+import { NotificationsBell, NotificationsRuntime } from "@/components/notifications/notifications-panel";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -53,6 +54,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
       <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <BrandMark size="sm" alt="" />
         <span className="flex-1 font-heading font-semibold text-[0.95rem] tracking-tight truncate text-cornsilk-500">Kikai</span>
+        <NotificationsBell variant="header" />
         <LanguageFlags tone="dark" />
       </header>
 
@@ -67,6 +69,8 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         <BookingAlerts />
         {/* Clients waiting for a price on their designs. */}
         <QuoteAlerts />
+        {/* The count in the tab's title and on the app's icon, and the chime. */}
+        <NotificationsRuntime />
 
         {/* On a phone, clear of the tab bar along the bottom. */}
         <main className="flex-1 overflow-auto min-w-0 max-md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
