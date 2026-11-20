@@ -589,9 +589,8 @@ function MobileTabs({ model }: { model: NavModel }) {
             id="nav-more-sheet"
             role="region"
             aria-label={t("nav.morePages")}
-            className="fixed inset-x-0 z-40 bottom-[calc(4rem+env(safe-area-inset-bottom))] rounded-t-[28px] bg-card px-4 pt-2.5 pb-4 shadow-raised animate-in fade-in-0 slide-in-from-bottom-4 duration-200"
+            className="fixed inset-x-4 z-40 bottom-[calc(68px+0.75rem+max(0.75rem,env(safe-area-inset-bottom)))] rounded-[28px] bg-card p-4 shadow-raised animate-in fade-in-0 slide-in-from-bottom-4 duration-200"
           >
-            <div aria-hidden className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-tea-green-600" />
             <nav aria-label={t("nav.morePages")} className="grid grid-cols-4 gap-1">
               {sheet.map((item) => {
                 const active = model.isActive(item.href);
@@ -656,9 +655,10 @@ function MobileTabs({ model }: { model: NavModel }) {
         </>
       )}
 
+      {/* A pill floating clear of the screen's edges, over the page. */}
       <nav
         aria-label={t("nav.menu")}
-        className="fixed inset-x-0 bottom-0 z-50 flex h-[calc(4rem+env(safe-area-inset-bottom))] items-start border-t border-sidebar-border bg-sidebar pb-[env(safe-area-inset-bottom)] text-sidebar-foreground"
+        className="fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex h-[68px] items-center gap-0.5 rounded-[34px] bg-sidebar p-1.5 text-sidebar-foreground shadow-[0_14px_34px_rgb(45_51_26/0.32),0_2px_6px_rgb(45_51_26/0.2)]"
       >
         {tabs.map((item) => (
           <Tab
@@ -721,22 +721,27 @@ function Tab({
 }) {
   const body = (
     <>
-      <span
-        className={cn(
-          "relative flex h-8 w-14 items-center justify-center rounded-full transition-colors",
-          active ? "bg-sidebar-accent text-cornsilk-500" : "text-tea-green-400"
-        )}
-      >
+      <span className="relative flex items-center justify-center">
         <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2 : 1.75} />
         {dot && (
-          <span aria-hidden className="absolute top-0.5 right-2.5 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2 ring-sidebar" />
+          <span
+            aria-hidden
+            className={cn(
+              "absolute -top-0.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2",
+              active ? "ring-sidebar-accent" : "ring-sidebar"
+            )}
+          />
         )}
       </span>
-      <span className={cn("text-[11px] leading-none", active ? "font-semibold text-cornsilk-500" : "font-medium")}>{label}</span>
+      <span className={cn("text-[11px] leading-none", active ? "font-bold" : "font-semibold")}>{label}</span>
       {dotLabel && <span className="sr-only">{dotLabel}</span>}
     </>
   );
-  const className = "flex h-16 flex-1 flex-col items-center justify-center gap-1 min-w-0";
+  // The page you are on sits in a bubble of its own inside the pill.
+  const className = cn(
+    "flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-[28px] transition-colors",
+    active ? "bg-sidebar-accent text-cornsilk-500" : "text-tea-green-400 active:bg-white/8"
+  );
   return href ? (
     <Link href={href} replace aria-current={active ? "page" : undefined} className={className}>
       {body}
