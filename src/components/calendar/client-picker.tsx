@@ -131,9 +131,9 @@ export function ClientPicker({
   const { t, locale } = useT();
   const typed = q.trim();
 
-  useEffect(() => {
-    if (mode === "search") searchRef.current?.focus();
-  }, [mode]);
+  // No focus on the search box when it opens: on a phone that brings the
+  // keyboard up over the recent clients and the New client and Walk-in
+  // buttons. Tapping the box is one tap away.
 
   // Debounced, and each response checked against the request that is still
   // wanted: typing "sio" then "siobhan" must not let the slower "sio" reply
@@ -402,7 +402,6 @@ function NewClientForm({
             id="client-first"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            autoFocus
             required
           />
         </Field>
