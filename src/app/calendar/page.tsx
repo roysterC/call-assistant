@@ -968,6 +968,10 @@ export default function CalendarPage() {
         state={blockDialog}
         stylists={stylistNames}
         timeZone={timeZone}
+        closingTime={(date) => {
+          const row = hours.find((h) => h.day === weekdayOf(date));
+          return row && !row.closed ? (row.close ?? null) : null;
+        }}
         onClose={() => setBlockDialog(null)}
         onSaved={() => {
           loadDay();
