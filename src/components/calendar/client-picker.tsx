@@ -402,7 +402,6 @@ function NewClientForm({
             id="client-first"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            autoFocus
             required
           />
         </Field>
