@@ -73,7 +73,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         <NotificationsRuntime />
 
         {/* On a phone, clear of the tab bar along the bottom. */}
-        <main className="flex-1 overflow-auto min-w-0 max-md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
+        <main className="flex-1 overflow-auto min-w-0 max-md:pb-[calc(68px+1.5rem+max(0.75rem,env(safe-area-inset-bottom)))]">
           {isFullWidth ? (
             <div className="h-full">{children}</div>
           ) : (

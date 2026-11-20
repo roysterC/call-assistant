@@ -513,7 +513,7 @@ export function Assistant() {
           role="dialog"
           aria-label={t("assistant.panel")}
           // Above the phone's tab bar; in the corner from md up.
-          className="fixed z-40 inset-x-2 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] sm:inset-x-auto sm:right-6 sm:w-[400px] md:bottom-6 max-h-[75vh] flex flex-col rounded-xl border border-border bg-card shadow-raised"
+          className="fixed z-40 inset-x-2 bottom-[calc(68px+1.25rem+max(0.75rem,env(safe-area-inset-bottom)))] sm:inset-x-auto sm:right-6 sm:w-[400px] md:bottom-6 max-h-[75vh] flex flex-col rounded-xl border border-border bg-card shadow-raised"
         >
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
             <Sparkles className="h-4 w-4 text-primary" />

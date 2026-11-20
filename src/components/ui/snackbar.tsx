@@ -97,7 +97,7 @@ export function SnackbarHost() {
   return (
     <Toast.Provider toastManager={snackbars} limit={3}>
       <Toast.Portal>
-        <Toast.Viewport className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-[60] w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 md:bottom-6">
+        <Toast.Viewport className="fixed bottom-[calc(68px+1.5rem+max(0.75rem,env(safe-area-inset-bottom)))] left-1/2 z-[60] w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 md:bottom-6">
           <Snacks />
         </Toast.Viewport>
       </Toast.Portal>
