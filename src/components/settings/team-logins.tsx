@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Mail, Send, Trash2, UserPlus } from "lucide-react";
+import { Check, Copy, Link2, Loader2, Mail, Send, Trash2, UserPlus } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import { LanguageFlags } from "@/components/i18n/language-flags";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { useLanguage, useT } from "@/components/providers/language-provider";
 import type { Lang } from "@/lib/i18n";
+import { INVITE_DAYS } from "@/lib/invite-status";
 
 interface Login {
   id: string;
@@ -50,6 +51,9 @@ export function TeamLogins({ salon }: { salon: string }) {
   const [email, setEmail] = useState("");
   const [language, setLanguage] = useState<Lang>(lang);
   const [busy, setBusy] = useState(false);
+  // A link made for someone, shown once (email isn't set up, or didn't go).
+  const [link, setLink] = useState<{ email: string; url: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     const res = await apiFetch("/api/team-logins");
@@ -69,15 +73,20 @@ export function TeamLogins({ salon }: { salon: string }) {
     }
   }, [loaded]);
 
-  async function call(url: string, init: RequestInit, success?: string): Promise<boolean> {
+  async function call(
+    url: string,
+    init: RequestInit,
+    success?: string,
+    onDone?: (d: { link?: string }) => void
+  ): Promise<boolean> {
     setBusy(true);
     try {
       const res = await apiFetch(url, init);
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
         notify(
-          d.code === "noEmail"
-            ? t("logins.noEmail")
+          d.code === "send"
+            ? t("logins.sendFailed")
             : d.code === "taken"
               ? t("inv.err.taken")
               : d.code === "email"
@@ -88,6 +97,7 @@ export function TeamLogins({ salon }: { salon: string }) {
         );
         return false;
       }
+      onDone?.(d);
       if (success) notify(success, "success");
       await load();
       return true;
@@ -99,14 +109,28 @@ export function TeamLogins({ salon }: { salon: string }) {
     }
   }
 
-  async function invite() {
-    const to = email.trim();
-    const ok = await call(
+  /** Email the invitation, or with `asLink` make a link for the owner to send. */
+  async function invite(to: string, lang: string, asLink: boolean): Promise<boolean> {
+    const viaLink = asLink || !data?.canEmail;
+    return call(
       "/api/team-logins",
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: to, language }) },
-      t("logins.sent", { email: to })
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: to, language: lang, delivery: viaLink ? "link" : "email" }),
+      },
+      viaLink ? undefined : t("logins.sent", { email: to }),
+      (d) => {
+        if (d.link) {
+          setCopied(false);
+          setLink({ email: to, url: d.link });
+        }
+      }
     );
-    if (ok) {
+  }
+
+  async function submit(asLink: boolean) {
+    if (await invite(email.trim(), language, asLink)) {
       setInviting(false);
       setEmail("");
     }
@@ -129,7 +153,7 @@ export function TeamLogins({ salon }: { salon: string }) {
       <CardHeader className="border-b pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">{t("logins.title")}</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setInviting(true)} disabled={!data?.canEmail}>
+          <Button size="sm" variant="outline" onClick={() => setInviting(true)} disabled={!data}>
             <UserPlus className="mr-1.5 h-4 w-4" />
             {t("logins.invite")}
           </Button>
@@ -181,17 +205,24 @@ export function TeamLogins({ salon }: { salon: string }) {
                   <p className="truncate text-sm font-medium">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">{t("logins.pending")}</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy || !data.canEmail}
-                  onClick={() =>
-                    call(`/api/team-logins/invitations/${inv.id}`, { method: "POST" }, t("logins.sent", { email: inv.email }))
-                  }
-                >
-                  <Send className="mr-1.5 h-3.5 w-3.5" />
-                  {t("logins.resend")}
-                </Button>
+                {data.canEmail ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      call(`/api/team-logins/invitations/${inv.id}`, { method: "POST" }, t("logins.sent", { email: inv.email }))
+                    }
+                  >
+                    <Send className="mr-1.5 h-3.5 w-3.5" />
+                    {t("logins.resend")}
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => invite(inv.email, inv.language, true)}>
+                    <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                    {t("logins.newLink")}
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="ghost"
@@ -210,7 +241,7 @@ export function TeamLogins({ salon }: { salon: string }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("logins.inviteTitle")}</DialogTitle>
-            <DialogDescription>{t("logins.inviteIntro")}</DialogDescription>
+            <DialogDescription>{t(data?.canEmail ? "logins.inviteIntro" : "logins.inviteIntroLink")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
@@ -229,13 +260,53 @@ export function TeamLogins({ salon }: { salon: string }) {
               <LanguageFlags value={language} onChange={setLanguage} />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-wrap gap-2">
             <Button variant="outline" onClick={() => setInviting(false)}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={invite} disabled={busy || !email.trim()}>
+            {data?.canEmail && (
+              <Button variant="outline" onClick={() => submit(true)} disabled={busy || !email.trim()}>
+                <Link2 className="mr-1.5 h-4 w-4" />
+                {t("logins.linkInstead")}
+              </Button>
+            )}
+            <Button onClick={() => submit(false)} disabled={busy || !email.trim()}>
               {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              {t("logins.send")}
+              {t(data?.canEmail ? "logins.send" : "logins.makeLink")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={link !== null} onOpenChange={(open) => !open && setLink(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("logins.linkTitle", { email: link?.email ?? "" })}</DialogTitle>
+            <DialogDescription>{t("logins.linkBody", { days: INVITE_DAYS })}</DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2">
+            <Input
+              value={link?.url ?? ""}
+              readOnly
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label={t("logins.linkLabel")}
+              className="font-mono text-xs"
+            />
+            <Button
+              type="button"
+              onClick={async () => {
+                if (!link) return;
+                await navigator.clipboard.writeText(link.url).catch(() => {});
+                setCopied(true);
+              }}
+            >
+              {copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}
+              {t(copied ? "logins.copied" : "logins.copy")}
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLink(null)}>
+              {t("common.close")}
             </Button>
           </DialogFooter>
         </DialogContent>

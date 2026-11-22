@@ -24,6 +24,7 @@ import {
   type SalonConfig,
 } from "@/lib/booking";
 import { normalisePhone } from "@/lib/phone";
+import { serviceIsStaffedOn, stylistWorksOn } from "@/lib/salon-config";
 import { addCalendarDays, zonedDateString } from "@/lib/business-hours";
 import { normaliseCallerName } from "@/lib/caller-name";
 import { handleBookAppointment } from "@/lib/receptionist/booking";
@@ -162,7 +163,13 @@ export async function onlineAvailability(
 
   // The window stops at the last day the salon takes online bookings for,
   // so the engine is never asked past it.
-  const days = groupSlotsByDay(slots, window, online.salon.timeZone, online.salon.hours);
+  // A day nobody who does it works is "off", not "full": it'll be the same
+  // next week, so a client shouldn't keep trying it.
+  const rostered = online.cfg.stylists.find((s) => s.name === stylist);
+  const configured = online.cfg.services.find((s) => s.name === service.name);
+  const staffed = (weekday: number) =>
+    rostered ? stylistWorksOn(rostered, weekday) : configured ? serviceIsStaffedOn(configured, online.cfg.stylists, weekday) : true;
+  const days = groupSlotsByDay(slots, window, online.salon.timeZone, online.salon.hours, staffed);
   const nextFrom = addCalendarDays(window.from, window.days);
   const next = nextFrom <= window.lastDate ? nextFrom : null;
   return { ok: true, days, from: window.from, next, lastDate: window.lastDate };

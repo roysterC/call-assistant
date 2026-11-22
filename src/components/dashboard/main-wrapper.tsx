@@ -65,10 +65,14 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
 
         {/* The personal assistant: on every signed-in page. */}
         <Assistant />
-        {/* The receptionist's new bookings, until each is closed or opened. */}
-        <BookingAlerts />
-        {/* Clients waiting for a price on their designs. */}
-        <QuoteAlerts />
+        {/* Pop-ups, stacked in one corner so they never sit on each other: top
+            right, clear of the assistant's button; across the top on a phone. */}
+        <div className="pointer-events-none fixed inset-x-2 top-16 z-50 flex flex-col gap-2 md:inset-x-auto md:right-4 md:top-4 md:w-[360px] [&>*]:pointer-events-auto">
+          {/* Clients waiting for a price on their designs. */}
+          <QuoteAlerts />
+          {/* The receptionist's new bookings, until each is closed or opened. */}
+          <BookingAlerts />
+        </div>
         {/* The count in the tab's title and on the app's icon, and the chime. */}
         <NotificationsRuntime />
 

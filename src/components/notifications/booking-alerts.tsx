@@ -5,8 +5,9 @@
  * the person closes it or opens the booking: nothing times out, so a booking
  * taken while they were with a client is still there when they look up.
  *
- * Top right, clear of the assistant's button in the bottom corner; across
- * the top on a phone.
+ * Top right, clear of the assistant's button in the bottom corner. On a
+ * phone, one slim row across the top (the newest, with View and close) and
+ * the count under it, so the page underneath stays usable.
  */
 
 import { useEffect } from "react";
@@ -110,33 +111,37 @@ export function BookingAlerts() {
     <section
       aria-label={t("alerts.region")}
       aria-live="polite"
-      className="fixed z-50 inset-x-2 top-16 md:inset-x-auto md:top-4 md:right-4 md:w-[360px] flex flex-col gap-2"
+      className="flex flex-col gap-2"
       data-testid="booking-alerts"
     >
       {notices.map((n, i) => (
         <article
           key={n.id}
           className={cn(
-            "rounded-xl border border-border border-l-4 bg-card p-3 shadow-raised animate-in fade-in-0 slide-in-from-top-2",
+            "rounded-xl border border-border border-l-4 bg-card px-2.5 py-2 shadow-raised animate-in fade-in-0 slide-in-from-top-2 md:p-3",
             // A phone shows the newest only; the rest are counted below it.
             i > 0 && "hidden md:block"
           )}
           style={{ borderLeftColor: NEW_BOOKING.border }}
         >
-          <div className="flex items-start gap-2">
-            <CalendarPlus className="mt-0.5 h-4 w-4 shrink-0" style={{ color: NEW_BOOKING.border }} aria-hidden />
+          <div className="flex items-center gap-2 md:items-start">
+            <CalendarPlus className="h-4 w-4 shrink-0 md:mt-0.5" style={{ color: NEW_BOOKING.border }} aria-hidden />
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="hidden text-[11px] font-semibold uppercase tracking-wide text-muted-foreground md:block">
                 {t("alerts.newBooking", { ago: ago(n.createdAt, t) })}
               </p>
-              <p className="mt-0.5 font-semibold truncate">{n.clientName}</p>
-              <p className="text-sm truncate">{n.serviceText}</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="truncate text-sm font-semibold md:mt-0.5 md:text-base">{n.clientName}</p>
+              <p className="hidden truncate text-sm md:block">{n.serviceText}</p>
+              <p className="truncate text-xs text-muted-foreground md:whitespace-normal md:text-sm">
                 {t("alerts.withStylist", { when: when(n.startsAt, timeZone, lang, clock), stylist: n.stylistName })}
                 {n.bookingNumber ? ` · #${n.bookingNumber}` : ""}
               </p>
               {n.status === "cancelled" && <p className="mt-1 text-xs font-medium text-rose-600">{t("alerts.sinceCancelled")}</p>}
             </div>
+            {/* A phone's one row: View beside the text. */}
+            <Button size="sm" className="md:hidden" onClick={() => void view(n)}>
+              {t("alerts.view")}
+            </Button>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -146,7 +151,7 @@ export function BookingAlerts() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-2.5 flex gap-2 pl-6">
+          <div className="mt-2.5 hidden gap-2 pl-6 md:flex">
             <Button size="sm" onClick={() => void view(n)}>
               {t("alerts.view")}
             </Button>
@@ -157,7 +162,7 @@ export function BookingAlerts() {
         </article>
       ))}
       {total > 1 && (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-raised">
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-0.5 text-xs shadow-raised md:py-2">
           <span className="text-muted-foreground">
             {more > 0 ? t("alerts.countShown", { n: total, shown: notices.length }) : t("alerts.count", { n: total })}
           </span>

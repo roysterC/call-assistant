@@ -31,22 +31,31 @@ const provider = {
   createBooking: vi.fn(),
 } as unknown as BookingProvider;
 
-function online(over: { takesBookings?: boolean; maxDaysAhead?: number; stylistChoice?: boolean } = {}) {
+function online(
+  over: {
+    takesBookings?: boolean;
+    maxDaysAhead?: number;
+    stylistChoice?: boolean;
+    stylists?: { name: string; bookable: boolean; workingDays: number[]; services: string[] }[];
+  } = {}
+) {
+  const services = [
+    { name: "Cut", durationMinutes: 60, requiresPatchTest: false, priceMinor: 4500 },
+    { name: "Root colour", durationMinutes: 90, requiresPatchTest: true, priceMinor: 6000 },
+    { name: "Consultation", durationMinutes: 15, requiresPatchTest: false, priceMinor: null },
+  ];
+  const stylists = over.stylists ?? [
+    { name: "Jo", bookable: true, workingDays: [] as number[], services: [] as string[] },
+    { name: "Sam", bookable: true, workingDays: [] as number[], services: ["Cut"] },
+  ];
   const salon = buildPublicSalon({
     slug: "maison-hair",
     name: "Maison Hair",
     phone: "01234 567890",
     timeZone: TZ,
     hours: HOURS,
-    services: [
-      { name: "Cut", durationMinutes: 60, requiresPatchTest: false, priceMinor: 4500 },
-      { name: "Root colour", durationMinutes: 90, requiresPatchTest: true, priceMinor: 6000 },
-      { name: "Consultation", durationMinutes: 15, requiresPatchTest: false, priceMinor: null },
-    ],
-    stylists: [
-      { name: "Jo", bookable: true, workingDays: [], services: [] },
-      { name: "Sam", bookable: true, workingDays: [], services: ["Cut"] },
-    ],
+    services,
+    stylists,
     hiddenServices: ["Consultation"],
     stylistChoice: over.stylistChoice ?? true,
     maxDaysAhead: over.maxDaysAhead ?? 56,
@@ -54,7 +63,7 @@ function online(over: { takesBookings?: boolean; maxDaysAhead?: number; stylistC
   return {
     organizationId: "org1",
     salon,
-    cfg: {} as never,
+    cfg: { services, stylists } as never,
     provider,
     takesBookings: over.takesBookings ?? true,
   };
@@ -101,6 +110,24 @@ describe("onlineAvailability", () => {
     const res = await onlineAvailability(online(), { service: "Consultation" }, NOW);
     expect(res).toMatchObject({ ok: false, status: 404 });
     expect(getAvailability).not.toHaveBeenCalled();
+  });
+
+  it("calls a day off, not full, when nobody who does it (or the one chosen) works then", async () => {
+    const rota = online({
+      stylists: [
+        { name: "Jo", bookable: true, workingDays: [2, 4], services: [] }, // Tue, Thu; does everything
+        { name: "Sam", bookable: true, workingDays: [], services: ["Cut"] }, // every day, cuts only
+      ],
+    });
+    const statuses = async (q: { service: string; stylist?: string }) => {
+      getAvailability.mockResolvedValueOnce([]);
+      const res = await onlineAvailability(rota, q, NOW);
+      return res.ok ? res.days.map((d) => d.status) : [];
+    };
+    // Wed 11 to Tue 17; the salon shuts Sunday and Monday.
+    expect(await statuses({ service: "Root colour" })).toEqual(["off", "full", "off", "off", "closed", "closed", "full"]);
+    expect(await statuses({ service: "Cut" })).toEqual(["full", "full", "full", "full", "closed", "closed", "full"]);
+    expect(await statuses({ service: "Cut", stylist: "Jo" })).toEqual(["off", "full", "off", "off", "closed", "closed", "full"]);
   });
 
   it("offers the next week until the last bookable day", async () => {

@@ -560,7 +560,7 @@ function TimeStep({
                     <span className="text-xs font-medium">{dayLabel(d.date, salon.timeZone).dow}</span>
                     <span className="text-xl font-bold">{dayLabel(d.date, salon.timeZone).date}</span>
                     <span className="text-[0.7rem] font-medium">
-                      {d.status === "closed" ? "Closed" : d.status === "full" ? "Full" : `${d.slots.length} free`}
+                      {d.status === "closed" ? "Closed" : d.status === "off" ? "Not in" : d.status === "full" ? "Full" : `${d.slots.length} free`}
                     </span>
                   </button>
                 );
@@ -638,7 +638,12 @@ function TimeStep({
             </section>
           ) : selected ? (
             <p className="rounded-2xl bg-stone-100 p-4 text-stone-700">
-              {selected.status === "closed" ? "We're closed that day." : "That day is fully booked."} Pick another day.
+              {selected.status === "closed"
+                ? "We're closed that day."
+                : selected.status === "off"
+                  ? `${stylist ? `${stylist} isn't` : "No one who does this treatment is"} in that day.`
+                  : "That day is fully booked."}{" "}
+              Pick another day.
             </p>
           ) : null}
         </>
