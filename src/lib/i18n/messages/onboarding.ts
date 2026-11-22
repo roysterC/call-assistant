@@ -405,8 +405,27 @@ export const onboarding = {
     "Họ sẽ không đăng nhập được nữa. Lịch hẹn và ghi chú vẫn được giữ.",
   ],
   "logins.noEmail": [
-    "Email isn't set up yet, so invitations can't be sent. Ask Kikai to add your team.",
-    "Chưa thiết lập email nên chưa gửi được lời mời. Hãy nhờ Kikai thêm nhân viên.",
+    "Email isn't set up yet, so an invitation comes as a link for you to send them by text or WhatsApp.",
+    "Chưa thiết lập email nên lời mời là một liên kết để bạn gửi cho họ qua tin nhắn hoặc WhatsApp.",
+  ],
+  "logins.inviteIntroLink": [
+    "You'll get a link to send them by text or WhatsApp. They open it to make their own login, and can then use the diary, clients and conversations.",
+    "Bạn sẽ nhận một liên kết để gửi cho họ qua tin nhắn hoặc WhatsApp. Họ mở liên kết để tự tạo tài khoản, rồi dùng được sổ hẹn, khách hàng và tin nhắn.",
+  ],
+  "logins.makeLink": ["Make a link", "Tạo liên kết"],
+  "logins.linkInstead": ["Get a link instead", "Lấy liên kết thay vì email"],
+  "logins.newLink": ["New link", "Liên kết mới"],
+  "logins.linkTitle": ["Send this link to {email}", "Gửi liên kết này cho {email}"],
+  "logins.linkBody": [
+    "They open it to make their own login. It works once, for {days} days. Copy it now: it can't be shown again, but you can make a new one.",
+    "Họ mở liên kết để tự tạo tài khoản. Liên kết chỉ dùng được một lần, trong {days} ngày. Hãy sao chép ngay: liên kết sẽ không hiện lại, nhưng bạn có thể tạo liên kết mới.",
+  ],
+  "logins.linkLabel": ["Invitation link", "Liên kết mời"],
+  "logins.copy": ["Copy", "Sao chép"],
+  "logins.copied": ["Copied", "Đã sao chép"],
+  "logins.sendFailed": [
+    "The email didn't go. Use \"Get a link instead\" to send it yourself.",
+    "Không gửi được email. Hãy chọn \"Lấy liên kết thay vì email\" để tự gửi cho họ.",
   ],
   "logins.failed": ["Couldn't do that. Try again.", "Không thực hiện được. Hãy thử lại."],
 
