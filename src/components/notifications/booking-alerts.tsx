@@ -21,15 +21,13 @@ import { onServiceWorkerMessage } from "@/lib/push-client";
 import { NEW_BOOKING } from "@/lib/service-colours";
 import { hideNotice, noticesChanged, useBookingNotices, type BookingNotice } from "@/lib/use-booking-notices";
 import { useT } from "@/components/providers/language-provider";
-import { INTL_LOCALE, clockTime, type Clock, type Lang, type Translate } from "@/lib/i18n";
+import { INTL_LOCALE, dateClockTime, type Clock, type Lang, type Translate } from "@/lib/i18n";
 
 /** Asks an open diary to show a booking: `detail` is { date, id }. */
 export const OPEN_BOOKING = "kikai:open-booking";
 
 export function when(iso: string, timeZone: string, lang: Lang, clock: Clock): string {
-  const at = new Date(iso);
-  const day = at.toLocaleDateString(INTL_LOCALE[lang], { timeZone, weekday: "short", day: "numeric", month: "short" });
-  return `${day}, ${clockTime(at, clock, timeZone)}`;
+  return dateClockTime(new Date(iso), clock, timeZone, INTL_LOCALE[lang]);
 }
 
 export function ago(iso: string, t: Translate): string {

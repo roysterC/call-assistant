@@ -21,7 +21,7 @@ import { initialsFor } from "@/lib/channels";
 import { speakablePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { useT } from "@/components/providers/language-provider";
-import type { Translate } from "@/lib/i18n";
+import { dateClockTime, type Clock, type Translate } from "@/lib/i18n";
 
 export interface ClientRow {
   id: string;
@@ -63,16 +63,8 @@ function shortDate(iso: string, timeZone: string, locale: string): string {
   return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", timeZone });
 }
 
-function shortDateTime(iso: string, timeZone: string, locale: string): string {
-  return new Date(iso).toLocaleString(locale, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone,
-  });
+function shortDateTime(iso: string, timeZone: string, locale: string, clock: Clock): string {
+  return dateClockTime(new Date(iso), clock, timeZone, locale);
 }
 
 /** The round close button in the corner of the booking pop-ups. */
@@ -128,7 +120,7 @@ export function ClientPicker({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const { t, locale } = useT();
+  const { t, locale, clock } = useT();
   const typed = q.trim();
 
   // No focus on the search box when it opens: on a phone that brings the
@@ -249,7 +241,7 @@ export function ClientPicker({
                 </span>
                 {c.nextBooking && (
                   <span className="rounded-full bg-papaya-whip-600 px-2 py-0.5 text-[11.5px] font-semibold text-light-bronze-200">
-                    {t("picker.bookedFor", { when: shortDateTime(c.nextBooking, timeZone, locale) })}
+                    {t("picker.bookedFor", { when: shortDateTime(c.nextBooking, timeZone, locale, clock) })}
                   </span>
                 )}
               </span>

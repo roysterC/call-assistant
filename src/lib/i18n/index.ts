@@ -79,3 +79,25 @@ export function clockTime(at: Date, clock: Clock, timeZone: string): string {
   const part = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
   return minutesTime(part("hour") * 60 + part("minute"), clock);
 }
+
+/**
+ * "Tue 24 Nov, 2:30pm" (or "Tuesday 24 November, 2:30pm" when `long`): a day
+ * and time in `timeZone`, on the person's own 12- or 24-hour `clock`, never
+ * the browser's.
+ */
+export function dateClockTime(
+  at: Date,
+  clock: Clock,
+  timeZone: string,
+  locale: string,
+  opts: { long?: boolean; weekday?: boolean } = {}
+): string {
+  const size = opts.long ? "long" : "short";
+  const day = at.toLocaleDateString(locale, {
+    timeZone,
+    ...(opts.weekday === false ? {} : { weekday: size }),
+    day: "numeric",
+    month: size,
+  });
+  return `${day}, ${clockTime(at, clock, timeZone)}`;
+}
