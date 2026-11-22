@@ -8,7 +8,7 @@
  * choosing the service, and "Next free" skips to the last step.
  */
 
-import Link from "next/link";
+import { BookLink } from "./book-link";
 import { ArrowRight, MapPin, Phone } from "lucide-react";
 import { formatMoneyShort } from "@/lib/money";
 import type { PublicSalon, PublicSlot } from "@/lib/online-booking";
@@ -68,13 +68,13 @@ export function SalonSite({
             </a>
           )}
           {takesBookings && (
-            <Link
+            <BookLink
               href={withQuery(bookPath)}
               className="hidden rounded-full px-5 py-3 text-[0.95rem] font-semibold md:inline-block"
               style={brandButton}
             >
               Book now
-            </Link>
+            </BookLink>
           )}
         </div>
       </header>
@@ -90,13 +90,13 @@ export function SalonSite({
             )}
             {takesBookings && (
               <div className="flex flex-wrap gap-3">
-                <Link
+                <BookLink
                   href={withQuery(bookPath)}
                   className="rounded-full px-7 py-4 text-[1.05rem] font-semibold"
                   style={brandButton}
                 >
                   Book an appointment
-                </Link>
+                </BookLink>
                 {salon.services.length > 0 && (
                   <a href="#services" className="rounded-full border border-stone-300 px-6 py-4 text-[1.05rem] font-semibold">
                     See prices
@@ -105,7 +105,7 @@ export function SalonSite({
               </div>
             )}
             {takesBookings && nextFree && (
-              <Link
+              <BookLink
                 href={withQuery(bookPath, {
                   service: nextFree.service,
                   start: nextFree.slot.start,
@@ -122,7 +122,7 @@ export function SalonSite({
                   </span>
                 </span>
                 <span className="font-semibold text-[var(--brand-ink)]">Book it</span>
-              </Link>
+              </BookLink>
             )}
             {!takesBookings && salon.phone && (
               <p className="text-lg">
@@ -147,21 +147,21 @@ export function SalonSite({
                       <span className="text-[1.05rem] font-semibold">{s.name}</span>
                       <span className="text-sm text-stone-600">
                         {durationText(s.durationMinutes)}
-                        {s.requiresPatchTest ? " · skin test for new clients" : ""}
+                        {s.requiresPatchTest ? " · patch test for new clients" : ""}
                       </span>
                     </span>
                     {s.priceMinor !== null && (
                       <span className="text-[1.05rem] font-semibold">from {formatMoneyShort(s.priceMinor)}</span>
                     )}
                     {takesBookings && (
-                      <Link
+                      <BookLink
                         href={withQuery(bookPath, { service: s.name })}
                         aria-label={`Book ${s.name}`}
                         className="rounded-full border px-4 py-2.5 text-[0.95rem] font-semibold text-[var(--brand-ink)]"
                         style={{ borderColor: "var(--brand-ink)" }}
                       >
                         Book
-                      </Link>
+                      </BookLink>
                     )}
                   </li>
                 ))}
@@ -182,12 +182,12 @@ export function SalonSite({
                   <span className="font-heading text-lg font-bold">{p.name}</span>
                   {p.role && <span className="text-sm text-stone-600">{p.role}</span>}
                   {takesBookings && (
-                    <Link
+                    <BookLink
                       href={withQuery(bookPath, { stylist: p.name })}
                       className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[var(--brand-ink)]"
                     >
                       Book with {p.name} <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Link>
+                    </BookLink>
                   )}
                 </li>
               ))}
@@ -246,14 +246,14 @@ export function SalonSite({
       </footer>
 
       {takesBookings && (
-        <div className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 md:hidden">
-          <Link
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-stone-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 md:hidden">
+          <BookLink
             href={withQuery(bookPath)}
             className="flex h-14 items-center justify-center rounded-full text-[1.05rem] font-semibold"
             style={brandButton}
           >
             Book an appointment
-          </Link>
+          </BookLink>
         </div>
       )}
     </div>
