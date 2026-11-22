@@ -9,7 +9,7 @@
  */
 
 import { useMemo } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/components/providers/language-provider";
 import type { Lang } from "@/lib/i18n";
@@ -59,6 +59,8 @@ interface MonthPanelProps {
   busyDates?: Set<string>;
   /** The twelve months below the grid. The diary leaves them out. */
   showYear?: boolean;
+  /** Folds the panel away, from a button beside the month's name (the diary, on a wide screen). */
+  onFold?: () => void;
 }
 
 export function MonthPanel({
@@ -70,6 +72,7 @@ export function MonthPanel({
   onSelect,
   busyDates,
   showYear = true,
+  onFold,
 }: MonthPanelProps) {
   const { t, lang } = useT();
   const grid = useMemo(() => {
@@ -101,7 +104,7 @@ export function MonthPanel({
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm font-semibold tabular-nums">
+          <span className="flex-1 text-center text-sm font-semibold tabular-nums">
             {MONTH_SHORT[lang][viewMonth - 1]} {viewYear}
           </span>
           <button
@@ -112,6 +115,17 @@ export function MonthPanel({
           >
             <ChevronRight className="h-4 w-4" />
           </button>
+          {onFold && (
+            <button
+              type="button"
+              onClick={onFold}
+              aria-label={t("month.fold")}
+              title={t("month.fold")}
+              className="ml-1 hidden h-7 w-7 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground lg:flex"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-7 gap-px text-center">

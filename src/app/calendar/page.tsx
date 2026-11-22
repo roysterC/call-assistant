@@ -236,6 +236,9 @@ export default function CalendarPage() {
   // Below lg the month picker is folded away, so on a phone the day itself is
   // what the screen opens on rather than a month of dates above it.
   const [showMonth, setShowMonth] = useState(false);
+  // From lg up the month and the colours sit beside the day; they can be
+  // folded to a strip, giving the columns the room (remembered here).
+  const [monthFolded, setMonthFolded] = useMonthFolded();
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [monthBusy, setMonthBusy] = useState<Set<string>>(new Set());
   const [slot, setSlot] = useState<BookingSlot | null>(null);
@@ -857,8 +860,44 @@ export default function CalendarPage() {
         )}
 
         <aside
-          className={`${showMonth ? "flex" : "hidden"} lg:flex w-full lg:w-60 shrink-0 overflow-y-auto max-h-[50vh] lg:max-h-none lg:border-l lg:border-border lg:pl-4 flex-col gap-4`}
+          className={`${showMonth ? "flex" : "hidden"} lg:flex w-full ${monthFolded ? "lg:w-[3.25rem] lg:pl-2" : "lg:w-60 lg:pl-4"} shrink-0 overflow-y-auto max-h-[50vh] lg:max-h-none lg:border-l lg:border-border flex-col gap-4`}
         >
+          {/* Folded: the way back, and the colours as swatches (named on hover). */}
+          {monthFolded && (
+            <div className="hidden lg:flex flex-col items-center gap-3.5">
+              <button
+                type="button"
+                onClick={() => setMonthFolded(false)}
+                aria-label={t("month.unfold")}
+                title={t("month.unfold")}
+                className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <CalendarDays className="h-4 w-4" />
+              </button>
+              {legend.length > 0 && (
+                <>
+                  <span aria-hidden="true" className="h-px w-5 bg-border" />
+                  <ul aria-label={t("diary.services")} className="flex flex-col items-center gap-2.5">
+                    {legend.map((f) => (
+                      <li key={f} title={t(`family.${f}` as MessageKey)}>
+                        <span
+                          aria-hidden="true"
+                          className="block h-3 w-3 rounded-[4px] border"
+                          style={{
+                            background: `${familyHue(f, businessTypes)}2e`,
+                            borderColor: `${familyHue(f, businessTypes)}b3`,
+                          }}
+                        />
+                        <span className="sr-only">{t(`family.${f}` as MessageKey)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+          {/* Open, and always below lg (the Month button shows it there). */}
+          <div className={`flex flex-col gap-4 ${monthFolded ? "lg:hidden" : ""}`}>
           <MonthPanel
             selected={selected}
             today={today}
@@ -871,6 +910,7 @@ export default function CalendarPage() {
             }}
             busyDates={monthBusy}
             showYear={false}
+            onFold={() => setMonthFolded(true)}
           />
           {legend.length > 0 && (
             <ul aria-label={t("diary.services")} className="hidden lg:flex flex-wrap gap-x-3 gap-y-1.5 px-1">
@@ -889,6 +929,7 @@ export default function CalendarPage() {
               ))}
             </ul>
           )}
+          </div>
         </aside>
       </div>
       )}
@@ -998,4 +1039,34 @@ function useClock(): Date | null {
     return () => clearInterval(id);
   }, []);
   return now;
+}
+
+const MONTH_FOLDED_KEY = "diary-month-folded";
+
+/**
+ * Whether the month and colours beside the day are folded to a strip,
+ * remembered in this browser. Read after mount, as the server has no storage
+ * and reading it in render would give the server and the browser different
+ * markup; storage can be missing or refuse (private windows), so the panel
+ * then simply starts open.
+ */
+function useMonthFolded(): [boolean, (next: boolean) => void] {
+  const [folded, setFolded] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one read of browser storage after mount
+      if (window.localStorage.getItem(MONTH_FOLDED_KEY) === "1") setFolded(true);
+    } catch {
+      // No storage: start open.
+    }
+  }, []);
+  const set = (next: boolean) => {
+    setFolded(next);
+    try {
+      window.localStorage.setItem(MONTH_FOLDED_KEY, next ? "1" : "0");
+    } catch {
+      // Not remembered, but still folded for this visit.
+    }
+  };
+  return [folded, set];
 }
