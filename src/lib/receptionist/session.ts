@@ -19,6 +19,7 @@ import { buildSystem, greetingFor } from "./prompt";
 import { toClaudeTools, withCallerContext } from "./tools";
 import { salonKeyterms } from "./voice/keyterms";
 import { tradeFor } from "@/lib/business-types";
+import { designChatsFor, designRule } from "./design-chats";
 
 /**
  * Claude Haiku 5.5 by default: a receptionist's turns are short and the rules
@@ -97,7 +98,7 @@ export async function startReceptionist(
   if (!opts.client && !key) {
     throw new Error("No Anthropic API key: neither this salon's own nor the shared one is set.");
   }
-  const cfg = await getSalonConfig(organizationId);
+  const [cfg, designChats] = await Promise.all([getSalonConfig(organizationId), designChatsFor(organizationId)]);
   const caps = selectProvider(cfg).capabilities;
   const tools = toClaudeTools(buildVoiceTools(caps));
   const allowed = new Set(tools.map((t) => t.name));
@@ -132,7 +133,8 @@ export async function startReceptionist(
       settings?.voiceSystemPrompt ?? null,
       opts.now ?? new Date(),
       opts.callerNumber,
-      settings?.salonFaq ?? null
+      settings?.salonFaq ?? null,
+      designRule(designChats)
     ),
     // Hanging up is the engine's own, not the salon's; it goes last so the
     // salon's tools keep their place in the cached prefix.

@@ -97,13 +97,16 @@ export function buildSystem(
   body: string | null,
   now: Date,
   callerNumber: string | null,
-  faq: string | null = null
+  faq: string | null = null,
+  /** Where a caller can send a design to be quoted (design-chats.ts). */
+  designs: string | null = null
 ): Anthropic.TextBlockParam[] {
   // Our own line: bookings are read back before they are made, and no email.
   const composed = composeVoicePrompt(cfg, body, faq);
   const stable = [
     inTradeWords(SPOKEN_STYLE.replace("{{business}}", businessName || "the salon"), tradeFor(cfg.businessTypes)),
     composed.prompt,
+    ...(designs ? [designs] : []),
   ].join("\n\n---\n\n");
 
   const clock = new Intl.DateTimeFormat("en-GB", {
