@@ -210,7 +210,7 @@ export function OnlineBookingSettings({
                 value={`<div data-kikai-book-inline></div>`}
               />
               <p className="text-xs text-muted-foreground">
-                Add <code className="font-mono">data-service=&quot;Blow dry&quot;</code> to a button to open on that
+                Add <code className="font-mono">data-service=&quot;Gel polish&quot;</code> to a button to open on that
                 service, or <code className="font-mono">data-button=&quot;Book now&quot;</code> to the script for a
                 button in the corner of every page. Works with Wix, Squarespace, WordPress and hand-built sites.
               </p>
@@ -241,7 +241,7 @@ export function OnlineBookingSettings({
             <Input
               value={value.siteHeadline}
               maxLength={SITE_HEADLINE_MAX}
-              placeholder="Cuts, colour and care that fit your day."
+              placeholder="Nails you'll love, at a time that suits you."
               onChange={(e) => set({ siteHeadline: e.target.value })}
             />
           </label>
@@ -297,7 +297,7 @@ export function OnlineBookingSettings({
           <h3 className="text-sm font-semibold">Booking rules</h3>
           <p className="text-xs text-muted-foreground">
             Online bookings follow the same rules as the phone: your hours, who works when, blocked time, at least two
-            hours&rsquo; notice, and 48 hours for a new client&rsquo;s colour.
+            hours&rsquo; notice, and 48 hours for a new client&rsquo;s patch test.
           </p>
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-muted-foreground">Clients can book up to</span>
@@ -356,7 +356,7 @@ export function OnlineBookingSettings({
                 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                Untick anything that needs a chat first, like a consultation or colour correction. New services are
+                Untick anything that needs a chat first, like a consultation or custom nail art. New services are
                 bookable online until you untick them.
               </p>
             </fieldset>
