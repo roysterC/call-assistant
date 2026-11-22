@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MESSAGES } from "./messages";
-import { clockTime, defaultClock, isClock, isLang, minutesTime, translate } from ".";
+import { clockTime, dateClockTime, defaultClock, isClock, isLang, minutesTime, translate } from ".";
 
 const entries = Object.entries(MESSAGES) as [keyof typeof MESSAGES, readonly [string, string]][];
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
@@ -41,6 +41,14 @@ describe("the CRM's languages", () => {
     // Summer time: an hour on from UTC.
     expect(clockTime(new Date("2026-07-01T08:05:00Z"), "24h", "Europe/London")).toBe("9:05");
     expect(clockTime(new Date("2026-07-01T23:30:00Z"), "12h", "Europe/London")).toBe("12:30am");
+  });
+
+  it("writes a day and time on the person's clock, not the browser's", () => {
+    const at = new Date("2026-11-24T14:30:00Z");
+    expect(dateClockTime(at, "12h", "Europe/London", "en-GB")).toBe("Tue 24 Nov, 2:30pm");
+    expect(dateClockTime(at, "24h", "Europe/London", "en-GB")).toBe("Tue 24 Nov, 14:30");
+    expect(dateClockTime(at, "12h", "Europe/London", "en-GB", { long: true })).toBe("Tuesday 24 November, 2:30pm");
+    expect(dateClockTime(at, "12h", "Europe/London", "en-GB", { weekday: false })).toBe("24 Nov, 2:30pm");
   });
 
   it("writes minutes past midnight, with or without am and pm", () => {

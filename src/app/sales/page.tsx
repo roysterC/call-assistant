@@ -17,6 +17,8 @@ import { apiFetch } from "@/lib/api-fetch";
 import { bookingHref } from "@/lib/booking-link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/providers/language-provider";
+import { dateClockTime } from "@/lib/i18n";
 import { formatMoney, formatMoneyShort } from "@/lib/money";
 import { plural } from "@/lib/plural";
 import { APPOINTMENT_STATUS, STATUS_BADGE } from "@/lib/status-styles";
@@ -74,6 +76,7 @@ function todayIn(tz: string): string {
 export default function SalesPage() {
   const [timeZone, setTimeZone] = useState(DEFAULT_TZ);
   const router = useRouter();
+  const { clock } = useT();
   const [kind, setKind] = useState<PeriodKind>("month");
   const [anchor, setAnchor] = useState(() => todayIn(DEFAULT_TZ));
 
@@ -137,14 +140,8 @@ export default function SalesPage() {
     return now.firstDate === period.firstDate;
   }, [kind, today, timeZone, period.firstDate]);
 
-  const when = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  // "24 Nov, 2:30pm", on the person's own 12- or 24-hour clock.
+  const when = { format: (at: Date) => dateClockTime(at, clock, timeZone, "en-GB", { weekday: false }) };
   const columns: ColumnDef<SaleRow>[] = [
     {
       id: "client",

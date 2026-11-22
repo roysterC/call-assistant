@@ -565,7 +565,7 @@ export function Assistant() {
                 <p>
                   <em>&ldquo;What&rsquo;s my afternoon looking like?&rdquo;</em>
                   <br />
-                  <em>&ldquo;Sarah Jones, cut and blow dry, Thursday at two, and text her.&rdquo;</em>
+                  <em>&ldquo;Sarah Jones, gel polish, Thursday at two, and text her.&rdquo;</em>
                   <br />
                   <em>&ldquo;When was Tom last in?&rdquo;</em> <em>&ldquo;How much did we take this week?&rdquo;</em>
                 </p>

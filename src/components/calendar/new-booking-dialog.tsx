@@ -20,7 +20,7 @@ import { Check, CalendarDays } from "lucide-react";
 import { Dialog, DialogContent, PHONE_FULL_SCREEN, DialogTitle } from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/api-fetch";
 import { cn } from "@/lib/utils";
-import { minutesTime } from "@/lib/i18n";
+import { dateClockTime, minutesTime, type Clock } from "@/lib/i18n";
 import { wallTimeToUtc } from "@/lib/calendar-layout";
 import { formatMoney } from "@/lib/money";
 import { combineServices, type SalonService } from "@/lib/salon-config";
@@ -88,16 +88,8 @@ interface NewBookingDialogProps {
   onBlockInstead: (slot: BookingSlot) => void;
 }
 
-function describeWhen(date: string, time: string, timeZone: string, locale: string): string {
-  return wallTimeToUtc(date, time, timeZone).toLocaleString(locale, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone,
-  });
+function describeWhen(date: string, time: string, timeZone: string, locale: string, clock: Clock): string {
+  return dateClockTime(wallTimeToUtc(date, time, timeZone), clock, timeZone, locale, { long: true });
 }
 
 export function NewBookingDialog({
@@ -159,7 +151,7 @@ export function NewBookingDialog({
         booked: {
           bookingNumber: data.appointment?.bookingNumber ?? null,
           clientName: client?.name ?? (draft.walkInName.trim() || t("form.walkIn")),
-          whenText: describeWhen(draft.date, draft.time, timeZone, locale),
+          whenText: describeWhen(draft.date, draft.time, timeZone, locale, clock),
           stylistName: draft.stylistName,
           serviceText: data.appointment?.serviceText ?? draft.serviceNames.join(" + "),
           priceMinor: picked.length ? combineServices(picked).priceMinor : null,

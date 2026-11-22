@@ -144,11 +144,11 @@ function useNavModel() {
     apiFetch("/api/settings")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        setOrgName(d?.organizationName || session?.user?.organizationName || "Call Assistant");
+        setOrgName(d?.organizationName || session?.user?.organizationName || "Kikai");
         if (!d?.settings) return;
         setFeatures(featureFlags(d.settings));
       })
-      .catch(() => setOrgName(session?.user?.organizationName || "Call Assistant"));
+      .catch(() => setOrgName(session?.user?.organizationName || "Kikai"));
   }, [session?.user?.id, session?.user?.organizationName, asOrg]);
 
   const activeOrgId = asOrg || session?.user?.organizationId || null;

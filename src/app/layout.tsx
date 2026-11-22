@@ -60,8 +60,8 @@ const jetbrainsMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Kikai Call Assistant",
-  description: "24/7 AI-powered call assistant for Kikai",
+  title: "Kikai",
+  description: "The salon's diary, clients, chats and AI receptionist, in one place.",
   // iPhones ignore most of the web manifest: without these, "Add to Home
   // Screen" makes a bookmark that opens in Safari with its address bar.
   appleWebApp: {

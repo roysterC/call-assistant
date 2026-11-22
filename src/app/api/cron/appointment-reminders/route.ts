@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { textRecipient } from "@/lib/client-link";
 import { cronAuthorised } from "@/lib/cron-auth";
+import { clientIp } from "@/lib/client-ip";
 import {
   addCalendarDays,
   describeAppointmentWhen,
@@ -152,10 +153,27 @@ export async function POST(req: NextRequest) {
 }
 
 /** Liveness check for the cron entry, so a broken schedule is visible. */
-export async function GET() {
+/**
+ * Whether reminders can go: for the deploy's check, run on the box itself
+ * (curl to 127.0.0.1), or anyone with the cron secret. Anyone else, through
+ * Caddy, gets "ok" and nothing about how the box is set up.
+ */
+export async function GET(req: Request) {
+  if (!onTheBox(req) && !cronAuthorised(req)) return NextResponse.json({ status: "ok" });
   return NextResponse.json({
     status: "ok",
     smsConfigured: smsConfigured(),
     cronSecretSet: Boolean(process.env.CRON_SECRET),
   });
+}
+
+/**
+ * Sent from this machine itself, not from outside: Caddy writes the address
+ * it saw into X-Forwarded-For, and Next fills it in from the socket for a
+ * request straight to the app's port, so only a request made on the box has
+ * a loopback address there.
+ */
+function onTheBox(req: Request): boolean {
+  const ip = clientIp(req.headers);
+  return ip !== null && /^(127\.|::1$|::ffff:127\.)/.test(ip);
 }

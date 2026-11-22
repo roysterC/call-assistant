@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/api-fetch";
 import { cn } from "@/lib/utils";
 import type { TimeBlockForm } from "@/lib/time-blocks";
-import { minutesTime, type MessageKey } from "@/lib/i18n";
+import { dateClockTime, minutesTime, type MessageKey } from "@/lib/i18n";
 import { CloseButton } from "./client-picker";
 import { BOOKING_CARD } from "./new-booking-dialog";
 import { useT } from "@/components/providers/language-provider";
@@ -196,16 +196,7 @@ export function BlockTimeDialog({
       body: JSON.stringify(form),
     });
 
-  const time = (at: string) =>
-    new Date(at).toLocaleString(locale, {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone,
-    });
+  const time = (at: string) => dateClockTime(new Date(at), clock, timeZone, locale);
 
   /** The end for a quick length, or null when it does not fit in the day. */
   const endFor = (len: number): string | null => {

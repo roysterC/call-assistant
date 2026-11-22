@@ -391,7 +391,7 @@ function ColourStep({ service, onAnswer }: { service: PublicService; onAnswer: (
         <p className="text-sm text-stone-600">
           {service.name} · {durationText(service.durationMinutes)}
         </p>
-        <h1 className="font-heading text-[1.65rem] font-extrabold tracking-tight">Had colour with us before?</h1>
+        <h1 className="font-heading text-[1.65rem] font-extrabold tracking-tight">Had this with us before?</h1>
       </div>
       <button
         type="button"
@@ -410,8 +410,8 @@ function ColourStep({ service, onAnswer }: { service: PublicService; onAnswer: (
       </button>
       <p className="flex gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-relaxed">
         <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-800" aria-hidden="true" />
-        New colour clients need a quick skin test at the salon at least 48 hours before. We&rsquo;ll only show
-        times that allow for it, and the salon will be in touch to arrange it.
+        New clients need a quick patch test at the salon at least 48 hours before this treatment. We&rsquo;ll only
+        show times that allow for it, and the salon will be in touch to arrange it.
       </p>
     </div>
   );

@@ -27,7 +27,7 @@ import { BookingDetails, type BookingDraft } from "./booking-details";
 import { BOOKING_CARD } from "./new-booking-dialog";
 import type { CalendarAppointment, DiaryBlock } from "./day-grid";
 import { useT } from "@/components/providers/language-provider";
-import type { Translate } from "@/lib/i18n";
+import { dateClockTime, type Clock, type Translate } from "@/lib/i18n";
 
 /** "HH:MM" of an instant on the salon's clock. */
 function clockTime(at: Date, timeZone: string): string {
@@ -39,16 +39,8 @@ function clockTime(at: Date, timeZone: string): string {
   });
 }
 
-function describe(at: Date, timeZone: string, locale: string): string {
-  return at.toLocaleString(locale, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone,
-  });
+function describe(at: Date, timeZone: string, locale: string, clock: Clock): string {
+  return dateClockTime(at, clock, timeZone, locale);
 }
 
 /** Whether the booking can still be moved: booked and not yet started. */
@@ -266,7 +258,7 @@ function MoveConfirm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textProblem, setTextProblem] = useState<string | null>(null);
-  const { t, locale } = useT();
+  const { t, locale, clock } = useT();
 
   const a = move.appointment;
   const to = wallTimeToUtc(move.date, move.time, timeZone);
@@ -309,9 +301,9 @@ function MoveConfirm({
               {t("move.question", {
                 who,
                 number: a.bookingNumber !== null ? ` (#${a.bookingNumber})` : "",
-                from: describe(new Date(a.startsAt), timeZone, locale),
+                from: describe(new Date(a.startsAt), timeZone, locale, clock),
                 fromStylist: a.stylistName,
-                to: describe(to, timeZone, locale),
+                to: describe(to, timeZone, locale, clock),
                 toStylist: move.stylistName,
               })}
             </p>
