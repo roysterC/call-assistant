@@ -152,11 +152,11 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ dryRun, sent, failed, skipped, summary });
 }
 
-/** Liveness check for the cron entry, so a broken schedule is visible. */
 /**
- * Whether reminders can go: for the deploy's check, run on the box itself
- * (curl to 127.0.0.1), or anyone with the cron secret. Anyone else, through
- * Caddy, gets "ok" and nothing about how the box is set up.
+ * Liveness check for the cron entry, so a broken schedule is visible, and
+ * whether reminders can go: the details only for the deploy's check, run on
+ * the box itself (curl to 127.0.0.1), or anyone with the cron secret. Anyone
+ * else, through Caddy, gets "ok" and nothing about how the box is set up.
  */
 export async function GET(req: Request) {
   if (!onTheBox(req) && !cronAuthorised(req)) return NextResponse.json({ status: "ok" });
