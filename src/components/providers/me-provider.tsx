@@ -33,9 +33,17 @@ export interface Me {
 }
 
 const MeContext = createContext<Me | null>(null);
+/** "failed": /api/me answered with an error, or not at all, so `useMe()` will stay null. */
+type MeStatus = "loading" | "ready" | "failed";
+const MeStatusContext = createContext<MeStatus>("loading");
 
 export function useMe(): Me | null {
   return useContext(MeContext);
+}
+
+/** Whether `useMe()` is still coming, has arrived, or isn't going to. */
+export function useMeStatus(): MeStatus {
+  return useContext(MeStatusContext);
 }
 
 const PUBLIC = ["/login", "/embed", "/privacy-policy", "/terms-of-service", "/data-deletion"];
@@ -53,6 +61,7 @@ export const ME_CHANGED = "kikai:me-changed";
 export function MeProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
   const [me, setMe] = useState<Me | null>(null);
+  const [failed, setFailed] = useState(false);
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const isPublic = PUBLIC.some((p) => pathname.startsWith(p));
@@ -71,9 +80,13 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
     apiFetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (live && d) setMe(d);
+        if (!live) return;
+        if (d) setMe(d);
+        setFailed(!d);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (live) setFailed(true);
+      });
     return () => {
       live = false;
     };
@@ -85,5 +98,10 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
     if (me?.role === "member" && !isPublic && isOwnerPage(pathname)) router.replace(START);
   }, [me, pathname, isPublic, router]);
 
-  return <MeContext.Provider value={me}>{children}</MeContext.Provider>;
+  const meStatus: MeStatus = me ? "ready" : failed ? "failed" : "loading";
+  return (
+    <MeContext.Provider value={me}>
+      <MeStatusContext.Provider value={meStatus}>{children}</MeStatusContext.Provider>
+    </MeContext.Provider>
+  );
 }

@@ -40,6 +40,17 @@ describe("LoginThrottle", () => {
     expect(th.allowed("someone@x.com", "1.1.1.1")).toBe(true);
   });
 
+  it("forgets addresses nobody comes back to, so the map can't grow for ever", () => {
+    const c = clock();
+    const th = new LoginThrottle(c.now);
+    for (let i = 0; i < 400; i++) th.fail(`spray${i}@x.com`, `10.1.${i % 250}.${i % 7}`);
+    expect(th.size).toBeGreaterThan(400);
+    c.advance(WINDOW_MS + 1);
+    for (let i = 0; i < 100; i++) th.fail("late@x.com", "2.2.2.2");
+    // Only the latest address, its pair and its IP are left.
+    expect(th.size).toBe(3);
+  });
+
   it("lets them try again once the window has passed", () => {
     const c = clock();
     const th = new LoginThrottle(c.now);
