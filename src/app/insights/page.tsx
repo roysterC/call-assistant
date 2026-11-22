@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/providers/language-provider";
+import { useMe } from "@/components/providers/me-provider";
 import { apiFetch } from "@/lib/api-fetch";
 import { formatMoneyShort } from "@/lib/money";
 import type { MessageKey } from "@/lib/i18n";
@@ -77,8 +78,13 @@ export default function InsightsPage() {
   const [joke, setJoke] = useState(0);
   // Only the latest period's answer is shown, however the requests come back.
   const request = useRef(0);
+  // Owners only: staff are sent on to the diary, so this waits until it is
+  // known who is signed in rather than asking for figures it will be refused.
+  const me = useMe();
+  const isOwner = me !== null && me.role !== "member";
 
   useEffect(() => {
+    if (!isOwner) return;
     const id = ++request.current;
     apiFetch(`/api/insights/booked?period=${period}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -90,7 +96,7 @@ export default function InsightsPage() {
       .catch(() => {
         if (id === request.current) setFailedFor(period);
       });
-  }, [period]);
+  }, [period, isOwner]);
 
   const shown = data && data.period === period ? data : null;
   const failed = failedFor === period && !shown;
