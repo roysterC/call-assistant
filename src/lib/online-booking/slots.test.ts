@@ -78,6 +78,21 @@ describe("groupSlotsByDay", () => {
     ]);
   });
 
+  it("says a day is off, not full, when nobody who does it works then", () => {
+    // Nobody in on Wednesdays or Fridays (weekdays 3 and 5).
+    const staffed = (weekday: number) => weekday !== 3 && weekday !== 5;
+    const days = groupSlotsByDay([slot("2026-11-12T09:00:00.000Z", "Jo")], window, TZ, HOURS, staffed);
+    expect(days.map((d) => [d.date, d.status])).toEqual([
+      ["2026-11-11", "off"],
+      ["2026-11-12", "open"],
+      ["2026-11-13", "off"],
+      ["2026-11-14", "full"],
+      ["2026-11-15", "closed"],
+      ["2026-11-16", "closed"],
+      ["2026-11-17", "full"],
+    ]);
+  });
+
   it("puts a slot on the salon's day, not UTC's", () => {
     // 23:30 UTC on 1 July is 00:30 on 2 July in London.
     const days = groupSlotsByDay([slot("2026-07-01T23:30:00.000Z", "Jo")], { from: "2026-07-01", days: 2 }, TZ, HOURS);

@@ -33,8 +33,12 @@ export interface DaySlots {
   date: string;
   /** 0 = Sunday ... 6 = Saturday. */
   weekday: number;
-  /** Closed: the salon is shut. Full: open, but nothing fits. */
-  status: "open" | "full" | "closed";
+  /**
+   * Closed: the salon is shut. Off: open, but nobody who does the treatment
+   * (or the technician chosen) works that day. Full: someone is in, but
+   * nothing fits.
+   */
+  status: "open" | "full" | "off" | "closed";
   slots: PublicSlot[];
 }
 
@@ -86,7 +90,9 @@ export function groupSlotsByDay(
   slots: TimeSlot[],
   window: { from: string; days: number },
   timeZone: string,
-  hours: BusinessHours
+  hours: BusinessHours,
+  /** Whether anyone who can do it is rostered on a weekday; all days when left out. */
+  staffed: (weekday: number) => boolean = () => true
 ): DaySlots[] {
   const byDate = new Map<string, PublicSlot[]>();
   const seen = new Set<string>();
@@ -115,7 +121,7 @@ export function groupSlotsByDay(
     days.push({
       date,
       weekday,
-      status: list.length > 0 ? "open" : !open || open.closed ? "closed" : "full",
+      status: list.length > 0 ? "open" : !open || open.closed ? "closed" : staffed(weekday) ? "full" : "off",
       slots: list,
     });
   }
