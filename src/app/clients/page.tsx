@@ -4,7 +4,8 @@
  * The salon's clients: searchable, and grouped by who needs attention (due
  * back, new, not seen for a while, a patch test needed), each row saying
  * what they usually have, when they were last in and what is next. Picking
- * one opens their profile beside the list (the whole screen on a phone).
+ * one opens their profile beside the list (in its place on a phone or an
+ * upright tablet).
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -87,7 +88,7 @@ export default function ClientsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  // A phone shows the list or a profile; a wide screen both.
+  // A phone or an upright tablet shows the list or a profile; a wider screen both.
   const [phoneProfile, setPhoneProfile] = useState(false);
 
   // /clients?client=… (a chat's or a callback's "Open client page"): that client, open.
@@ -165,7 +166,7 @@ export default function ClientsPage() {
       <section
         aria-label={t("clients.title")}
         className={cn(
-          "w-full min-w-0 flex-col border-r border-border md:flex md:w-[27rem] md:shrink-0 lg:w-[34rem]",
+          "w-full min-w-0 flex-col border-r border-border lg:flex lg:w-[24rem] lg:shrink-0 xl:w-[28rem] 2xl:w-[36rem]",
           phoneProfile ? "hidden" : "flex"
         )}
       >
@@ -244,7 +245,7 @@ export default function ClientsPage() {
                         aria-current={on ? "true" : undefined}
                         className={cn(
                           "flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors md:px-5",
-                          on ? "md:bg-muted md:shadow-[inset_3px_0_0_var(--primary)]" : "hover:bg-muted/60"
+                          on ? "lg:bg-muted lg:shadow-[inset_3px_0_0_var(--primary)]" : "hover:bg-muted/60"
                         )}
                       >
                         <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13.5px] font-bold", avatarColorFor(c.id))} aria-hidden="true">
@@ -254,7 +255,7 @@ export default function ClientsPage() {
                           <span className="block truncate text-[15px] font-bold">{c.name ?? c.phone ?? t("clients.rowLabel")}</span>
                           <span className="block truncate text-[12.5px] text-muted-foreground">{usual}</span>
                         </span>
-                        <span className="hidden w-24 shrink-0 text-right text-[12.5px] text-muted-foreground lg:block">
+                        <span className="hidden w-24 shrink-0 text-right text-[12.5px] text-muted-foreground 2xl:block">
                           {c.lastVisit ? formatDistanceToNowStrict(new Date(c.lastVisit), { addSuffix: true, locale: DATE_FNS_LOCALE[lang] }) : t("clients.notInYet")}
                         </span>
                         <span className={cn("shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold", TAG_TONE[tag.tone])}>{tag.text}</span>
@@ -278,7 +279,7 @@ export default function ClientsPage() {
 
       <section
         aria-label={t("client.client")}
-        className={cn("min-w-0 flex-1 flex-col bg-card md:flex", phoneProfile && shownId ? "flex" : "hidden")}
+        className={cn("min-w-0 flex-1 flex-col bg-card lg:flex", phoneProfile && shownId ? "flex" : "hidden")}
       >
         {shownId ? (
           <ClientProfile

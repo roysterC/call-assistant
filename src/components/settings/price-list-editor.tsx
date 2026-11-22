@@ -188,7 +188,7 @@ export function PriceListEditor({
       <div className="pt-2">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
           <h3 className="text-[15.5px] font-extrabold">{t("menu.extras")}</h3>
-          <span className="text-[12.5px] text-muted-foreground max-md:order-last max-md:w-full">{t("menu.extrasHint")}</span>
+          <span className="text-[12.5px] text-muted-foreground phone:order-last phone:w-full">{t("menu.extrasHint")}</span>
           <button
             type="button"
             onClick={addExtra}
@@ -217,7 +217,7 @@ export function PriceListEditor({
                     {x.note && <span className="block truncate text-[12.5px] text-muted-foreground">{x.note}</span>}
                   </span>
                   {x.photo && (
-                    <span className="shrink-0 rounded-full bg-light-bronze-800 px-2 py-0.5 text-[11.5px] font-bold text-light-bronze-200 max-md:hidden">
+                    <span className="shrink-0 rounded-full bg-light-bronze-800 px-2 py-0.5 text-[11.5px] font-bold text-light-bronze-200 phone:hidden">
                       {t("menu.photoQuote")}
                     </span>
                   )}

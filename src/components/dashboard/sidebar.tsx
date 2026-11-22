@@ -199,18 +199,31 @@ function useNavModel() {
 
 type NavModel = ReturnType<typeof useNavModel>;
 
+/**
+ * The menu's width. Below 1280px it is folded unless opened by hand there
+ * (useCollapsedNav, main-wrapper.tsx), and CSS says so too: the page is
+ * drawn before the browser's width is known, and the menu must not start
+ * open there and then fold, moving the whole page across.
+ */
+export function navWidth(collapsed: boolean, openedNarrow: boolean): string {
+  return collapsed ? "w-[76px]" : openedNarrow ? "w-64" : "w-64 max-xl:w-[76px]";
+}
+
 /** The menu, as a panel from md up and as tabs on a phone. */
 export function Navigation({
   collapsed = false,
+  openedNarrow = false,
   onToggleCollapsed,
 }: {
   collapsed?: boolean;
+  /** Opened by hand below 1280px, where the menu otherwise starts folded. */
+  openedNarrow?: boolean;
   onToggleCollapsed?: () => void;
 }) {
   const model = useNavModel();
   return (
     <>
-      <Sidebar model={model} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
+      <Sidebar model={model} collapsed={collapsed} openedNarrow={openedNarrow} onToggleCollapsed={onToggleCollapsed} />
       <MobileTabs model={model} />
     </>
   );
@@ -248,11 +261,13 @@ function useMoreOpen(inMore: boolean): [boolean, (next: boolean) => void] {
 function Sidebar({
   model,
   collapsed,
+  openedNarrow,
   onToggleCollapsed,
 }: {
   model: NavModel;
   /** Folded to a rail of icons, so a wide screen like the diary gets the room. */
   collapsed: boolean;
+  openedNarrow: boolean;
   onToggleCollapsed?: () => void;
 }) {
   const { user, role, isSuperAdmin, asOrg, orgs, activeOrg, switchOrg, orgName, primary, more, settings } = model;
@@ -270,7 +285,7 @@ function Sidebar({
         // A panel floating beside the content, inset from the page's edges.
         // Phones have the tabs instead (MobileTabs).
         "hidden md:flex m-3 mr-0 bg-sidebar text-sidebar-foreground flex-col shrink-0 rounded-[28px] shadow-raised transition-[width]",
-        collapsed ? "w-[76px]" : "w-64",
+        navWidth(collapsed, openedNarrow),
         // The menu scrolls on its own between the logo and the account, so
         // those two never leave the panel on a short screen.
         "overflow-hidden"

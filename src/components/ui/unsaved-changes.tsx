@@ -44,7 +44,7 @@ export function SaveBar({
     // the tab bar (main-wrapper.tsx), so it sits just above that.
     <div
       className={cn(
-        "sticky bottom-4 z-40 max-md:bottom-3",
+        "sticky bottom-4 z-40 phone:bottom-3",
         !dirty && "pointer-events-none"
       )}
       aria-hidden={!dirty}

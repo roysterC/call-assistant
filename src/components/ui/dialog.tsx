@@ -46,14 +46,14 @@ function DialogOverlay({
  * the diary showing round its edges. Pass as `className` to DialogContent.
  */
 const PHONE_FULL_SCREEN =
-  "max-md:inset-0 max-md:m-0 max-md:top-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-w-none max-md:h-[100dvh] max-md:rounded-none max-md:content-start max-md:overflow-y-auto max-md:pb-[max(1rem,env(safe-area-inset-bottom))]"
+  "phone:inset-0 phone:m-0 phone:top-0 phone:left-0 phone:translate-x-0 phone:translate-y-0 phone:w-full phone:max-w-none phone:h-[100dvh] phone:rounded-none phone:content-start phone:overflow-y-auto phone:pb-[max(1rem,env(safe-area-inset-bottom))]"
 
 /**
  * On a phone, something to look at and act on (a booking) comes up from the
  * bottom of the screen, where a thumb can reach its buttons.
  */
 const PHONE_SHEET =
-  "max-md:m-0 max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-w-none max-md:max-h-[88dvh] max-md:overflow-y-auto max-md:rounded-b-none max-md:pb-[max(1rem,env(safe-area-inset-bottom))]"
+  "phone:m-0 phone:top-auto phone:bottom-0 phone:left-0 phone:translate-x-0 phone:translate-y-0 phone:w-full phone:max-w-none phone:max-h-[88dvh] phone:overflow-y-auto phone:rounded-b-none phone:pb-[max(1rem,env(safe-area-inset-bottom))]"
 
 /**
  * How the card comes and goes: a quick fade while it grows from just under

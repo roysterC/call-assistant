@@ -306,7 +306,7 @@ export function BookingDetails({
       }}
     >
       {/* Who */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-tea-green-800 px-6 py-4 max-md:px-4">
+      <div className="flex shrink-0 items-center gap-3 border-b border-tea-green-800 px-6 py-4 phone:px-4">
         {!editing && (
           <button
             type="button"
@@ -317,7 +317,7 @@ export function BookingDetails({
             <ChevronLeft className="h-5 w-5" />
           </button>
         )}
-        <ClientAvatar name={client?.name ?? null} regular={!isNew} className="h-11 w-11 max-md:hidden" />
+        <ClientAvatar name={client?.name ?? null} regular={!isNew} className="h-11 w-11 phone:hidden" />
         <div className="min-w-0 flex-1">
           <span className="block text-[11.5px] font-bold uppercase tracking-[0.07em] text-tea-green-200">{kicker}</span>
           {client ? (
@@ -349,7 +349,7 @@ export function BookingDetails({
         </div>
         <span
           className={cn(
-            "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold max-md:hidden",
+            "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold phone:hidden",
             isNew ? "bg-papaya-whip-600 text-light-bronze-200" : "bg-tea-green-800 text-tea-green-100"
           )}
         >
@@ -371,7 +371,7 @@ export function BookingDetails({
         <CloseButton onClose={onClose} />
       </div>
 
-      <div className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto px-6 py-5 max-md:px-4">
+      <div className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto px-6 py-5 phone:px-4">
         {client?.notes && (
           <p className="flex items-start gap-2.5 whitespace-pre-line rounded-[14px] border border-papaya-whip-400 bg-cornsilk-700 px-3.5 py-2.5 text-[13.5px] leading-normal">
             <StickyNote className="mt-0.5 h-4 w-4 shrink-0 text-light-bronze-300" aria-hidden="true" />
@@ -383,7 +383,7 @@ export function BookingDetails({
         <section className="grid gap-2">
           <h3 className="text-[13px] font-bold">{t("form.when")}</h3>
           {locked && <p className="text-xs text-muted-foreground">{t("form.locked")}</p>}
-          <div className="grid grid-cols-3 gap-2 max-md:grid-cols-1">
+          <div className="grid grid-cols-3 gap-2 phone:grid-cols-1">
             <label className={fieldCard}>
               <span className="text-[11.5px] font-semibold text-muted-foreground">{t("form.date")}</span>
               <span className="flex items-center justify-between text-[15px] font-bold">
@@ -513,7 +513,7 @@ export function BookingDetails({
                   );
                 })}
               {services.length > 10 && (
-                <label className="relative ml-auto block w-48 max-md:ml-0 max-md:w-full">
+                <label className="relative ml-auto block w-48 phone:ml-0 phone:w-full">
                   <span className="sr-only">{t("form.findService")}</span>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
@@ -526,7 +526,7 @@ export function BookingDetails({
               )}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2 max-md:grid-cols-1">
+          <div className="grid grid-cols-2 gap-2 phone:grid-cols-1">
             {shown.map((s) => {
               const on = picked.includes(s.name);
               return (
@@ -657,7 +657,7 @@ export function BookingDetails({
       </div>
 
       {/* The total and the button, always in view. */}
-      <div className="shrink-0 border-t border-tea-green-800 bg-card px-6 py-3.5 max-md:px-4 max-md:pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="shrink-0 border-t border-tea-green-800 bg-card px-6 py-3.5 phone:px-4 phone:pb-[max(1rem,env(safe-area-inset-bottom))]">
         {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
         <div className="flex items-center gap-4">
           <div className="min-w-0 flex-1">
@@ -674,7 +674,7 @@ export function BookingDetails({
             (combined.priceMinor === null ? (
               <span className="shrink-0 text-[13px] font-semibold text-muted-foreground">{t("form.notPriced")}</span>
             ) : (
-              <span className="shrink-0 font-heading text-2xl font-extrabold tabular-nums max-md:text-xl">
+              <span className="shrink-0 font-heading text-2xl font-extrabold tabular-nums phone:text-xl">
                 {formatMoney(combined.priceMinor)}
               </span>
             ))}

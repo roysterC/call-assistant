@@ -297,13 +297,13 @@ export function BlockTimeDialog({
           }}
         >
           {/* What it is, and where it starts. */}
-          <div className="shrink-0 border-b border-tea-green-800 px-6 pb-4 pt-5 max-md:px-4 max-md:pt-4">
+          <div className="shrink-0 border-b border-tea-green-800 px-6 pb-4 pt-5 phone:px-4 phone:pt-4">
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 <span className="block text-[11.5px] font-bold uppercase tracking-[0.07em] text-tea-green-200">
                   {editing ? (weekly ? t("block.kickerEditWeekly") : t("block.titleEdit")) : t("block.titleNew")}
                 </span>
-                <DialogTitle className="mt-0.5 truncate font-heading text-2xl font-extrabold max-md:text-[22px]">
+                <DialogTitle className="mt-0.5 truncate font-heading text-2xl font-extrabold phone:text-[22px]">
                   {editing && form.label.trim() ? form.label : t("block.whatFor")}
                 </DialogTitle>
               </div>
@@ -321,7 +321,7 @@ export function BlockTimeDialog({
             </div>
           </div>
 
-          <div className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto px-6 py-5 max-md:px-4">
+          <div className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto px-6 py-5 phone:px-4">
             {/* Label */}
             <section className="grid gap-2">
               <h3 className={heading}>{t("block.label")}</h3>
@@ -454,9 +454,9 @@ export function BlockTimeDialog({
 
               {!form.allDay && (
                 <>
-                  <div className={cn("grid gap-2", weekly ? "grid-cols-2" : "grid-cols-[1.3fr_1fr_1fr] max-md:grid-cols-2")}>
+                  <div className={cn("grid gap-2", weekly ? "grid-cols-2" : "grid-cols-[1.3fr_1fr_1fr] phone:grid-cols-2")}>
                     {!weekly && (
-                      <div className={cn("grid gap-2", spansDays ? "grid-cols-2 max-md:col-span-2" : "max-md:col-span-2")}>
+                      <div className={cn("grid gap-2", spansDays ? "grid-cols-2 phone:col-span-2" : "phone:col-span-2")}>
                         {dateCard(
                           spansDays ? t("block.from") : t("block.day"),
                           form.startDate,
@@ -522,7 +522,7 @@ export function BlockTimeDialog({
           </div>
 
           {/* The summary and the button, always in view. */}
-          <div className="shrink-0 border-t border-tea-green-800 bg-card px-6 py-3.5 max-md:px-4 max-md:pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="shrink-0 border-t border-tea-green-800 bg-card px-6 py-3.5 phone:px-4 phone:pb-[max(1rem,env(safe-area-inset-bottom))]">
             {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
             {editing && (
               <div className="mb-2.5 flex flex-wrap items-center gap-2">
@@ -563,7 +563,7 @@ export function BlockTimeDialog({
                 )}
               </div>
             )}
-            <div className="flex items-center gap-4 max-md:flex-col max-md:items-stretch max-md:gap-2.5">
+            <div className="flex items-center gap-4 phone:flex-col phone:items-stretch phone:gap-2.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold">
                   {form.label.trim() || t("block.noLabel")} · {when}

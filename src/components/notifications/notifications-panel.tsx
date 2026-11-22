@@ -232,9 +232,11 @@ function Row({ item, timeZone }: { item: NotificationItem; timeZone: string }) {
     item.kind === "booking" && item.startsAt
       ? `${item.detail} · ${t("alerts.withStylist", { when: when(item.startsAt, timeZone, lang, clock), stylist: item.stylist ?? "" })}`
       : item.kind === "quote"
-        ? item.designs === 1
-          ? t("notif.design", { channel: item.detail })
-          : t("notif.designs", { n: item.designs ?? 0, channel: item.detail })
+        ? !item.designs
+          ? t("notif.wantsPrice", { channel: item.detail })
+          : item.designs === 1
+            ? t("notif.design", { channel: item.detail })
+            : t("notif.designs", { n: item.designs, channel: item.detail })
         : item.detail;
   return (
     <Link

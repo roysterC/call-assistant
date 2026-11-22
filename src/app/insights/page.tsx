@@ -140,7 +140,7 @@ export default function InsightsPage() {
       big: t("insights.factTea"),
       small: t("insights.factTeaSmall"),
       // A phone has room for two; this one is only for fun.
-      className: cn("bg-papaya-whip-500", facts.length >= 2 && "max-md:hidden"),
+      className: cn("bg-papaya-whip-500", facts.length >= 2 && "phone:hidden"),
     });
   }
 
@@ -168,7 +168,7 @@ export default function InsightsPage() {
               )}
             >
               <span className="md:hidden">{periodLabel(p, true)}</span>
-              <span className="max-md:hidden">{periodLabel(p, false)}</span>
+              <span className="phone:hidden">{periodLabel(p, false)}</span>
             </button>
           ))}
         </div>
@@ -261,7 +261,7 @@ export default function InsightsPage() {
                     <span className="text-[13.5px] text-muted-foreground">
                       {BRAND[c.channel] ?? t(`insights.channel.${c.channel}` as MessageKey)}
                     </span>
-                    <strong className="text-[13.5px] tabular-nums max-md:ml-auto md:text-sm">{pounds(c.valueMinor)}</strong>
+                    <strong className="text-[13.5px] tabular-nums phone:ml-auto md:text-sm">{pounds(c.valueMinor)}</strong>
                   </li>
                 ))}
               </ul>

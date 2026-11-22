@@ -197,7 +197,9 @@ export function ConversationListItem({
 function tagText(state: ConversationState, lastMessageAt: string, clock: "12h" | "24h"): string {
   switch (state.kind) {
     case "quote":
-      return `Quote needed · ${state.designs ?? 1} design${state.designs === 1 ? "" : "s"} · ${waitedFor(state.since ?? lastMessageAt)}`;
+      return state.designs
+        ? `Quote needed · ${state.designs} design${state.designs === 1 ? "" : "s"} · ${waitedFor(state.since ?? lastMessageAt)}`
+        : `Quote needed · ${waitedFor(state.since ?? lastMessageAt)}`;
     case "callback":
       return `Message for the team · ${waitedFor(state.since ?? lastMessageAt)}`;
     case "waiting":
