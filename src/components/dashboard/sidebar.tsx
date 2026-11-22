@@ -326,7 +326,12 @@ function Sidebar({
         )}
       </div>
 
-      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 pb-3 space-y-1 [scrollbar-width:thin]">
+      {/* Scrolls when the screen is too short for it all, but shows no
+          scrollbar: one took 10px off every item's right side, so on the
+          folded rail the highlight sat off-centre from its icon (and its thumb
+          was invisible on the dark panel anyway). Wheel, trackpad and touch
+          still scroll it. */}
+      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 pb-3 space-y-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {primary.map((item) => (
           <NavLink key={item.href} item={item} model={model} collapsed={collapsed} big />
         ))}
