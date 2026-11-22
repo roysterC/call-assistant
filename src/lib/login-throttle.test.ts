@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LoginThrottle,
   MAX_FAILURES_PER_EMAIL,
+  MAX_FAILURES_PER_EMAIL_ANYWHERE,
   MAX_FAILURES_PER_IP,
   WINDOW_MS,
 } from "./login-throttle";
@@ -12,16 +13,31 @@ function clock(start = 0) {
 }
 
 describe("LoginThrottle", () => {
-  it("stops an address after too many wrong passwords", () => {
+  it("stops an address after too many wrong passwords from one place", () => {
     const c = clock();
     const th = new LoginThrottle(c.now);
     for (let i = 0; i < MAX_FAILURES_PER_EMAIL; i++) {
       expect(th.allowed("a@x.com", "1.1.1.1")).toBe(true);
       th.fail("a@x.com", "1.1.1.1");
     }
-    expect(th.allowed("a@x.com", "2.2.2.2")).toBe(false);
+    expect(th.allowed("a@x.com", "1.1.1.1")).toBe(false);
     // Someone else, from the same place, is not affected yet.
     expect(th.allowed("b@x.com", "1.1.1.1")).toBe(true);
+  });
+
+  it("doesn't let a stranger who knows the address lock its owner out", () => {
+    const th = new LoginThrottle(clock().now);
+    for (let i = 0; i < MAX_FAILURES_PER_EMAIL * 2; i++) th.fail("owner@x.com", "6.6.6.6");
+    expect(th.allowed("owner@x.com", "6.6.6.6")).toBe(false);
+    // The owner, signing in at the salon.
+    expect(th.allowed("owner@x.com", "1.1.1.1")).toBe(true);
+  });
+
+  it("still stops guessing at one address spread over many places", () => {
+    const th = new LoginThrottle(clock().now);
+    for (let i = 0; i < MAX_FAILURES_PER_EMAIL_ANYWHERE; i++) th.fail("owner@x.com", `10.0.${Math.floor(i / 5)}.${i % 5}`);
+    expect(th.allowed("owner@x.com", "1.1.1.1")).toBe(false);
+    expect(th.allowed("someone@x.com", "1.1.1.1")).toBe(true);
   });
 
   it("lets them try again once the window has passed", () => {
@@ -49,7 +65,7 @@ describe("LoginThrottle", () => {
   it("clears an address's count on a correct password", () => {
     const th = new LoginThrottle(clock().now);
     for (let i = 0; i < MAX_FAILURES_PER_EMAIL - 1; i++) th.fail("a@x.com", null);
-    th.succeed("a@x.com");
+    th.succeed("a@x.com", null);
     for (let i = 0; i < MAX_FAILURES_PER_EMAIL - 1; i++) th.fail("a@x.com", null);
     expect(th.allowed("a@x.com", null)).toBe(true);
   });
