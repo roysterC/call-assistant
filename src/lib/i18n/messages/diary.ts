@@ -69,6 +69,8 @@ export const diary = {
   "grid.lenHoursMin": ["{h} h {m}", "{h} giờ {m} phút"],
   "grid.patchTest": ["patch test", "thử dị ứng"],
   "month.prevMonth": ["Previous month", "Tháng trước"],
+  "month.fold": ["Hide the calendar", "Ẩn lịch"],
+  "month.unfold": ["Show the calendar", "Hiện lịch"],
   "month.nextMonth": ["Next month", "Tháng sau"],
   "month.prevYear": ["Previous year", "Năm trước"],
   "month.nextYear": ["Next year", "Năm sau"],
