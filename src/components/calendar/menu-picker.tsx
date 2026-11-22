@@ -85,7 +85,7 @@ export function MenuPicker({
   return (
     <div className="grid gap-3">
       {/* 1 · Treatment */}
-      <div className="flex flex-wrap gap-1.5 max-md:grid max-md:grid-cols-2" role="tablist" aria-label={t("form.treatment")}>
+      <div className="flex flex-wrap gap-1.5 phone:grid phone:grid-cols-2" role="tablist" aria-label={t("form.treatment")}>
         {menu.treatments.map((x) => {
           const has = chosen.has(x.id);
           return (

@@ -161,12 +161,12 @@ export function ClientPicker({
   }, [typed, mode, t]);
 
   const header = (
-    <div className="flex shrink-0 items-start gap-4 px-6 pb-4 pt-6 max-md:px-4 max-md:pt-4">
+    <div className="flex shrink-0 items-start gap-4 px-6 pb-4 pt-6 phone:px-4 phone:pt-4">
       <div className="grid min-w-0 flex-1 gap-2.5">
         {kicker && (
           <span className="text-xs font-bold uppercase tracking-[0.07em] text-tea-green-200">{kicker}</span>
         )}
-        <DialogTitle className="font-heading text-[26px] font-extrabold leading-tight max-md:text-[22px]">
+        <DialogTitle className="font-heading text-[26px] font-extrabold leading-tight phone:text-[22px]">
           {mode === "new" ? t("picker.newClient") : title}
         </DialogTitle>
         {context}
@@ -189,7 +189,7 @@ export function ClientPicker({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {header}
-      <div className="shrink-0 px-6 max-md:px-4">
+      <div className="shrink-0 px-6 phone:px-4">
         <label className="relative block">
           <span className="sr-only">{t("picker.searchLabel")}</span>
           <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -206,12 +206,12 @@ export function ClientPicker({
 
       <div
         aria-live="polite"
-        className="shrink-0 px-6 pb-1.5 pt-4 text-xs font-bold uppercase tracking-[0.07em] text-muted-foreground max-md:px-4"
+        className="shrink-0 px-6 pb-1.5 pt-4 text-xs font-bold uppercase tracking-[0.07em] text-muted-foreground phone:px-4"
       >
         {error ?? (loading ? t("picker.searching") : typed ? t("picker.matches") : t("picker.recent"))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 md:max-h-[380px] max-md:px-1">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 md:max-h-[380px] phone:px-1">
         {rows.map((c) => {
           const regular = c.visits > 0;
           const reach = c.phone ? speakablePhone(c.phone) : reachedThrough(c, t);
@@ -220,17 +220,17 @@ export function ClientPicker({
               key={c.id}
               type="button"
               onClick={() => onPick(c)}
-              className="flex w-full items-center gap-3.5 rounded-[14px] px-3 py-2.5 text-left hover:bg-tea-green-900 focus-visible:bg-tea-green-900 focus-visible:outline-none max-md:min-h-16 max-md:rounded-none max-md:border-b max-md:border-tea-green-900"
+              className="flex w-full items-center gap-3.5 rounded-[14px] px-3 py-2.5 text-left hover:bg-tea-green-900 focus-visible:bg-tea-green-900 focus-visible:outline-none phone:min-h-16 phone:rounded-none phone:border-b phone:border-tea-green-900"
             >
               <ClientAvatar name={c.name} regular={regular} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[15px] font-semibold max-md:text-base">
+                <span className="block truncate text-[15px] font-semibold phone:text-base">
                   {c.name ?? t("form.unnamedClient")}
                   <DuplicateFlag client={c} className="ml-2" />
                 </span>
                 {reach && <span className="block truncate text-[13px] text-muted-foreground">{reach}</span>}
               </span>
-              <span className="flex shrink-0 flex-col items-end gap-1 max-md:hidden">
+              <span className="flex shrink-0 flex-col items-end gap-1 phone:hidden">
                 <span className={cn("text-[12.5px] font-semibold", regular ? "text-tea-green-200" : "text-light-bronze-300")}>
                   {regular && c.lastVisit
                     ? t(c.visits === 1 ? "picker.visitLast" : "picker.visitsLast", {
@@ -271,8 +271,8 @@ export function ClientPicker({
 
       <div
         className={cn(
-          "mt-2 grid shrink-0 gap-2.5 border-t border-tea-green-800 px-6 py-4 max-md:px-4 max-md:pb-[max(1.25rem,env(safe-area-inset-bottom))]",
-          hasOptions ? "grid-cols-3 max-md:grid-cols-2" : "grid-cols-1"
+          "mt-2 grid shrink-0 gap-2.5 border-t border-tea-green-800 px-6 py-4 phone:px-4 phone:pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+          hasOptions ? "grid-cols-3 phone:grid-cols-2" : "grid-cols-1"
         )}
       >
         <button
@@ -280,8 +280,8 @@ export function ClientPicker({
           onClick={() => setMode("new")}
           className={cn(
             "flex h-14 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tea-green-700 bg-card text-sm font-semibold hover:border-tea-green-500 hover:bg-tea-green-900",
-            "max-md:col-span-2 max-md:h-[52px] max-md:border-0 max-md:bg-primary max-md:text-base max-md:font-bold max-md:text-primary-foreground max-md:hover:bg-tea-green-100",
-            !hasOptions && "max-md:col-span-1"
+            "phone:col-span-2 phone:h-[52px] phone:border-0 phone:bg-primary phone:text-base phone:font-bold phone:text-primary-foreground phone:hover:bg-tea-green-100",
+            !hasOptions && "phone:col-span-1"
           )}
         >
           <UserPlus className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -291,7 +291,7 @@ export function ClientPicker({
           <button
             type="button"
             onClick={onWalkIn}
-            className="flex h-14 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tea-green-700 bg-card text-sm font-semibold hover:border-tea-green-500 hover:bg-tea-green-900 max-md:h-12"
+            className="flex h-14 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tea-green-700 bg-card text-sm font-semibold hover:border-tea-green-500 hover:bg-tea-green-900 phone:h-12"
           >
             <Footprints className="h-[18px] w-[18px] text-tea-green-200" aria-hidden="true" />
             {t("picker.walkInShort")}
@@ -301,7 +301,7 @@ export function ClientPicker({
           <button
             type="button"
             onClick={onBlockInstead}
-            className="flex h-14 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed border-tea-green-700 bg-card text-sm font-semibold text-muted-foreground hover:border-tea-green-500 hover:text-foreground max-md:h-12"
+            className="flex h-14 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed border-tea-green-700 bg-card text-sm font-semibold text-muted-foreground hover:border-tea-green-500 hover:text-foreground phone:h-12"
           >
             <Ban className="h-[18px] w-[18px]" aria-hidden="true" />
             {t("picker.blockShort")}
@@ -382,7 +382,7 @@ function NewClientForm({
 
   return (
     <form
-      className="grid min-h-0 content-start gap-3 overflow-y-auto px-6 pb-6 max-md:px-4 max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+      className="grid min-h-0 content-start gap-3 overflow-y-auto px-6 pb-6 phone:px-4 phone:pb-[max(1.5rem,env(safe-area-inset-bottom))]"
       onSubmit={(e) => {
         e.preventDefault();
         if (firstName.trim() && !saving) save();

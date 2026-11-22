@@ -27,7 +27,7 @@ import {
   type DoneOutcome,
 } from "@/components/callbacks/callback-parts";
 import { cn } from "@/lib/utils";
-import { useIsPhone } from "@/lib/use-is-phone";
+import { useIsOnePane } from "@/lib/use-is-phone";
 
 type View = "todo" | "done";
 /** How often an open Callbacks page checks for new ones. */
@@ -43,14 +43,14 @@ export default function CallbacksPage() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // A phone shows the one picked in a sheet over the list.
+  // A phone or an upright tablet shows the one picked in a sheet over the list.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [forWho, setForWho] = useState(ALL);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [todoCount, setTodoCount] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const isPhone = useIsPhone();
+  const onePane = useIsOnePane();
   // The one open now, for a quiet reload (load, below) to keep open.
   const openId = useRef<string | null>(null);
 
@@ -229,7 +229,7 @@ export default function CallbacksPage() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      <section aria-label={t("callbacks.title")} className="flex w-full min-w-0 flex-col border-r border-border md:w-[25rem] md:shrink-0 lg:w-[31rem]">
+      <section aria-label={t("callbacks.title")} className="flex w-full min-w-0 flex-col border-r border-border lg:w-[24rem] lg:shrink-0 xl:w-[28rem] 2xl:w-[31rem]">
         <div className="shrink-0 px-4 pb-3 pt-5 md:px-5">
           <h1 className="font-heading text-[26px] font-extrabold tracking-tight">{t("callbacks.title")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{loading && todoCount === null ? " " : subtitle}</p>
@@ -307,17 +307,17 @@ export default function CallbacksPage() {
       </section>
 
       {/* Beside the list on a wide screen. */}
-      <section aria-label={selected ? displayName(selected, t) : undefined} className="hidden min-w-0 flex-1 flex-col bg-card md:flex">
-        {isPhone ? null : selected ? (
+      <section aria-label={selected ? displayName(selected, t) : undefined} className="hidden min-w-0 flex-1 flex-col bg-card lg:flex">
+        {onePane ? null : selected ? (
           detail()
         ) : (
           !loading && <p className="m-auto text-sm text-muted-foreground">{t("callbacks.pickOne")}</p>
         )}
       </section>
 
-      {/* A sheet over the list on a phone. */}
-      {isPhone && sheetOpen && selected && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-foreground/35 md:hidden" onClick={() => setSheetOpen(false)}>
+      {/* A sheet over the list on a phone or an upright tablet. */}
+      {onePane && sheetOpen && selected && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-foreground/35 lg:hidden" onClick={() => setSheetOpen(false)}>
           <div
             role="dialog"
             aria-modal="true"

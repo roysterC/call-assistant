@@ -123,7 +123,7 @@ export function OpeningHoursEditor({
             <li key={day} className="flex min-h-14 items-center gap-3 border-b border-border md:min-h-[52px] md:gap-3.5">
               <span className={cn("w-11 shrink-0 text-[15px] font-bold md:w-28 md:text-sm md:font-semibold", d.closed && "text-muted-foreground")}>
                 <span className="md:hidden">{t(`dayShort.${day}` as MessageKey)}</span>
-                <span className="max-md:hidden">{dayName(day)}</span>
+                <span className="phone:hidden">{dayName(day)}</span>
               </span>
 
               <button
@@ -147,7 +147,7 @@ export function OpeningHoursEditor({
               </button>
 
               {d.closed ? (
-                <span className="text-sm text-muted-foreground max-md:ml-auto">{t("hours.closed")}</span>
+                <span className="text-sm text-muted-foreground phone:ml-auto">{t("hours.closed")}</span>
               ) : (
                 <>
                   {/* A wide screen: the two times, each a list of quarter hours. */}

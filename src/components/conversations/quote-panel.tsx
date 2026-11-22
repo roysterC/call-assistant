@@ -148,20 +148,23 @@ export function QuotePanel({
     );
   };
 
+  // A sheet from the bottom on a phone; a drawer over the chat on a tablet or
+  // laptop, where beside the list and the thread it left the thread a sliver;
+  // beside the thread only on the widest screens.
   return (
     <div
       role="dialog"
       aria-label={`Quote for ${name}`}
-      className="fixed inset-0 z-50 flex flex-col bg-tea-green-100/45 md:static md:z-auto md:w-[27.5rem] md:shrink-0 md:border-l md:border-border md:bg-card"
+      className="fixed inset-0 z-50 flex flex-col bg-tea-green-100/45 md:flex-row md:justify-end 2xl:static 2xl:z-auto 2xl:w-[27.5rem] 2xl:shrink-0 2xl:border-l 2xl:border-border 2xl:bg-card"
     >
-      <div className="mt-9 flex min-h-0 flex-1 flex-col rounded-t-3xl bg-card md:mt-0 md:rounded-none">
+      <div className="mt-9 flex min-h-0 flex-1 flex-col rounded-t-3xl bg-card md:mt-0 md:w-[27.5rem] md:flex-none md:rounded-none md:border-l md:border-border md:shadow-raised 2xl:w-full 2xl:border-0 2xl:shadow-none">
         <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-tea-green-700 md:hidden" aria-hidden="true" />
         <div className="flex items-start gap-2.5 px-4 pt-3 md:px-5 md:pt-[18px]">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.07em] text-tea-green-200">Quote for {name}</p>
             <h2 className="font-heading text-xl font-extrabold">
               <span className="md:hidden">{many ? `Design ${sel + 1} of ${quote.items.length}` : "Their design"}</span>
-              <span className="max-md:hidden">
+              <span className="phone:hidden">
                 {done} of {quote.items.length} priced
               </span>
             </h2>
@@ -184,7 +187,7 @@ export function QuotePanel({
 
           {many && (
             <>
-              <div className="mt-3 grid grid-cols-3 gap-2.5 px-5 max-md:hidden">{quote.items.map((_, i) => tile(i, "md"))}</div>
+              <div className="mt-3 grid grid-cols-3 gap-2.5 px-5 phone:hidden">{quote.items.map((_, i) => tile(i, "md"))}</div>
               <div className="mt-3 flex gap-2 px-4 md:hidden">{quote.items.map((_, i) => tile(i, "sm"))}</div>
             </>
           )}
@@ -204,7 +207,7 @@ export function QuotePanel({
               />
             </button>
             <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-              <p className="text-sm font-bold max-md:hidden">Design {sel + 1}</p>
+              <p className="text-sm font-bold phone:hidden">Design {sel + 1}</p>
               {cur.declined ? (
                 <p className="text-[13px] text-muted-foreground">
                   Not one you do. Kikai will tell {name} kindly
@@ -221,7 +224,7 @@ export function QuotePanel({
                 <>
                   <label className="flex flex-col gap-1">
                     <span className="text-[12.5px] font-semibold text-muted-foreground">Price</span>
-                    <span className="flex h-12 items-center gap-1 rounded-xl border-[1.5px] border-tea-green-500 bg-card px-3 focus-within:border-tea-green-300 focus-within:ring-3 focus-within:ring-tea-green-800 max-md:h-14">
+                    <span className="flex h-12 items-center gap-1 rounded-xl border-[1.5px] border-tea-green-500 bg-card px-3 focus-within:border-tea-green-300 focus-within:ring-3 focus-within:ring-tea-green-800 phone:h-14">
                       <span className="text-lg text-muted-foreground">£</span>
                       <input
                         inputMode="decimal"
@@ -229,7 +232,7 @@ export function QuotePanel({
                         onChange={(e) => update(sel, { price: e.target.value.replace(/[^0-9.]/g, "") })}
                         placeholder="0"
                         aria-label={`Price for design ${sel + 1}`}
-                        className="min-w-0 flex-1 bg-transparent text-xl font-bold tabular-nums focus:outline-none max-md:text-2xl"
+                        className="min-w-0 flex-1 bg-transparent text-xl font-bold tabular-nums focus:outline-none phone:text-2xl"
                       />
                     </span>
                   </label>
@@ -245,7 +248,7 @@ export function QuotePanel({
                           aria-pressed={cur.minutes === t}
                           onClick={() => update(sel, { minutes: t })}
                           className={cn(
-                            "h-[30px] rounded-full border px-2.5 text-[12.5px] font-semibold max-md:h-9 max-md:px-3 max-md:text-[13.5px]",
+                            "h-[30px] rounded-full border px-2.5 text-[12.5px] font-semibold phone:h-9 phone:px-3 phone:text-[13.5px]",
                             cur.minutes === t ? "border-foreground bg-foreground text-background" : "border-tea-green-700 bg-card"
                           )}
                         >

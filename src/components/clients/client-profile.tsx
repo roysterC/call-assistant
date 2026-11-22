@@ -651,7 +651,7 @@ export function ClientProfile({
 
 function BackBar({ onBack, t }: { onBack: () => void; t: Translate }) {
   return (
-    <div className="flex shrink-0 items-center px-2 pt-2 md:hidden">
+    <div className="flex shrink-0 items-center px-2 pt-2 lg:hidden">
       <button type="button" onClick={onBack} className="flex h-10 items-center gap-1 rounded-lg px-2 text-[15px] font-semibold text-primary">
         <ChevronLeft className="h-5 w-5" /> {t("client.back")}
       </button>

@@ -39,7 +39,7 @@ export const BOOKING_CARD = cn(
   "flex flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-[640px] md:max-h-[min(860px,calc(100dvh-2rem))]",
   // The card's own cap (100dvh less a margin) would leave the app's tab bar
   // showing under a full-screen card on a phone.
-  "max-md:max-h-none max-md:overflow-hidden max-md:rounded-none max-md:pb-0"
+  "phone:max-h-none phone:overflow-hidden phone:rounded-none phone:pb-0"
 );
 
 export interface BookingSlot {
@@ -232,7 +232,7 @@ export function NewBookingDialog({
         )}
 
         {step.kind === "done" && (
-          <div className="relative flex flex-col items-center gap-5 overflow-y-auto px-8 pb-7 pt-9 text-center max-md:min-h-full max-md:px-5 max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-md:pt-16">
+          <div className="relative flex flex-col items-center gap-5 overflow-y-auto px-8 pb-7 pt-9 text-center phone:min-h-full phone:px-5 phone:pb-[max(1.5rem,env(safe-area-inset-bottom))] phone:pt-16">
             <div className="absolute right-4 top-4">
               <CloseButton onClose={onClose} />
             </div>

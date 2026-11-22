@@ -227,15 +227,15 @@ export function AppointmentSheet({
           : null;
 
   const secondary =
-    "flex h-[52px] items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tea-green-700 bg-card px-4 text-[15px] font-semibold hover:bg-tea-green-900 disabled:opacity-50 max-md:h-[50px]";
+    "flex h-[52px] items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-tea-green-700 bg-card px-4 text-[15px] font-semibold hover:bg-tea-green-900 disabled:opacity-50 phone:h-[50px]";
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className={cn(PHONE_SHEET, "gap-0 overflow-visible rounded-3xl p-0 sm:max-w-[480px] max-md:rounded-b-none max-md:pb-0")}
+        className={cn(PHONE_SHEET, "gap-0 overflow-visible rounded-3xl p-0 sm:max-w-[480px] phone:rounded-b-none phone:pb-0")}
       >
-        <div className="flex items-center gap-2.5 pl-6 pr-5 pt-[18px] max-md:px-4 max-md:pt-3">
+        <div className="flex items-center gap-2.5 pl-6 pr-5 pt-[18px] phone:px-4 phone:pt-3">
           <span className={cn("inline-flex h-[26px] items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-bold", pill[phase].className)}>
             <span className={cn("h-[7px] w-[7px] rounded-full", pill[phase].dot)} aria-hidden="true" />
             {pill[phase].label}
@@ -246,8 +246,8 @@ export function AppointmentSheet({
           <CloseButton onClose={onClose} />
         </div>
 
-        <div className="flex items-center gap-3 px-6 pt-3 max-md:px-4 max-md:pt-2">
-          <ClientAvatar name={name} regular={a.clientType !== "new"} className="h-12 w-12 text-base max-md:hidden" />
+        <div className="flex items-center gap-3 px-6 pt-3 phone:px-4 phone:pt-2">
+          <ClientAvatar name={name} regular={a.clientType !== "new"} className="h-12 w-12 text-base phone:hidden" />
           <div className="min-w-0 flex-1">
             <DialogTitle className="truncate font-heading text-[22px] font-extrabold leading-tight">{name}</DialogTitle>
             {phone && <p className="mt-0.5 text-[13.5px] tabular-nums text-muted-foreground">{speakablePhone(phone)}</p>}
@@ -257,27 +257,27 @@ export function AppointmentSheet({
               <a
                 href={`tel:${tel}`}
                 aria-label={t("sheet.call")}
-                className="flex h-10 items-center gap-1.5 rounded-xl bg-tea-green-900 px-3 text-[13.5px] font-semibold hover:bg-tea-green-800 max-md:h-12 max-md:w-12 max-md:justify-center max-md:rounded-full max-md:bg-tea-green-800 max-md:px-0"
+                className="flex h-10 items-center gap-1.5 rounded-xl bg-tea-green-900 px-3 text-[13.5px] font-semibold hover:bg-tea-green-800 phone:h-12 phone:w-12 phone:justify-center phone:rounded-full phone:bg-tea-green-800 phone:px-0"
               >
-                <Phone className="h-4 w-4 text-tea-green-200 max-md:h-5 max-md:w-5 max-md:text-tea-green-100" aria-hidden="true" />
-                <span className="max-md:hidden">{t("sheet.call")}</span>
+                <Phone className="h-4 w-4 text-tea-green-200 phone:h-5 phone:w-5 phone:text-tea-green-100" aria-hidden="true" />
+                <span className="phone:hidden">{t("sheet.call")}</span>
               </a>
               <a
                 href={`sms:${tel}`}
                 aria-label={t("sheet.text")}
-                className="flex h-10 items-center gap-1.5 rounded-xl bg-tea-green-900 px-3 text-[13.5px] font-semibold hover:bg-tea-green-800 max-md:h-12 max-md:w-12 max-md:justify-center max-md:rounded-full max-md:bg-tea-green-800 max-md:px-0"
+                className="flex h-10 items-center gap-1.5 rounded-xl bg-tea-green-900 px-3 text-[13.5px] font-semibold hover:bg-tea-green-800 phone:h-12 phone:w-12 phone:justify-center phone:rounded-full phone:bg-tea-green-800 phone:px-0"
               >
-                <MessageSquareText className="h-4 w-4 text-tea-green-200 max-md:h-5 max-md:w-5 max-md:text-tea-green-100" aria-hidden="true" />
-                <span className="max-md:hidden">{t("sheet.text")}</span>
+                <MessageSquareText className="h-4 w-4 text-tea-green-200 phone:h-5 phone:w-5 phone:text-tea-green-100" aria-hidden="true" />
+                <span className="phone:hidden">{t("sheet.text")}</span>
               </a>
             </>
           )}
         </div>
 
-        <div className="grid gap-3 px-6 pt-4 max-md:px-4 max-md:pt-3">
+        <div className="grid gap-3 px-6 pt-4 phone:px-4 phone:pt-3">
           <div className="grid gap-2 rounded-2xl bg-tea-green-900 px-4 py-3.5">
             <div className="flex flex-wrap items-baseline justify-between gap-x-2.5 gap-y-0.5">
-              <span className="text-[17px] font-bold tabular-nums max-md:text-base">
+              <span className="text-[17px] font-bold tabular-nums phone:text-base">
                 {dateText} · <span className="whitespace-nowrap">{range}</span>
               </span>
               {whenNote && (
@@ -360,13 +360,13 @@ export function AppointmentSheet({
         </div>
 
         {outcome && (
-          <div className={cn("mx-6 mt-3.5 flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3 max-md:mx-4", outcome.className)}>
+          <div className={cn("mx-6 mt-3.5 flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3 phone:mx-4", outcome.className)}>
             <span className="flex-1 text-sm font-semibold">{outcome.title}</span>
             <button
               type="button"
               onClick={() => setStatus("booked")}
               disabled={busy}
-              className="h-[34px] rounded-[10px] border bg-card px-3 text-[13px] font-semibold hover:bg-tea-green-900 disabled:opacity-50 max-md:h-10 max-md:px-3.5"
+              className="h-[34px] rounded-[10px] border bg-card px-3 text-[13px] font-semibold hover:bg-tea-green-900 disabled:opacity-50 phone:h-10 phone:px-3.5"
             >
               {saving === "booked" ? "…" : t("sheet.undo")}
             </button>
@@ -374,11 +374,11 @@ export function AppointmentSheet({
         )}
 
         {phase === "now" && !confirming && (
-          <div className="mx-6 mt-3.5 flex items-center gap-2.5 max-md:mx-4">
-            <label htmlFor="appointment-amount" className="text-sm font-semibold max-md:flex-1 max-md:text-[15px]">
+          <div className="mx-6 mt-3.5 flex items-center gap-2.5 phone:mx-4">
+            <label htmlFor="appointment-amount" className="text-sm font-semibold phone:flex-1 phone:text-[15px]">
               {t("sheet.theyPaid")}
             </label>
-            <span className="flex h-[42px] items-center gap-1 rounded-xl border-[1.5px] border-tea-green-500 bg-card px-2.5 focus-within:border-tea-green-300 focus-within:ring-3 focus-within:ring-tea-green-800 max-md:h-[46px]">
+            <span className="flex h-[42px] items-center gap-1 rounded-xl border-[1.5px] border-tea-green-500 bg-card px-2.5 focus-within:border-tea-green-300 focus-within:ring-3 focus-within:ring-tea-green-800 phone:h-[46px]">
               <span className="text-muted-foreground">£</span>
               <input
                 id="appointment-amount"
@@ -390,7 +390,7 @@ export function AppointmentSheet({
               />
             </span>
             {listPriceMinor != null && (
-              <span className="text-[12.5px] text-muted-foreground max-md:hidden">
+              <span className="text-[12.5px] text-muted-foreground phone:hidden">
                 {t(quoted ? "sheet.quotedPrice" : "sheet.listPrice", { price: formatMoney(listPriceMinor) })}
               </span>
             )}
@@ -398,12 +398,12 @@ export function AppointmentSheet({
         )}
 
         {(error || notice) && (
-          <p role="status" className={cn("mx-6 mt-3 text-[13px] max-md:mx-4", error ? "text-red-600" : "text-muted-foreground")}>
+          <p role="status" className={cn("mx-6 mt-3 text-[13px] phone:mx-4", error ? "text-red-600" : "text-muted-foreground")}>
             {error ?? notice}
           </p>
         )}
 
-        <div className="relative mt-[18px] border-t border-tea-green-800 px-6 pb-[22px] pt-4 max-md:px-4 max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="relative mt-[18px] border-t border-tea-green-800 px-6 pb-[22px] pt-4 phone:px-4 phone:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
           {confirming ? (
             <div className="grid gap-3">
               <p className="text-base font-bold">
@@ -421,12 +421,12 @@ export function AppointmentSheet({
                   {t("sheet.textCancel", { name: firstName })}
                 </label>
               )}
-              <div className="grid grid-cols-2 gap-2.5 max-md:grid-cols-1">
+              <div className="grid grid-cols-2 gap-2.5 phone:grid-cols-1">
                 <button
                   type="button"
                   onClick={() => setConfirming(false)}
                   disabled={busy}
-                  className={cn(secondary, "max-md:order-2")}
+                  className={cn(secondary, "phone:order-2")}
                 >
                   {t("sheet.keepIt")}
                 </button>
@@ -434,7 +434,7 @@ export function AppointmentSheet({
                   type="button"
                   onClick={() => setStatus("cancelled", { notifyClient: Boolean(phone) && textOnCancel })}
                   disabled={busy}
-                  className="h-[52px] rounded-[14px] bg-red-700 text-[15px] font-bold text-white hover:bg-red-800 disabled:opacity-60 max-md:h-[54px]"
+                  className="h-[52px] rounded-[14px] bg-red-700 text-[15px] font-bold text-white hover:bg-red-800 disabled:opacity-60 phone:h-[54px]"
                 >
                   {saving === "cancelled" ? "…" : t("sheet.cancelBooking")}
                 </button>
@@ -445,22 +445,22 @@ export function AppointmentSheet({
               {t("sheet.bookAgain")}
             </button>
           ) : (
-            <div className="flex gap-2.5 max-md:flex-col max-md:gap-2">
+            <div className="flex gap-2.5 phone:flex-col phone:gap-2">
               <button
                 type="button"
                 onClick={phase === "now" ? () => setStatus("completed", { amountMinor: parseMoney(amount) }) : onEdit}
                 disabled={busy}
-                className="h-[52px] flex-1 rounded-[14px] bg-primary max-md:flex-none px-5 text-base font-bold text-primary-foreground hover:bg-tea-green-100 disabled:opacity-60 max-md:h-14 max-md:text-[17px]"
+                className="h-[52px] flex-1 rounded-[14px] bg-primary phone:flex-none px-5 text-base font-bold text-primary-foreground hover:bg-tea-green-100 disabled:opacity-60 phone:h-14 phone:text-[17px]"
               >
                 {phase === "now" ? (saving === "completed" ? "…" : markLabel) : t("sheet.changeBooking")}
               </button>
-              <div className="flex gap-2.5 max-md:gap-2">
+              <div className="flex gap-2.5 phone:gap-2">
                 {phase === "now" && (
-                  <button type="button" onClick={onEdit} disabled={busy} className={cn(secondary, "max-md:flex-1")}>
+                  <button type="button" onClick={onEdit} disabled={busy} className={cn(secondary, "phone:flex-1")}>
                     {t("sheet.change")}
                   </button>
                 )}
-                <div ref={menuRef} className="relative max-md:flex-1">
+                <div ref={menuRef} className="relative phone:flex-1">
                   <button
                     type="button"
                     onClick={() => setMenu((m) => !m)}
@@ -468,15 +468,15 @@ export function AppointmentSheet({
                     aria-haspopup="menu"
                     aria-label={t("sheet.more")}
                     disabled={busy}
-                    className={cn(secondary, "w-[52px] px-0 max-md:w-full")}
+                    className={cn(secondary, "w-[52px] px-0 phone:w-full")}
                   >
-                    <MoreHorizontal className="h-5 w-5 max-md:hidden" aria-hidden="true" />
+                    <MoreHorizontal className="h-5 w-5 phone:hidden" aria-hidden="true" />
                     <span className="md:hidden">{menu ? t("sheet.less") : t("sheet.more")}</span>
                   </button>
                   {menu && (
                     <div
                       role="menu"
-                      className="absolute bottom-[calc(100%+8px)] right-0 z-10 grid w-[260px] rounded-2xl border border-tea-green-700 bg-card p-1.5 shadow-raised max-md:fixed max-md:inset-x-4 max-md:bottom-[calc(env(safe-area-inset-bottom)+11rem)] max-md:w-auto"
+                      className="absolute bottom-[calc(100%+8px)] right-0 z-10 grid w-[260px] rounded-2xl border border-tea-green-700 bg-card p-1.5 shadow-raised phone:fixed phone:inset-x-4 phone:bottom-[calc(env(safe-area-inset-bottom)+11rem)] phone:w-auto"
                     >
                       {phase === "now" ? (
                         <button

@@ -4,15 +4,16 @@ import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-fetch";
 import { LanguageFlags } from "@/components/i18n/language-flags";
-import { BrandMark, Navigation } from "@/components/dashboard/sidebar";
+import { BrandMark, Navigation, navWidth } from "@/components/dashboard/sidebar";
 import { Assistant } from "@/components/voice-booking/assistant";
 import { BookingAlerts } from "@/components/notifications/booking-alerts";
 import { QuoteAlerts } from "@/components/notifications/quote-alerts";
 import { NotificationsBell, NotificationsRuntime } from "@/components/notifications/notifications-panel";
+import { useMediaQuery } from "@/lib/use-is-phone";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useCollapsedNav();
+  const [collapsed, setCollapsed, openedNarrow] = useCollapsedNav();
   // Embed, login, the in-person funnel and the public legal pages: no
   // sidebar, no padding, no chrome. The legal pages must render standalone so
   // Meta's app-review crawler (and end users) see them without logged-in UI.
@@ -59,15 +60,17 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="flex flex-1 min-h-0 w-full">
-        <Suspense fallback={<SidebarFallback collapsed={collapsed} />}>
-          <Navigation collapsed={collapsed} onToggleCollapsed={() => setCollapsed(!collapsed)} />
+        <Suspense fallback={<SidebarFallback collapsed={collapsed} openedNarrow={openedNarrow} />}>
+          <Navigation collapsed={collapsed} openedNarrow={openedNarrow} onToggleCollapsed={() => setCollapsed(!collapsed)} />
         </Suspense>
 
         {/* The personal assistant: on every signed-in page. */}
         <Assistant />
-        {/* Pop-ups, stacked in one corner so they never sit on each other: top
-            right, clear of the assistant's button; across the top on a phone. */}
-        <div className="pointer-events-none fixed inset-x-2 top-16 z-50 flex flex-col gap-2 md:inset-x-auto md:right-4 md:top-4 md:w-[360px] [&>*]:pointer-events-auto">
+        {/* Pop-ups, stacked in one corner so they never sit on each other:
+            bottom right, above the assistant's button; on a phone, just above
+            the tab bar. At the top they covered each page's title, its
+            filters and its own buttons (New booking) until closed. */}
+        <div className="pointer-events-none fixed inset-x-2 bottom-[calc(68px+1.25rem+max(0.75rem,env(safe-area-inset-bottom)))] z-50 flex flex-col gap-2 md:inset-x-auto md:bottom-24 md:right-6 md:w-[360px] [&>*]:pointer-events-auto">
           {/* Clients waiting for a price on their designs. */}
           <QuoteAlerts />
           {/* The receptionist's new bookings, until each is closed or opened. */}
@@ -77,9 +80,11 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         <NotificationsRuntime />
 
         {/* On a phone, clear of the tab bar along the bottom. */}
-        <main className="flex-1 overflow-auto min-w-0 max-md:pb-[calc(68px+1.5rem+max(0.75rem,env(safe-area-inset-bottom)))]">
+        <main className="flex-1 overflow-auto min-w-0 phone:pb-[calc(68px+1.5rem+max(0.75rem,env(safe-area-inset-bottom)))]">
           {isFullWidth ? (
-            <div className="h-full">{children}</div>
+            // On a short screen their header and the tab bar left the diary
+            // or a profile a strip a finger wide; there the page scrolls instead.
+            <div className="h-full short:min-h-[36rem]">{children}</div>
           ) : (
             <div className="max-w-7xl mx-auto p-4 md:p-8">{children}</div>
           )}
@@ -111,10 +116,10 @@ function OnboardingGate() {
   return null;
 }
 
-function SidebarFallback({ collapsed }: { collapsed: boolean }) {
+function SidebarFallback({ collapsed, openedNarrow }: { collapsed: boolean; openedNarrow: boolean }) {
   return (
     <aside
-      className={`hidden md:block m-3 mr-0 rounded-[28px] ${collapsed ? "w-[76px]" : "w-64"} bg-sidebar shrink-0`}
+      className={`hidden md:block m-3 mr-0 rounded-[28px] ${navWidth(collapsed, openedNarrow)} bg-sidebar shrink-0`}
       aria-hidden
     />
   );
@@ -123,15 +128,24 @@ function SidebarFallback({ collapsed }: { collapsed: boolean }) {
 const COLLAPSED_KEY = "sidebar-collapsed";
 
 /**
- * Whether the menu is folded to its icon rail, remembered in this browser.
+ * Whether the menu is folded to its icon rail.
  *
- * Read after mount rather than during render: the server has no storage, and
- * reading it in render would give the server and the browser different
- * markup. Storage can be missing or refuse (private windows), so both sides
- * are guarded and the menu simply starts open.
+ * On a laptop or larger the choice is remembered in this browser. Read after
+ * mount rather than during render: the server has no storage, and reading it
+ * in render would give the server and the browser different markup. Storage
+ * can be missing or refuse (private windows), so both sides are guarded and
+ * the menu simply starts open.
+ *
+ * Below 1280px (a tablet, a small laptop) the open menu took a quarter of the
+ * screen and left the pages with a list and a detail beside it a sliver, so
+ * there it starts folded, whatever was remembered; opening it there lasts
+ * until the page is left and is not remembered.
  */
-function useCollapsedNav(): [boolean, (next: boolean) => void] {
+function useCollapsedNav(): [collapsed: boolean, set: (next: boolean) => void, openedNarrow: boolean] {
   const [collapsed, setCollapsed] = useState(false);
+  const narrow = useMediaQuery("(max-width: 1279px)");
+  const pathname = usePathname();
+  const [openedOn, setOpenedOn] = useState<string | null>(null);
   useEffect(() => {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one read of browser storage after mount
@@ -140,6 +154,9 @@ function useCollapsedNav(): [boolean, (next: boolean) => void] {
       // No storage: start open.
     }
   }, []);
+  if (narrow) {
+    return [openedOn !== pathname, (next) => setOpenedOn(next ? null : pathname), openedOn === pathname];
+  }
   const set = (next: boolean) => {
     setCollapsed(next);
     try {
@@ -148,5 +165,5 @@ function useCollapsedNav(): [boolean, (next: boolean) => void] {
       // Not remembered, but still folded for this visit.
     }
   };
-  return [collapsed, set];
+  return [collapsed, set, false];
 }

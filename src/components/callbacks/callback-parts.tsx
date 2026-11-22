@@ -165,7 +165,7 @@ export function CallbackCard({
     <div
       className={cn(
         "rounded-2xl border bg-card transition-colors",
-        selected ? "md:border-primary md:ring-1 md:ring-primary" : "border-border md:hover:border-tea-green-600"
+        selected ? "lg:border-primary lg:ring-1 lg:ring-primary" : "border-border lg:hover:border-tea-green-600"
       )}
     >
       <button type="button" onClick={onPick} aria-current={selected ? "true" : undefined} className="flex w-full gap-3 p-3.5 text-left">
@@ -196,9 +196,9 @@ export function CallbackCard({
           </span>
         </span>
       </button>
-      {/* On a phone: ring them straight from the list. */}
+      {/* On a phone or an upright tablet: ring them straight from the list. */}
       {!done && (
-        <div className="flex gap-2 px-3.5 pb-3.5 md:hidden">
+        <div className="flex gap-2 px-3.5 pb-3.5 lg:hidden">
           {phone && (
             <a href={`tel:${phone}`} className={buttonVariants({ className: "h-12 flex-1 rounded-[13px] text-[15.5px] font-bold" })}>
               <Phone /> {t("callbacks.callShort")}
@@ -306,7 +306,7 @@ export function CallbackDetail({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-10 pt-5 md:px-7 md:pb-28">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_17rem]">
           <div className="flex min-w-0 flex-col gap-4">
             <section aria-labelledby="said-heading">
               <h3 id="said-heading" className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">

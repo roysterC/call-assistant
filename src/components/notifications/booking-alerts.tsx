@@ -116,7 +116,7 @@ export function BookingAlerts() {
         <article
           key={n.id}
           className={cn(
-            "rounded-xl border border-border border-l-4 bg-card px-2.5 py-2 shadow-raised animate-in fade-in-0 slide-in-from-top-2 md:p-3",
+            "rounded-xl border border-border border-l-4 bg-card px-2.5 py-2 shadow-raised animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none md:p-3",
             // A phone shows the newest only; the rest are counted below it.
             i > 0 && "hidden md:block"
           )}

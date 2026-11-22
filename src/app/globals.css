@@ -4,6 +4,24 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * A phone turned on its side is wide enough for the desktop layout but far
+ * too short for it: the menu squeezed to two rows, dialogs showing one. So
+ * the larger layouts also need the height of a tablet (500px), and a short
+ * screen of any width gets the phone's. `phone:` is the rest, the opposite of
+ * `md:` (Tailwind's own `max-md:` reads width alone, so it is not used); its
+ * media query is also what useIsPhone (src/lib/use-is-phone.ts) asks.
+ * `sm:` stays width alone: it tunes the phone layout for larger phones.
+ */
+@custom-variant md (@media (width >= 48rem) and (height >= 31.25rem));
+@custom-variant lg (@media (width >= 64rem) and (height >= 31.25rem));
+@custom-variant xl (@media (width >= 80rem) and (height >= 31.25rem));
+@custom-variant 2xl (@media (width >= 96rem) and (height >= 31.25rem));
+@custom-variant phone (@media not all and (width >= 48rem) and (height >= 31.25rem));
+/* A short screen (a phone on its side): pages that fit themselves to the
+   screen's height get a floor instead, and the page scrolls (main-wrapper). */
+@custom-variant short (@media (height < 31.25rem));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

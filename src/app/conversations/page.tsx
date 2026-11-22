@@ -523,8 +523,8 @@ export default function ConversationsPage() {
       <aside
         className={cn(
           "flex-col bg-card border-r border-border shrink-0",
-          "w-full md:w-80 lg:w-[22rem] xl:w-[23rem]",
-          mobileView === "list" ? "flex" : "hidden md:flex"
+          "w-full lg:w-[22rem] xl:w-[20rem] 2xl:w-[23rem]",
+          mobileView === "list" ? "flex" : "hidden lg:flex"
         )}
       >
         <div className="shrink-0 space-y-3 border-b border-border px-4 pb-3.5 pt-4">
@@ -664,11 +664,13 @@ export default function ConversationsPage() {
         </div>
       </aside>
 
-      {/* MIDDLE PANEL: the thread. The client on the left, the salon on the right. */}
+      {/* MIDDLE PANEL: the thread. The client on the left, the salon on the right.
+          Until the client sits beside it (xl), its bottom bars keep clear of
+          the assistant's button in the corner (md:max-xl:pr-[5.5rem]). */}
       <section
         className={cn(
           "flex-1 flex-col min-w-0 bg-background",
-          mobileView === "chat" ? "flex" : "hidden md:flex"
+          mobileView === "chat" ? "flex" : "hidden lg:flex"
         )}
       >
         {!selectedId ? (
@@ -689,7 +691,7 @@ export default function ConversationsPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="md:hidden h-8 w-8 p-0"
+                className="lg:hidden h-8 w-8 p-0"
                 onClick={() => setMobileView("list")}
                 aria-label="Back to conversations"
               >
@@ -828,7 +830,7 @@ export default function ConversationsPage() {
 
             {selectedChannel === "website" ? (
               <div className="border-t border-border bg-card">
-                <div className="flex items-center justify-between gap-3 px-4 pt-3">
+                <div className="flex items-center justify-between gap-3 px-4 pt-3 md:max-xl:pr-[5.5rem]">
                   <span className="flex min-w-0 items-center gap-2 text-[13px]">
                     <span
                       className={cn(
@@ -859,7 +861,7 @@ export default function ConversationsPage() {
                     {activeConversation.handoffState === "human" ? "Hand back to Kikai" : "Take over"}
                   </Button>
                 </div>
-                <form onSubmit={sendReply} className="flex gap-2 p-3 pt-2.5">
+                <form onSubmit={sendReply} className="flex gap-2 p-3 pt-2.5 md:max-xl:pr-[5.5rem]">
                   <input
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
@@ -879,7 +881,7 @@ export default function ConversationsPage() {
               </div>
             ) : quote?.status === "requested" && !quoteOpen ? (
               // A client waiting for a price on their designs.
-              <div className="flex items-center gap-3 border-t-[1.5px] border-papaya-whip-400 bg-card px-4 py-3 max-md:flex-col max-md:items-stretch max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="flex items-center gap-3 border-t-[1.5px] border-papaya-whip-400 bg-card px-4 py-3 md:max-xl:pr-[5.5rem] phone:flex-col phone:items-stretch phone:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <div className="flex shrink-0">
                     {quote.items.slice(0, 3).map((it) => (
@@ -894,13 +896,13 @@ export default function ConversationsPage() {
                   </div>
                   <p className="min-w-0 pl-2 text-[13.5px]">
                     <strong>
-                      {quote.clientName ?? "They"} {quote.clientName ? "wants" : "want"} a price for{" "}
-                      {quote.items.length === 1 ? "a design" : `${quote.items.length} designs`}.
+                      {quote.clientName ?? "They"} {quote.clientName ? "wants" : "want"} a price
+                      {quote.items.length === 0 ? "" : quote.items.length === 1 ? " for a design" : ` for ${quote.items.length} designs`}.
                     </strong>{" "}
                     <span className="text-muted-foreground">Kikai has said you&rsquo;ll reply shortly.</span>
                   </p>
                 </div>
-                <Button onClick={() => setQuoteOpen(true)} className="shrink-0 max-md:h-12 max-md:text-base">
+                <Button onClick={() => setQuoteOpen(true)} className="shrink-0 phone:h-12 phone:text-base">
                   Quote now
                 </Button>
               </div>

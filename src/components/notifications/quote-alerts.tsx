@@ -13,6 +13,7 @@ import { X } from "lucide-react";
 import { onServiceWorkerMessage } from "@/lib/push-client";
 import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/components/providers/language-provider";
 import type { OpenQuote } from "@/components/conversations/quote-panel";
 
 /** Asks an open Conversations page to show a chat's quote: `detail` is { c, ch }. */
@@ -59,6 +60,7 @@ export function openQuote(channel: string, conversationId: string, pathname: str
 }
 
 export function QuoteAlerts() {
+  const { t } = useT();
   const [quotes, setQuotes] = useState<OpenQuote[]>([]);
   // Closed for this browser tab: read once, as the alert first renders.
   const [closed, setClosed] = useState<string[]>(() => (typeof window === "undefined" ? [] : closedIds()));
@@ -112,13 +114,15 @@ export function QuoteAlerts() {
   if (showing.length === 0) return null;
   const q = showing[0];
   const n = q.items.length;
+  const who = q.clientName ?? t("quoteAlert.aClient");
+  const channel = CHANNEL_LABEL[q.channel] ?? q.channel;
 
   return (
     <section
-      aria-label="Quotes waiting"
+      aria-label={t("quoteAlert.region")}
       aria-live="polite"
     >
-      <article className="flex items-center gap-3 rounded-2xl bg-[#2a2e22] p-3.5 text-white shadow-raised animate-in fade-in-0 slide-in-from-top-2">
+      <article className="flex items-center gap-3 rounded-2xl bg-[#2a2e22] p-3.5 text-white shadow-raised animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
         <div className="flex shrink-0">
           {q.items.slice(0, 3).map((it) => (
             // eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image
@@ -131,9 +135,13 @@ export function QuoteAlerts() {
           ))}
         </div>
         <div className="min-w-0 flex-1 pl-2.5">
-          <p className="text-sm font-bold">Quote needed{showing.length > 1 ? ` · ${showing.length} waiting` : ""}</p>
+          <p className="text-sm font-bold">{showing.length > 1 ? t("quoteAlert.titleMany", { n: showing.length }) : t("quoteAlert.title")}</p>
           <p className="truncate text-[12.5px] opacity-80">
-            {q.clientName ?? "A client"} sent {n === 1 ? "a design" : `${n} designs`} on {CHANNEL_LABEL[q.channel] ?? q.channel}
+            {n === 0
+              ? t("quoteAlert.wantsPrice", { name: who, channel })
+              : n === 1
+                ? t("quoteAlert.sentOne", { name: who, channel })
+                : t("quoteAlert.sentMany", { name: who, n, channel })}
           </p>
         </div>
         <Button
@@ -144,12 +152,12 @@ export function QuoteAlerts() {
             openQuote(q.channel, q.conversationId, pathname, router.push);
           }}
         >
-          Quote now
+          {t("quoteAlert.quoteNow")}
         </Button>
         <button
           type="button"
           onClick={() => close(q.id)}
-          aria-label={`Close the quote alert for ${q.clientName ?? "this client"}`}
+          aria-label={t("quoteAlert.close", { name: who })}
           className="-mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg opacity-70 hover:bg-white/10 hover:opacity-100"
         >
           <X className="h-4 w-4" />

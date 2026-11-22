@@ -655,7 +655,7 @@ export default function CalendarPage() {
   const firstQuote = quotes[0];
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6 max-md:pt-2.5">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6 phone:pt-2.5">
       {/* A wide screen: the date on the left, the controls on the right where
           they never move, and the week below in seven equal days. */}
       <div className="hidden md:flex h-12 shrink-0 items-center gap-2.5">
@@ -664,10 +664,12 @@ export default function CalendarPage() {
         <h1 suppressHydrationWarning className="min-w-0 flex-1 truncate font-heading text-[23px] font-extrabold tracking-tight">
           {title}
         </h1>
+        {/* What is waiting, where there is room for it beside the controls
+            (an upright tablet has the menu's dots and the bell instead). */}
         {callbacksWaiting > 0 && (
           <Link
             href={withAsOrg("/callbacks")}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-cornsilk-800 px-3 text-[13px] font-bold text-cornsilk-100 hover:bg-cornsilk-700"
+            className="hidden h-8 shrink-0 items-center gap-1.5 rounded-full bg-cornsilk-800 lg:inline-flex px-3 text-[13px] font-bold text-cornsilk-100 hover:bg-cornsilk-700"
           >
             <Phone className="h-3.5 w-3.5" aria-hidden="true" />
             {t(callbacksWaiting === 1 ? "diary.callbackOne" : "diary.callbackMany", { n: callbacksWaiting })}
@@ -677,12 +679,12 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => openQuote(firstQuote.channel, firstQuote.conversationId, pathname, router.push)}
-            className="inline-flex h-8 shrink-0 items-center rounded-full bg-red-50 px-3 text-[13px] font-bold text-red-800 hover:bg-red-100"
+            className="hidden h-8 shrink-0 items-center rounded-full bg-red-50 lg:inline-flex px-3 text-[13px] font-bold text-red-800 hover:bg-red-100"
           >
             {t(quotes.length === 1 ? "diary.quoteOne" : "diary.quoteMany", { n: quotes.length })}
           </button>
         )}
-        {(callbacksWaiting > 0 || firstQuote) && <span aria-hidden="true" className="mx-0.5 h-6 w-px shrink-0 bg-border" />}
+        {(callbacksWaiting > 0 || firstQuote) && <span aria-hidden="true" className="mx-0.5 hidden h-6 w-px shrink-0 bg-border lg:block" />}
         <Button variant="outline" className="h-9 shrink-0 px-3" onClick={() => pickDay(today)} disabled={selected === today && mode === "day"}>
           {t("diary.today")}
         </Button>
