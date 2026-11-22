@@ -117,7 +117,6 @@ export function QuoteAlerts() {
     <section
       aria-label="Quotes waiting"
       aria-live="polite"
-      className="fixed inset-x-2 top-16 z-50 md:inset-x-auto md:right-4 md:top-4 md:w-[360px]"
     >
       <article className="flex items-center gap-3 rounded-2xl bg-[#2a2e22] p-3.5 text-white shadow-raised animate-in fade-in-0 slide-in-from-top-2">
         <div className="flex shrink-0">
