@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { normalisePhone } from "@/lib/phone";
 
 /**
  * Create or update the lead behind a website conversation, keyed on email.
@@ -69,8 +70,14 @@ export async function upsertWebsiteLead(opts: {
    * Writing one blindly here would throw the moment a visitor typed a number
    * that already belonged to someone else, and claiming it would be the same
    * takeover as above from the other side.
+   *
+   * In the form every other number is stored in (+447700900123), not as
+   * typed: "07700 900123" would otherwise pass for a different number than
+   * the client's own, and never be found when they ring or message. One that
+   * is not a number at all is left off.
    */
-  const wanted = opts.phone?.trim() || null;
+  const parsed = normalisePhone(opts.phone);
+  const wanted = parsed.ok ? parsed.e164 : null;
   const held = wanted
     ? await prisma.lead.findUnique({
         where: { organizationId_phone: { organizationId, phone: wanted } },

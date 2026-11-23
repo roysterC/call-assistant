@@ -70,10 +70,23 @@ describe("upsertWebsiteLead", () => {
     expect(db.leads.find((l) => l.id === r.id)).toMatchObject({ email: "amy@example.com", phone: "+447700900222" });
   });
 
-  it("does not let a new client claim a number another client has", async () => {
-    const r = await upsertWebsiteLead({ organizationId: "org", email: "amy@example.com", phone: "+447700900111" });
+  it("does not let a new client claim a number another client has, however it is typed", async () => {
+    for (const typed of ["+447700900111", "07700 900111", "07700900111", "0044 7700 900 111", "447700900111"]) {
+      db.leads = [sarah()];
+      const r = await upsertWebsiteLead({ organizationId: "org", email: "amy@example.com", phone: typed });
+      expect(db.leads.find((l) => l.id === r.id)!.phone).toBeNull();
+      expect(db.leads[0].phone).toBe("+447700900111");
+    }
+  });
+
+  it("stores a new client's number in the international form, as every other number is", async () => {
+    const r = await upsertWebsiteLead({ organizationId: "org", email: "amy@example.com", phone: "07700 900 222" });
+    expect(db.leads.find((l) => l.id === r.id)!.phone).toBe("+447700900222");
+  });
+
+  it("leaves off a number that is not one", async () => {
+    const r = await upsertWebsiteLead({ organizationId: "org", email: "amy@example.com", phone: "call me maybe" });
     expect(db.leads.find((l) => l.id === r.id)!.phone).toBeNull();
-    expect(db.leads[0].phone).toBe("+447700900111");
   });
 });
 
