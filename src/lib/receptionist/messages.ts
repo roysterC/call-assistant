@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { technicianFields } from "@/lib/technicians";
 import { canCreateBooking, getBookingProvider, getSalonConfig } from "@/lib/booking";
 import { noticeNewCallback } from "@/lib/callback-notices";
 import { matchStylist } from "@/lib/salon-config";
@@ -116,6 +117,7 @@ export async function handleBookCallback(
       organizationId,
       leadId: lead.id,
       assignedTo: teamMember,
+      ...(await technicianFields(prisma, organizationId, teamMember)),
       scheduledAt,
       notes: notes || null,
       calendarEventId,
@@ -232,7 +234,7 @@ export async function handleTakeMessage(
       where: { id: recent.id },
       data: {
         notes: mergeMessage(recent.notes ?? "", message),
-        ...(stylist ? { assignedTo: stylist.name } : {}),
+        ...(stylist ? { assignedTo: stylist.name, ...(await technicianFields(prisma, organizationId, stylist.name)) } : {}),
       },
     });
   } else {
@@ -241,6 +243,7 @@ export async function handleTakeMessage(
         organizationId,
         leadId: lead.id,
         assignedTo: stylist?.name ?? "Team",
+        ...(await technicianFields(prisma, organizationId, stylist?.name)),
         // No due time: the Callbacks page lists messages by when the caller
         // rang. The column is required, so it holds that same moment.
         scheduledAt: now,

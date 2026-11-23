@@ -22,6 +22,8 @@ export type BlockRepeat = "none" | "weekly";
 export interface TimeBlockRecord {
   id: string;
   stylistName: string | null;
+  /** The technician kept out, by id (src/lib/technicians.ts). */
+  technicianId?: string | null;
   label: string;
   allDay: boolean;
   repeat: string;
@@ -39,6 +41,7 @@ export interface TimeBlockRecord {
 export interface BlockOccurrence {
   blockId: string;
   stylistName: string | null;
+  technicianId?: string | null;
   label: string;
   allDay: boolean;
   repeat: BlockRepeat;
@@ -75,15 +78,20 @@ function wallTime(date: string, hhmm: string, timeZone: string): Date {
   return zonedWallTimeToUtc(year, month, day, h, m, timeZone);
 }
 
-/** Does this block keep `stylistName` out? A block for nobody keeps everyone out. */
+/**
+ * Does this block keep this technician out? A block for nobody keeps everyone
+ * out. By id where both sides have one, so a technician who takes the name of
+ * someone who has left is not kept out by her blocks; by name otherwise (a
+ * block written before ids, until the backfill reaches it).
+ */
 export function blockApplies(
-  occurrence: Pick<BlockOccurrence, "stylistName">,
-  stylistName: string
+  occurrence: Pick<BlockOccurrence, "stylistName" | "technicianId">,
+  stylistName: string,
+  technicianId?: string | null
 ): boolean {
-  return (
-    occurrence.stylistName === null ||
-    occurrence.stylistName.toLowerCase() === stylistName.toLowerCase()
-  );
+  if (occurrence.stylistName === null) return true;
+  if (occurrence.technicianId && technicianId) return occurrence.technicianId === technicianId;
+  return occurrence.stylistName.toLowerCase() === stylistName.toLowerCase();
 }
 
 /**
@@ -105,6 +113,7 @@ export function expandBlocks(
     const base = {
       blockId: b.id,
       stylistName: b.stylistName,
+      technicianId: b.technicianId ?? null,
       label: b.label,
       allDay: b.allDay,
     };

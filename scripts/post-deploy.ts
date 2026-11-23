@@ -20,6 +20,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { splitName } from "../src/lib/client-name";
 import { applyShogoMenu, SHOGO_MENU_MIGRATION } from "./shogo-menu-apply";
 import { cleanUpSocialPlaceholders } from "../src/lib/social-placeholders";
+import { backfillTechnicians } from "../src/lib/technicians";
 
 const BATCH = 500;
 
@@ -124,6 +125,16 @@ async function main() {
     });
     console.log(`  ✓ Diaries switched on for salons that had one through the phone or messages: ${diaries.count}`);
     console.log(`  ✓ Logins from copied invite links, email no longer counted as confirmed: ${await unverifyLinkInviteLogins(prisma)}`);
+    // Nail technicians by id: every salon's team given ids, and every booking,
+    // block, callback and rebook text pointed at its technician. Every deploy,
+    // for anything the old build wrote while this one was on its way. Reported,
+    // not fatal: until a row is linked, matching falls back to its name.
+    try {
+      const techs = await backfillTechnicians(prisma);
+      console.log(`  ✓ Nail technicians by id: ${techs.salons} salons, ${techs.linked} rows linked`);
+    } catch (err) {
+      console.error("  ! Nail technicians NOT linked by id:", err instanceof Error ? err.message : err);
+    }
     // The made-up clients Instagram and Messenger messages used to make:
     // folded into the real client, or removed. Every deploy, for any the old
     // build made while this one was on its way. Reported, not fatal.

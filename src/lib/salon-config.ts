@@ -56,6 +56,12 @@ export const REBOOK_WEEKS_MIN = 1;
 export const REBOOK_WEEKS_MAX = 26;
 
 export interface Stylist {
+  /**
+   * Her permanent id (the Technician row, src/lib/technicians.ts). What her
+   * bookings, blocked time and callbacks point at. Missing only on an entry
+   * not yet saved through the settings API or the post-deploy backfill.
+   */
+  id?: string;
   name: string;
   email?: string;
   phone?: string;
@@ -177,7 +183,9 @@ export function parseStylists(raw: unknown): Stylist[] {
 
     const googleCalendarId = String(e.googleCalendarId ?? "").trim();
 
+    const id = typeof e.id === "string" && e.id.trim() ? e.id.trim() : undefined;
     out.push({
+      ...(id ? { id } : {}),
       name,
       email: String(e.email ?? "").trim() || undefined,
       phone: String(e.phone ?? "").trim() || undefined,

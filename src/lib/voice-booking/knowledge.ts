@@ -3,6 +3,7 @@
  * messages, the takings. Read-only; nothing here changes anything.
  */
 
+import { blocksTechnician, isTechnicians } from "@/lib/technician-match";
 import { prisma } from "@/lib/prisma";
 import { getSalonConfig, type SalonConfig } from "@/lib/booking";
 import { blocksBetween } from "@/lib/booking/diary";
@@ -69,12 +70,10 @@ export async function daySchedule(asker: Asker, input: { date?: string; stylist?
     open: `${hours.open} to ${hours.close}`,
     stylists: people.map((s) => {
       const working = s.workingDays.length === 0 || s.workingDays.includes(weekday);
-      const mine = appointments.filter((a) => a.stylistName.toLowerCase() === s.name.toLowerCase());
+      const mine = appointments.filter((a) => isTechnicians(a, s));
       const busy = [
         ...mine.filter((a) => a.status !== "no_show").map((a) => ({ start: a.startsAt, end: a.endsAt })),
-        ...blocks
-          .filter((b) => b.stylistName === null || b.stylistName.toLowerCase() === s.name.toLowerCase())
-          .map((b) => ({ start: b.start, end: b.end })),
+        ...blocks.filter((b) => blocksTechnician(b, s)).map((b) => ({ start: b.start, end: b.end })),
       ].sort((x, y) => x.start.getTime() - y.start.getTime());
       const free: string[] = [];
       if (working) {
@@ -95,7 +94,7 @@ export async function daySchedule(asker: Asker, input: { date?: string; stylist?
           status: a.status,
         })),
         blocked: blocks
-          .filter((b) => b.stylistName === null || b.stylistName.toLowerCase() === s.name.toLowerCase())
+          .filter((b) => blocksTechnician(b, s))
           .map((b) => (b.allDay ? "all day" : `${clock(b.start, tz)} to ${clock(b.end, tz)}`)),
         freeForAnHourOrMore: free,
       };

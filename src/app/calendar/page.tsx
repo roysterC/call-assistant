@@ -76,6 +76,7 @@ import type { SalonMenu } from "@/lib/nail-menu";
 import { addCalendarDays } from "@/lib/business-hours";
 
 interface Stylist {
+  id?: string;
   name: string;
   workingDays?: number[];
   googleCalendarId?: string;
@@ -499,6 +500,7 @@ export default function CalendarPage() {
   const columns: CalendarStylist[] = useMemo(
     () =>
       stylists.map((s, i): CalendarStylist => ({
+        id: s.id,
         name: s.name,
         colour: stylistColour(i),
         // An empty list means "any day the salon is open", the same rule the

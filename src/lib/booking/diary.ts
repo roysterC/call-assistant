@@ -18,6 +18,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { byTechnician, technicianIdFor } from "@/lib/technicians";
 import {
   insertNumberedAppointment,
   type NewAppointment,
@@ -36,9 +37,10 @@ import type { BookingWrite, WritableProvider } from "./types";
 /** Statuses that hold a chair. Cancelled and no-show time is free again. */
 export const OCCUPYING_STATUSES = ["booked", "completed"];
 
-/** Serialise every check-and-write for one stylist at one salon. */
+/** Serialise every check-and-write for one technician at one salon: by her id, so a rename cannot split the lock. */
 async function lockStylist(tx: Tx, organizationId: string, stylistName: string) {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${organizationId}), hashtext(${stylistName.toLowerCase()}))`;
+  const who = (await technicianIdFor(tx, organizationId, stylistName)) ?? stylistName.toLowerCase();
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${organizationId}), hashtext(${who}))`;
 }
 
 /** The first appointment holding `stylistName`'s chair within [start, end). */
@@ -50,10 +52,12 @@ export async function findClash(
   end: Date,
   excludeId?: string
 ) {
+  // Hers by id (src/lib/technicians.ts), so a rename cannot hide her bookings.
+  const technicianId = await technicianIdFor(db, organizationId, stylistName);
   return db.appointment.findFirst({
     where: {
       organizationId,
-      stylistName: { equals: stylistName, mode: "insensitive" },
+      ...byTechnician(technicianId, stylistName),
       status: { in: OCCUPYING_STATUSES },
       startsAt: { lt: end },
       endsAt: { gt: start },
@@ -103,7 +107,8 @@ export async function findBlockClash(
 ): Promise<BlockOccurrence | null> {
   const timeZone = await salonTimeZone(db, organizationId);
   const blocks = await blocksBetween(db, organizationId, start, end, timeZone);
-  return blocks.find((b) => blockApplies(b, stylistName)) ?? null;
+  const technicianId = await technicianIdFor(db, organizationId, stylistName);
+  return blocks.find((b) => blockApplies(b, stylistName, technicianId)) ?? null;
 }
 
 /** Busy time per stylist (keyed lower-case) from our own appointments. */
@@ -113,21 +118,23 @@ export async function busyFromDiary(
   from: Date,
   to: Date
 ): Promise<Map<string, BusyBlock[]>> {
+  const ids = await Promise.all(stylistNames.map((name) => technicianIdFor(prisma, organizationId, name)));
+  const keyOf = new Map<string, string>();
+  ids.forEach((id, i) => id && keyOf.set(id, stylistNames[i].toLowerCase()));
   const rows = await prisma.appointment.findMany({
     where: {
       organizationId,
       status: { in: OCCUPYING_STATUSES },
       startsAt: { lt: to },
       endsAt: { gt: from },
-      OR: stylistNames.map((name) => ({
-        stylistName: { equals: name, mode: "insensitive" as const },
-      })),
+      OR: stylistNames.map((name, i) => byTechnician(ids[i], name)),
     },
-    select: { stylistName: true, startsAt: true, endsAt: true },
+    select: { stylistName: true, technicianId: true, startsAt: true, endsAt: true },
   });
   const out = new Map<string, BusyBlock[]>();
   for (const r of rows) {
-    const key = r.stylistName.toLowerCase();
+    // Keyed by the name asked for: hers by id whatever the row's label says.
+    const key = (r.technicianId && keyOf.get(r.technicianId)) || r.stylistName.toLowerCase();
     const list = out.get(key) ?? [];
     list.push({ start: r.startsAt, end: r.endsAt });
     out.set(key, list);
@@ -294,6 +301,7 @@ export async function moveAppointment(
     startsAt: move.startsAt,
     endsAt,
     stylistName: move.stylistName,
+    technicianId: await technicianIdFor(prisma, organizationId, move.stylistName),
     durationMinutes: move.durationMinutes,
   };
 

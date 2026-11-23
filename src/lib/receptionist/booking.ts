@@ -1,6 +1,7 @@
 import { formatMoneyShort } from "@/lib/money";
 import { noticeNewCallback } from "@/lib/callback-notices";
 import { prisma } from "@/lib/prisma";
+import { technicianFields } from "@/lib/technicians";
 import { bookAppointment } from "@/lib/booking/diary";
 import {
   canCreateBooking,
@@ -628,6 +629,7 @@ async function writeBooking(organizationId: string, b: CheckedBooking, source: B
         organizationId,
         leadId: lead.id,
         assignedTo: stylist.name,
+        ...(await technicianFields(prisma, organizationId, stylist.name)),
         // Listed by when the caller rang, like every message.
         scheduledAt: new Date(),
         notes: notBookedNotes,

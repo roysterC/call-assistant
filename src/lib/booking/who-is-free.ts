@@ -50,7 +50,7 @@ export async function whoIsFreeAt(
     add(a.stylistName, { start: a.startsAt, end: a.endsAt, what: [a.lead?.name, a.serviceText].filter(Boolean).join(", ") });
   }
   for (const s of cfg.stylists) {
-    for (const b of blocks.filter((b) => blockApplies(b, s.name))) {
+    for (const b of blocks.filter((b) => blockApplies(b, s.name, s.id))) {
       add(s.name, { start: b.start, end: b.end, what: b.label || "Blocked", allDay: b.allDay });
     }
   }

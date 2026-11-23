@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { technicianFields } from "@/lib/technicians";
 import {
   requireTenant,
   isErrorResponse,
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     if (body?.preview === true) return NextResponse.json({ affected });
 
     const block = await prisma.timeBlock.create({
-      data: { ...data, organizationId: ctx.organizationId },
+      data: { ...data, organizationId: ctx.organizationId, ...(await technicianFields(prisma, ctx.organizationId, data.stylistName)) },
     });
     return NextResponse.json({ block, affected }, { status: 201 });
   } catch (error) {

@@ -96,7 +96,7 @@ export async function readAvailability(
     busy: [
       ...busy,
       ...blocks
-        .filter((b) => blockApplies(b, stylist.name))
+        .filter((b) => blockApplies(b, stylist.name, stylist.id))
         .map((b) => ({ start: b.start, end: b.end })),
     ],
   }));

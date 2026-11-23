@@ -48,7 +48,7 @@ export function teamInOnDay(p: {
   return p.stylists
     .filter((s) => stylistWorksOn(s, p.weekday))
     .filter((s) => {
-      const mine = p.blocks.filter((b) => blockApplies(b, s.name));
+      const mine = p.blocks.filter((b) => blockApplies(b, s.name, s.id));
       if (mine.some((b) => b.allDay)) return false;
       // Blocked from opening to closing, without being marked all day.
       return !mine.some((b) => b.start <= p.window.start && b.end >= p.window.end);

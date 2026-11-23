@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { syncTeam } from "@/lib/technicians";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import {
   openWeekdays,
@@ -269,6 +270,19 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/** The first name given to two entries of a team list, or null. */
+function duplicateTechnicianName(raw: unknown): string | null {
+  if (!Array.isArray(raw)) return null;
+  const seen = new Set<string>();
+  for (const e of raw) {
+    const name = e && typeof e === "object" ? String((e as { name?: unknown }).name ?? "").trim() : "";
+    if (!name) continue;
+    if (seen.has(name.toLowerCase())) return name;
+    seen.add(name.toLowerCase());
+  }
+  return null;
+}
+
 export async function PUT(req: NextRequest) {
   const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
@@ -278,6 +292,17 @@ export async function PUT(req: NextRequest) {
 
     if (!raw || typeof raw !== "object") {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
+    // Two technicians with one name: refused, not quietly merged into one
+    // (parseStylists keeps the first), which would lose the second's settings
+    // and leave nothing able to tell their bookings apart.
+    const sameName = duplicateTechnicianName((raw as Record<string, unknown>).teamMembers);
+    if (sameName) {
+      return NextResponse.json(
+        { error: `Two nail technicians are called "${sameName}". Give one of them a different name.` },
+        { status: 400 }
+      );
     }
 
     // Allowlist first — anything not explicitly writable is dropped, which
@@ -347,16 +372,26 @@ export async function PUT(req: NextRequest) {
       data.teamMembers = constrainWorkingDays(stylists, openWeekdays(hours));
     }
 
-    const settings = await prisma.organizationSettings.upsert({
-      where: { organizationId: ctx.organizationId },
-      update: data,
-      create: {
-        organizationId: ctx.organizationId,
-        businessName:
-          (data.businessName as string | undefined) ||
-          DEFAULT_SETTINGS.businessName,
-        ...data,
-      },
+    // The team and its Technician rows in one write: each entry gets its
+    // permanent id, a rename is written onto her bookings, blocks, callbacks
+    // and rebook texts, and anyone taken off is archived with her history
+    // (src/lib/technicians.ts).
+    const settings = await prisma.$transaction(async (tx) => {
+      if ("teamMembers" in data) {
+        const { team } = await syncTeam(tx, ctx.organizationId, data.teamMembers as Stylist[]);
+        data.teamMembers = team;
+      }
+      return tx.organizationSettings.upsert({
+        where: { organizationId: ctx.organizationId },
+        update: data,
+        create: {
+          organizationId: ctx.organizationId,
+          businessName:
+            (data.businessName as string | undefined) ||
+            DEFAULT_SETTINGS.businessName,
+          ...data,
+        },
+      });
     });
 
     // The same masking as GET: an owner saving their hours must not get the

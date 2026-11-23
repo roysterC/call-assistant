@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { byTechnician, technicianIdFor } from "@/lib/technicians";
 import {
   addCalendarDays,
   parseDateOnly,
@@ -72,9 +73,7 @@ export async function bookingsInBlock(
       status: "booked",
       startsAt: { lt: to },
       endsAt: { gt: from },
-      ...(data.stylistName
-        ? { stylistName: { equals: data.stylistName, mode: "insensitive" as const } }
-        : {}),
+      ...(data.stylistName ? byTechnician(await technicianIdFor(prisma, organizationId, data.stylistName), data.stylistName) : {}),
     },
     select: {
       id: true,

@@ -67,10 +67,13 @@ export function StylistsEditor({
 
   async function askToRemove(index: number) {
     const name = value[index].name.trim();
-    if (!name) return remove(index);
+    const id = value[index].id;
+    if (!name && !id) return remove(index);
     setChecking(index);
     try {
-      const res = await apiFetch(`/api/appointments?status=booked&scope=upcoming&stylist=${encodeURIComponent(name)}`);
+      // By her id when she has one: her bookings even under a name changed here but not saved yet.
+      const who = id ? `technician=${encodeURIComponent(id)}` : `stylist=${encodeURIComponent(name)}`;
+      const res = await apiFetch(`/api/appointments?status=booked&scope=upcoming&${who}`);
       const upcoming = res.ok ? ((await res.json()).appointments ?? []).length : 0;
       if (upcoming === 0) remove(index);
       else setConfirmRemove({ index, upcoming });

@@ -13,6 +13,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { technicianIdFor } from "@/lib/technicians";
 import type { Prisma } from "@/generated/prisma/client";
 
 export type NewAppointment = Omit<
@@ -30,8 +31,10 @@ export async function insertNumberedAppointment(tx: Tx, data: NewAppointment) {
     data: { nextBookingNumber: { increment: 1 } },
     select: { nextBookingNumber: true },
   });
+  // Every booking points at its technician by id (src/lib/technicians.ts).
+  const technicianId = data.technicianId ?? (await technicianIdFor(tx, data.organizationId, data.stylistName));
   return tx.appointment.create({
-    data: { ...data, bookingNumber: org.nextBookingNumber - 1 },
+    data: { ...data, technicianId, bookingNumber: org.nextBookingNumber - 1 },
     include: { lead: true },
   });
 }

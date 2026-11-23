@@ -19,6 +19,8 @@ const db = vi.hoisted(() => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    // Technicians by id (src/lib/technicians.ts): none here.
+    technician: { findFirst: async () => null },
     organizationSettings: { findUnique: async () => db.settings },
     phoneNumber: { findFirst: async () => db.whatsapp },
     appointment: {

@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   lead: { findUnique: vi.fn(), create: vi.fn() },
   callback: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+  // Technicians by id (src/lib/technicians.ts): none here.
+  technician: { findFirst: async () => null },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/booking", async (original) => ({

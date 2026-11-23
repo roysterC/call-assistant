@@ -52,6 +52,7 @@ model Organization {
   chatPhotos            ChatPhoto[]
   quotes                Quote[]
   rebookTexts           RebookText[]
+  technicians           Technician[]
   usageRecords          UsageRecord[]
   callbacks             Callback[]
   settings              OrganizationSettings?
@@ -450,6 +451,9 @@ model RebookText {
   appointmentId  String       @unique
   service        String
   stylist        String?
+  /// The technician offered, by id.
+  technicianId   String?
+  technician     Technician?  @relation(fields: [technicianId], references: [id], onDelete: SetNull)
   // The free time it offered, if one was found.
   slotStartsAt   DateTime?
   sentAt         DateTime     @default(now())
@@ -583,6 +587,9 @@ model Callback {
   leadId          String
   lead            Lead         @relation(fields: [leadId], references: [id])
   assignedTo      String
+  /// The technician it is for, by id; null for "Team" (anyone).
+  technicianId    String?
+  technician      Technician?  @relation(fields: [technicianId], references: [id], onDelete: SetNull)
   scheduledAt     DateTime
   status          String       @default("pending") // pending | completed | missed
   // Outcome captured when the salon marks the callback done.
@@ -611,6 +618,7 @@ model Callback {
   @@index([organizationId])
   @@index([scheduledAt])
   @@index([status])
+  @@index([organizationId, technicianId])
   @@map("ca_callbacks")
 }
 
@@ -650,6 +658,12 @@ model Appointment {
   serviceText     String
   durationMinutes Int
   stylistName     String
+  /// The technician, by id: what clashes, busy times and takings match on, so
+  /// renaming her changes nothing that books. stylistName is her name, kept in
+  /// step on a rename (src/lib/technicians.ts). Null only on rows the
+  /// post-deploy backfill has not reached yet.
+  technicianId    String?
+  technician      Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
 
   startsAt DateTime
   endsAt   DateTime
@@ -664,7 +678,7 @@ model Appointment {
   // What was actually taken, in pence. Null until the appointment is marked
   // done — the price list is a guide, and the figure that belongs in a sales
   // report is the one the client paid, not the one the catalogue hoped for.
-  amountMinor Int?
+  amountMinor      Int?
   // The price the salon quoted for this design in the chat, in pence:
   // what the diary shows instead of the price list's, which is for the
   // plain service ("Acrylic infill £27" for a £55 design).
@@ -689,12 +703,13 @@ model Appointment {
   updatedAt DateTime @updatedAt
 
   // Photos the client sent when booking by message.
-  photos         ChatPhoto[]
+  photos ChatPhoto[]
 
   @@unique([organizationId, bookingNumber])
   @@index([organizationId, startsAt])
   @@index([organizationId, status])
   @@index([leadId])
+  @@index([organizationId, technicianId, startsAt])
   @@map("ca_appointments")
 }
 
@@ -1004,9 +1019,12 @@ model TimeBlock {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   /// Null blocks everyone: the salon is shut.
-  stylistName String?
-  label       String
-  allDay      Boolean @default(false)
+  stylistName  String?
+  /// The technician kept out, by id; null with stylistName for the whole salon.
+  technicianId String?
+  technician   Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  label        String
+  allDay       Boolean     @default(false)
 
   /// "none" | "weekly"
   repeat String @default("none")
@@ -1029,6 +1047,7 @@ model TimeBlock {
   updatedAt DateTime @updatedAt
 
   @@index([organizationId])
+  @@index([organizationId, technicianId])
   @@map("ca_time_blocks")
 }
 
@@ -1071,4 +1090,30 @@ model DataMigration {
   ranAt DateTime @default(now())
 
   @@map("ca_data_migrations")
+}
+
+/// A salon's nail technician, by a permanent id. Her settings (role, working
+/// days, services, calendar) stay on her entry in OrganizationSettings
+/// .teamMembers, which carries the same id; this row is who she is, so that
+/// bookings, blocked time, callbacks and rebook texts point at her rather than
+/// at a name. Renaming her changes `name` here and the name copied onto those
+/// rows, in one transaction. Removing her archives the row: her history keeps
+/// her name, and a technician added later with the same name is someone else
+/// unless she is the one brought back (src/lib/technicians.ts).
+model Technician {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  /// Set when she is taken off the team. Null while she is on it.
+  archivedAt     DateTime?
+  appointments   Appointment[]
+  timeBlocks     TimeBlock[]
+  callbacks      Callback[]
+  rebookTexts    RebookText[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@map("ca_technicians")
 }
