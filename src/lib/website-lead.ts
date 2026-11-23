@@ -39,25 +39,13 @@ export async function upsertWebsiteLead(opts: {
     where: { organizationId_email: { organizationId, email } },
   });
 
-  /*
-   * Only claim the phone number if no *other* lead already holds it.
-   *
-   * Phone is still unique per organisation, for the voice channels' benefit.
-   * Writing one blindly here would throw the moment a visitor typed a number
-   * that already belonged to someone else — precisely the collision this
-   * function exists to stop, turned into a 500 instead of a merge.
-   */
-  const wanted = opts.phone?.trim() || null;
-  let phone: string | null = existing?.phone ?? null;
-  if (wanted && wanted !== phone) {
-    const holder = await prisma.lead.findUnique({
-      where: { organizationId_phone: { organizationId, phone: wanted } },
-      select: { id: true },
-    });
-    if (!holder || holder.id === existing?.id) phone = wanted;
-  }
-
   if (existing) {
+    // Nothing proves the visitor owns the email they typed: anyone can give a
+    // client's. So an existing client's number is never set or changed from
+    // here, or a stranger could give her email with their own number and
+    // receive her confirmations and reminders, and be taken for her when they
+    // ring or message about her bookings. The number they gave stays on the
+    // conversation (visitorPhone), where staff see it beside hers.
     return prisma.lead.update({
       where: { id: existing.id },
       data: {
@@ -65,7 +53,6 @@ export async function upsertWebsiteLead(opts: {
         // not replace the "Tom Reid" already on file.
         name: existing.name || name,
         company: existing.company || company,
-        phone,
         // The issue is not identity — it is what they want now, so a newer
         // summary replaces an older one. An empty one leaves what is there.
         issue: issue || existing.issue,
@@ -74,6 +61,23 @@ export async function upsertWebsiteLead(opts: {
       select: { id: true },
     });
   }
+
+  /*
+   * A new client takes the number only if no *other* client already holds it.
+   *
+   * Phone is still unique per organisation, for the voice channels' benefit.
+   * Writing one blindly here would throw the moment a visitor typed a number
+   * that already belonged to someone else, and claiming it would be the same
+   * takeover as above from the other side.
+   */
+  const wanted = opts.phone?.trim() || null;
+  const held = wanted
+    ? await prisma.lead.findUnique({
+        where: { organizationId_phone: { organizationId, phone: wanted } },
+        select: { id: true },
+      })
+    : null;
+  const phone = wanted && !held ? wanted : null;
 
   return prisma.lead.create({
     data: {

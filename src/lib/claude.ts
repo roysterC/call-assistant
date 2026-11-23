@@ -197,6 +197,26 @@ interface TextBlock {
 type ContentBlock = ToolUseBlock | TextBlock | { type: string };
 
 /**
+ * What a chat may write onto a client already on file: their name, email
+ * and company only where none is recorded, and what they want now.
+ *
+ * Whoever is typing has proved nothing: anyone can give a client's email, and
+ * a chat filed under her is no proof either. Overwriting let a stranger swap
+ * her name or email for theirs. Staff can still correct anything by hand.
+ */
+export function fillGaps(
+  current: { name: string | null; email: string | null; company: string | null },
+  data: Record<string, string>
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (data.issue) out.issue = data.issue;
+  if (data.name && !current.name) out.name = data.name;
+  if (data.email && !current.email) out.email = data.email.toLowerCase();
+  if (data.company && !current.company) out.company = data.company;
+  return out;
+}
+
+/**
  * Apply customer details extracted by Claude to the lead row. Truncates
  * each field to a sensible length. Failures are logged and swallowed —
  * never blocks the user reply.
@@ -231,10 +251,10 @@ async function applyCustomerDetails(
     try {
       const found = await prisma.lead.findUnique({
         where: { organizationId_email: { organizationId: target.organizationId, email } },
-        select: { id: true },
+        select: { id: true, name: true, email: true, company: true },
       });
       const lead = found
-        ? await prisma.lead.update({ where: { id: found.id }, data: { ...data, email } })
+        ? await prisma.lead.update({ where: { id: found.id }, data: fillGaps(found, data) })
         : await prisma.lead.create({ data: { ...data, email, organizationId: target.organizationId, source: target.source } });
       await target.onLead(lead.id);
     } catch (err) {
@@ -245,7 +265,14 @@ async function applyCustomerDetails(
   const leadId = target.leadId;
 
   try {
-    await prisma.lead.update({ where: { id: leadId }, data });
+    const current = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: { name: true, email: true, company: true },
+    });
+    if (!current) return;
+    const update = fillGaps(current, data);
+    if (Object.keys(update).length === 0) return;
+    await prisma.lead.update({ where: { id: leadId }, data: update });
     console.log(
       `[CLAUDE] Lead ${leadId} updated via save_customer_details:`,
       Object.keys(data).join(", ")
