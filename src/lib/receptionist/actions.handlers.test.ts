@@ -77,7 +77,8 @@ import {
   handleSaveCustomerDetails,
   saysNotBooked,
 } from "./actions";
-import { lookupPhone, parseBookingNumber, thirdPartyRefusal } from "./changes";
+import { lookupPhone, parseBookingNumber } from "./changes";
+import { withCallerContext } from "./tools";
 
 const SARAH = "+447700900715";
 const OLIVIA = "+447700900714";
@@ -130,64 +131,48 @@ describe("lookupPhone", () => {
   });
 });
 
-describe("thirdPartyRefusal", () => {
-  it("lets the booking's own number through without a name", () => {
-    expect(thirdPartyRefusal(SARAH, { callerNumber: "07700 900715" }, "Sarah Friend")).toBeNull();
-  });
+describe("a booking is managed only from its own number", () => {
+  const noDetails = (r: unknown) => {
+    expect(r).toMatchObject({ found: false, notFromItsNumber: true });
+    expect(JSON.stringify(r)).not.toMatch(/Sarah|Cut and finish|Jo\b|1043/);
+  };
 
-  it("asks who is calling, without naming the client, from any other number", () => {
-    const r = thirdPartyRefusal(SARAH, { callerNumber: OLIVIA }, "Sarah Friend");
-    expect(r).toMatchObject({ needsCallerName: true });
-    expect(JSON.stringify(r)).not.toMatch(/Sarah/);
-  });
-
-  it("refuses someone who is not the client, and allows the client on another phone", () => {
-    expect(thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "Olivia Hart" }, "Sarah Friend")).toMatchObject({
-      notTheirs: true,
-    });
-    expect(thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "Sarah" }, "Sarah Friend")).toBeNull();
-    // Withheld caller ID is another phone too.
-    expect(thirdPartyRefusal(SARAH, {}, "Sarah Friend")).toMatchObject({ needsCallerName: true });
-  });
-
-  it("treats a filler the model put in the name field as no name at all", () => {
-    expect(thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "yourself" }, "Sarah Friend")).toMatchObject({
-      needsCallerName: true,
-    });
-  });
-});
-
-describe("find_appointment and cancel_appointment", () => {
-  it("find the caller's own booking when the model sends 'caller_id' as the number", async () => {
+  it("finds the client's own booking from her number, even when the model sends 'caller_id'", async () => {
     const r = await handleFindAppointment("org", { customerPhone: "caller_id", callerNumber: SARAH });
     expect(r).toMatchObject({ found: true, service: "Cut and finish", stylist: "Jo" });
   });
 
-  it("give a friend nothing about the booking, and do not cancel it", async () => {
-    const found = await handleFindAppointment("org", {
-      customerPhone: "07700 900 715",
-      callerNumber: OLIVIA,
-      callerName: "Olivia Hart",
-    });
-    expect(found).toMatchObject({ found: true, notTheirs: true });
-    expect(found).not.toHaveProperty("when");
-    expect(found).not.toHaveProperty("service");
-
-    const cancelled = await handleCancelAppointment("org", {
-      customerPhone: "07700 900 715",
-      callerNumber: OLIVIA,
-      callerName: "Olivia Hart",
-    });
-    expect(cancelled).toMatchObject({ success: false, notTheirs: true });
-    expect(db.appointment.update).not.toHaveBeenCalled();
-  });
-
-  it("cancel for the client herself, ringing from her own number", async () => {
+  it("cancels for the client ringing from her own number", async () => {
     const r = await handleCancelAppointment("org", { callerNumber: SARAH });
     expect(r).toMatchObject({ success: true });
     expect(db.appointment.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "appt-1" }, data: expect.objectContaining({ status: "cancelled" }) })
     );
+  });
+
+  it("tells someone on another phone nothing, whatever name they give, and cancels nothing", async () => {
+    for (const callerName of [undefined, "Olivia Hart", "Sarah", "Sarah Friend"]) {
+      noDetails(await handleFindAppointment("org", { customerPhone: "07700 900 715", callerNumber: OLIVIA, callerName }));
+      noDetails(await handleCancelAppointment("org", { customerPhone: "07700 900 715", callerNumber: OLIVIA, callerName }));
+    }
+    expect(db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("tells a chat with no number of its own nothing (the website, Instagram, Messenger)", async () => {
+    noDetails(await handleFindAppointment("org", { customerPhone: "07700 900 715", callerName: "Sarah Friend" }));
+    noDetails(await handleCancelAppointment("org", { bookingNumber: "1043", bookingName: "Sarah Friend" }));
+    expect(db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("says the same whether or not there is a booking, so it gives nothing away", async () => {
+    const onSarahs = await handleFindAppointment("org", { customerPhone: SARAH, callerNumber: OLIVIA });
+    const onNobodys = await handleFindAppointment("org", { customerPhone: "07700 900 999", callerNumber: OLIVIA });
+    expect(onSarahs).toEqual(onNobodys);
+  });
+
+  it("does not take a caller's number from the model, only from the line", () => {
+    expect(withCallerContext("cancel_appointment", { callerNumber: SARAH }, null)).not.toHaveProperty("callerNumber");
+    expect(withCallerContext("cancel_appointment", { callerNumber: SARAH }, OLIVIA)).toMatchObject({ callerNumber: OLIVIA });
   });
 });
 
@@ -200,51 +185,22 @@ describe("by booking number", () => {
     expect(parseBookingNumber(undefined)).toBeNull();
   });
 
-  it("is not enough on its own: a friend on another phone is asked whose name it is under", async () => {
-    const r = await handleFindAppointment("org", { bookingNumber: "1043", callerNumber: OLIVIA });
-    expect(r).toMatchObject({ found: true, needsBookingName: true });
-    expect(r).not.toHaveProperty("when");
-    expect(JSON.stringify(r)).not.toMatch(/Sarah/);
+  it("picks the booking out on the client's own number", async () => {
+    const r = await handleFindAppointment("org", { bookingNumber: "1043", callerNumber: SARAH });
+    expect(r).toMatchObject({ found: true, bookingNumber: 1043, service: "Cut and finish" });
   });
 
-  it("with the name it is under, lets a friend hear it and cancel it, and texts the client", async () => {
-    const found = await handleFindAppointment("org", {
-      bookingNumber: "1043",
-      bookingName: "Sarah Friend",
-      callerNumber: OLIVIA,
-    });
-    expect(found).toMatchObject({ found: true, bookingNumber: 1043, service: "Cut and finish", stylist: "Jo" });
-
-    const r = await handleCancelAppointment("org", {
-      bookingNumber: "1043",
-      bookingName: "Sarah",
-      callerNumber: OLIVIA,
-      callerName: "Olivia Hart",
-    });
-    expect(r).toMatchObject({ success: true });
-    expect(db.appointment.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "appt-1" }, data: expect.objectContaining({ status: "cancelled" }) })
-    );
-    expect(texts.send).toHaveBeenCalledWith("org", SARAH, expect.any(String));
-  });
-
-  it("takes the client's own name when she is the one ringing", async () => {
-    const r = await handleFindAppointment("org", { bookingNumber: "1043", callerName: "Sarah Friend", callerNumber: OLIVIA });
-    expect(r).toMatchObject({ found: true, service: "Cut and finish" });
-  });
-
-  it("refuses a number with the wrong name, without saying whose it is, and changes nothing", async () => {
-    const r = await handleCancelAppointment("org", {
-      bookingNumber: "1043",
-      bookingName: "Nina Ward",
-      callerNumber: OLIVIA,
-    });
-    expect(r).toMatchObject({ success: false, found: false, nameDidNotMatch: true });
-    expect(JSON.stringify(r)).not.toMatch(/Sarah|Cut and finish|Jo\b/);
+  it("does not open a booking on someone else's number, with the right name or not", async () => {
+    for (const bookingName of [undefined, "Sarah Friend", "Nina Ward"]) {
+      const r = await handleCancelAppointment("org", { bookingNumber: "1043", bookingName, callerNumber: OLIVIA });
+      expect(r).toMatchObject({ success: false, found: false });
+      expect(JSON.stringify(r)).not.toMatch(/Sarah|Cut and finish|Jo\b/);
+    }
     expect(db.appointment.update).not.toHaveBeenCalled();
+    expect(texts.send).not.toHaveBeenCalled();
   });
 
-  it("takes either the child's name or the parent's she is reached through", async () => {
+  it("lets the number a child is reached through manage her booking", async () => {
     const amys = {
       id: "appt-2",
       bookingNumber: 1044,
@@ -256,23 +212,17 @@ describe("by booking number", () => {
       lead: { id: "lead-amy", name: "Amy Burns", phone: null, contactLead: { name: "Claire Burns", phone: CLAIRE } },
     };
     db.appointment.findFirst.mockResolvedValue(amys);
-    for (const bookingName of ["Amy Burns", "Claire Burns"]) {
-      const r = await handleFindAppointment("org", { bookingNumber: "1044", bookingName, callerNumber: OLIVIA });
-      expect(r).toMatchObject({ found: true, bookingNumber: 1044, clientName: "Amy Burns" });
-    }
-    const wrong = await handleFindAppointment("org", { bookingNumber: "1044", bookingName: "Olivia Hart", callerNumber: OLIVIA });
-    expect(wrong).toMatchObject({ found: false, nameDidNotMatch: true });
+    expect(await handleFindAppointment("org", { bookingNumber: "1044", callerNumber: CLAIRE })).toMatchObject({
+      found: true,
+      clientName: "Amy Burns",
+    });
+    expect(await handleFindAppointment("org", { bookingNumber: "1044", callerNumber: OLIVIA })).toMatchObject({ found: false });
   });
 
   it("finds nothing for a number that is not a booking, and changes nothing", async () => {
-    const r = await handleCancelAppointment("org", { bookingNumber: "9999", callerNumber: OLIVIA });
+    const r = await handleCancelAppointment("org", { bookingNumber: "9999", callerNumber: SARAH });
     expect(r).toMatchObject({ success: false, found: false });
     expect(db.appointment.update).not.toHaveBeenCalled();
-  });
-
-  it("is what a refused caller is asked for", () => {
-    const r = thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "Olivia Hart" }, "Sarah Friend");
-    expect(r?.message).toMatch(/bookingNumber/);
   });
 });
 
@@ -821,16 +771,11 @@ describe("a number and the clients reached through it", () => {
     expect(r.appointments.map((a) => a.for)).toEqual(["Claire Burns", "Amy Burns"]);
   });
 
-  it("gives the daughter, on another phone, her own bookings and not her mum's", async () => {
-    const r = await handleFindAppointment("org", { customerPhone: "07700 900721", callerNumber: OLIVIA, callerName: "Amy Burns" });
-    expect(r).toMatchObject({ found: true, appointmentId: "appt-amy", clientName: "Amy Burns" });
-    // Said as hers, not "your mum's".
-    expect((r as { message: string }).message).toMatch(/^Amy Burns has cut and finish/);
-  });
-
-  it("still refuses a stranger", async () => {
-    const r = await handleFindAppointment("org", { customerPhone: "07700 900721", callerNumber: OLIVIA, callerName: "Olivia Hart" });
-    expect(r).toMatchObject({ notTheirs: true });
+  it("tells the daughter on another phone nothing, as anyone else: only her mum's number manages it", async () => {
+    for (const callerName of ["Amy Burns", "Olivia Hart"]) {
+      const r = await handleFindAppointment("org", { customerPhone: "07700 900721", callerNumber: OLIVIA, callerName });
+      expect(r).toMatchObject({ found: false, notFromItsNumber: true });
+    }
   });
 
   it("texts the mum, greeting her, when the daughter's booking is cancelled", async () => {

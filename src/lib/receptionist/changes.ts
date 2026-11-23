@@ -9,7 +9,6 @@ import {
 import { moveClientType, slotProblem } from "@/lib/booking/rules";
 import { matchStylist, resolveBookedService } from "@/lib/salon-config";
 import { normalisePhone } from "@/lib/phone";
-import { normaliseCallerName } from "@/lib/caller-name";
 import {
   cancellationBody,
   rescheduleBody,
@@ -23,7 +22,6 @@ import {
   resolveSpokenDate,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
-import { namesMatch } from "@/lib/client-name";
 import { peopleOnNumber, textRecipient } from "@/lib/client-link";
 import { blankToUndefined, type ResolvedPhone } from "./action-helpers";
 
@@ -79,21 +77,21 @@ const LEAD_FOR_LOOKUP = {
   },
 } as const;
 
-/** Who is on the phone, as far as the line and the caller have said. */
+/** Who is on the phone, as far as the line has said. */
 export interface CallerIdentity {
-  /** Caller ID, when the number is not withheld. */
+  /** Caller ID (or the WhatsApp number), when there is one: never a number they said. */
   callerNumber?: string;
-  /** The name the caller gave for themselves. */
+  /** The name the caller gave for themselves. Kept for messages: it unlocks nothing. */
   callerName?: string;
 }
 
-/** What a caller can quote to find a booking, beyond who they are. */
+/** What a caller can quote to pick out a booking on their own number. */
 export interface BookingLookup extends CallerIdentity {
   customerPhone?: string;
   phone?: string;
-  /** From the confirmation text. With bookingName, enough whoever is calling. */
+  /** From the confirmation text: picks one booking out, on the caller's own number only. */
   bookingNumber?: string;
-  /** The name the booking is under, as the caller gives it. */
+  /** No longer used to unlock anything: a name proves nothing. */
   bookingName?: string;
   appointmentId?: string;
 }
@@ -110,21 +108,43 @@ export function parseBookingNumber(raw: string | undefined): number | null {
 }
 
 /**
- * Whether a name the caller gave goes with a booking: the client's own, or,
- * for a client reached through someone else's number, that person's (a
- * parent can quote their child's booking under their own name).
+ * Said when a booking may not be discussed: the caller is not on the number
+ * it is under, or the channel has no number at all (the website chat,
+ * Instagram, Messenger, a withheld caller ID). Worded the same whether or
+ * not there is a booking, so it tells a stranger nothing.
  */
-function isBookedFor(name: string, appt: Pick<ResolvedAppointment, "lead">): boolean {
-  return namesMatch(name, appt.lead.name) || namesMatch(name, appt.lead.contactLead?.name);
+export const NOT_FROM_ITS_NUMBER = {
+  found: false,
+  notFromItsNumber: true,
+  message:
+    "Bookings can only be looked up, changed or cancelled from the phone number " +
+    "they are booked under, and they are not on it (or this chat has no number). " +
+    "Tell them nothing about any booking, not even whether there is one, and do " +
+    "not cancel or move anything. Say the salon will get back to them, and take a " +
+    "message: take_message with their own name, a number to reach them, and what " +
+    "they want, so the salon can contact the client.",
+} as const;
+
+/** The caller's own number, from the line or WhatsApp: never one they said. */
+function verifiedNumber(who: CallerIdentity): string | null {
+  const own = normalisePhone(blankToUndefined(who.callerNumber));
+  return own.ok ? own.e164 : null;
+}
+
+/** The numbers a booking is under: the client's, or the one they are reached through. */
+function numbersOf(appt: Pick<ResolvedAppointment, "lead">): string[] {
+  return [appt.lead.phone, appt.lead.contactLead?.phone].filter((n): n is string => Boolean(n));
 }
 
 /**
  * The booking a caller means, and whether they may hear about it.
  *
- * By booking number and the name it is under: together they are the proof,
- * whoever is ringing. The number is on the client's confirmation text, but
- * numbers run in sequence, so on its own one is a guess away from someone
- * else's booking. By phone number: the rules in thirdPartyRefusal apply.
+ * Only from the number it is under. That number comes from the phone line or
+ * WhatsApp, so it cannot be made up by typing. A name proves nothing (it was
+ * enough, and anyone who knew a client's number and first name could hear and
+ * cancel her booking), and booking numbers run in sequence, so they are a guess
+ * away from someone else's. A booking number still picks one booking out on
+ * the caller's own number.
  */
 async function findBooking(
   organizationId: string,
@@ -134,69 +154,36 @@ async function findBooking(
   | { ok: true; appointment: ResolvedAppointment }
   | { ok: false; result: Record<string, unknown> }
 > {
+  const own = verifiedNumber(params);
+  if (!own) return { ok: false, result: { ...NOT_FROM_ITS_NUMBER } };
+
   const bookingNumber = parseBookingNumber(params.bookingNumber);
   if (bookingNumber !== null) {
     const appointment = await prisma.appointment.findFirst({
       where: { organizationId, bookingNumber, status: "booked", startsAt: { gte: new Date() } },
       include: { lead: LEAD_FOR_LOOKUP },
     });
-    if (!appointment) {
+    if (!appointment || !numbersOf(appointment as ResolvedAppointment).includes(own)) {
       return {
         ok: false,
         result: {
           found: false,
           message:
-            `No upcoming booking has the number ${bookingNumber}. Read it back to ` +
-            "check it, or look it up by the phone number it was booked under.",
-        },
-      };
-    }
-    // The client's own name will do if that is who is ringing.
-    const given = normaliseCallerName(params.bookingName ?? params.callerName);
-    if (!given.ok) {
-      return {
-        ok: false,
-        result: {
-          found: true,
-          needsBookingName: true,
-          message:
-            "Say nothing about the booking yet. Ask whose name it is booked under, " +
-            "then call this again with the booking number and that name as bookingName.",
-        },
-      };
-    }
-    if (!isBookedFor(given.name, appointment as ResolvedAppointment)) {
-      // Worded like a miss on purpose: which of the two was wrong, or whose
-      // the booking is, would help someone guessing.
-      return {
-        ok: false,
-        result: {
-          found: false,
-          nameDidNotMatch: true,
-          message:
-            `Booking number ${bookingNumber} and the name ${given.name} do not go together. ` +
-            "Tell them nothing about any booking. Check both with the caller once; if they " +
-            "still do not match, offer to take a message for the salon.",
+            `Nothing booked as ${bookingNumber} on the number they are on. Look it up by ` +
+            "their number instead; if it is under a different number, it can only be " +
+            "changed from that one: take a message for the salon.",
         },
       };
     }
     return { ok: true, appointment: appointment as ResolvedAppointment };
   }
 
-  const parsed = lookupPhone(params.customerPhone ?? params.phone, params.callerNumber);
+  const parsed = lookupPhone(params.customerPhone ?? params.phone, own);
   if (!parsed.ok) {
-    return {
-      ok: false,
-      result: { found: false, message: `${parsed.reason} Ask for it again, or for their booking number.` },
-    };
+    return { ok: false, result: { found: false, message: `${parsed.reason} Ask for it again.` } };
   }
-  return resolveAppointment(
-    organizationId,
-    parsed.e164,
-    blankToUndefined(params.appointmentId),
-    timeZone,
-    params
-  );
+  if (parsed.e164 !== own) return { ok: false, result: { ...NOT_FROM_ITS_NUMBER } };
+  return resolveAppointment(organizationId, parsed.e164, blankToUndefined(params.appointmentId), timeZone);
 }
 
 /**
@@ -220,63 +207,6 @@ export function lookupPhone(given: string | undefined, callerNumber: string | un
   return { ok: false, reason: "No number was given, and their caller ID is withheld." };
 }
 
-function isOwnNumber(phone: string, callerNumber: string | undefined): boolean {
-  const own = normalisePhone(blankToUndefined(callerNumber));
-  return own.ok && own.e164 === phone;
-}
-
-/**
- * Why a booking may not be discussed with this caller, or null when it may.
- *
- * A booking belongs to the person it is for. Someone ringing from the number
- * it is under is taken to be them (or the person who made it, such as a parent
- * who booked on their own phone). Anyone else has to be the client by name.
- * The booking's name is never told to them: "is that Sarah?" invites "yes".
- */
-export function thirdPartyRefusal(
-  phone: string,
-  who: CallerIdentity,
-  /** Everyone on the number: its own client, and any reached through it. */
-  bookedNames: string | null | Array<string | null>
-): Record<string, unknown> | null {
-  if (isOwnNumber(phone, who.callerNumber)) return null;
-  const names = (Array.isArray(bookedNames) ? bookedNames : [bookedNames]).filter((n): n is string =>
-    Boolean(n?.trim())
-  );
-  if (names.length === 0) return null;
-
-  // "yourself" and the like are the model filling a field, not a name.
-  const given = normaliseCallerName(who.callerName);
-  const callerName = given.ok ? given.name : undefined;
-  if (!callerName) {
-    return {
-      found: true,
-      needsCallerName: true,
-      message:
-        "There is a booking on that number, but it is not the number they are " +
-        "ringing from. Say nothing more about it yet: ask for their own name, " +
-        "then call this again with it as callerName. If they have the booking " +
-        "number from the confirmation text and the name it is under, those are " +
-        "enough instead: call this again with bookingNumber and bookingName.",
-    };
-  }
-  if (names.some((n) => namesMatch(callerName, n))) return null;
-  return {
-    found: true,
-    notTheirs: true,
-    message:
-      `That booking is not in the name of ${callerName}, the person on the phone. ` +
-      "Ask whether they have its booking number, from the confirmation text, and the " +
-      "name it is under: if they do, call this again with bookingNumber and bookingName " +
-      "and you may go ahead. Without them, do not " +
-      "tell them anything about the booking, not the day, time, service or stylist, " +
-      "and do not cancel or move it. Say you can only discuss it with the person it " +
-      "is for, and offer to take a message so the salon can contact them. " +
-      "A message is save_customer_details with the caller's own name and number, " +
-      "and who it is for and what they want in `issue`.",
-  };
-}
-
 /**
  * Find the appointment a caller means.
  *
@@ -289,8 +219,7 @@ async function resolveAppointment(
   organizationId: string,
   phone: string,
   appointmentId: string | undefined,
-  timeZone: string,
-  who: CallerIdentity
+  timeZone: string
 ): Promise<
   | { ok: true; appointment: ResolvedAppointment }
   | { ok: false; result: Record<string, unknown> }
@@ -334,24 +263,9 @@ async function resolveAppointment(
     };
   }
 
-  // Before anything about the booking is handed over, not after: a model
-  // given the details alongside an instruction not to read them out read
-  // them out, then cancelled the booking for the friend who asked.
-  const refusal = thirdPartyRefusal(phone, who, people.map((p) => p.name));
-  if (refusal) return { ok: false, result: refusal };
-
-  // From another phone, a client reached through this number sees their own
-  // bookings; the number's own client, like a call from the number itself,
-  // sees everyone's.
-  const given = normaliseCallerName(who.callerName);
-  const holder = people.find((p) => p.isHolder);
-  const upcoming =
-    isOwnNumber(phone, who.callerNumber) || !given.ok || namesMatch(given.name, holder?.name)
-      ? all
-      : all.filter((a) => namesMatch(given.name, a.lead.name));
-  if (upcoming.length === 0) {
-    return { ok: false, result: { found: false, message: "No upcoming appointments for them on that number." } };
-  }
+  // Called only from the number itself (findBooking): it manages everyone
+  // booked through it.
+  const upcoming = all;
 
   if (appointmentId) {
     const match = upcoming.find((a) => a.id === appointmentId);

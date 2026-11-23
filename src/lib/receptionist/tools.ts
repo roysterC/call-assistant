@@ -55,8 +55,12 @@ export function withCallerContext(
 ): Record<string, unknown> {
   // The staff view of the diary (every free time, with names) is for the
   // CRM's own assistant: a caller cannot talk the receptionist into it.
-  const { forStaff: _staffOnly, ...rest } = input;
+  const { forStaff: _staffOnly, callerNumber: _said, ...rest } = input;
   void _staffOnly;
+  // The caller's number is the line's or WhatsApp's, never one the model
+  // sent: a booking is managed only from its own number (changes.ts), so a
+  // number talked into a tool call would open someone else's.
+  void _said;
   if (!callerNumber) return rest;
   return { ...rest, callerNumber };
 }

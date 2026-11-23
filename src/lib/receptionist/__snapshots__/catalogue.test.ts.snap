@@ -651,9 +651,8 @@ exports[`the reply catalogue > cancel: someone else's booking 1`] = `
 {
   "noticed": [],
   "reply": {
-    "found": true,
-    "message": "Say nothing about the booking yet. Ask whose name it is booked under, then call this again with the booking number and that name as bookingName.",
-    "needsBookingName": true,
+    "found": false,
+    "message": "Nothing booked as 1043 on the number they are on. Look it up by their number instead; if it is under a different number, it can only be changed from that one: take a message for the salon.",
     "success": false,
   },
   "texted": [],
@@ -1529,9 +1528,8 @@ exports[`the reply catalogue > move: someone else's booking 1`] = `
 {
   "noticed": [],
   "reply": {
-    "found": true,
-    "message": "Say nothing about the booking yet. Ask whose name it is booked under, then call this again with the booking number and that name as bookingName.",
-    "needsBookingName": true,
+    "found": false,
+    "message": "Nothing booked as 1043 on the number they are on. Look it up by their number instead; if it is under a different number, it can only be changed from that one: take a message for the salon.",
     "success": false,
   },
   "texted": [],
