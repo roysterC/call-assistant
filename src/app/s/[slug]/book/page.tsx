@@ -6,7 +6,8 @@ import { salonUrlsHere } from "@/lib/booking-host-server";
 
 /**
  * Book online with a salon, on its own site. ?service= opens on the times for
- * that service; ?start= (with ?service=) on the last step.
+ * that service; ?start= (with ?service=) on the last step; ?treatment= on
+ * choosing among that treatment's services (a tile on the salon's page).
  */
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export default async function BookPage({ params, searchParams }: Props) {
       takesBookings={online.takesBookings}
       mode="page"
       initialService={one(q.service)}
+      initialTreatment={one(q.treatment)}
       initialStylist={one(q.stylist)}
       initialStart={one(q.start)}
       homeHref={urls.home}

@@ -4,6 +4,8 @@ import { loadOnlineSalon, onlineAvailability } from "@/lib/online-booking";
 import { SalonSite } from "@/components/online-booking/salon-site";
 import { salonUrlsHere } from "@/lib/booking-host-server";
 import { salonChatSiteId } from "@/lib/salon-chat";
+import { designChatsFor } from "@/lib/receptionist/design-chats";
+import { designMessageLink } from "@/lib/online-booking/salon-page";
 
 /**
  * A salon's own website, built from its CRM settings (src/lib/online-booking).
@@ -42,9 +44,10 @@ export default async function SalonPage({ params }: Props) {
     if (day) nextFree = { service: first.name, slot: day.slots[0], date: day.date };
   }
 
-  const [urls, chat] = await Promise.all([
+  const [urls, chat, designChats] = await Promise.all([
     salonUrlsHere(online.salon.slug),
     salonChatSiteId(online.organizationId),
+    designChatsFor(online.organizationId).catch(() => null),
   ]);
   return (
     <>
@@ -53,6 +56,7 @@ export default async function SalonPage({ params }: Props) {
         takesBookings={online.takesBookings}
         nextFree={nextFree}
         bookPath={urls.book}
+        messageUs={designMessageLink(designChats)}
       />
       {/*
         The salon's chat (src/lib/salon-chat.ts), from this same address so
