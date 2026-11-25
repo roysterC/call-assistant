@@ -10,6 +10,7 @@ import { MotionProvider } from "@/components/providers/motion-provider";
 import { cookies, headers } from "next/headers";
 import { bookingOrigin, isBookingHost, requestHostname } from "@/lib/booking-host";
 import { CLOCK_COOKIE, DEFAULT_LANG, LANG_COOKIE, isClock, isLang } from "@/lib/i18n";
+import { messagesFor } from "@/lib/i18n/load";
 
 // The fonts ship with the app (the @fontsource-variable packages, OFL) rather
 // than coming from Google Fonts. next/font/google downloads them during every
@@ -113,7 +114,7 @@ export default async function RootLayout({
       <body className="h-full bg-background text-foreground overflow-hidden">
         <SessionProvider>
           <MeProvider>
-            <LanguageProvider initial={lang} initialClock={clock}>
+            <LanguageProvider initial={lang} messages={messagesFor(lang)} initialClock={clock}>
               <MotionProvider>
                 <DialogsProvider>
                   <MainWrapper>{children}</MainWrapper>

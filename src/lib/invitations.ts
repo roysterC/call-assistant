@@ -22,7 +22,8 @@ import { hashPassword, validatePassword } from "@/lib/password";
 import { isAssignableRole, type AssignableRole } from "@/lib/admin-users";
 import { INVITE_DAYS, inviteStatus } from "@/lib/invite-status";
 import { actionEmail, emailAvailable, sendEmail, type Email } from "@/lib/email";
-import { DEFAULT_LANG, isLang, translate, type Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, isLang, type Lang } from "@/lib/i18n";
+import { translate } from "@/lib/i18n/server";
 
 export { INVITE_DAYS, inviteStatus, type InviteStatus } from "@/lib/invite-status";
 

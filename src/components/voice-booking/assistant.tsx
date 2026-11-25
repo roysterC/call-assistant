@@ -561,7 +561,7 @@ export function Assistant() {
             {lines.length === 0 && !heard && !needsTap && (
               <div className="space-y-1.5 text-sm text-muted-foreground">
                 {/* It understands English only so far: the examples stay English. */}
-                <p>{lang === "vi" ? t("assistant.englishOnly") : t("assistant.intro")}</p>
+                <p>{lang !== "en" ? t("assistant.englishOnly") : t("assistant.intro")}</p>
                 <p>
                   <em>&ldquo;What&rsquo;s my afternoon looking like?&rdquo;</em>
                   <br />
