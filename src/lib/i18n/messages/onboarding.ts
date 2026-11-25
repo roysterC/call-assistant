@@ -187,6 +187,24 @@ export const onboarding = {
     "Ngày bị gạch là ngày tiệm đóng cửa. Đổi trong Giờ mở cửa.",
   ],
   "sty.add": ["Add nail technician", "Thêm thợ"],
+  "sty.takesBookings": ["Takes bookings", "Nhận lịch hẹn"],
+  "sty.takesBookingsOn": [
+    "Kikai and online booking can book her, and she has a column in the diary.",
+    "Kikai và đặt lịch online có thể đặt cho người này, và người này có cột trong lịch.",
+  ],
+  "sty.takesBookingsOff": [
+    "On the team, but never booked: no column in the diary, and Kikai will not offer her.",
+    "Trong nhóm nhưng không nhận lịch: không có cột trong lịch, Kikai sẽ không đề xuất người này.",
+  ],
+  "sty.signsIn": ["Signs in as", "Đăng nhập bằng"],
+  "sty.noLogin": ["Doesn't sign in", "Không đăng nhập"],
+  "sty.loginTaken": ["{login} (linked to someone else)", "{login} (đã gắn cho người khác)"],
+  "sty.invite": ["Invite her to sign in…", "Mời người này đăng nhập…"],
+  "sty.loginHelp": [
+    "Kikai knows who is signed in, ready for what each person may see.",
+    "Kikai biết ai đang đăng nhập, sẵn sàng cho việc mỗi người được xem gì.",
+  ],
+  "sty.noLoginHelp": ["No login of her own. Invite her under Team logins.", "Chưa có tài khoản riêng. Mời ở mục Tài khoản nhân viên."],
 
   // Showing a password as it is typed.
   "pw.show": ["Show password", "Hiện mật khẩu"],

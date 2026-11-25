@@ -7,8 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const db = vi.hoisted(() => ({
-  lead: { findUnique: vi.fn(), create: vi.fn() },
+  lead: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   callback: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+  // Technicians by id (src/lib/technicians.ts): none here.
+  technician: { findFirst: async () => null },
+  // The lock a client is chosen under (client-identity.ts) runs straight through.
+  $executeRaw: async () => 0,
+  $transaction: async (fn: (tx: unknown) => unknown) => fn(db),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/booking", async (original) => ({
@@ -31,6 +36,8 @@ import { buildVoiceTools } from "./receptionist/tool-definitions";
 beforeEach(() => {
   vi.clearAllMocks();
   db.lead.findUnique.mockResolvedValue(null);
+  db.lead.findFirst.mockResolvedValue(null);
+  db.lead.findMany.mockResolvedValue([]);
   db.lead.create.mockImplementation(async ({ data }: { data: object }) => ({ id: "lead-1", ...data }));
   db.callback.create.mockResolvedValue({ id: "cb-1" });
   db.callback.findFirst.mockResolvedValue(null);

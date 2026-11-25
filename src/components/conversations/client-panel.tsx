@@ -22,6 +22,7 @@ import { useLanguage } from "@/components/providers/language-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { waitedFor } from "@/components/conversations/conversation-list-item";
 import { ContactAvatar } from "@/components/conversations/contact-avatar";
+import { normalisePhone } from "@/lib/phone";
 import type { ConversationDetail, ConversationState } from "@/components/conversations/types";
 
 interface ClientPanelProps {
@@ -41,6 +42,13 @@ interface ClientPanelProps {
 }
 
 /** A UK number as people write it, "07700 900123"; anything else as it was stored. */
+/** The same number however it was typed: "07700 900123" and "+447700900123". */
+function samePhone(a: string, b: string): boolean {
+  const x = normalisePhone(a);
+  const y = normalisePhone(b);
+  return x.ok && y.ok ? x.e164 === y.e164 : a.replace(/\D/g, "") === b.replace(/\D/g, "");
+}
+
 export function displayPhone(phone: string): string {
   const uk = /^\+44(\d{4})(\d{6})$/.exec(phone.replace(/\s+/g, ""));
   return uk ? `0${uk[1]} ${uk[2]}` : phone;
@@ -87,6 +95,12 @@ export function ClientPanel({
   const time = (iso: string) => format(new Date(iso), clock === "24h" ? "HH:mm" : "h:mmaaa");
   const phone = client?.phone || c.lead?.phone || (c.channel === "whatsapp" ? c.phoneNumber : null) || c.visitorPhone || null;
   const isClient = Boolean(client?.isClient);
+  // On the website anyone can type a client's email, so a number given there
+  // never replaces the one on her record (src/lib/website-lead.ts). When it
+  // differs, staff should see both before trusting either.
+  const onFile = client?.phone || c.lead?.phone || null;
+  const otherNumber =
+    c.channel === "website" && c.visitorPhone && onFile && !samePhone(c.visitorPhone, onFile) ? c.visitorPhone : null;
 
   async function copyReach() {
     if (!reach.value) return;
@@ -274,6 +288,13 @@ export function ClientPanel({
           </p>
         )}
 
+        {otherNumber && (
+          <p role="note" className="rounded-xl border border-papaya-whip-400 bg-papaya-whip-800 px-3 py-2 text-[13px] leading-snug text-papaya-whip-100">
+            <strong>Gave a different number: {displayPhone(otherNumber)}.</strong> The record has{" "}
+            {displayPhone(onFile!)}. Anyone can type a client&rsquo;s email on the website, so check it is really
+            them before using it.
+          </p>
+        )}
         {!isClient && (
           <section className="flex flex-col gap-2.5">
             <h3 className="text-[13px] font-bold">What Kikai knows</h3>

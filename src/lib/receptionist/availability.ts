@@ -32,6 +32,7 @@ import {
   onDay,
   blankToUndefined,
   normaliseClientType,
+  numberProof,
   patchTestOnFile,
   resolveCallerPhone,
   serviceNotResolvedMessage,
@@ -145,6 +146,7 @@ export async function handleCheckAvailability(
   params: Parameters<typeof checkAvailability>[1] & {
     customerPhone?: string;
     callerNumber?: string;
+    clientId?: string;
     customerName?: string;
   }
 ) {
@@ -195,6 +197,8 @@ interface AvailabilityParams {
   customerName?: string;
   customerPhone?: string;
   callerNumber?: string;
+  /** The client the chat is filed under, filled in by the chat. */
+  clientId?: string;
   /** "morning" | "afternoon" | "evening" */
   timeOfDay?: string;
   /** "HH:MM" local — caller wants nothing before this. */
@@ -342,7 +346,7 @@ async function availabilityRequest(
     clientType !== "returning" &&
     forName.ok &&
     forPhone.ok &&
-    (await hasBeenBefore(organizationId, forPhone.e164, forName.name))
+    (await hasBeenBefore(organizationId, forPhone.e164, forName.name, numberProof(forPhone.e164, params)))
   ) {
     clientType = "returning";
   }

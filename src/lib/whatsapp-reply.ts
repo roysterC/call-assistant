@@ -47,6 +47,7 @@ export async function answerWhatsApp(
     earlier,
     text: pending.map((m) => m.content).join("\n"),
     phone: conversation.phoneNumber,
+    clientId: conversation.leadId,
     resetAt: conversation.personaResetAt,
   });
 

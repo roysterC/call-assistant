@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { technicianFields } from "@/lib/technicians";
 import {
   requireTenant,
   isErrorResponse,
@@ -70,7 +71,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const affected = await bookingsInBlock(ctx.organizationId, data, cfg.timeZone);
     if (body?.preview === true) return NextResponse.json({ affected });
 
-    const block = await prisma.timeBlock.update({ where: { id }, data });
+    const block = await prisma.timeBlock.update({
+      where: { id },
+      data: { ...data, ...(await technicianFields(prisma, ctx.organizationId, data.stylistName)) },
+    });
     return NextResponse.json({ block, affected });
   } catch (error) {
     console.error("[TIME BLOCKS API] PATCH error:", error);

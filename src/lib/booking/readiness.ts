@@ -33,7 +33,8 @@ export function bookingReadiness(input: {
   staff?: string;
 }): Readiness {
   const services = parseServices(input.services);
-  const team = parseStylists(input.teamMembers);
+  // Only those who take bookings make a diary that can take them.
+  const team = parseStylists(input.teamMembers).filter((s) => s.takesBookings !== false);
   const hours = parseBusinessHours(input.businessHours);
   const staff = input.staff || "nail technician";
 

@@ -32,10 +32,12 @@ interface ClientRow {
   visits: number;
   nextBooking: string | null;
   summary: VisitSummaryJson | null;
+  /** Made from typed details another client has (client-identity.ts). */
+  possibleDuplicateOf: { id: string; name: string | null } | null;
 }
 
 const PAGE = 50;
-const GROUPS = ["all", "due", "new", "lapsed", "patch"] as const;
+const GROUPS = ["all", "due", "new", "lapsed", "patch", "duplicates"] as const;
 type Group = (typeof GROUPS)[number];
 
 function todayLocal(): string {
@@ -46,6 +48,7 @@ function todayLocal(): string {
 /** The tag at the end of a row: the thing to know about them now. */
 function rowTag(c: ClientRow, group: Group, t: Translate, lang: Lang, clock: Clock): { text: string; tone: "due" | "next" | "late" | "test" | "none" } {
   const s = c.summary;
+  if (c.possibleDuplicateOf) return { text: t("clients.tag.possibly", { name: c.possibleDuplicateOf.name ?? t("clients.anotherClient") }), tone: "due" };
   if (group === "patch") return { text: t("clients.tag.testNeeded"), tone: "test" };
   if (c.nextBooking) {
     const d = new Date(c.nextBooking);
@@ -184,7 +187,8 @@ export default function ClientsPage() {
             />
           </label>
           <div role="group" aria-label={t("clients.groupsLabel")} className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:px-0">
-            {GROUPS.map((g) => (
+            {/* Possible duplicates only while there are some to check. */}
+            {GROUPS.filter((g) => g !== "duplicates" || group === g || (counts?.duplicates ?? 0) > 0).map((g) => (
               <button
                 key={g}
                 type="button"
@@ -290,6 +294,10 @@ export default function ClientsPage() {
               setOpenId(null);
             }}
             onChanged={() => void load()}
+            onOpenClient={(id) => {
+              setOpenId(id);
+              setPhoneProfile(true);
+            }}
           />
         ) : (
           !loading && <p className="m-auto text-sm text-muted-foreground">{t("clients.pickOne")}</p>

@@ -39,6 +39,7 @@ import { FORMER_STYLIST_COLOUR, stylistInitials } from "@/lib/stylist-colours";
 import { useT } from "@/components/providers/language-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { minutesTime, type Clock, type Translate } from "@/lib/i18n";
+import { blocksTechnician, isTechnicians } from "@/lib/technician-match";
 
 export interface CalendarAppointment {
   id: string;
@@ -46,6 +47,8 @@ export interface CalendarAppointment {
   serviceText: string;
   durationMinutes: number;
   stylistName: string;
+  /** Her permanent id (src/lib/technicians.ts); her name is stylistName. */
+  technicianId?: string | null;
   startsAt: string;
   endsAt: string;
   status: string;
@@ -160,6 +163,8 @@ export interface DiaryBlock {
 }
 
 export interface CalendarStylist {
+  /** Her permanent id, when she is on the team (src/lib/technicians.ts). */
+  id?: string;
   name: string;
   worksToday: boolean;
   bookable: boolean;
@@ -463,17 +468,13 @@ export function DayGrid({
               tones={tones}
               appointments={appointments.filter(
                 (a) =>
-                  a.stylistName.toLowerCase() === s.name.toLowerCase() &&
+                  isTechnicians(a, s) &&
                   // The fetch is bounded to this day, but a block is placed by
                   // its time of day alone — so anything that slipped through
                   // would be drawn here at the right hour on the wrong date.
                   isOnDate(new Date(a.startsAt), date, timeZone)
               )}
-              blocks={blocks.filter(
-                (b) =>
-                  b.stylistName === null ||
-                  b.stylistName.toLowerCase() === s.name.toLowerCase()
-              )}
+              blocks={blocks.filter((b) => blocksTechnician(b, s))}
               date={date}
               onPickSlot={onPickSlot}
               onOpenAppointment={onOpenAppointment}

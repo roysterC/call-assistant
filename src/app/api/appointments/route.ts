@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { byTechnician, technicianIdFor } from "@/lib/technicians";
 import { unseenBookingIds } from "@/lib/booking-notices";
 import { clientForBooking } from "@/lib/client-link";
+import { clientForNumber } from "@/lib/client-identity";
 import {
   requireTenant,
   isErrorResponse,
@@ -42,10 +44,20 @@ export async function GET(req: NextRequest) {
       organizationId: ctx.organizationId,
     };
     if (status !== "all") where.status = status;
-    // One stylist's, by name as stored on the booking (Settings asks before
-    // removing someone who still has bookings coming up).
+    // One technician's: by her id when Settings sends it (asking before
+    // removing someone who still has bookings coming up, even under a name
+    // changed but not yet saved), else by name.
     const stylist = searchParams.get("stylist")?.trim();
-    if (stylist) where.stylistName = { equals: stylist, mode: "insensitive" };
+    const technician = searchParams.get("technician")?.trim();
+    if (technician) {
+      const own = await prisma.technician.findFirst({
+        where: { id: technician, organizationId: ctx.organizationId },
+        select: { id: true, name: true },
+      });
+      if (own) Object.assign(where, byTechnician(own.id, own.name));
+    } else if (stylist) {
+      Object.assign(where, byTechnician(await technicianIdFor(prisma, ctx.organizationId, stylist), stylist));
+    }
 
     // An explicit window wins over the scope shortcut: the day view asks for
     // one day and wants everything in it, including what has already been and
@@ -126,6 +138,7 @@ export async function PATCH(req: NextRequest) {
       select: {
         organizationId: true,
         stylistName: true,
+        technicianId: true,
         status: true,
         startsAt: true,
         endsAt: true,
@@ -145,7 +158,7 @@ export async function PATCH(req: NextRequest) {
           organizationId: ctx.organizationId,
           id: { not: id },
           status: { in: ["booked", "completed"] },
-          stylistName: { equals: existing.stylistName, mode: "insensitive" },
+          ...byTechnician(existing.technicianId, existing.stylistName),
           startsAt: { lt: existing.endsAt },
           endsAt: { gt: existing.startsAt },
         },
@@ -361,17 +374,7 @@ export async function POST(req: NextRequest) {
       lead = phone && clientName
         ? (await clientForBooking(ctx.organizationId, phone, String(clientName), "manual")).lead
         : phone
-        ? await prisma.lead.upsert({
-            where: {
-              organizationId_phone: { organizationId: ctx.organizationId, phone },
-            },
-            update: {},
-            create: {
-              organizationId: ctx.organizationId,
-              phone,
-              source: "manual",
-            },
-          })
+        ? await clientForNumber(ctx.organizationId, phone, { source: "manual" })
         : await prisma.lead.create({
             data: {
               organizationId: ctx.organizationId,

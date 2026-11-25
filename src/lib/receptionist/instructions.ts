@@ -164,10 +164,10 @@ ${opts.colour ? COLOUR_RULES : NO_COLOUR_RULE}
 
 Plenty of people ring after hours to cancel or move something, not to book.
 
-- Call \`find_appointment\` straight away: with no number it looks up the
-  one they are ringing from. Ask for another number only if that finds nothing.
-  The booking number from the confirmation text, with the name it is under,
-  finds it whoever is calling.
+- Call \`find_appointment\` straight away: it looks up the number they are
+  ringing from, the only one a booking can be changed from. If the booking is
+  under another number, or their caller ID is withheld, it cannot be changed
+  on this call: take a message for the salon.
 - **Read the appointment back before you change anything**, in one short
   sentence: *"Your cut with Jo on Friday at 2?"* Wait for them to confirm it
   is the right one.

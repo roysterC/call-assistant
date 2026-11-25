@@ -44,12 +44,6 @@ const SAVE_CUSTOMER_DETAILS: ToolDefinition = {
             "What they want: service, stylist, preferred times, and anything " +
             "else relevant.",
         },
-        callerNumber: {
-          type: "string",
-          description:
-            "The number they are ringing from, if the tool supplies it. Used " +
-            "only when the number they spoke cannot be parsed.",
-        },
       },
       // Name and issue are saved even when the number cannot be parsed, so
       // call this as soon as you have anything rather than waiting.
@@ -241,12 +235,6 @@ const BOOKING_DETAILS: ToolDefinition = {
             "Caller's number. Checked here — if it comes back as too " +
             "long or too short, read it back to them and try again.",
         },
-        callerNumber: {
-          type: "string",
-          description:
-            "The number they are ringing from, if the tool supplies it. Used " +
-            "only when the number they spoke cannot be parsed.",
-        },
         customerName: {
           type: "string",
           description:
@@ -380,10 +368,6 @@ const TAKE_MESSAGE: ToolDefinition = {
           type: "string",
           description: "The stylist it is for, if they named one.",
         },
-        callerNumber: {
-          type: "string",
-          description: "The number they are ringing from, if the tool supplies it.",
-        },
       },
       required: ["customerName", "message"],
     },
@@ -432,36 +416,20 @@ const FIND_APPOINTMENT: ToolDefinition = {
   function: {
     name: "find_appointment",
     description:
-      "Look up a caller's upcoming appointment by their phone number. Use " +
-      "this when someone rings about an existing booking. Read the details " +
-      "back before changing anything.",
+      "Look up the upcoming appointments on the number the caller is on (the " +
+      "phone line, or WhatsApp). Bookings can only be found, changed or " +
+      "cancelled from the number they are booked under; anywhere else this " +
+      "says so, and you take a message instead. Read the details back before " +
+      "changing anything.",
     parameters: {
       type: "object",
       properties: {
-        customerPhone: {
-          type: "string",
-          description:
-            "The number the appointment was booked under. Leave it empty " +
-            "for the number they are ringing from.",
-        },
-        callerName: {
-          type: "string",
-          description:
-            "The name of the person you are speaking to (not the person the " +
-            "booking is for). Needed when the booking is on a number other " +
-            "than the one they are ringing from.",
-        },
         bookingNumber: {
           type: "string",
           description:
-            "The booking number from their confirmation text, if they have " +
-            "it. With bookingName, enough to find the booking, whoever is calling.",
-        },
-        bookingName: {
-          type: "string",
-          description:
-            "The name the booking is under, as the caller gave it. Needed " +
-            "with bookingNumber.",
+            "The booking number from their confirmation text, if they give it: it picks " +
+            "out one booking on the number they are on. It does not unlock a booking " +
+            "under any other number.",
         },
       },
       required: [],
@@ -480,30 +448,12 @@ const CANCEL_APPOINTMENT: ToolDefinition = {
     parameters: {
       type: "object",
       properties: {
-        customerPhone: {
-          type: "string",
-          description:
-            "The number the appointment was booked under. Leave it empty " +
-            "for the number they are ringing from.",
-        },
-        callerName: {
-          type: "string",
-          description:
-            "The name of the person you are speaking to (not the person the " +
-            "booking is for). Needed when the booking is on a number other " +
-            "than the one they are ringing from.",
-        },
         bookingNumber: {
           type: "string",
           description:
-            "The booking number from their confirmation text, if they have " +
-            "it. With bookingName, enough to find the booking, whoever is calling.",
-        },
-        bookingName: {
-          type: "string",
-          description:
-            "The name the booking is under, as the caller gave it. Needed " +
-            "with bookingNumber.",
+            "The booking number from their confirmation text, if they give it: it picks " +
+            "out one booking on the number they are on. It does not unlock a booking " +
+            "under any other number.",
         },
         appointmentId: {
           type: "string",
@@ -533,30 +483,12 @@ const RESCHEDULE_APPOINTMENT: ToolDefinition = {
     parameters: {
       type: "object",
       properties: {
-        customerPhone: {
-          type: "string",
-          description:
-            "The number the appointment was booked under. Leave it empty " +
-            "for the number they are ringing from.",
-        },
-        callerName: {
-          type: "string",
-          description:
-            "The name of the person you are speaking to (not the person the " +
-            "booking is for). Needed when the booking is on a number other " +
-            "than the one they are ringing from.",
-        },
         bookingNumber: {
           type: "string",
           description:
-            "The booking number from their confirmation text, if they have " +
-            "it. With bookingName, enough to find the booking, whoever is calling.",
-        },
-        bookingName: {
-          type: "string",
-          description:
-            "The name the booking is under, as the caller gave it. Needed " +
-            "with bookingNumber.",
+            "The booking number from their confirmation text, if they give it: it picks " +
+            "out one booking on the number they are on. It does not unlock a booking " +
+            "under any other number.",
         },
         appointmentId: {
           type: "string",

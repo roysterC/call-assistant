@@ -17,7 +17,7 @@ import { findBlockClash, findClash } from "@/lib/booking/diary";
 import { canReadAvailability, type BookingProvider } from "@/lib/booking/types";
 import type { SalonConfig } from "@/lib/booking";
 import { hoursForWeekday, zonedDateString, zonedParts } from "@/lib/business-hours";
-import { findClientOnNumber, hasBeenBefore, hasVisited } from "@/lib/client-link";
+import { findClientOnNumber, hasBeenBefore, hasVisited, type NumberProof } from "@/lib/client-link";
 import { matchStylist, stylistDoesService, stylistsForService, type SalonService, type Stylist } from "@/lib/salon-config";
 
 export type ClientType = "new" | "returning" | "unknown";
@@ -189,18 +189,18 @@ function clockTime(at: Date, timeZone: string): string {
 export async function colourStatus(
   organizationId: string,
   service: SalonService,
-  who: { phone: string; name: string } | { leadId: string | null },
+  who: { phone: string; name: string; how?: NumberProof } | { leadId: string | null },
   opts: { said?: ClientType; skinTestDone?: boolean } = {}
 ): Promise<{ clientType: ClientType; testedOn: Date | null; patchType: ClientType; needsSkinTest: boolean }> {
   let clientType: ClientType;
   let testedOn: Date | null = null;
   if ("phone" in who) {
     clientType = opts.said ?? "unknown";
-    if (clientType !== "returning" && (await hasBeenBefore(organizationId, who.phone, who.name))) {
+    if (clientType !== "returning" && (await hasBeenBefore(organizationId, who.phone, who.name, who.how))) {
       clientType = "returning";
     }
     if (service.requiresPatchTest) {
-      testedOn = (await findClientOnNumber(organizationId, who.phone, who.name))?.patchTestAt ?? null;
+      testedOn = (await findClientOnNumber(organizationId, who.phone, who.name, who.how))?.patchTestAt ?? null;
     }
   } else {
     clientType = who.leadId && (await hasVisited(who.leadId)) ? "returning" : "new";

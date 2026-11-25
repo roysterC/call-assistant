@@ -8,6 +8,7 @@
 
 import { businessTypesOf, type BusinessType } from "@/lib/business-types";
 import { prisma } from "@/lib/prisma";
+import { loadTeam } from "@/lib/technicians";
 import {
   parseBusinessHours,
   parseTimezone,
@@ -78,12 +79,17 @@ export async function getSalonConfig(
     timeZone: parseTimezone(settings?.timezone),
     hours: parseBusinessHours(settings?.businessHours),
     services: parseServices(settings?.services),
-    // On our own diary everyone on the team can be booked; on Google, only
-    // those whose calendar is shared with us.
-    stylists: parseStylists(settings?.teamMembers).map((s) => ({
-      ...s,
-      bookable: diary === "native" || Boolean(s.googleCalendarId),
-    })),
+    // The team from its records (src/lib/technicians.ts), less anyone the
+    // owner has marked as not taking bookings (a receptionist): nothing that
+    // books, offers times or names the team sees her. On our own diary
+    // everyone else can be booked; on Google, only those whose calendar is
+    // shared with us.
+    stylists: ((await loadTeam(prisma, organizationId)) ?? parseStylists(settings?.teamMembers))
+      .filter((s) => s.takesBookings !== false)
+      .map((s) => ({
+        ...s,
+        bookable: diary === "native" || Boolean(s.googleCalendarId),
+      })),
     calComApiKey: settings?.calComApiKey ?? null,
     calComEventTypeId: settings?.calComEventTypeId ?? null,
     businessTypes: businessTypesOf(settings?.organization.businessType, settings?.organization.alsoOffers),

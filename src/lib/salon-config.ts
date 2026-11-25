@@ -56,6 +56,12 @@ export const REBOOK_WEEKS_MIN = 1;
 export const REBOOK_WEEKS_MAX = 26;
 
 export interface Stylist {
+  /**
+   * Her permanent id (the Technician row, src/lib/technicians.ts). What her
+   * bookings, blocked time and callbacks point at. Missing only on an entry
+   * not yet saved through the settings API or the post-deploy backfill.
+   */
+  id?: string;
   name: string;
   email?: string;
   phone?: string;
@@ -69,6 +75,16 @@ export interface Stylist {
    * which is what every stylist parsed without a diary mode gets.
    */
   bookable?: boolean;
+  /**
+   * The owner's switch: false for someone on the team who is not booked into
+   * (a receptionist). Missing means she takes bookings.
+   */
+  takesBookings?: boolean;
+  /**
+   * The login she signs in with (a User id), null for none. Missing on a
+   * list from before logins were linked: whatever is on her record stays.
+   */
+  userId?: string | null;
   /** 0 = Sunday ... 6 = Saturday. Empty means "any day the salon is open". */
   workingDays: number[];
   /** Service names this stylist performs. Empty means "all services". */
@@ -177,12 +193,16 @@ export function parseStylists(raw: unknown): Stylist[] {
 
     const googleCalendarId = String(e.googleCalendarId ?? "").trim();
 
+    const id = typeof e.id === "string" && e.id.trim() ? e.id.trim() : undefined;
     out.push({
+      ...(id ? { id } : {}),
       name,
       email: String(e.email ?? "").trim() || undefined,
       phone: String(e.phone ?? "").trim() || undefined,
       role: String(e.role ?? "").trim() || undefined,
       googleCalendarId: googleCalendarId || undefined,
+      ...(e.takesBookings === false ? { takesBookings: false } : {}),
+      ...("userId" in e ? { userId: typeof e.userId === "string" && e.userId.trim() ? e.userId.trim() : null } : {}),
       workingDays,
       services,
     });

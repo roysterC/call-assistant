@@ -76,9 +76,11 @@ import type { SalonMenu } from "@/lib/nail-menu";
 import { addCalendarDays } from "@/lib/business-hours";
 
 interface Stylist {
+  id?: string;
   name: string;
   workingDays?: number[];
   googleCalendarId?: string;
+  takesBookings?: boolean;
 }
 
 interface BusinessHour {
@@ -289,7 +291,8 @@ export default function CalendarPage() {
       try {
         const res = await apiFetch("/api/settings");
         const { settings } = await res.json();
-        setStylists(settings?.teamMembers ?? []);
+        // Only those who take bookings have a column and can be booked.
+        setStylists(((settings?.teamMembers ?? []) as Stylist[]).filter((s) => s.takesBookings !== false));
         setServices(parseServices(settings?.services));
         setMenu(settings?.menu ?? null);
         setHours(settings?.businessHours ?? []);
@@ -499,6 +502,7 @@ export default function CalendarPage() {
   const columns: CalendarStylist[] = useMemo(
     () =>
       stylists.map((s, i): CalendarStylist => ({
+        id: s.id,
         name: s.name,
         colour: stylistColour(i),
         // An empty list means "any day the salon is open", the same rule the

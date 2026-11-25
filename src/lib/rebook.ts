@@ -28,6 +28,7 @@
 
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { technicianFields } from "@/lib/technicians";
 import { canReadAvailability, getSalonConfig, selectProvider, type SalonConfig } from "@/lib/booking";
 import type { TimeSlot } from "@/lib/booking/types";
 import { addCalendarDays, describeAppointmentWhen, zonedDateString, zonedParts } from "@/lib/business-hours";
@@ -364,6 +365,7 @@ export async function runRebookTexts(organizationId: string, opts: { now?: Date;
           appointmentId: c.appointmentId,
           service: c.service,
           stylist,
+          ...(await technicianFields(prisma, organizationId, stylist)),
           slotStartsAt: slot ? new Date(slot.start) : null,
         },
       });

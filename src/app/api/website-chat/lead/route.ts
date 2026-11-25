@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
       name,
       phone,
       notes,
+      leadId: conversation.leadId,
     });
 
     await prisma.websiteConversation.update({

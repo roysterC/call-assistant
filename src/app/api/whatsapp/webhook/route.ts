@@ -2,6 +2,7 @@ import { downloadWhatsAppPhoto, photoLine, savePhoto } from "@/lib/chat-photos";
 import { replyWhenQuiet } from "@/lib/whatsapp-reply";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { clientForNumber } from "@/lib/client-identity";
 import {
   sendTextMessage,
   waIdToPhone,
@@ -197,26 +198,11 @@ async function processMessage(
   });
 
   if (!conversation) {
-    // Upsert lead (scoped to this org). Earlier we did findUnique-then-
-    // create which raced under burst inbound: two near-simultaneous
-    // messages from the same sender both saw "no lead", both tried to
-    // create, and one hit @@unique([organizationId, phone]) → P2002 →
-    // 500 → Meta retries. upsert is atomic at DB level.
-    //
-    // Update branch is intentionally empty: WA profile names are basically
-    // constant per sender, and we don't want to clobber an operator-edited
-    // name. Backfilling first-time-null names on a later message is rare
-    // enough to defer.
-    const lead = await prisma.lead.upsert({
-      where: { organizationId_phone: { organizationId, phone } },
-      create: {
-        organizationId,
-        phone,
-        name: contactName,
-        source: "whatsapp",
-      },
-      update: {},
-    });
+    // The client this WhatsApp number reaches (WhatsApp proves it is
+    // theirs), made if there is none. Under a lock, so a burst of first
+    // messages makes one client, not one each (client-identity.ts). Their
+    // profile name only names a new one: an operator-edited name is kept.
+    const lead = await clientForNumber(organizationId, phone, { name: contactName, source: "whatsapp" });
 
     conversation = await prisma.whatsAppConversation.create({
       data: {

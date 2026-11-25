@@ -10,12 +10,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const db = vi.hoisted(() => ({
-  lead: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+  lead: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+  /** The client a number reaches, as a test sets it: what a look-up by number finds. */
+  holder: vi.fn(),
   appointment: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), count: vi.fn() },
   organizationSettings: { findUnique: vi.fn() },
 }));
 
-vi.mock("@/lib/prisma", () => ({ prisma: db }));
+// Look-ups by number go to db.holder; the lock a client is chosen under
+// (client-identity.ts) is a transaction that runs straight through.
+vi.mock("@/lib/prisma", () => {
+  const prisma: Record<string, unknown> = {
+    ...db,
+    lead: {
+      ...db.lead,
+      findFirst: async (a: { where?: { phone?: string } }) =>
+        a.where?.phone ? db.holder(a.where.phone) : db.lead.findFirst(a),
+      findMany: async (a: { where?: { phone?: string } }) =>
+        a.where?.phone ? [await db.holder(a.where.phone)].filter(Boolean) : db.lead.findMany(a),
+    },
+    $executeRaw: async () => 0,
+    $transaction: async (fn: (tx: unknown) => unknown) => fn(prisma),
+  };
+  return { prisma };
+});
 // Saturdays 08:30 to 17:00, and a diary with nothing free, for the
 // availability answers.
 const salon = vi.hoisted(() => ({
@@ -77,7 +95,8 @@ import {
   handleSaveCustomerDetails,
   saysNotBooked,
 } from "./actions";
-import { lookupPhone, parseBookingNumber, thirdPartyRefusal } from "./changes";
+import { lookupPhone, parseBookingNumber } from "./changes";
+import { withCallerContext } from "./tools";
 
 const SARAH = "+447700900715";
 const OLIVIA = "+447700900714";
@@ -89,8 +108,8 @@ beforeEach(() => {
   salon.asked = [];
   salon.forwardSearch = false;
   written.length = 0;
-  db.lead.findUnique.mockImplementation(async ({ where }) =>
-    where.organizationId_phone.phone === SARAH ? { id: "lead-sarah", name: "Sarah Friend", phone: SARAH } : null
+  db.holder.mockImplementation(async (phone: string) =>
+    phone === SARAH ? { id: "lead-sarah", name: "Sarah Friend", phone: SARAH } : null
   );
   // Nobody is reached through anybody's number unless a test says so.
   db.lead.findMany.mockResolvedValue([]);
@@ -130,64 +149,48 @@ describe("lookupPhone", () => {
   });
 });
 
-describe("thirdPartyRefusal", () => {
-  it("lets the booking's own number through without a name", () => {
-    expect(thirdPartyRefusal(SARAH, { callerNumber: "07700 900715" }, "Sarah Friend")).toBeNull();
-  });
+describe("a booking is managed only from its own number", () => {
+  const noDetails = (r: unknown) => {
+    expect(r).toMatchObject({ found: false, notFromItsNumber: true });
+    expect(JSON.stringify(r)).not.toMatch(/Sarah|Cut and finish|Jo\b|1043/);
+  };
 
-  it("asks who is calling, without naming the client, from any other number", () => {
-    const r = thirdPartyRefusal(SARAH, { callerNumber: OLIVIA }, "Sarah Friend");
-    expect(r).toMatchObject({ needsCallerName: true });
-    expect(JSON.stringify(r)).not.toMatch(/Sarah/);
-  });
-
-  it("refuses someone who is not the client, and allows the client on another phone", () => {
-    expect(thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "Olivia Hart" }, "Sarah Friend")).toMatchObject({
-      notTheirs: true,
-    });
-    expect(thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "Sarah" }, "Sarah Friend")).toBeNull();
-    // Withheld caller ID is another phone too.
-    expect(thirdPartyRefusal(SARAH, {}, "Sarah Friend")).toMatchObject({ needsCallerName: true });
-  });
-
-  it("treats a filler the model put in the name field as no name at all", () => {
-    expect(thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "yourself" }, "Sarah Friend")).toMatchObject({
-      needsCallerName: true,
-    });
-  });
-});
-
-describe("find_appointment and cancel_appointment", () => {
-  it("find the caller's own booking when the model sends 'caller_id' as the number", async () => {
+  it("finds the client's own booking from her number, even when the model sends 'caller_id'", async () => {
     const r = await handleFindAppointment("org", { customerPhone: "caller_id", callerNumber: SARAH });
     expect(r).toMatchObject({ found: true, service: "Cut and finish", stylist: "Jo" });
   });
 
-  it("give a friend nothing about the booking, and do not cancel it", async () => {
-    const found = await handleFindAppointment("org", {
-      customerPhone: "07700 900 715",
-      callerNumber: OLIVIA,
-      callerName: "Olivia Hart",
-    });
-    expect(found).toMatchObject({ found: true, notTheirs: true });
-    expect(found).not.toHaveProperty("when");
-    expect(found).not.toHaveProperty("service");
-
-    const cancelled = await handleCancelAppointment("org", {
-      customerPhone: "07700 900 715",
-      callerNumber: OLIVIA,
-      callerName: "Olivia Hart",
-    });
-    expect(cancelled).toMatchObject({ success: false, notTheirs: true });
-    expect(db.appointment.update).not.toHaveBeenCalled();
-  });
-
-  it("cancel for the client herself, ringing from her own number", async () => {
+  it("cancels for the client ringing from her own number", async () => {
     const r = await handleCancelAppointment("org", { callerNumber: SARAH });
     expect(r).toMatchObject({ success: true });
     expect(db.appointment.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "appt-1" }, data: expect.objectContaining({ status: "cancelled" }) })
     );
+  });
+
+  it("tells someone on another phone nothing, whatever name they give, and cancels nothing", async () => {
+    for (const callerName of [undefined, "Olivia Hart", "Sarah", "Sarah Friend"]) {
+      noDetails(await handleFindAppointment("org", { customerPhone: "07700 900 715", callerNumber: OLIVIA, callerName }));
+      noDetails(await handleCancelAppointment("org", { customerPhone: "07700 900 715", callerNumber: OLIVIA, callerName }));
+    }
+    expect(db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("tells a chat with no number of its own nothing (the website, Instagram, Messenger)", async () => {
+    noDetails(await handleFindAppointment("org", { customerPhone: "07700 900 715", callerName: "Sarah Friend" }));
+    noDetails(await handleCancelAppointment("org", { bookingNumber: "1043", bookingName: "Sarah Friend" }));
+    expect(db.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("says the same whether or not there is a booking, so it gives nothing away", async () => {
+    const onSarahs = await handleFindAppointment("org", { customerPhone: SARAH, callerNumber: OLIVIA });
+    const onNobodys = await handleFindAppointment("org", { customerPhone: "07700 900 999", callerNumber: OLIVIA });
+    expect(onSarahs).toEqual(onNobodys);
+  });
+
+  it("does not take a caller's number from the model, only from the line", () => {
+    expect(withCallerContext("cancel_appointment", { callerNumber: SARAH }, null)).not.toHaveProperty("callerNumber");
+    expect(withCallerContext("cancel_appointment", { callerNumber: SARAH }, OLIVIA)).toMatchObject({ callerNumber: OLIVIA });
   });
 });
 
@@ -200,51 +203,22 @@ describe("by booking number", () => {
     expect(parseBookingNumber(undefined)).toBeNull();
   });
 
-  it("is not enough on its own: a friend on another phone is asked whose name it is under", async () => {
-    const r = await handleFindAppointment("org", { bookingNumber: "1043", callerNumber: OLIVIA });
-    expect(r).toMatchObject({ found: true, needsBookingName: true });
-    expect(r).not.toHaveProperty("when");
-    expect(JSON.stringify(r)).not.toMatch(/Sarah/);
+  it("picks the booking out on the client's own number", async () => {
+    const r = await handleFindAppointment("org", { bookingNumber: "1043", callerNumber: SARAH });
+    expect(r).toMatchObject({ found: true, bookingNumber: 1043, service: "Cut and finish" });
   });
 
-  it("with the name it is under, lets a friend hear it and cancel it, and texts the client", async () => {
-    const found = await handleFindAppointment("org", {
-      bookingNumber: "1043",
-      bookingName: "Sarah Friend",
-      callerNumber: OLIVIA,
-    });
-    expect(found).toMatchObject({ found: true, bookingNumber: 1043, service: "Cut and finish", stylist: "Jo" });
-
-    const r = await handleCancelAppointment("org", {
-      bookingNumber: "1043",
-      bookingName: "Sarah",
-      callerNumber: OLIVIA,
-      callerName: "Olivia Hart",
-    });
-    expect(r).toMatchObject({ success: true });
-    expect(db.appointment.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "appt-1" }, data: expect.objectContaining({ status: "cancelled" }) })
-    );
-    expect(texts.send).toHaveBeenCalledWith("org", SARAH, expect.any(String));
-  });
-
-  it("takes the client's own name when she is the one ringing", async () => {
-    const r = await handleFindAppointment("org", { bookingNumber: "1043", callerName: "Sarah Friend", callerNumber: OLIVIA });
-    expect(r).toMatchObject({ found: true, service: "Cut and finish" });
-  });
-
-  it("refuses a number with the wrong name, without saying whose it is, and changes nothing", async () => {
-    const r = await handleCancelAppointment("org", {
-      bookingNumber: "1043",
-      bookingName: "Nina Ward",
-      callerNumber: OLIVIA,
-    });
-    expect(r).toMatchObject({ success: false, found: false, nameDidNotMatch: true });
-    expect(JSON.stringify(r)).not.toMatch(/Sarah|Cut and finish|Jo\b/);
+  it("does not open a booking on someone else's number, with the right name or not", async () => {
+    for (const bookingName of [undefined, "Sarah Friend", "Nina Ward"]) {
+      const r = await handleCancelAppointment("org", { bookingNumber: "1043", bookingName, callerNumber: OLIVIA });
+      expect(r).toMatchObject({ success: false, found: false });
+      expect(JSON.stringify(r)).not.toMatch(/Sarah|Cut and finish|Jo\b/);
+    }
     expect(db.appointment.update).not.toHaveBeenCalled();
+    expect(texts.send).not.toHaveBeenCalled();
   });
 
-  it("takes either the child's name or the parent's she is reached through", async () => {
+  it("lets the number a child is reached through manage her booking", async () => {
     const amys = {
       id: "appt-2",
       bookingNumber: 1044,
@@ -256,23 +230,17 @@ describe("by booking number", () => {
       lead: { id: "lead-amy", name: "Amy Burns", phone: null, contactLead: { name: "Claire Burns", phone: CLAIRE } },
     };
     db.appointment.findFirst.mockResolvedValue(amys);
-    for (const bookingName of ["Amy Burns", "Claire Burns"]) {
-      const r = await handleFindAppointment("org", { bookingNumber: "1044", bookingName, callerNumber: OLIVIA });
-      expect(r).toMatchObject({ found: true, bookingNumber: 1044, clientName: "Amy Burns" });
-    }
-    const wrong = await handleFindAppointment("org", { bookingNumber: "1044", bookingName: "Olivia Hart", callerNumber: OLIVIA });
-    expect(wrong).toMatchObject({ found: false, nameDidNotMatch: true });
+    expect(await handleFindAppointment("org", { bookingNumber: "1044", callerNumber: CLAIRE })).toMatchObject({
+      found: true,
+      clientName: "Amy Burns",
+    });
+    expect(await handleFindAppointment("org", { bookingNumber: "1044", callerNumber: OLIVIA })).toMatchObject({ found: false });
   });
 
   it("finds nothing for a number that is not a booking, and changes nothing", async () => {
-    const r = await handleCancelAppointment("org", { bookingNumber: "9999", callerNumber: OLIVIA });
+    const r = await handleCancelAppointment("org", { bookingNumber: "9999", callerNumber: SARAH });
     expect(r).toMatchObject({ success: false, found: false });
     expect(db.appointment.update).not.toHaveBeenCalled();
-  });
-
-  it("is what a refused caller is asked for", () => {
-    const r = thirdPartyRefusal(SARAH, { callerNumber: OLIVIA, callerName: "Olivia Hart" }, "Sarah Friend");
-    expect(r?.message).toMatch(/bookingNumber/);
   });
 });
 
@@ -290,23 +258,37 @@ describe("saysNotBooked", () => {
 
 describe("save_customer_details for someone else's number", () => {
   it("leaves the client's name alone and says who the message is from", async () => {
-    db.lead.upsert.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend" });
     const r = await handleSaveCustomerDetails("org", {
       name: "Olivia Hart",
       phone: "07700 900715",
+      callerNumber: SARAH,
       issue: "Sarah is ill, cancel Friday",
     });
     expect(r.message).toMatch(/^That number is Sarah Friend's, not Olivia Hart's: saved as a message/);
-    const { update } = db.lead.upsert.mock.calls[0][0];
-    expect(update).not.toHaveProperty("name");
-    expect(update.issue).toBe("From Olivia Hart: Sarah is ill, cancel Friday");
+    const { where, data } = db.lead.update.mock.calls[0][0];
+    expect(where).toEqual({ id: "lead-sarah" });
+    expect(data).not.toHaveProperty("name");
+    expect(data.issue).toBe("From Olivia Hart: Sarah is ill, cancel Friday");
   });
 
   it("still updates the name when it is the same person saying more of it", async () => {
-    db.lead.findUnique.mockResolvedValue({ name: "Sarah" });
-    db.lead.upsert.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend" });
-    await handleSaveCustomerDetails("org", { name: "Sarah Friend", phone: "07700 900715" });
-    expect(db.lead.upsert.mock.calls[0][0].update.name).toBe("Sarah Friend");
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah" });
+    await handleSaveCustomerDetails("org", { name: "Sarah Friend", phone: "07700 900715", callerNumber: SARAH });
+    expect(db.lead.update.mock.calls[0][0].data.name).toBe("Sarah Friend");
+  });
+
+  it("never gives her an email said on the phone in place of hers", async () => {
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", email: "sarah@example.com" });
+    await handleSaveCustomerDetails("org", { name: "Sarah Friend", email: "m@evil.test", callerNumber: SARAH });
+    expect(db.lead.update.mock.calls[0][0].data).not.toHaveProperty("email");
+  });
+
+  it("files details given with a number only said on a new record, not hers", async () => {
+    await handleSaveCustomerDetails("org", { name: "Olivia Hart", phone: "07700 900715", issue: "Cancel Friday" });
+    expect(db.lead.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: "Olivia Hart", phone: SARAH, possibleDuplicateOfId: "lead-sarah" }),
+    });
+    expect(db.lead.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "lead-sarah" } }));
   });
 });
 
@@ -430,7 +412,7 @@ describe("check_availability late on a Saturday", () => {
     expect(untested.patchTestOnRecord).toBeUndefined();
     expect(untested.message).not.toMatch(/patch test on record/);
 
-    db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
     const tested = await ask();
     expect(tested.patchTestOnRecord).toBe("1 September 2026");
     // Booked as returning without a word about it: nothing to say to the caller.
@@ -444,7 +426,7 @@ describe("check_availability late on a Saturday", () => {
         patchTestRequired?: boolean;
       }>;
     expect((await ask()).patchTestRequired).toBe(true);
-    db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
     expect((await ask()).patchTestRequired).toBeUndefined();
   });
 
@@ -567,12 +549,13 @@ describe("book_appointment", () => {
   });
 
   it("books a daughter on her mum's phone as her own client, reached through her mum's number", async () => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
+    db.holder.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
     const r = (await handleBookAppointment("org", {
       time: quarterPastOne,
       service: "blow dry",
       stylist: "Jo",
       customerPhone: "07700 900721",
+      callerNumber: CLAIRE,
       customerName: "Amy Burns",
     })) as { success: boolean; message: string };
     expect(r.success).toBe(true);
@@ -589,7 +572,7 @@ describe("book_appointment", () => {
   });
 
   it("books her on the same record next time, and her mum on her own", async () => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
+    db.holder.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
     db.lead.findMany.mockResolvedValue([{ id: "lead-amy", name: "Amy Burns", phone: null, email: null }]);
     const book = (customerName: string) =>
       handleBookAppointment("org", {
@@ -597,6 +580,7 @@ describe("book_appointment", () => {
         service: "blow dry",
         stylist: "Jo",
         customerPhone: "07700 900721",
+        callerNumber: CLAIRE,
         customerName,
       });
     await book("Amy");
@@ -606,16 +590,62 @@ describe("book_appointment", () => {
   });
 
   it("fills in a surname for the same person rather than making a second record", async () => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah", phone: SARAH, email: null });
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah", phone: SARAH, email: null });
     await handleBookAppointment("org", {
       time: quarterPastOne,
       service: "blow dry",
       stylist: "Jo",
       customerPhone: "07700 900715",
+      callerNumber: SARAH,
       customerName: "Sarah Friend",
     });
     expect(db.lead.update).toHaveBeenCalledWith({ where: { id: "lead-sarah" }, data: { name: "Sarah Friend" } });
     expect(db.lead.create).not.toHaveBeenCalled();
+  });
+
+  describe("on a number only said, not rung from", () => {
+    // Someone ringing from another phone, or a chat: the number they give
+    // proves nothing (client-identity.ts).
+    const bookAs = (customerName: string, extra: Record<string, unknown> = {}) =>
+      handleBookAppointment("org", {
+        time: quarterPastOne,
+        service: "blow dry",
+        stylist: "Jo",
+        customerPhone: "07700 900715",
+        customerName,
+        ...extra,
+      } as Parameters<typeof handleBookAppointment>[1]) as Promise<{ success: boolean }>;
+
+    it("books on a new record marked as possibly the client with it, never on hers", async () => {
+      const r = await bookAs("Sarah Friend", { callerNumber: OLIVIA });
+      expect(r.success).toBe(true);
+      expect(db.lead.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ name: "Sarah Friend", phone: SARAH, possibleDuplicateOfId: "lead-sarah" }),
+      });
+      expect(written[0].record).toMatchObject({ leadId: "lead-Sarah Friend" });
+      expect(db.lead.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "lead-sarah" } }));
+    });
+
+    it("reads nothing off her record: not her visits, nor her patch test", async () => {
+      db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
+      db.appointment.count.mockResolvedValue(3);
+      const r = (await handleBookAppointment("org", {
+        time: quarterPastOne,
+        service: "root tint",
+        stylist: "Jo",
+        customerPhone: "07700 900715",
+        customerName: "Sarah Friend",
+      })) as { success: boolean; needsClientType?: boolean };
+      // Not known to be returning: asked, as anyone new would be.
+      expect(r).toMatchObject({ success: false, needsClientType: true });
+    });
+
+    it("books a chat's own client as them", async () => {
+      db.lead.findFirst.mockResolvedValue({ id: "lead-chat", name: "Sarah Friend", phone: null, email: null });
+      await bookAs("Sarah", { clientId: "lead-chat" });
+      expect(written[0].record).toMatchObject({ leadId: "lead-chat" });
+      expect(db.lead.create).not.toHaveBeenCalled();
+    });
   });
 
   it("will not book colour without knowing whether they have had it here before", async () => {
@@ -737,7 +767,7 @@ describe("book_appointment", () => {
   it("books colour for a client with a patch test on record, without asking or the 48-hour wait", async () => {
     // Saturday half five: too soon for a new client's colour on Tuesday.
     vi.setSystemTime(new Date("2026-09-26T17:30:00+01:00"));
-    db.lead.findUnique.mockResolvedValue({
+    db.holder.mockResolvedValue({
       id: "lead-sarah",
       name: "Sarah Friend",
       phone: SARAH,
@@ -749,6 +779,7 @@ describe("book_appointment", () => {
       service: "root tint",
       stylist: "Jo",
       customerPhone: "07700 900715",
+      callerNumber: SARAH,
       customerName: "Sarah Friend",
     })) as { success: boolean; patchTestRequired?: boolean; patchTestOnRecord?: string; message: string };
     expect(r).toMatchObject({ success: true, patchTestRequired: false, patchTestOnRecord: "1 September 2026" });
@@ -757,7 +788,7 @@ describe("book_appointment", () => {
   });
 
   it("does not count a mum's patch test for her daughter on the same phone", async () => {
-    db.lead.findUnique.mockResolvedValue({
+    db.holder.mockResolvedValue({
       id: "lead-claire",
       name: "Claire Burns",
       phone: CLAIRE,
@@ -805,7 +836,7 @@ describe("a number and the clients reached through it", () => {
   });
 
   beforeEach(() => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-claire", name: "Claire Burns" });
+    db.holder.mockResolvedValue({ id: "lead-claire", name: "Claire Burns" });
     db.lead.findMany.mockResolvedValue([{ id: "lead-amy", name: "Amy Burns" }]);
     db.appointment.findMany.mockImplementation(async ({ where }) =>
       [booking("appt-claire", claireLead, 2), booking("appt-amy", amyLead, 3)].filter((a) => where.leadId.in.includes(a.lead.id))
@@ -821,16 +852,11 @@ describe("a number and the clients reached through it", () => {
     expect(r.appointments.map((a) => a.for)).toEqual(["Claire Burns", "Amy Burns"]);
   });
 
-  it("gives the daughter, on another phone, her own bookings and not her mum's", async () => {
-    const r = await handleFindAppointment("org", { customerPhone: "07700 900721", callerNumber: OLIVIA, callerName: "Amy Burns" });
-    expect(r).toMatchObject({ found: true, appointmentId: "appt-amy", clientName: "Amy Burns" });
-    // Said as hers, not "your mum's".
-    expect((r as { message: string }).message).toMatch(/^Amy Burns has cut and finish/);
-  });
-
-  it("still refuses a stranger", async () => {
-    const r = await handleFindAppointment("org", { customerPhone: "07700 900721", callerNumber: OLIVIA, callerName: "Olivia Hart" });
-    expect(r).toMatchObject({ notTheirs: true });
+  it("tells the daughter on another phone nothing, as anyone else: only her mum's number manages it", async () => {
+    for (const callerName of ["Amy Burns", "Olivia Hart"]) {
+      const r = await handleFindAppointment("org", { customerPhone: "07700 900721", callerNumber: OLIVIA, callerName });
+      expect(r).toMatchObject({ found: false, notFromItsNumber: true });
+    }
   });
 
   it("texts the mum, greeting her, when the daughter's booking is cancelled", async () => {

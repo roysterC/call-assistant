@@ -1,6 +1,7 @@
 import { formatMoneyShort } from "@/lib/money";
 import { noticeNewCallback } from "@/lib/callback-notices";
 import { prisma } from "@/lib/prisma";
+import { technicianFields } from "@/lib/technicians";
 import { bookAppointment } from "@/lib/booking/diary";
 import {
   canCreateBooking,
@@ -34,11 +35,13 @@ import {
 } from "@/lib/business-hours";
 import { namesMatch, splitName } from "@/lib/client-name";
 import { noticeNewBooking } from "@/lib/booking-notices";
-import { clientForBooking } from "@/lib/client-link";
+import { clientForBooking, clientForMessage, type NumberProof } from "@/lib/client-link";
+import { fillGaps, newClientFromTyped } from "@/lib/client-identity";
 import { spokenPatchTest } from "@/lib/patch-test";
 import {
   blankToUndefined,
   normaliseClientType,
+  numberProof,
   resolveCallerPhone,
   serviceNotResolvedMessage,
   spokenDay,
@@ -62,6 +65,8 @@ export async function handleSaveCustomerDetails(
     phone?: string;
     /** Caller ID, filled in by the line. */
     callerNumber?: string;
+    /** The client the chat is filed under, filled in by the chat. */
+    clientId?: string;
     company?: string;
     businessType?: string;
     issue?: string;
@@ -99,23 +104,23 @@ export async function handleSaveCustomerDetails(
       };
     }
 
-    // Email is the other identity key, so a lead can still be keyed on it.
-    const lead = await prisma.lead.upsert({
-      where: { organizationId_email: { organizationId, email: cleanEmail } },
-      update: {
-        ...(cleanName && { name: cleanName }),
-        ...(cleanCompany && { company: cleanCompany }),
-        ...(noteIssue && { issue: noteIssue }),
-      },
-      create: {
-        organizationId,
-        email: cleanEmail,
-        name: cleanName ?? null,
-        company: cleanCompany ?? null,
-        issue: noteIssue ?? null,
-        source: "phone",
-      },
-    });
+    // Kept against the email they gave: on the chat's own client, or on a
+    // new one (an email said proves nothing, so it finds nobody on file).
+    const own = params.clientId
+      ? await prisma.lead.findFirst({ where: { id: params.clientId, organizationId, anonymisedAt: null } })
+      : null;
+    const lead = own
+      ? await prisma.lead.update({
+          where: { id: own.id },
+          data: fillGaps(own, { name: cleanName, email: cleanEmail, company: cleanCompany, issue: noteIssue }),
+        })
+      : await newClientFromTyped(prisma, organizationId, {
+          email: cleanEmail,
+          name: cleanName,
+          company: cleanCompany,
+          issue: noteIssue,
+          source: "phone",
+        });
 
     return {
       success: true,
@@ -130,34 +135,31 @@ export async function handleSaveCustomerDetails(
 
   const normalisedPhone = resolved.e164;
 
-  // A message left on someone else's number (a friend ringing about a
-  // client) must not rename the client's record to the friend. Same rule as
-  // booking: a different person's name goes on the note instead.
-  const existing = cleanName
-    ? await prisma.lead.findUnique({
-        where: { organizationId_phone: { organizationId, phone: normalisedPhone } },
-        select: { name: true },
-      })
-    : null;
-  const someoneElse = Boolean(existing?.name) && !namesMatch(existing?.name, cleanName);
+  // The client the number reaches (client-link.ts): for a number said rather
+  // than rung from, the chat's own client or a new one, never a client on
+  // file. Then details are only added where missing: an email said on the
+  // phone does not replace hers, nor a friend's name rename her. A different
+  // person's name goes on the note instead.
+  const lead0 = await clientForMessage(
+    organizationId,
+    normalisedPhone,
+    cleanName ?? null,
+    "phone",
+    numberProof(normalisedPhone, params)
+  );
+  const someoneElse = Boolean(lead0.name) && Boolean(cleanName) && !namesMatch(lead0.name, cleanName);
   const issueText = someoneElse && noteIssue ? `From ${cleanName}: ${noteIssue}` : noteIssue;
-
-  const lead = await prisma.lead.upsert({
-    where: { organizationId_phone: { organizationId, phone: normalisedPhone } },
-    update: {
-      ...(cleanName && !someoneElse && { name: cleanName }),
-      ...(cleanEmail && { email: cleanEmail }),
-      ...(cleanCompany && { company: cleanCompany }),
-      ...(issueText && { issue: issueText }),
-    },
-    create: {
-      organizationId,
-      phone: normalisedPhone,
-      name: cleanName ?? null,
-      email: cleanEmail ?? null,
-      company: cleanCompany ?? null,
-      issue: noteIssue ?? null,
-      source: "phone",
+  // The same person saying more of her name ("Sarah" to "Sarah Friend") is
+  // the one change a name on file takes from here.
+  const saysMore =
+    !someoneElse &&
+    Boolean(cleanName && lead0.name) &&
+    cleanName!.trim().split(/\s+/).length > lead0.name!.trim().split(/\s+/).length;
+  const lead = await prisma.lead.update({
+    where: { id: lead0.id },
+    data: {
+      ...fillGaps(lead0, { name: someoneElse ? null : cleanName, email: cleanEmail, company: cleanCompany, issue: issueText }),
+      ...(saysMore ? { name: cleanName } : {}),
     },
   });
 
@@ -169,7 +171,7 @@ export async function handleSaveCustomerDetails(
     leadId: lead.id,
     message:
       (someoneElse
-        ? `That number is ${lead.name}'s, not ${cleanName}'s: saved as a message from ${cleanName} on it. ` +
+        ? `That number is ${lead0.name}'s, not ${cleanName}'s: saved as a message from ${cleanName} on it. ` +
           "It has not changed any booking."
         : `Saved for ${lead.name || speakablePhone(normalisedPhone)}.`) +
       (resolved.source === "callerId"
@@ -192,6 +194,8 @@ type BookingParams = {
     customerPhone: string;
     /** Caller ID, filled in by the line. */
     callerNumber?: string;
+    /** The client the chat is filed under, filled in by the chat. */
+    clientId?: string;
     customerName?: string;
     clientType?: string;
     newClient?: boolean;
@@ -208,6 +212,8 @@ interface CheckedBooking {
   clientName: string;
   /** E.164: the number the booking goes on, and its text to. */
   phone: string;
+  /** Whether that number may find a client on file (client-identity.ts). */
+  how: NumberProof;
   usedCallerId: boolean;
   /** As said or found on their record: what the booking records. */
   clientType: "new" | "returning" | "unknown";
@@ -380,7 +386,7 @@ async function checkBooking(organizationId: string, params: BookingParams) {
   const colour = await colourStatus(
     organizationId,
     service,
-    { phone, name: clientName },
+    { phone, name: clientName, how: numberProof(phone, params) },
     {
       said: normaliseClientType(
         params.clientType ?? (params.newClient === true ? "new" : params.newClient === false ? "returning" : undefined)
@@ -510,6 +516,7 @@ async function checkBooking(organizationId: string, params: BookingParams) {
       startsAt,
       clientName,
       phone,
+      how: numberProof(phone, params),
       usedCallerId: resolvedPhone.source === "callerId",
       clientType,
       needsSkinTest: service.requiresPatchTest && patchType !== "returning",
@@ -564,7 +571,8 @@ async function writeBooking(organizationId: string, b: CheckedBooking, source: B
     organizationId,
     phone,
     clientName,
-    source === "website" ? "website" : "phone"
+    source === "website" ? "website" : "phone",
+    b.how
   );
   const bookingNotes = blankToUndefined(notes);
 
@@ -628,6 +636,7 @@ async function writeBooking(organizationId: string, b: CheckedBooking, source: B
         organizationId,
         leadId: lead.id,
         assignedTo: stylist.name,
+        ...(await technicianFields(prisma, organizationId, stylist.name)),
         // Listed by when the caller rang, like every message.
         scheduledAt: new Date(),
         notes: notBookedNotes,
@@ -724,6 +733,8 @@ async function writeBooking(organizationId: string, b: CheckedBooking, source: B
     stylist: stylist.name,
     service: service.name,
     clientName,
+    // The record it went on: a chat is filed under it (chat-booking.ts).
+    leadId: lead.id,
     textSent: sms.ok,
     usedCallerId: usedCallerId,
     patchTestRequired: needsSkinTest,

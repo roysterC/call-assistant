@@ -14,6 +14,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { numberHolder } from "@/lib/client-identity";
 import { normalisePhone } from "@/lib/phone";
 import type { CallOutcome } from "./outcomes";
 
@@ -76,12 +77,8 @@ export async function logCall(
   }
 ): Promise<void> {
   const phone = normalisePhone(call.callerNumber ?? undefined);
-  const lead = phone.ok
-    ? await prisma.lead.findUnique({
-        where: { organizationId_phone: { organizationId, phone: phone.e164 } },
-        select: { id: true },
-      })
-    : null;
+  // Caller ID: the client it reaches.
+  const lead = phone.ok ? await numberHolder(prisma, organizationId, phone.e164) : null;
   await prisma.call.create({
     data: {
       organizationId,

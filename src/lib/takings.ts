@@ -12,6 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { byTechnician, technicianIdFor } from "@/lib/technicians";
 import type { SalonConfig } from "@/lib/booking";
 import type { Period } from "@/lib/sales-period";
 import { salonDate } from "@/lib/calendar-layout";
@@ -62,9 +63,7 @@ export async function computeTakings(
       organizationId,
       startsAt: { gte: new Date(period.from), lt: new Date(period.to) },
       status: { not: "cancelled" },
-      ...(stylistName
-        ? { stylistName: { equals: stylistName, mode: "insensitive" as const } }
-        : {}),
+      ...(stylistName ? byTechnician(await technicianIdFor(prisma, organizationId, stylistName), stylistName) : {}),
     },
     include: { lead: { select: { name: true, phone: true, anonymisedAt: true } } },
     orderBy: { startsAt: "asc" },
@@ -78,7 +77,9 @@ export async function computeTakings(
   let takenCount = 0;
   let unpricedCount = 0;
 
-  const byStylist = new Map<string, { minor: number; count: number }>();
+  // By technician id: a technician who left and a new one with her name are
+  // two people. Shown under the name on her bookings (kept current on a rename).
+  const byStylist = new Map<string, { name: string; minor: number; count: number }>();
   const byService = new Map<string, { minor: number; count: number }>();
 
   const rows = appointments.map((a) => {
@@ -99,10 +100,11 @@ export async function computeTakings(
 
     const contribution = settled && a.amountMinor !== null ? a.amountMinor : 0;
     if (contribution) {
-      const st = byStylist.get(a.stylistName) ?? { minor: 0, count: 0 };
+      const who = a.technicianId ?? `name:${a.stylistName.toLowerCase()}`;
+      const st = byStylist.get(who) ?? { name: a.stylistName, minor: 0, count: 0 };
       st.minor += contribution;
       st.count++;
-      byStylist.set(a.stylistName, st);
+      byStylist.set(who, st);
 
       const sv = byService.get(a.serviceText) ?? { minor: 0, count: 0 };
       sv.minor += contribution;
@@ -142,7 +144,7 @@ export async function computeTakings(
       unpricedCount,
       bookedCount: rows.filter((r) => r.status === "booked").length,
       noShowCount: rows.filter((r) => r.status === "no_show").length,
-      byStylist: rank(byStylist),
+      byStylist: [...byStylist.values()].sort((x, y) => y.minor - x.minor),
       byService: rank(byService),
     },
     truncated: appointments.length >= 5000,

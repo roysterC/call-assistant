@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { TurnResult } from "./engine";
 
 const db = vi.hoisted(() => ({
-  lead: { findUnique: vi.fn() },
+  lead: { findUnique: vi.fn(), findFirst: vi.fn() },
   call: { create: vi.fn() },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -56,7 +56,7 @@ describe("what a call came to", () => {
 
 describe("the Call History line", () => {
   it("keeps who, when, how long and the outcome, and nothing that was said", async () => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-1" });
+    db.lead.findFirst.mockResolvedValue({ id: "lead-1" });
     await logCall("org", {
       callerNumber: "07700 900715",
       startedAt: new Date("2026-09-29T13:00:00Z"),

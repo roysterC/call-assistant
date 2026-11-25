@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
+import { technicianFields } from "@/lib/technicians";
 import { canCreateBooking, getBookingProvider, getSalonConfig } from "@/lib/booking";
 import { noticeNewCallback } from "@/lib/callback-notices";
 import { matchStylist } from "@/lib/salon-config";
 import { normalisePhone, speakablePhone } from "@/lib/phone";
 import { nameRequiredMessage, normaliseCallerName } from "@/lib/caller-name";
-import { blankToUndefined, resolveCallerPhone } from "./action-helpers";
+import { blankToUndefined, numberProof, resolveCallerPhone } from "./action-helpers";
+import { clientForMessage } from "@/lib/client-link";
 
 /**
  * Messages and call-backs: take_message for the stylist or the manager, and
@@ -20,6 +22,9 @@ export async function handleBookCallback(
     notes?: string;
     customerPhone: string;
     customerName?: string;
+    /** Caller ID, and the client the chat is filed under: filled in, never said. */
+    callerNumber?: string;
+    clientId?: string;
   }
 ) {
   const { date, time, assignedTo, notes, customerPhone, customerName } = params;
@@ -43,20 +48,7 @@ export async function handleBookCallback(
   }
   const callbackPhone = parsedCallbackPhone.e164;
 
-  let lead = await prisma.lead.findUnique({
-    where: { organizationId_phone: { organizationId, phone: callbackPhone } },
-  });
-
-  if (!lead) {
-    lead = await prisma.lead.create({
-      data: {
-        organizationId,
-        phone: callbackPhone,
-        name: callbackName,
-        source: "phone",
-      },
-    });
-  }
+  const lead = await clientForMessage(organizationId, callbackPhone, callbackName, "phone", numberProof(callbackPhone, params));
 
   const scheduledAt = time ? new Date(`${date}T${time}`) : new Date(date);
 
@@ -116,6 +108,7 @@ export async function handleBookCallback(
       organizationId,
       leadId: lead.id,
       assignedTo: teamMember,
+      ...(await technicianFields(prisma, organizationId, teamMember)),
       scheduledAt,
       notes: notes || null,
       calendarEventId,
@@ -178,6 +171,8 @@ export async function handleTakeMessage(
     customerPhone?: string;
     /** Caller ID, supplied by the tool body. */
     callerNumber?: string;
+    /** The client the chat is filed under, filled in by the chat. */
+    clientId?: string;
     message?: string;
     forStylist?: string;
     /** Set by the chat it was left in; a call leaves none. */
@@ -204,13 +199,7 @@ export async function handleTakeMessage(
     };
   }
 
-  const lead =
-    (await prisma.lead.findUnique({
-      where: { organizationId_phone: { organizationId, phone: phone.e164 } },
-    })) ??
-    (await prisma.lead.create({
-      data: { organizationId, phone: phone.e164, name: parsedName.name, source: "phone" },
-    }));
+  const lead = await clientForMessage(organizationId, phone.e164, parsedName.name, "phone", numberProof(phone.e164, params));
 
   const cfg = await getSalonConfig(organizationId);
   const stylist = matchStylist(blankToUndefined(params.forStylist), cfg.stylists);
@@ -232,7 +221,7 @@ export async function handleTakeMessage(
       where: { id: recent.id },
       data: {
         notes: mergeMessage(recent.notes ?? "", message),
-        ...(stylist ? { assignedTo: stylist.name } : {}),
+        ...(stylist ? { assignedTo: stylist.name, ...(await technicianFields(prisma, organizationId, stylist.name)) } : {}),
       },
     });
   } else {
@@ -241,6 +230,7 @@ export async function handleTakeMessage(
         organizationId,
         leadId: lead.id,
         assignedTo: stylist?.name ?? "Team",
+        ...(await technicianFields(prisma, organizationId, stylist?.name)),
         // No due time: the Callbacks page lists messages by when the caller
         // rang. The column is required, so it holds that same moment.
         scheduledAt: now,

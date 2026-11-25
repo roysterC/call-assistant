@@ -24,12 +24,51 @@ import { apiFetch } from "@/lib/api-fetch";
 
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
+/** The "Signs in as" choice that goes to inviting someone, not a login. */
+const INVITE = "__invite__";
+
+/**
+ * Whether she is booked into: off for someone on the team who is not (a
+ * receptionist), who then has no column in the diary and is never offered.
+ */
+function TakesBookings({ id, on, onFlip }: { id: string; on: boolean; onFlip: (on: boolean) => void }) {
+  const { t } = useT();
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <p id={id} className="text-sm font-semibold">
+          {t("sty.takesBookings")}
+        </p>
+        <p className="text-xs text-muted-foreground">{on ? t("sty.takesBookingsOn") : t("sty.takesBookingsOff")}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-labelledby={id}
+        onClick={() => onFlip(!on)}
+        className={cn(
+          "relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          on ? "bg-primary" : "bg-tea-green-700"
+        )}
+      >
+        <span
+          aria-hidden="true"
+          className={cn("absolute top-[3px] left-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform", on && "translate-x-5")}
+        />
+      </button>
+    </div>
+  );
+}
+
 export function StylistsEditor({
   value,
   services,
   businessHours,
   usesGoogle = false,
   trade,
+  logins,
+  onInvite,
   onChange,
 }: {
   value: Stylist[];
@@ -43,6 +82,13 @@ export function StylistsEditor({
   usesGoogle?: boolean;
   /** The salon's main type, for the role example; defaults to the signed-in salon's. */
   trade?: BusinessType;
+  /**
+   * The salon's logins, for "Signs in as" (the owner, in Settings). Not
+   * given, the choice is not shown.
+   */
+  logins?: Array<{ id: string; label: string }> | null;
+  /** Where "Invite her to sign in" goes: the logins card. */
+  onInvite?: () => void;
   onChange: (next: Stylist[]) => void;
 }) {
   const { t } = useT();
@@ -67,10 +113,13 @@ export function StylistsEditor({
 
   async function askToRemove(index: number) {
     const name = value[index].name.trim();
-    if (!name) return remove(index);
+    const id = value[index].id;
+    if (!name && !id) return remove(index);
     setChecking(index);
     try {
-      const res = await apiFetch(`/api/appointments?status=booked&scope=upcoming&stylist=${encodeURIComponent(name)}`);
+      // By her id when she has one: her bookings even under a name changed here but not saved yet.
+      const who = id ? `technician=${encodeURIComponent(id)}` : `stylist=${encodeURIComponent(name)}`;
+      const res = await apiFetch(`/api/appointments?status=booked&scope=upcoming&${who}`);
       const upcoming = res.ok ? ((await res.json()).appointments ?? []).length : 0;
       if (upcoming === 0) remove(index);
       else setConfirmRemove({ index, upcoming });
@@ -155,7 +204,51 @@ export function StylistsEditor({
               </div>
             )}
 
-            {usesGoogle && (
+            <TakesBookings
+              id={`takes-bookings-${i}`}
+              on={stylist.takesBookings !== false}
+              onFlip={(on) => {
+                const { takesBookings: _old, ...rest } = stylist;
+                void _old;
+                const next = [...value];
+                next[i] = on ? rest : { ...rest, takesBookings: false };
+                onChange(next);
+              }}
+            />
+
+            {logins && (
+              <div>
+                <label htmlFor={`signs-in-${i}`} className="block text-xs text-muted-foreground">
+                  {t("sty.signsIn")}
+                </label>
+                <select
+                  id={`signs-in-${i}`}
+                  value={stylist.userId ?? ""}
+                  onChange={(e) => {
+                    if (e.target.value === INVITE) {
+                      onInvite?.();
+                      return;
+                    }
+                    update(i, { userId: e.target.value || null });
+                  }}
+                  className="mt-1 h-9 w-full max-w-sm rounded-lg border border-input bg-card px-2.5 text-base md:text-sm"
+                >
+                  <option value="">{t("sty.noLogin")}</option>
+                  {logins.map((l) => {
+                    const elsewhere = value.some((o, j) => j !== i && o.userId === l.id);
+                    return (
+                      <option key={l.id} value={l.id} disabled={elsewhere}>
+                        {elsewhere ? t("sty.loginTaken", { login: l.label }) : l.label}
+                      </option>
+                    );
+                  })}
+                  {onInvite && <option value={INVITE}>{t("sty.invite")}</option>}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">{stylist.userId ? t("sty.loginHelp") : t("sty.noLoginHelp")}</p>
+              </div>
+            )}
+
+            {stylist.takesBookings !== false && usesGoogle && (
               <div>
                 <label className="text-xs text-muted-foreground">{t("sty.calendar")}</label>
                 <Input
@@ -176,6 +269,7 @@ export function StylistsEditor({
               </div>
             )}
 
+            {stylist.takesBookings !== false && (<>
             <div>
               <label className="text-xs text-muted-foreground">{t("sty.days")}</label>
               <div className="mt-1 flex flex-wrap gap-1">
@@ -220,6 +314,7 @@ export function StylistsEditor({
                 />
               </div>
             )}
+            </>)}
           </div>
         );
       })}

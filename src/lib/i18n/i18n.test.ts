@@ -6,7 +6,8 @@ const entries = Object.entries(MESSAGES) as [keyof typeof MESSAGES, readonly [st
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 // Words that are the same in both, or names that stay English on purpose.
-const SAME_IN_BOTH = new Set(["Email", "OK", "Menu", "AI CRM"]);
+// Brand names stay as they are.
+const SAME_IN_BOTH = new Set(["Email", "OK", "Menu", "AI CRM", "Instagram", "Messenger", "WhatsApp"]);
 
 describe("the CRM's languages", () => {
   it("has every message in Vietnamese, with the same blanks to fill as the English", () => {

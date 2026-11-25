@@ -52,6 +52,7 @@ model Organization {
   chatPhotos            ChatPhoto[]
   quotes                Quote[]
   rebookTexts           RebookText[]
+  technicians           Technician[]
   usageRecords          UsageRecord[]
   callbacks             Callback[]
   settings              OrganizationSettings?
@@ -100,6 +101,8 @@ model User {
   sessions           Session[]
   bookingNotices     BookingNotice[]
   pushSubscriptions  PushSubscription[]
+  /// The nail technician this login is, if any (Technician.userId).
+  technician         Technician?
   authTokens         AuthToken[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -450,6 +453,9 @@ model RebookText {
   appointmentId  String       @unique
   service        String
   stylist        String?
+  /// The technician offered, by id.
+  technicianId   String?
+  technician     Technician?  @relation(fields: [technicianId], references: [id], onDelete: SetNull)
   // The free time it offered, if one was found.
   slotStartsAt   DateTime?
   sentAt         DateTime     @default(now())
@@ -547,6 +553,14 @@ model Lead {
   contactLeadId         String?
   contactLead           Lead?                  @relation("ContactThrough", fields: [contactLeadId], references: [id], onDelete: SetNull)
   dependents            Lead[]                 @relation("ContactThrough")
+  // Made from details nobody proved (typed on the website, or in an Instagram
+  // or Messenger chat) that another client already has: anyone can type a
+  // client's number or email, so they never open her card. This is the card
+  // they matched, for the salon to merge the two or clear the flag
+  // (src/lib/client-identity.ts).
+  possibleDuplicateOfId String?
+  possibleDuplicateOf   Lead?                  @relation("PossibleDuplicate", fields: [possibleDuplicateOfId], references: [id], onDelete: SetNull)
+  possibleDuplicates    Lead[]                 @relation("PossibleDuplicate")
   calls                 Call[]
   callbacks             Callback[]
   appointments          Appointment[]
@@ -556,18 +570,14 @@ model Lead {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
-  // Two identity keys, one per kind of channel.
-  //
-  // Phone channels (voice, WhatsApp) know a number and nothing else, so that
-  // is what they deduplicate on. The website knows an email and often no
-  // number at all, and keying it on phone was wrong in both directions: two
-  // people sharing one number — a reception line, a couple — collapsed into a
-  // single lead, while one person returning in a new session became several.
-  //
-  // Postgres permits many NULLs in a unique index, so leads missing either
-  // field coexist happily under both constraints.
-  @@unique([organizationId, phone])
-  @@unique([organizationId, email])
+  // One card per person, and a number or email is not a person: a family
+  // shares a phone, a couple an email. So neither is unique. Who a number
+  // reaches is decided in one place, src/lib/client-identity.ts: its first
+  // card, with the rest told apart by name, and only for a number the channel
+  // proved (caller ID, WhatsApp) or the salon's staff typed.
+  @@index([organizationId, phone])
+  @@index([organizationId, email])
+  @@index([possibleDuplicateOfId])
   @@index([organizationId])
   @@index([organizationId, lastName, firstName])
   @@index([contactLeadId])
@@ -583,6 +593,9 @@ model Callback {
   leadId          String
   lead            Lead         @relation(fields: [leadId], references: [id])
   assignedTo      String
+  /// The technician it is for, by id; null for "Team" (anyone).
+  technicianId    String?
+  technician      Technician?  @relation(fields: [technicianId], references: [id], onDelete: SetNull)
   scheduledAt     DateTime
   status          String       @default("pending") // pending | completed | missed
   // Outcome captured when the salon marks the callback done.
@@ -611,6 +624,7 @@ model Callback {
   @@index([organizationId])
   @@index([scheduledAt])
   @@index([status])
+  @@index([organizationId, technicianId])
   @@map("ca_callbacks")
 }
 
@@ -650,6 +664,12 @@ model Appointment {
   serviceText     String
   durationMinutes Int
   stylistName     String
+  /// The technician, by id: what clashes, busy times and takings match on, so
+  /// renaming her changes nothing that books. stylistName is her name, kept in
+  /// step on a rename (src/lib/technicians.ts). Null only on rows the
+  /// post-deploy backfill has not reached yet.
+  technicianId    String?
+  technician      Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
 
   startsAt DateTime
   endsAt   DateTime
@@ -664,7 +684,7 @@ model Appointment {
   // What was actually taken, in pence. Null until the appointment is marked
   // done — the price list is a guide, and the figure that belongs in a sales
   // report is the one the client paid, not the one the catalogue hoped for.
-  amountMinor Int?
+  amountMinor      Int?
   // The price the salon quoted for this design in the chat, in pence:
   // what the diary shows instead of the price list's, which is for the
   // plain service ("Acrylic infill £27" for a £55 design).
@@ -689,12 +709,13 @@ model Appointment {
   updatedAt DateTime @updatedAt
 
   // Photos the client sent when booking by message.
-  photos         ChatPhoto[]
+  photos ChatPhoto[]
 
   @@unique([organizationId, bookingNumber])
   @@index([organizationId, startsAt])
   @@index([organizationId, status])
   @@index([leadId])
+  @@index([organizationId, technicianId, startsAt])
   @@map("ca_appointments")
 }
 
@@ -1004,9 +1025,12 @@ model TimeBlock {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   /// Null blocks everyone: the salon is shut.
-  stylistName String?
-  label       String
-  allDay      Boolean @default(false)
+  stylistName  String?
+  /// The technician kept out, by id; null with stylistName for the whole salon.
+  technicianId String?
+  technician   Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  label        String
+  allDay       Boolean     @default(false)
 
   /// "none" | "weekly"
   repeat String @default("none")
@@ -1029,6 +1053,7 @@ model TimeBlock {
   updatedAt DateTime @updatedAt
 
   @@index([organizationId])
+  @@index([organizationId, technicianId])
   @@map("ca_time_blocks")
 }
 
@@ -1071,4 +1096,49 @@ model DataMigration {
   ranAt DateTime @default(now())
 
   @@map("ca_data_migrations")
+}
+
+/// A salon's nail technician, by a permanent id, and everything about her:
+/// role, working days, services, calendar, place in the list, whether she
+/// takes bookings, and her login. Bookings, blocked time, callbacks and rebook
+/// texts point at her rather than at a name. OrganizationSettings.teamMembers
+/// is a copy written in the same transaction, kept for one release so a
+/// rollback still has the team. Renaming her changes `name` here and the name copied onto those
+/// rows, in one transaction. Removing her archives the row: her history keeps
+/// her name, and a technician added later with the same name is someone else
+/// unless she is the one brought back (src/lib/technicians.ts).
+model Technician {
+  id               String        @id @default(cuid())
+  organizationId   String
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name             String
+  /// "Owner", "Senior nail technician": shown to staff and told to callers.
+  role             String?
+  email            String?
+  phone            String?
+  /// Her Google Calendar, on a salon whose diary is Google's.
+  googleCalendarId String?
+  /// 0 = Sunday ... 6 = Saturday. Empty: any day the salon is open.
+  workingDays      Int[]         @default([])
+  /// Service names she does. Empty: all of them.
+  services         String[]      @default([])
+  /// Her place in the team list, the diary's columns and the online picker.
+  sortOrder        Int           @default(0)
+  /// On the team but not booked into (a receptionist, an owner who no longer
+  /// does nails): the diary, the phone and online booking leave her out.
+  takesBookings    Boolean       @default(true)
+  /// Her login, when she has one: what a per-person diary or permissions hang on.
+  userId           String?       @unique
+  user             User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Set when she is taken off the team. Null while she is on it.
+  archivedAt       DateTime?
+  appointments     Appointment[]
+  timeBlocks       TimeBlock[]
+  callbacks        Callback[]
+  rebookTexts      RebookText[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@map("ca_technicians")
 }

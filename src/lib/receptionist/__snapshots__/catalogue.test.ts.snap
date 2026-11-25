@@ -15,6 +15,7 @@ exports[`the reply catalogue > book: a daughter on her mum's phone 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Amy Burns",
+    "leadId": "lead-Amy Burns",
     "message": "Booked: Blow dry for Amy Burns with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Blow dry",
@@ -78,6 +79,7 @@ exports[`the reply catalogue > book: a number read out 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Nina New",
+    "leadId": "lead-Nina New",
     "message": "Booked: Blow dry for Nina New with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details.",
     "patchTestRequired": false,
     "service": "Blow dry",
@@ -154,6 +156,7 @@ exports[`the reply catalogue > book: a patch test on record 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Sarah Friend",
+    "leadId": "lead-sarah",
     "message": "Booked: Root tint for Sarah Friend with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestOnRecord": "1 September 2026",
     "patchTestRequired": false,
@@ -218,6 +221,7 @@ exports[`the reply catalogue > book: a regular, returning from her record 1`] = 
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Sarah Friend",
+    "leadId": "lead-sarah",
     "message": "Booked: Root tint for Sarah Friend with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Root tint",
@@ -349,6 +353,7 @@ exports[`the reply catalogue > book: colour for someone new, far enough ahead 1`
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Nina New",
+    "leadId": "lead-Nina New",
     "message": "Booked: Root tint for Nina New with Jo on Saturday the 3rd at 1pm. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right. The skin test was in the read-back; if they ask again, it is separate, at the salon, and the salon will arrange it.",
     "patchTestRequired": true,
     "service": "Root tint",
@@ -453,6 +458,7 @@ exports[`the reply catalogue > book: no stylist named, worked out from the slot 
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Nina New",
+    "leadId": "lead-Nina New",
     "message": "Booked: Blow dry for Nina New with Jo on Tuesday at 2pm. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Blow dry",
@@ -516,6 +522,7 @@ exports[`the reply catalogue > book: on caller ID, text not sent 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Sarah Friend",
+    "leadId": "lead-sarah",
     "message": "Booked: Blow dry for Sarah Friend with Jo on Tuesday at 10am. Say only that it is booked, then ask if there is anything else. Do NOT promise a text: one could not be sent. Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Blow dry",
@@ -579,6 +586,7 @@ exports[`the reply catalogue > book: on caller ID, text sent 1`] = `
   "reply": {
     "bookingNumber": 1050,
     "clientName": "Sarah Friend",
+    "leadId": "lead-sarah",
     "message": "Booked: Blow dry for Sarah Friend with Jo on Tuesday at 10am. Say only that it is booked and a text is on its way, then ask if there is anything else: "That's booked, and a text is on its way. Anything else?" Do not repeat the details, and do not read the number out or ask whether it is right.",
     "patchTestRequired": false,
     "service": "Blow dry",
@@ -651,9 +659,8 @@ exports[`the reply catalogue > cancel: someone else's booking 1`] = `
 {
   "noticed": [],
   "reply": {
-    "found": true,
-    "message": "Say nothing about the booking yet. Ask whose name it is booked under, then call this again with the booking number and that name as bookingName.",
-    "needsBookingName": true,
+    "found": false,
+    "message": "Nothing booked as 1043 on the number they are on. Look it up by their number instead; if it is under a different number, it can only be changed from that one: take a message for the salon.",
     "success": false,
   },
   "texted": [],
@@ -1529,9 +1536,8 @@ exports[`the reply catalogue > move: someone else's booking 1`] = `
 {
   "noticed": [],
   "reply": {
-    "found": true,
-    "message": "Say nothing about the booking yet. Ask whose name it is booked under, then call this again with the booking number and that name as bookingName.",
-    "needsBookingName": true,
+    "found": false,
+    "message": "Nothing booked as 1043 on the number they are on. Look it up by their number instead; if it is under a different number, it can only be changed from that one: take a message for the salon.",
     "success": false,
   },
   "texted": [],

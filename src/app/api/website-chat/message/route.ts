@@ -221,7 +221,7 @@ export async function POST(req: NextRequest) {
     // message or a call back, and books where booking by message is on. The
     // plain chat below is left for a business without the diary.
     const { earlier, pending } = splitPending(history);
-    let contact: { phone: string; name: string | null } | null = null;
+    let contact: { phone: string; name: string | null; leadId?: string } | null = null;
     const receptionist = await chatReply({
       organizationId: site.organizationId,
       channel: "website",
@@ -229,9 +229,12 @@ export async function POST(req: NextRequest) {
       earlier,
       text: pending.map((m) => m.content).join("\n"),
       phone: null,
+      clientId: conversation.leadId,
       resetAt: conversation.personaResetAt,
       onContact: (c) => {
-        contact = c;
+        // The client a booking or message was filed under outlasts a number
+        // given after it.
+        contact = { ...c, leadId: c.leadId ?? contact?.leadId };
       },
     });
     if (receptionist !== null) {
@@ -303,6 +306,7 @@ export async function POST(req: NextRequest) {
         name: lead.name,
         phone,
         issue: lead.summary,
+        leadId: conversation.leadId,
       });
       updateData.leadId = upserted.id;
 
@@ -338,31 +342,28 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * The website gives no number, so a visitor is nobody's client until they
- * give one: when the receptionist was given a number (to book, or for the
- * salon to ring), the conversation is filed under the client with it, the
- * same client a phone call or a WhatsApp from that number reaches.
+ * The website gives no number, so a visitor is nobody's client until the
+ * receptionist files a booking or a message for them: the conversation then
+ * goes under the client it was filed under. A number they typed never finds
+ * a client on file by itself (client-identity.ts); it is kept on the
+ * conversation for staff to see.
  */
 async function linkClient(
   organizationId: string,
   conversation: { id: string; leadId: string | null; visitorName: string | null },
-  contact: { phone: string; name: string | null } | null
+  contact: { phone: string; name: string | null; leadId?: string } | null
 ): Promise<void> {
   if (!contact) return;
   const parsed = normalisePhone(contact.phone);
   if (!parsed.ok) return;
   try {
-    const lead = await prisma.lead.findUnique({
-      where: { organizationId_phone: { organizationId, phone: parsed.e164 } },
-      select: { id: true },
-    });
     await prisma.websiteConversation.update({
       where: { id: conversation.id },
       data: {
         visitorPhone: parsed.e164,
         ...(contact.name && !conversation.visitorName ? { visitorName: contact.name } : {}),
         // A conversation already filed under someone keeps them.
-        ...(lead && !conversation.leadId ? { leadId: lead.id } : {}),
+        ...(contact.leadId && !conversation.leadId ? { leadId: contact.leadId } : {}),
       },
     });
   } catch (err) {

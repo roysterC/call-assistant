@@ -164,6 +164,37 @@ A new column that existing rows need filling in goes in
 in it must be idempotent: it runs on every deploy, and after the first it
 should find nothing left to do.
 
+#### Nail technicians by id
+
+Each technician is a `Technician` row (`src/lib/technicians.ts`), and
+bookings, blocked time, callbacks and rebook texts point at her by
+`technicianId`, so renaming her in Settings moves everything with her and
+removing her archives her with her history. The deploy that adds the table
+leaves `technicianId` nullable: `post-deploy.ts` gives every salon's team its
+ids and links every existing row ("Nail technicians by id: … rows linked"),
+and until a row is linked, matching falls back to its name.
+
+The `Technician` row is her whole record: role, contact details, calendar,
+working days, services, order on the team, whether she takes bookings, and
+(once linked) her login. Settings writes the rows, and the booking engine and
+Settings read them (`loadTeam`); `teamMembers` in the settings is kept as a
+copy, written in the same transaction, for the screens that still read it. A
+salon the backfill could not do is named in the deploy log ("NOT done for
+…"); the others still go, and its rows keep matching by name until a later
+deploy gets it.
+
+Once a deploy has reported the backfill, check nothing is left, then make the
+id required on bookings, by hand on the box (blocked time for the whole salon
+and callbacks for "Team" stay without one, on purpose):
+
+```sql
+SELECT count(*) FROM ca_appointments WHERE "technicianId" IS NULL;  -- expect 0
+ALTER TABLE ca_appointments ALTER COLUMN "technicianId" SET NOT NULL;
+```
+
+and in a later commit change `technicianId String?` on `Appointment` to
+`String` in `prisma/schema.prisma`.
+
 One sharp edge worth knowing: adding a unique constraint over rows that already
 violate it fails when Postgres builds the index. That is a safe failure — the
 schema and the data are left as they were — but the deploy stops, and the

@@ -135,8 +135,9 @@ async function realClientFor(db: PlaceholderDb, placeholder: { id: string; organ
   });
   if (quote?.clientPhone) numbers.push(quote.clientPhone);
   for (const phone of numbers) {
-    const lead = await db.lead.findUnique({
-      where: { organizationId_phone: { organizationId: placeholder.organizationId, phone } },
+    const lead = await db.lead.findFirst({
+      where: { organizationId: placeholder.organizationId, phone, anonymisedAt: null },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: { id: true, phone: true },
     });
     const real = isReal(lead);
