@@ -79,14 +79,17 @@ export async function getSalonConfig(
     timeZone: parseTimezone(settings?.timezone),
     hours: parseBusinessHours(settings?.businessHours),
     services: parseServices(settings?.services),
-    // The team from its records (src/lib/technicians.ts). Anyone the owner
-    // has marked as not taking bookings never is; otherwise, on our own diary
-    // everyone can be booked, and on Google only those whose calendar is
+    // The team from its records (src/lib/technicians.ts), less anyone the
+    // owner has marked as not taking bookings (a receptionist): nothing that
+    // books, offers times or names the team sees her. On our own diary
+    // everyone else can be booked; on Google, only those whose calendar is
     // shared with us.
-    stylists: ((await loadTeam(prisma, organizationId)) ?? parseStylists(settings?.teamMembers)).map((s) => ({
-      ...s,
-      bookable: s.takesBookings !== false && (diary === "native" || Boolean(s.googleCalendarId)),
-    })),
+    stylists: ((await loadTeam(prisma, organizationId)) ?? parseStylists(settings?.teamMembers))
+      .filter((s) => s.takesBookings !== false)
+      .map((s) => ({
+        ...s,
+        bookable: diary === "native" || Boolean(s.googleCalendarId),
+      })),
     calComApiKey: settings?.calComApiKey ?? null,
     calComEventTypeId: settings?.calComEventTypeId ?? null,
     businessTypes: businessTypesOf(settings?.organization.businessType, settings?.organization.alsoOffers),

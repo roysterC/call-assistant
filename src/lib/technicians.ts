@@ -145,10 +145,21 @@ export async function syncTeam(
     }
   });
 
+  // Logins: each one on at most one technician, and only this salon's. A
+  // login given to someone in this save is first taken off whoever had it,
+  // so two can swap logins in one save.
+  const logins = await linkableLogins(db, organizationId, incoming);
+  if (logins.size) {
+    await db.technician.updateMany({ where: { organizationId, userId: { in: [...logins] } }, data: { userId: null } });
+  }
+
   const team: Stylist[] = [];
   for (const [i, entry] of incoming.entries()) {
     const name = entry.name.trim();
-    const fields = detailsOf(entry, i);
+    const fields = {
+      ...detailsOf(entry, i),
+      ...(entry.userId !== undefined ? { userId: entry.userId && logins.has(entry.userId) ? entry.userId : null } : {}),
+    };
     const row = match[i];
     let id: string;
     if (!row) {
@@ -159,7 +170,12 @@ export async function syncTeam(
       await db.technician.update({ where: { id }, data: { name, archivedAt: null, ...fields } });
       if (was !== name) renamed.push({ id, from: was, to: name });
     }
-    team.push({ ...entry, id, name });
+    team.push({
+      ...entry,
+      id,
+      name,
+      ...(entry.userId !== undefined ? { userId: (fields as { userId?: string | null }).userId ?? null } : {}),
+    });
   }
 
   const archived: string[] = [];
@@ -172,6 +188,17 @@ export async function syncTeam(
 
   for (const r of renamed) await relabel(db, organizationId, r);
   return { team, renamed, archived };
+}
+
+/** The logins this list links (once each), that are this salon's. */
+async function linkableLogins(db: Db, organizationId: string, incoming: Stylist[]): Promise<Set<string>> {
+  const asked = [...new Set(incoming.map((s) => s.userId).filter((u): u is string => Boolean(u)))];
+  if (asked.length === 0) return new Set();
+  const users = await db.user.findMany({ where: { id: { in: asked }, organizationId }, select: { id: true } });
+  const ours = new Set(users.map((u) => u.id));
+  // Asked for by two entries: by neither (the page offers each login once).
+  const twice = new Set(asked.filter((u) => incoming.filter((s) => s.userId === u).length > 1));
+  return new Set([...ours].filter((u) => !twice.has(u)));
 }
 
 /** What a team-list entry says about her, as Technician columns. */
@@ -212,6 +239,7 @@ export async function loadTeam(db: Db, organizationId: string): Promise<Stylist[
       workingDays: r.workingDays,
       services: r.services,
       ...(r.takesBookings ? {} : { takesBookings: false }),
+      userId: r.userId,
     }));
 }
 

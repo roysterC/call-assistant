@@ -20,7 +20,8 @@ function matches(row: Row, where: Record<string, unknown>): boolean {
     const cell = row[k];
     if (v === null) return cell === null || cell === undefined;
     if (v && typeof v === "object") {
-      const o = v as { equals?: string; mode?: string; not?: unknown };
+      const o = v as { equals?: string; mode?: string; not?: unknown; in?: unknown[] };
+      if ("in" in o) return o.in!.includes(cell);
       if ("equals" in o) return typeof cell === "string" && cell.toLowerCase() === String(o.equals).toLowerCase();
       if ("not" in o) return o.not === null ? cell !== null && cell !== undefined : cell !== o.not;
     }
@@ -77,6 +78,7 @@ const fake = {
   callback: table("callback"),
   rebookText: table("rebookText"),
   organizationSettings: table("organizationSettings"),
+  user: table("user"),
 };
 const db = fake as unknown as Parameters<typeof syncTeam>[0];
 
@@ -175,6 +177,25 @@ describe("syncTeam", () => {
     expect(await isStaleTeamList(db, ORG, team("Mai"))).toBe(true);
     expect(await isStaleTeamList(db, ORG, [saved[0], ...team("Lan")])).toBe(false);
     expect(await isStaleTeamList(db, ORG, [])).toBe(false);
+  });
+
+  it("links each technician to a login of this salon's, one each, moving one given to someone else", async () => {
+    tables.user.push({ id: "u-mai", organizationId: ORG }, { id: "u-lan", organizationId: ORG }, { id: "u-other", organizationId: "elsewhere" });
+    const { team: saved } = await syncTeam(db, ORG, [
+      { name: "Mai", userId: "u-mai", workingDays: [], services: [] },
+      { name: "Lan", userId: "u-other", workingDays: [], services: [] },
+    ]);
+    expect(techs().map((t) => t.userId)).toEqual(["u-mai", null]);
+    expect(saved.map((t) => t.userId)).toEqual(["u-mai", null]);
+
+    // Mai's login given to Lan: off Mai, on Lan.
+    await syncTeam(db, ORG, [{ ...saved[0], userId: null }, { ...saved[1], userId: "u-mai" }]);
+    expect(techs().map((t) => t.userId)).toEqual([null, "u-mai"]);
+
+    // A list that says nothing of logins leaves them as they are.
+    await syncTeam(db, ORG, team("Mai", "Lan"));
+    expect(techs().map((t) => t.userId)).toEqual([null, "u-mai"]);
+    expect((await loadTeam(db, ORG))!.map((t) => t.userId)).toEqual([null, "u-mai"]);
   });
 
   it("refuses two technicians with one name", async () => {

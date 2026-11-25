@@ -80,6 +80,7 @@ interface Stylist {
   name: string;
   workingDays?: number[];
   googleCalendarId?: string;
+  takesBookings?: boolean;
 }
 
 interface BusinessHour {
@@ -290,7 +291,8 @@ export default function CalendarPage() {
       try {
         const res = await apiFetch("/api/settings");
         const { settings } = await res.json();
-        setStylists(settings?.teamMembers ?? []);
+        // Only those who take bookings have a column and can be booked.
+        setStylists(((settings?.teamMembers ?? []) as Stylist[]).filter((s) => s.takesBookings !== false));
         setServices(parseServices(settings?.services));
         setMenu(settings?.menu ?? null);
         setHours(settings?.businessHours ?? []);

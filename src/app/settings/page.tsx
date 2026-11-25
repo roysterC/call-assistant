@@ -110,6 +110,23 @@ export default function SettingsPage() {
   // save.
   const me = useMe();
   const canEdit = me !== null && me.role !== "member";
+
+  // The salon's logins, for each technician's "Signs in as" (owners only:
+  // the list is theirs to see).
+  const [logins, setLogins] = useState<Array<{ id: string; label: string }> | null>(null);
+  useEffect(() => {
+    if (!canEdit) return;
+    let live = true;
+    apiFetch("/api/team-logins")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { users?: Array<{ id: string; name: string | null; email: string }> } | null) => {
+        if (live && d?.users) setLogins(d.users.map((u) => ({ id: u.id, label: u.name ? `${u.name} (${u.email})` : u.email })));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [canEdit]);
   const [whatsappNumbers, setWhatsappNumbers] = useState<PhoneNumber[]>([]);
   const [voiceNumbers, setVoiceNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
@@ -564,6 +581,8 @@ export default function SettingsPage() {
                     services={settings.services}
                     businessHours={settings.businessHours}
                     usesGoogle={usesGoogle}
+                    logins={canEdit ? logins : null}
+                    onInvite={() => document.getElementById("team-logins")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                     onChange={(teamMembers) => setSettings({ ...settings, teamMembers })}
                   />
                 </SettingsSection>

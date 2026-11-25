@@ -80,6 +80,11 @@ export interface Stylist {
    * (a receptionist). Missing means she takes bookings.
    */
   takesBookings?: boolean;
+  /**
+   * The login she signs in with (a User id), null for none. Missing on a
+   * list from before logins were linked: whatever is on her record stays.
+   */
+  userId?: string | null;
   /** 0 = Sunday ... 6 = Saturday. Empty means "any day the salon is open". */
   workingDays: number[];
   /** Service names this stylist performs. Empty means "all services". */
@@ -197,6 +202,7 @@ export function parseStylists(raw: unknown): Stylist[] {
       role: String(e.role ?? "").trim() || undefined,
       googleCalendarId: googleCalendarId || undefined,
       ...(e.takesBookings === false ? { takesBookings: false } : {}),
+      ...("userId" in e ? { userId: typeof e.userId === "string" && e.userId.trim() ? e.userId.trim() : null } : {}),
       workingDays,
       services,
     });
