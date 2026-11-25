@@ -11,11 +11,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const db = vi.hoisted(() => ({
-  lead: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+  lead: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+  /** The client a number reaches, as a test sets it: what a look-up by number finds. */
+  holder: vi.fn(),
   appointment: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), count: vi.fn() },
   organizationSettings: { findUnique: vi.fn() },
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: db }));
+// Look-ups by number go to db.holder; the lock a client is chosen under
+// (client-identity.ts) is a transaction that runs straight through.
+vi.mock("@/lib/prisma", () => {
+  const prisma: Record<string, unknown> = {
+    ...db,
+    lead: {
+      ...db.lead,
+      findFirst: async (a: { where?: { phone?: string } }) =>
+        a.where?.phone ? db.holder(a.where.phone) : db.lead.findFirst(a),
+      findMany: async (a: { where?: { phone?: string } }) =>
+        a.where?.phone ? [await db.holder(a.where.phone)].filter(Boolean) : db.lead.findMany(a),
+    },
+    $executeRaw: async () => 0,
+    $transaction: async (fn: (tx: unknown) => unknown) => fn(prisma),
+  };
+  return { prisma };
+});
 
 // Open Tuesdays 09:00-18:00 and Saturdays 08:30-17:00. Jo does everything;
 // Marcus does blow dries only.
@@ -112,8 +130,7 @@ beforeEach(() => {
   visits = 0;
   patchTest = null;
   texts.send.mockResolvedValue({ ok: true, configured: true });
-  db.lead.findUnique.mockImplementation(async ({ where }) => {
-    const phone = where.organizationId_phone?.phone;
+  db.holder.mockImplementation(async (phone: string) => {
     if (phone === SARAH) return { id: "lead-sarah", name: "Sarah Friend", phone: SARAH, email: null, patchTestAt: patchTest };
     if (phone === CLAIRE) return { id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null, patchTestAt: null };
     return null;

@@ -101,7 +101,7 @@ type LeadExtractionTarget =
   | {
       /**
        * No client yet (an Instagram or Messenger chat before they gave a
-       * number): one is found or made by the email they give, and handed to
+       * number): a new one is made when they give an email, and handed to
        * onLead to file the chat under. Nothing is made for a name alone.
        */
       organizationId: string;
@@ -196,25 +196,10 @@ interface TextBlock {
 
 type ContentBlock = ToolUseBlock | TextBlock | { type: string };
 
-/**
- * What a chat may write onto a client already on file: their name, email
- * and company only where none is recorded, and what they want now.
- *
- * Whoever is typing has proved nothing: anyone can give a client's email, and
- * a chat filed under her is no proof either. Overwriting let a stranger swap
- * her name or email for theirs. Staff can still correct anything by hand.
- */
-export function fillGaps(
-  current: { name: string | null; email: string | null; company: string | null },
-  data: Record<string, string>
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (data.issue) out.issue = data.issue;
-  if (data.name && !current.name) out.name = data.name;
-  if (data.email && !current.email) out.email = data.email.toLowerCase();
-  if (data.company && !current.company) out.company = data.company;
-  return out;
-}
+// What a chat may write onto a client already on file: gaps only, and what
+// they want now. Whoever is typing has proved nothing (client-identity.ts).
+export { fillGaps } from "./client-identity";
+import { fillGaps, newClientFromTyped } from "./client-identity";
 
 /**
  * Apply customer details extracted by Claude to the lead row. Truncates
@@ -247,15 +232,10 @@ async function applyCustomerDetails(
 
   if (!("leadId" in target)) {
     if (!data.email) return;
-    const email = data.email.toLowerCase();
     try {
-      const found = await prisma.lead.findUnique({
-        where: { organizationId_email: { organizationId: target.organizationId, email } },
-        select: { id: true, name: true, email: true, company: true },
-      });
-      const lead = found
-        ? await prisma.lead.update({ where: { id: found.id }, data: fillGaps(found, data) })
-        : await prisma.lead.create({ data: { ...data, email, organizationId: target.organizationId, source: target.source } });
+      // A new card, even for an email a client has: typing it proves
+      // nothing, so it is marked as possibly her for the salon to merge.
+      const lead = await newClientFromTyped(prisma, target.organizationId, { ...data, source: target.source });
       await target.onLead(lead.id);
     } catch (err) {
       console.error("[CLAUDE] Lead from chat details failed:", err);

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { byTechnician, technicianIdFor } from "@/lib/technicians";
 import { unseenBookingIds } from "@/lib/booking-notices";
 import { clientForBooking } from "@/lib/client-link";
+import { clientForNumber } from "@/lib/client-identity";
 import {
   requireTenant,
   isErrorResponse,
@@ -373,17 +374,7 @@ export async function POST(req: NextRequest) {
       lead = phone && clientName
         ? (await clientForBooking(ctx.organizationId, phone, String(clientName), "manual")).lead
         : phone
-        ? await prisma.lead.upsert({
-            where: {
-              organizationId_phone: { organizationId: ctx.organizationId, phone },
-            },
-            update: {},
-            create: {
-              organizationId: ctx.organizationId,
-              phone,
-              source: "manual",
-            },
-          })
+        ? await clientForNumber(ctx.organizationId, phone, { source: "manual" })
         : await prisma.lead.create({
             data: {
               organizationId: ctx.organizationId,

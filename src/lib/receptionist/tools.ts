@@ -13,7 +13,7 @@ import type { ToolDefinition } from "@/lib/receptionist/tool-definitions";
  * them. The caller's number is filled in by the session from caller ID; asking
  * the model for it invites a guess.
  */
-const SERVER_FILLED = new Set(["callerNumber"]);
+const SERVER_FILLED = new Set(["callerNumber", "clientId"]);
 
 export function toClaudeTools(tools: ToolDefinition[]): Anthropic.Tool[] {
   return tools.map(({ function: fn }) => {
@@ -51,16 +51,23 @@ export function toClaudeTools(tools: ToolDefinition[]): Anthropic.Tool[] {
 export function withCallerContext(
   toolName: string,
   input: Record<string, unknown>,
-  callerNumber: string | null
+  callerNumber: string | null,
+  clientId: string | null = null
 ): Record<string, unknown> {
   // The staff view of the diary (every free time, with names) is for the
   // CRM's own assistant: a caller cannot talk the receptionist into it.
-  const { forStaff: _staffOnly, callerNumber: _said, ...rest } = input;
+  const { forStaff: _staffOnly, callerNumber: _said, clientId: _claimed, ...rest } = input;
   void _staffOnly;
   // The caller's number is the line's or WhatsApp's, never one the model
   // sent: a booking is managed only from its own number (changes.ts), so a
-  // number talked into a tool call would open someone else's.
+  // number talked into a tool call would open someone else's. Likewise the
+  // client a chat is filed under is the chat's, never one the model named
+  // (client-identity.ts).
   void _said;
-  if (!callerNumber) return rest;
-  return { ...rest, callerNumber };
+  void _claimed;
+  return {
+    ...rest,
+    ...(callerNumber ? { callerNumber } : {}),
+    ...(clientId ? { clientId } : {}),
+  };
 }

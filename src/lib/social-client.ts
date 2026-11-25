@@ -8,51 +8,55 @@
  * a second client, with the chat still filed under the first: its panel
  * never showed the booking.
  *
- * Now a chat has no client until the person gives a number (to book, for a
- * quote, or for the salon to ring). It is then filed under the client with
- * that number, the same one a call or a WhatsApp from it reaches, made if
- * there is none. A chat still filed under one of the old made-up clients
- * moves to the real one, taking anything on it along (social-placeholders.ts).
+ * Now a chat has no client until the receptionist files something for them
+ * (a booking, a message, a callback) or they give a number for a quote: it is
+ * then filed under that client. A number typed in a chat proves nothing, so
+ * it never finds a client on file by itself: a new one is made, marked as
+ * possibly whoever has it, for the salon to merge (client-identity.ts). A
+ * chat still filed under one of the old made-up clients moves to the real
+ * one, taking anything on it along (social-placeholders.ts).
  */
 
 import { prisma } from "@/lib/prisma";
-import { clientForBooking } from "@/lib/client-link";
+import { newClientFromTyped } from "@/lib/client-identity";
 import { normalisePhone } from "@/lib/phone";
 import { absorbPlaceholder, isPlaceholderPhone, type PlaceholderDb } from "@/lib/social-placeholders";
 
 export { isPlaceholderPhone };
 
 /**
- * File a chat under the client with the number they gave, made if there is
- * none. A chat already filed under a real client keeps them: someone booking
- * for their daughter is still the one in the chat. Returns the client, or
- * null when nothing was filed. Never throws: the reply has gone either way.
+ * File a chat under the client something was filed under for them, or else a
+ * new client with the number they gave. A chat already filed under a real
+ * client keeps them: someone booking for their daughter is still the one in
+ * the chat. Returns the client, or null when nothing was filed. Never
+ * throws: the reply has gone either way.
  */
 export async function linkSocialClient(p: {
   organizationId: string;
   channel: "instagram" | "facebook";
   conversation: { id: string; leadId: string | null; contactName: string | null };
-  contact: { phone: string; name: string | null } | null;
+  contact: { phone: string; name: string | null; leadId?: string } | null;
 }): Promise<string | null> {
   if (!p.contact) return null;
   const phone = normalisePhone(p.contact.phone);
-  if (!phone.ok) return null;
+  if (!phone.ok && !p.contact.leadId) return null;
   try {
     const current = p.conversation.leadId
       ? await prisma.lead.findUnique({ where: { id: p.conversation.leadId }, select: { id: true, phone: true } })
       : null;
     if (current && !isPlaceholderPhone(current.phone)) return current.id;
 
-    // The name they gave picks the right person on a shared number. Without
-    // one, the number's own client; the profile name only names a new one.
-    const lead = p.contact.name?.trim()
-      ? (await clientForBooking(p.organizationId, phone.e164, p.contact.name.trim(), p.channel)).lead
-      : ((await prisma.lead.findUnique({
-          where: { organizationId_phone: { organizationId: p.organizationId, phone: phone.e164 } },
-        })) ??
-        (await prisma.lead.create({
-          data: { organizationId: p.organizationId, phone: phone.e164, name: p.conversation.contactName, source: p.channel },
-        })));
+    const filed = p.contact.leadId
+      ? await prisma.lead.findFirst({ where: { id: p.contact.leadId, organizationId: p.organizationId }, select: { id: true } })
+      : null;
+    if (!filed && !phone.ok) return null;
+    const lead =
+      filed ??
+      (await newClientFromTyped(prisma, p.organizationId, {
+        name: p.contact.name?.trim() || p.conversation.contactName,
+        phone: p.contact.phone,
+        source: p.channel,
+      }));
 
     await prisma.socialConversation.update({ where: { id: p.conversation.id }, data: { leadId: lead.id } });
     if (current) await absorbPlaceholder(prisma as unknown as PlaceholderDb, current.id, lead.id);

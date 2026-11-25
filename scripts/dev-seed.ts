@@ -107,15 +107,10 @@ async function main() {
     console.log("  ✓ Demo website config (siteId=demo)");
 
     // 5. Sample lead
-    const lead = await prisma.lead.upsert({
-      where: {
-        organizationId_phone: {
-          organizationId: org.id,
-          phone: "+447700900000",
-        },
-      },
-      update: {},
-      create: {
+    const lead =
+      (await prisma.lead.findFirst({ where: { organizationId: org.id, phone: "+447700900000" } })) ??
+      (await prisma.lead.create({
+      data: {
         organizationId: org.id,
         phone: "+447700900000",
         name: "Jane Example",
@@ -125,7 +120,7 @@ async function main() {
         source: "phone",
         status: "new",
       },
-    });
+    }));
     console.log("  ✓ Sample lead:", lead.name);
 
     // 6. Sample call

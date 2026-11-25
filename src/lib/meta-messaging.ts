@@ -465,7 +465,7 @@ export async function answerSocial(
   void sendTyping(ctx, channel, senderId);
   // The number they gave, to book, for a quote, or to be rung: the chat is
   // then filed under that client.
-  let contact: { phone: string; name: string | null } | null = null;
+  let contact: { phone: string; name: string | null; leadId?: string } | null = null;
   const booked = await chatReply({
     organizationId: ctx.organizationId,
     channel,
@@ -473,9 +473,10 @@ export async function answerSocial(
     earlier,
     text: pending.map((m) => m.content).join("\n"),
     phone: null,
+    clientId: conversation.leadId,
     resetAt: conversation.personaResetAt,
     onContact: (c) => {
-      contact = c;
+      contact = { ...c, leadId: c.leadId ?? contact?.leadId };
     },
   });
   if (booked !== null) {

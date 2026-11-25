@@ -1,18 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { normalisePhone } from "@/lib/phone";
+import { fillGaps, newClientFromTyped } from "@/lib/client-identity";
 
 /**
- * Create or update the lead behind a website conversation, keyed on email.
+ * The client behind a website conversation or form, from what the visitor
+ * typed.
  *
- * The website channel used to deduplicate on phone like the voice channels do,
- * which was wrong in both directions. Two people sharing a number — a
- * reception line, a couple, a workshop — merged into one lead and overwrote
- * each other. And a visitor with no number at all got a synthesised
- * `website-{sessionId}`, so the same person returning tomorrow, with a new
- * session, became a second lead.
- *
- * Email is what this channel actually knows: the lead marker cannot fire
- * without one and the capture form requires one.
+ * Nothing the visitor types proves who they are: anyone can give a client's
+ * email or number. So the details never find a client on file. A
+ * conversation already filed under a client (its own earlier details, or
+ * staff filing it) keeps them, and only fills what is missing there; anyone
+ * else gets a new card, marked as possibly the client whose email or number
+ * they gave, for the salon to merge (src/lib/client-identity.ts).
  */
 export async function upsertWebsiteLead(opts: {
   organizationId: string;
@@ -25,78 +23,34 @@ export async function upsertWebsiteLead(opts: {
   notes?: string | null;
   /** Where a new lead came from; an existing one keeps its own. */
   source?: string;
+  /** The client the conversation is already filed under, if any. */
+  leadId?: string | null;
 }): Promise<{ id: string }> {
   const { organizationId } = opts;
-  // Lower-cased so "Sam@x.co.uk" and "sam@x.co.uk" are one person. Without
-  // this the unique index treats them as two, which is the same duplication
-  // the change is meant to remove.
-  const email = opts.email.trim().toLowerCase();
-  const name = opts.name?.trim() || null;
-  const company = opts.company?.trim() || null;
-  const issue = opts.issue?.trim().slice(0, 500) || null;
-  const notes = opts.notes?.trim() || null;
 
-  const existing = await prisma.lead.findUnique({
-    where: { organizationId_email: { organizationId, email } },
-  });
-
-  if (existing) {
-    // Nothing proves the visitor owns the email they typed: anyone can give a
-    // client's. So an existing client's number is never set or changed from
-    // here, or a stranger could give her email with their own number and
-    // receive her confirmations and reminders, and be taken for her when they
-    // ring or message about her bookings. The number they gave stays on the
-    // conversation (visitorPhone), where staff see it beside hers.
-    return prisma.lead.update({
-      where: { id: existing.id },
-      data: {
-        // Identity fields fill gaps but never overwrite: a later "Tom" must
-        // not replace the "Tom Reid" already on file.
-        name: existing.name || name,
-        company: existing.company || company,
-        // The issue is not identity — it is what they want now, so a newer
-        // summary replaces an older one. An empty one leaves what is there.
-        issue: issue || existing.issue,
-        notes: existing.notes || notes,
-      },
-      select: { id: true },
+  if (opts.leadId) {
+    const current = await prisma.lead.findFirst({
+      where: { id: opts.leadId, organizationId, anonymisedAt: null },
+      select: { id: true, name: true, email: true, company: true, notes: true },
     });
+    if (current) {
+      // Never her number, even one she has none of: the conversation being
+      // hers does not make every number typed in it hers. It stays on the
+      // conversation (visitorPhone), where staff see it beside hers.
+      const update = fillGaps(current, opts);
+      if (Object.keys(update).length) await prisma.lead.update({ where: { id: current.id }, data: update });
+      return { id: current.id };
+    }
   }
 
-  /*
-   * A new client takes the number only if no *other* client already holds it.
-   *
-   * Phone is still unique per organisation, for the voice channels' benefit.
-   * Writing one blindly here would throw the moment a visitor typed a number
-   * that already belonged to someone else, and claiming it would be the same
-   * takeover as above from the other side.
-   *
-   * In the form every other number is stored in (+447700900123), not as
-   * typed: "07700 900123" would otherwise pass for a different number than
-   * the client's own, and never be found when they ring or message. One that
-   * is not a number at all is left off.
-   */
-  const parsed = normalisePhone(opts.phone);
-  const wanted = parsed.ok ? parsed.e164 : null;
-  const held = wanted
-    ? await prisma.lead.findUnique({
-        where: { organizationId_phone: { organizationId, phone: wanted } },
-        select: { id: true },
-      })
-    : null;
-  const phone = wanted && !held ? wanted : null;
-
-  return prisma.lead.create({
-    data: {
-      organizationId,
-      email,
-      name,
-      phone,
-      company,
-      issue,
-      notes,
-      source: opts.source ?? "website",
-    },
-    select: { id: true },
+  const lead = await newClientFromTyped(prisma, organizationId, {
+    name: opts.name,
+    email: opts.email,
+    phone: opts.phone,
+    company: opts.company,
+    issue: opts.issue,
+    notes: opts.notes,
+    source: opts.source ?? "website",
   });
+  return { id: lead.id };
 }

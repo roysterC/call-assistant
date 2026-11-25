@@ -553,6 +553,14 @@ model Lead {
   contactLeadId         String?
   contactLead           Lead?                  @relation("ContactThrough", fields: [contactLeadId], references: [id], onDelete: SetNull)
   dependents            Lead[]                 @relation("ContactThrough")
+  // Made from details nobody proved (typed on the website, or in an Instagram
+  // or Messenger chat) that another client already has: anyone can type a
+  // client's number or email, so they never open her card. This is the card
+  // they matched, for the salon to merge the two or clear the flag
+  // (src/lib/client-identity.ts).
+  possibleDuplicateOfId String?
+  possibleDuplicateOf   Lead?                  @relation("PossibleDuplicate", fields: [possibleDuplicateOfId], references: [id], onDelete: SetNull)
+  possibleDuplicates    Lead[]                 @relation("PossibleDuplicate")
   calls                 Call[]
   callbacks             Callback[]
   appointments          Appointment[]
@@ -562,18 +570,14 @@ model Lead {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
-  // Two identity keys, one per kind of channel.
-  //
-  // Phone channels (voice, WhatsApp) know a number and nothing else, so that
-  // is what they deduplicate on. The website knows an email and often no
-  // number at all, and keying it on phone was wrong in both directions: two
-  // people sharing one number — a reception line, a couple — collapsed into a
-  // single lead, while one person returning in a new session became several.
-  //
-  // Postgres permits many NULLs in a unique index, so leads missing either
-  // field coexist happily under both constraints.
-  @@unique([organizationId, phone])
-  @@unique([organizationId, email])
+  // One card per person, and a number or email is not a person: a family
+  // shares a phone, a couple an email. So neither is unique. Who a number
+  // reaches is decided in one place, src/lib/client-identity.ts: its first
+  // card, with the rest told apart by name, and only for a number the channel
+  // proved (caller ID, WhatsApp) or the salon's staff typed.
+  @@index([organizationId, phone])
+  @@index([organizationId, email])
+  @@index([possibleDuplicateOfId])
   @@index([organizationId])
   @@index([organizationId, lastName, firstName])
   @@index([contactLeadId])

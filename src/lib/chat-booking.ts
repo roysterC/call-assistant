@@ -193,11 +193,16 @@ export interface ChatTurn {
   /** Filled in as the reply goes, so a failure after a booking still says it is booked. */
   outcome?: ChatOutcome;
   /**
-   * Told the number (and name) they gave, each time a tool is given one: for
-   * a channel with no number of its own (the website chat) to find the
-   * client the booking or message was filed under.
+   * The client the conversation is filed under, if any: who a number typed
+   * in it may book or leave a message as (client-identity.ts).
    */
-  onContact?: (contact: { phone: string; name: string | null }) => void;
+  clientId?: string | null;
+  /**
+   * Told the number (and name) they gave, each time a tool is given one, and
+   * then the client the booking or message was filed under (`leadId`): for a
+   * channel with no number of its own to file the chat under them.
+   */
+  onContact?: (contact: { phone: string; name: string | null; leadId?: string }) => void;
 }
 
 export interface ChatOutcome {
@@ -282,6 +287,7 @@ const queue = new Map<string, Promise<string>>();
 
 async function reply(turn: ChatTurn): Promise<string> {
   const { organizationId, channel, conversationId, phone } = turn;
+  const clientId = turn.clientId ?? null;
   const now = turn.now ?? new Date();
 
   const settings = await prisma.organizationSettings.findUnique({
@@ -327,7 +333,7 @@ async function reply(turn: ChatTurn): Promise<string> {
         const { params, quoted } = takeQuoted(input);
         return handleBookAppointment(
           organizationId,
-          normaliseParameters(withCallerContext("book_appointment", params, phone)) as Parameters<
+          normaliseParameters(withCallerContext("book_appointment", params, phone, clientId)) as Parameters<
             typeof handleBookAppointment
           >[1],
           { dryRun: true, ...(quoted ? { quote: { priceMinor: quoted.priceMinor } } : {}) }
@@ -335,12 +341,18 @@ async function reply(turn: ChatTurn): Promise<string> {
       },
       book: async (input) => {
         const { params, quoted } = takeQuoted(input);
-        const bookParams = withCallerContext("book_appointment", { ...params, notes: withChannelNote(params.notes, channel) }, phone);
+        const bookParams = withCallerContext(
+          "book_appointment",
+          { ...params, notes: withChannelNote(params.notes, channel) },
+          phone,
+          clientId
+        );
         const result = quoted
           ? await runAction("book_appointment", organizationId, bookParams, { quote: { priceMinor: quoted.priceMinor } })
           : await runAction("book_appointment", organizationId, bookParams);
         const n = (result as {
           success?: boolean;
+          leadId?: string;
           bookingNumber?: unknown;
           service?: string;
           stylist?: string;
@@ -356,6 +368,7 @@ async function reply(turn: ChatTurn): Promise<string> {
           turn.onContact({
             phone: params.customerPhone.trim(),
             name: typeof params.customerName === "string" && params.customerName.trim() ? params.customerName.trim() : null,
+            ...(n.leadId ? { leadId: n.leadId } : {}),
           });
         }
         if (n?.success && turn.outcome && n.service && n.stylist && n.startsAt) {
@@ -431,7 +444,18 @@ async function reply(turn: ChatTurn): Promise<string> {
       if (!allowed.has(name) || !isActionName(name)) return { error: `There is no tool called ${name}.` };
       // A message left in a chat says which, so the Callbacks page can open it.
       const where = name === "take_message" ? { channel, conversationId } : {};
-      return runAction(name, organizationId, withCallerContext(name, { ...input, ...where }, phone));
+      const result = await runAction(name, organizationId, withCallerContext(name, { ...input, ...where }, phone, clientId));
+      // Filed under a client (a message, a callback, their details): the
+      // chat goes under them too.
+      const filed = (result as { success?: boolean; leadId?: unknown } | null) ?? null;
+      if (filed?.success && typeof filed.leadId === "string" && turn.onContact && typeof input.customerPhone === "string") {
+        turn.onContact({
+          phone: input.customerPhone.trim(),
+          name: typeof input.customerName === "string" && input.customerName.trim() ? input.customerName.trim() : null,
+          leadId: filed.leadId,
+        });
+      }
+      return result;
     },
   });
   engine.messages.push(...history);

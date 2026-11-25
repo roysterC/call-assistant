@@ -9,7 +9,8 @@ import {
   zonedParts,
   zonedWallTimeToUtc,
 } from "@/lib/business-hours";
-import { findClientOnNumber } from "@/lib/client-link";
+import { findClientOnNumber, type NumberProof } from "@/lib/client-link";
+import { isOwnNumber } from "@/lib/client-identity";
 import { spokenPatchTest } from "@/lib/patch-test";
 
 /**
@@ -68,11 +69,16 @@ export function resolveCallerPhone(
  */
 export async function patchTestOnFile(
   organizationId: string,
-  params: { customerPhone?: string; callerNumber?: string; customerName?: string }
+  params: { customerPhone?: string; callerNumber?: string; customerName?: string; clientId?: string }
 ): Promise<string | null> {
   const phone = resolveCallerPhone(params.customerPhone, params.callerNumber);
   if (!phone.ok) return null;
-  const client = await findClientOnNumber(organizationId, phone.e164, blankToUndefined(params.customerName));
+  const client = await findClientOnNumber(
+    organizationId,
+    phone.e164,
+    blankToUndefined(params.customerName),
+    numberProof(phone.e164, params)
+  );
   return client?.patchTestAt ? spokenPatchTest(client.patchTestAt) : null;
 }
 
@@ -221,4 +227,16 @@ export function spokenDay(date: string, timeZone: string, now = new Date()): str
           ? "rd"
           : "th";
   return `${name} the ${day}${suffix}`;
+}
+
+/**
+ * How a number in a tool call was come by: proved when it is the one ringing
+ * or messaging (caller ID, WhatsApp), typed when it was only said or written.
+ * A typed one finds nobody on file but the chat's own client
+ * (client-identity.ts).
+ */
+export function numberProof(phone: string, params: { callerNumber?: string; clientId?: string }): NumberProof {
+  return isOwnNumber(phone, params.callerNumber)
+    ? { proof: "proved" }
+    : { proof: "typed", clientId: blankToUndefined(params.clientId) ?? null };
 }

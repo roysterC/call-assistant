@@ -57,14 +57,13 @@ export async function POST(req: Request) {
       issue: systemSummary(a),
       source: "in_person",
     });
-    // A number already on another lead is not moved onto this one (phone is
-    // unique per organisation). It was typed in front of them, though, so it
-    // goes on the line the Leads page shows rather than being lost.
+    // A number that would not store (not one at all) goes on the line the
+    // Leads page shows rather than being lost.
     const saved = await prisma.lead.findUnique({ where: { id: lead.id }, select: { phone: true } });
-    if (saved?.phone !== a.phone) {
+    if (!saved?.phone) {
       await prisma.lead.update({
         where: { id: lead.id },
-        data: { issue: `${systemSummary(a)} · Phone ${speakablePhone(a.phone)} (also on another lead)` },
+        data: { issue: `${systemSummary(a)} · Phone ${speakablePhone(a.phone)}` },
       });
     }
   } catch (error) {

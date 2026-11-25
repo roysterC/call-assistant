@@ -10,12 +10,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const db = vi.hoisted(() => ({
-  lead: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+  lead: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+  /** The client a number reaches, as a test sets it: what a look-up by number finds. */
+  holder: vi.fn(),
   appointment: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), count: vi.fn() },
   organizationSettings: { findUnique: vi.fn() },
 }));
 
-vi.mock("@/lib/prisma", () => ({ prisma: db }));
+// Look-ups by number go to db.holder; the lock a client is chosen under
+// (client-identity.ts) is a transaction that runs straight through.
+vi.mock("@/lib/prisma", () => {
+  const prisma: Record<string, unknown> = {
+    ...db,
+    lead: {
+      ...db.lead,
+      findFirst: async (a: { where?: { phone?: string } }) =>
+        a.where?.phone ? db.holder(a.where.phone) : db.lead.findFirst(a),
+      findMany: async (a: { where?: { phone?: string } }) =>
+        a.where?.phone ? [await db.holder(a.where.phone)].filter(Boolean) : db.lead.findMany(a),
+    },
+    $executeRaw: async () => 0,
+    $transaction: async (fn: (tx: unknown) => unknown) => fn(prisma),
+  };
+  return { prisma };
+});
 // Saturdays 08:30 to 17:00, and a diary with nothing free, for the
 // availability answers.
 const salon = vi.hoisted(() => ({
@@ -90,8 +108,8 @@ beforeEach(() => {
   salon.asked = [];
   salon.forwardSearch = false;
   written.length = 0;
-  db.lead.findUnique.mockImplementation(async ({ where }) =>
-    where.organizationId_phone.phone === SARAH ? { id: "lead-sarah", name: "Sarah Friend", phone: SARAH } : null
+  db.holder.mockImplementation(async (phone: string) =>
+    phone === SARAH ? { id: "lead-sarah", name: "Sarah Friend", phone: SARAH } : null
   );
   // Nobody is reached through anybody's number unless a test says so.
   db.lead.findMany.mockResolvedValue([]);
@@ -240,23 +258,37 @@ describe("saysNotBooked", () => {
 
 describe("save_customer_details for someone else's number", () => {
   it("leaves the client's name alone and says who the message is from", async () => {
-    db.lead.upsert.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend" });
     const r = await handleSaveCustomerDetails("org", {
       name: "Olivia Hart",
       phone: "07700 900715",
+      callerNumber: SARAH,
       issue: "Sarah is ill, cancel Friday",
     });
     expect(r.message).toMatch(/^That number is Sarah Friend's, not Olivia Hart's: saved as a message/);
-    const { update } = db.lead.upsert.mock.calls[0][0];
-    expect(update).not.toHaveProperty("name");
-    expect(update.issue).toBe("From Olivia Hart: Sarah is ill, cancel Friday");
+    const { where, data } = db.lead.update.mock.calls[0][0];
+    expect(where).toEqual({ id: "lead-sarah" });
+    expect(data).not.toHaveProperty("name");
+    expect(data.issue).toBe("From Olivia Hart: Sarah is ill, cancel Friday");
   });
 
   it("still updates the name when it is the same person saying more of it", async () => {
-    db.lead.findUnique.mockResolvedValue({ name: "Sarah" });
-    db.lead.upsert.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend" });
-    await handleSaveCustomerDetails("org", { name: "Sarah Friend", phone: "07700 900715" });
-    expect(db.lead.upsert.mock.calls[0][0].update.name).toBe("Sarah Friend");
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah" });
+    await handleSaveCustomerDetails("org", { name: "Sarah Friend", phone: "07700 900715", callerNumber: SARAH });
+    expect(db.lead.update.mock.calls[0][0].data.name).toBe("Sarah Friend");
+  });
+
+  it("never gives her an email said on the phone in place of hers", async () => {
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", email: "sarah@example.com" });
+    await handleSaveCustomerDetails("org", { name: "Sarah Friend", email: "m@evil.test", callerNumber: SARAH });
+    expect(db.lead.update.mock.calls[0][0].data).not.toHaveProperty("email");
+  });
+
+  it("files details given with a number only said on a new record, not hers", async () => {
+    await handleSaveCustomerDetails("org", { name: "Olivia Hart", phone: "07700 900715", issue: "Cancel Friday" });
+    expect(db.lead.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: "Olivia Hart", phone: SARAH, possibleDuplicateOfId: "lead-sarah" }),
+    });
+    expect(db.lead.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "lead-sarah" } }));
   });
 });
 
@@ -380,7 +412,7 @@ describe("check_availability late on a Saturday", () => {
     expect(untested.patchTestOnRecord).toBeUndefined();
     expect(untested.message).not.toMatch(/patch test on record/);
 
-    db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
     const tested = await ask();
     expect(tested.patchTestOnRecord).toBe("1 September 2026");
     // Booked as returning without a word about it: nothing to say to the caller.
@@ -394,7 +426,7 @@ describe("check_availability late on a Saturday", () => {
         patchTestRequired?: boolean;
       }>;
     expect((await ask()).patchTestRequired).toBe(true);
-    db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
     expect((await ask()).patchTestRequired).toBeUndefined();
   });
 
@@ -517,12 +549,13 @@ describe("book_appointment", () => {
   });
 
   it("books a daughter on her mum's phone as her own client, reached through her mum's number", async () => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
+    db.holder.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
     const r = (await handleBookAppointment("org", {
       time: quarterPastOne,
       service: "blow dry",
       stylist: "Jo",
       customerPhone: "07700 900721",
+      callerNumber: CLAIRE,
       customerName: "Amy Burns",
     })) as { success: boolean; message: string };
     expect(r.success).toBe(true);
@@ -539,7 +572,7 @@ describe("book_appointment", () => {
   });
 
   it("books her on the same record next time, and her mum on her own", async () => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
+    db.holder.mockResolvedValue({ id: "lead-claire", name: "Claire Burns", phone: CLAIRE, email: null });
     db.lead.findMany.mockResolvedValue([{ id: "lead-amy", name: "Amy Burns", phone: null, email: null }]);
     const book = (customerName: string) =>
       handleBookAppointment("org", {
@@ -547,6 +580,7 @@ describe("book_appointment", () => {
         service: "blow dry",
         stylist: "Jo",
         customerPhone: "07700 900721",
+        callerNumber: CLAIRE,
         customerName,
       });
     await book("Amy");
@@ -556,16 +590,62 @@ describe("book_appointment", () => {
   });
 
   it("fills in a surname for the same person rather than making a second record", async () => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-sarah", name: "Sarah", phone: SARAH, email: null });
+    db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah", phone: SARAH, email: null });
     await handleBookAppointment("org", {
       time: quarterPastOne,
       service: "blow dry",
       stylist: "Jo",
       customerPhone: "07700 900715",
+      callerNumber: SARAH,
       customerName: "Sarah Friend",
     });
     expect(db.lead.update).toHaveBeenCalledWith({ where: { id: "lead-sarah" }, data: { name: "Sarah Friend" } });
     expect(db.lead.create).not.toHaveBeenCalled();
+  });
+
+  describe("on a number only said, not rung from", () => {
+    // Someone ringing from another phone, or a chat: the number they give
+    // proves nothing (client-identity.ts).
+    const bookAs = (customerName: string, extra: Record<string, unknown> = {}) =>
+      handleBookAppointment("org", {
+        time: quarterPastOne,
+        service: "blow dry",
+        stylist: "Jo",
+        customerPhone: "07700 900715",
+        customerName,
+        ...extra,
+      } as Parameters<typeof handleBookAppointment>[1]) as Promise<{ success: boolean }>;
+
+    it("books on a new record marked as possibly the client with it, never on hers", async () => {
+      const r = await bookAs("Sarah Friend", { callerNumber: OLIVIA });
+      expect(r.success).toBe(true);
+      expect(db.lead.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ name: "Sarah Friend", phone: SARAH, possibleDuplicateOfId: "lead-sarah" }),
+      });
+      expect(written[0].record).toMatchObject({ leadId: "lead-Sarah Friend" });
+      expect(db.lead.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "lead-sarah" } }));
+    });
+
+    it("reads nothing off her record: not her visits, nor her patch test", async () => {
+      db.holder.mockResolvedValue({ id: "lead-sarah", name: "Sarah Friend", phone: SARAH, patchTestAt: new Date("2026-09-01T12:00:00Z") });
+      db.appointment.count.mockResolvedValue(3);
+      const r = (await handleBookAppointment("org", {
+        time: quarterPastOne,
+        service: "root tint",
+        stylist: "Jo",
+        customerPhone: "07700 900715",
+        customerName: "Sarah Friend",
+      })) as { success: boolean; needsClientType?: boolean };
+      // Not known to be returning: asked, as anyone new would be.
+      expect(r).toMatchObject({ success: false, needsClientType: true });
+    });
+
+    it("books a chat's own client as them", async () => {
+      db.lead.findFirst.mockResolvedValue({ id: "lead-chat", name: "Sarah Friend", phone: null, email: null });
+      await bookAs("Sarah", { clientId: "lead-chat" });
+      expect(written[0].record).toMatchObject({ leadId: "lead-chat" });
+      expect(db.lead.create).not.toHaveBeenCalled();
+    });
   });
 
   it("will not book colour without knowing whether they have had it here before", async () => {
@@ -687,7 +767,7 @@ describe("book_appointment", () => {
   it("books colour for a client with a patch test on record, without asking or the 48-hour wait", async () => {
     // Saturday half five: too soon for a new client's colour on Tuesday.
     vi.setSystemTime(new Date("2026-09-26T17:30:00+01:00"));
-    db.lead.findUnique.mockResolvedValue({
+    db.holder.mockResolvedValue({
       id: "lead-sarah",
       name: "Sarah Friend",
       phone: SARAH,
@@ -699,6 +779,7 @@ describe("book_appointment", () => {
       service: "root tint",
       stylist: "Jo",
       customerPhone: "07700 900715",
+      callerNumber: SARAH,
       customerName: "Sarah Friend",
     })) as { success: boolean; patchTestRequired?: boolean; patchTestOnRecord?: string; message: string };
     expect(r).toMatchObject({ success: true, patchTestRequired: false, patchTestOnRecord: "1 September 2026" });
@@ -707,7 +788,7 @@ describe("book_appointment", () => {
   });
 
   it("does not count a mum's patch test for her daughter on the same phone", async () => {
-    db.lead.findUnique.mockResolvedValue({
+    db.holder.mockResolvedValue({
       id: "lead-claire",
       name: "Claire Burns",
       phone: CLAIRE,
@@ -755,7 +836,7 @@ describe("a number and the clients reached through it", () => {
   });
 
   beforeEach(() => {
-    db.lead.findUnique.mockResolvedValue({ id: "lead-claire", name: "Claire Burns" });
+    db.holder.mockResolvedValue({ id: "lead-claire", name: "Claire Burns" });
     db.lead.findMany.mockResolvedValue([{ id: "lead-amy", name: "Amy Burns" }]);
     db.appointment.findMany.mockImplementation(async ({ where }) =>
       [booking("appt-claire", claireLead, 2), booking("appt-amy", amyLead, 3)].filter((a) => where.leadId.in.includes(a.lead.id))
