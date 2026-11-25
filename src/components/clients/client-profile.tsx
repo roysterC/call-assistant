@@ -43,6 +43,7 @@ import { useDialogs } from "@/components/providers/dialogs-provider";
 import { CHANNEL_META, avatarColorFor, initialsFor, type Channel } from "@/lib/channels";
 import { DATE_FNS_LOCALE, INTL_LOCALE, clockTime, type Clock, type Lang, type Translate } from "@/lib/i18n";
 import type { VisitSummaryJson } from "@/lib/client-summary";
+import { DuplicateCheck } from "@/components/clients/duplicate-check";
 
 const STATUS_KEYS = ["booked", "completed", "cancelled", "no_show"] as const;
 const OUTCOMES = ["booked", "sorted", "not_needed", "converted", "no_answer", "not_interested", "follow_up", "other"] as const;
@@ -60,6 +61,10 @@ interface ClientDetail {
   createdAt: string;
   contactLead: { id: string; name: string | null; phone: string | null } | null;
   dependents: { id: string; name: string | null }[];
+  /** Where the card came from (phone, website, instagram…). */
+  source: string | null;
+  /** Made from typed details this client already has (client-identity.ts). */
+  possibleDuplicateOf: { id: string; name: string | null; phone: string | null; email: string | null } | null;
 }
 
 interface Booking {
@@ -140,8 +145,11 @@ export function ClientProfile({
   clientId,
   onClose,
   onChanged,
+  onOpenClient,
 }: {
   clientId: string;
+  /** Open another client (the one a duplicate was merged into). */
+  onOpenClient?: (id: string) => void;
   /** Back to the list (a phone), or nothing chosen (after a delete). */
   onClose: () => void;
   /** The list's copy is stale: reload it. */
@@ -161,6 +169,9 @@ export function ClientProfile({
   // Members can change a client but not delete one; the API refuses them too.
   const canDelete = me !== null && me.role !== "member";
 
+  // Bumped to read the client again (after a merge into this card).
+  const [reload, setReload] = useState(0);
+
   useEffect(() => {
     let live = true;
     apiFetch(`/api/clients/${clientId}`)
@@ -175,7 +186,7 @@ export function ClientProfile({
     return () => {
       live = false;
     };
-  }, [clientId, t]);
+  }, [clientId, t, reload]);
 
   const client = data?.client ?? null;
 
@@ -458,6 +469,24 @@ export function ClientProfile({
         )}
 
         <div className="flex flex-col gap-5 px-4 pb-8 pt-4 md:px-7 md:pb-28 md:pt-5">
+          {/* Possibly someone already on file: merge, or say not. */}
+          {client.possibleDuplicateOf && (
+            <DuplicateCheck
+              client={{ id: client.id, name: client.name, phone: client.phone, email: client.email, source: client.source, summary }}
+              match={client.possibleDuplicateOf}
+              timeZone={timeZone}
+              onCleared={() => {
+                setData({ ...data, client: { ...client, possibleDuplicateOf: null } });
+                onChanged();
+              }}
+              onMerged={(keptId) => {
+                onChanged();
+                if (keptId === client.id) setReload((n) => n + 1);
+                else onOpenClient?.(keptId);
+              }}
+            />
+          )}
+
           {/* What their visits add up to */}
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat value={String(summary.visits)} label={t("client.stat.visits")} />

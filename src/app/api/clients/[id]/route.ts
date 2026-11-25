@@ -59,6 +59,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         notes: true,
         patchTestAt: true,
         createdAt: true,
+        source: true,
         contactLead: { select: { id: true, name: true, phone: true } },
         dependents: { select: { id: true, name: true } },
         // Possibly this client, made from details they typed (client-identity.ts).

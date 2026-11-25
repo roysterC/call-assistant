@@ -94,7 +94,7 @@ function searchSql(q: string | null): Prisma.Sql {
 }
 
 /** The Clients page's groups: who needs the salon's attention. */
-const GROUPS = ["due", "new", "lapsed", "patch"] as const;
+const GROUPS = ["due", "new", "lapsed", "patch", "duplicates"] as const;
 type Group = (typeof GROUPS)[number];
 /** "New": first on the books within this many days. */
 const NEW_DAYS = 60;
@@ -124,6 +124,9 @@ function groupSql(group: Group | null, organizationId: string, now: Date, dueIds
             AND a."startsAt" >= ${new Date(now.getTime() - LAPSED_DAYS * 86_400_000)}
         )
       )`;
+    case "duplicates":
+      // Made from typed details another client has (client-identity.ts).
+      return Prisma.sql`"possibleDuplicateOfId" IS NOT NULL`;
     case "patch":
       // Booked for something that needs a skin test, with none on record.
       return Prisma.sql`(
