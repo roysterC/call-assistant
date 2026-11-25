@@ -67,6 +67,8 @@ export async function deleteClient(organizationId: string, id: string): Promise<
     await tx.whatsAppConversation.updateMany(unlink);
     await tx.websiteConversation.updateMany(unlink);
     await tx.socialConversation.updateMany(unlink);
+    // Nobody is possibly a client who is gone.
+    await tx.lead.updateMany({ where: { organizationId, possibleDuplicateOfId: id }, data: { possibleDuplicateOfId: null } });
     await tx.lead.update({
       where: { id },
       data: {

@@ -39,6 +39,9 @@ const CLIENT_FIELDS = {
   // Set for a client with no number of their own, reached through another
   // client's (a child booked on a parent's phone).
   contactLead: { select: { id: true, name: true, phone: true } },
+  // Made from typed details another client has: possibly them, for the
+  // desk to merge or clear (client-identity.ts, api/clients/[id]/duplicate).
+  possibleDuplicateOf: { select: { id: true, name: true, phone: true } },
 } as const;
 
 /** A LIKE pattern matching `text` literally, so "%" typed is not a wildcard. */

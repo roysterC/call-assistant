@@ -61,6 +61,8 @@ export async function GET(req: NextRequest, { params }: Params) {
         createdAt: true,
         contactLead: { select: { id: true, name: true, phone: true } },
         dependents: { select: { id: true, name: true } },
+        // Possibly this client, made from details they typed (client-identity.ts).
+        possibleDuplicateOf: { select: { id: true, name: true, phone: true, email: true } },
       },
     });
     if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });

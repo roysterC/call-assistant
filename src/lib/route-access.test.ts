@@ -27,6 +27,8 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "quotes/[id]/send": { POST: "members" },
   // Deleting a client cannot be undone and changes past takings.
   "clients/[id]": { GET: "members", PATCH: "members", DELETE: "owner" },
+  // Merging a duplicate moves everything and loses nothing: desk work.
+  "clients/[id]/duplicate": { POST: "members", DELETE: "members" },
   clients: { GET: "members", POST: "members" },
   "conversations/[id]/handoff": { POST: "members" },
   "conversations/[id]/persona-reset": { PATCH: "owner" },

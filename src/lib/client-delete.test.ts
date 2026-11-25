@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => {
   const tx = {
-    lead: { findFirst: vi.fn(), update: vi.fn() },
+    lead: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     appointment: { count: vi.fn(), updateMany: vi.fn() },
     callback: { deleteMany: vi.fn() },
     call: { updateMany: vi.fn() },
@@ -82,5 +82,13 @@ describe("deleteClient", () => {
     expect(result).toMatchObject({ ok: false, status: 409 });
     expect(!result.ok && result.message).toContain("Mia books through");
     expect(db.tx.lead.update).not.toHaveBeenCalled();
+  });
+
+  it("clears any mark that another card is possibly them", async () => {
+    await deleteClient("org", "c1");
+    expect(db.tx.lead.updateMany).toHaveBeenCalledWith({
+      where: { organizationId: "org", possibleDuplicateOfId: "c1" },
+      data: { possibleDuplicateOfId: null },
+    });
   });
 });
