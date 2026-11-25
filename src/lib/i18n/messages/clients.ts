@@ -71,7 +71,7 @@ export const clients = {
   "dup.merged": ["Merged into {name}", "Đã gộp vào {name}"],
   "dup.kept": ["Kept as two clients", "Giữ là hai khách riêng"],
   "dup.failed": ["That didn't work. Try again.", "Không thực hiện được. Hãy thử lại."],
-  "dup.source.website": ["Website", "Website"],
+  "dup.source.website": ["Website", "Trang web"],
   "dup.source.instagram": ["Instagram", "Instagram"],
   "dup.source.facebook": ["Messenger", "Messenger"],
   "dup.source.phone": ["A call", "Cuộc gọi"],
