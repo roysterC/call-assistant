@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { syncTeam } from "@/lib/technicians";
+import { isStaleTeamList, loadTeam, syncTeam } from "@/lib/technicians";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import {
   openWeekdays,
@@ -249,8 +249,11 @@ export async function GET(req: NextRequest) {
       select: { name: true, slug: true, needsOnboarding: true },
     });
 
+    // The team as its records have it: the saved list is only a copy.
+    const team = await loadTeam(prisma, ctx.organizationId);
+
     return NextResponse.json({
-      settings: forClient(settings, ctx.isSuperAdmin),
+      settings: forClient(team ? { ...settings, teamMembers: team } : settings, ctx.isSuperAdmin),
       // Onboarding first (src/app/onboarding), until the owner finishes it.
       // Never for a super-admin, who sets salons up from Admin instead.
       startPage: org?.needsOnboarding && !ctx.isSuperAdmin ? "/onboarding" : startPage,
@@ -309,6 +312,15 @@ export async function PUT(req: NextRequest) {
     // also covers the row id and org link.
     const data = sanitiseSettingsPayload(raw as Record<string, unknown>);
 
+    // A team list from a page opened before technicians had ids: saving it
+    // would make a renamed technician someone new, her bookings left behind.
+    if ("teamMembers" in data && (await isStaleTeamList(prisma, ctx.organizationId, data.teamMembers as Stylist[]))) {
+      return NextResponse.json(
+        { error: "The team has changed since this page was opened. Reload the page and make the change again." },
+        { status: 409 }
+      );
+    }
+
     // Refused rather than stored as typed: a number nobody can ring is worse
     // in a text than no number, and the screen can say what is wrong.
     if ("contactPhone" in data) {
@@ -366,7 +378,8 @@ export async function PUT(req: NextRequest) {
           select: { businessHours: true, teamMembers: true },
         });
         hours = hours ?? parseBusinessHours(current?.businessHours);
-        stylists = stylists ?? parseStylists(current?.teamMembers);
+        stylists =
+          stylists ?? (await loadTeam(prisma, ctx.organizationId)) ?? parseStylists(current?.teamMembers);
       }
 
       data.teamMembers = constrainWorkingDays(stylists, openWeekdays(hours));
@@ -376,6 +389,8 @@ export async function PUT(req: NextRequest) {
     // permanent id, a rename is written onto her bookings, blocks, callbacks
     // and rebook texts, and anyone taken off is archived with her history
     // (src/lib/technicians.ts).
+    // A rename rewrites every row of hers, so a long-serving technician's
+    // can take longer than the default five seconds.
     const settings = await prisma.$transaction(async (tx) => {
       if ("teamMembers" in data) {
         const { team } = await syncTeam(tx, ctx.organizationId, data.teamMembers as Stylist[]);
@@ -392,7 +407,7 @@ export async function PUT(req: NextRequest) {
           ...data,
         },
       });
-    });
+    }, { timeout: 30_000, maxWait: 10_000 });
 
     // The same masking as GET: an owner saving their hours must not get the
     // salon's keys back in the response.

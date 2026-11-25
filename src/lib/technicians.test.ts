@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { linkByName, syncTeam, DuplicateTechnicianName } from "./technicians";
+import { isStaleTeamList, linkByName, loadTeam, syncSavedTeam, syncTeam, DuplicateTechnicianName } from "./technicians";
 import { isTechnicians, blocksTechnician } from "./technician-match";
 import { blockApplies } from "./time-blocks";
 
@@ -32,8 +32,14 @@ function table(name: string) {
   tables[name] ??= [];
   const rows = () => tables[name];
   return {
-    findMany: async ({ where = {}, distinct }: { where?: Record<string, unknown>; distinct?: string[] } = {}) => {
+    findMany: async ({
+      where = {},
+      distinct,
+      orderBy,
+    }: { where?: Record<string, unknown>; distinct?: string[]; orderBy?: Record<string, string> | Record<string, string>[] } = {}) => {
       const found = rows().filter((r) => matches(r, where));
+      const by = [orderBy ?? []].flat().map((o) => Object.keys(o)[0]).filter((k) => k !== "createdAt");
+      found.sort((x, y) => by.map((k) => Number(x[k] ?? 0) - Number(y[k] ?? 0)).find((d) => d !== 0) ?? 0);
       if (!distinct) return found;
       const seen = new Set<string>();
       return found.filter((r) => {
@@ -134,8 +140,66 @@ describe("syncTeam", () => {
     expect(techs().find((t) => t.id === saved[1].id)!.archivedAt).toBeNull();
   });
 
+  it("keeps everyone's id when one is renamed and someone new takes her old name, whatever the order", async () => {
+    const { team: saved } = await syncTeam(db, ORG, team("Mai", "Lan"));
+    await fake.appointment.create({ data: { organizationId: ORG, stylistName: "Lan", technicianId: saved[1].id } });
+    // The new Lan above the old one, renamed in the same save.
+    const r = await syncTeam(db, ORG, [saved[0], ...team("Lan"), { ...saved[1], name: "Lan Nguyen" }]);
+    expect(r.team[2].id).toBe(saved[1].id);
+    expect(r.team[1].id).not.toBe(saved[1].id);
+    expect(tables.appointment[0]).toMatchObject({ stylistName: "Lan Nguyen", technicianId: saved[1].id });
+  });
+
+  it("keeps all she is on her record, in the team's order", async () => {
+    await syncTeam(db, ORG, [
+      { name: "Mai", role: " Owner ", phone: "07700 900111", workingDays: [1, 2], services: ["BIAB"], googleCalendarId: "mai@cal" },
+      { name: "Kim", takesBookings: false, workingDays: [], services: [] },
+    ]);
+    expect(techs()[0]).toMatchObject({ role: "Owner", phone: "07700 900111", workingDays: [1, 2], services: ["BIAB"], googleCalendarId: "mai@cal", sortOrder: 0, takesBookings: true });
+    expect(techs()[1]).toMatchObject({ takesBookings: false, sortOrder: 1, role: null });
+  });
+
+  it("reads the team back from the records, without anyone who left", async () => {
+    expect(await loadTeam(db, ORG)).toBeNull();
+    const { team: saved } = await syncTeam(db, ORG, [...team("Mai", "Lan"), { name: "Kim", takesBookings: false, workingDays: [], services: [] }]);
+    await syncTeam(db, ORG, [saved[2], saved[0]]);
+    const loaded = await loadTeam(db, ORG);
+    expect(loaded!.map((t) => [t.name, t.id])).toEqual([["Kim", saved[2].id], ["Mai", saved[0].id]]);
+    expect(loaded![0].takesBookings).toBe(false);
+    expect(loaded![1]).not.toHaveProperty("takesBookings");
+  });
+
+  it("calls a list without ids stale once the salon's technicians have them", async () => {
+    expect(await isStaleTeamList(db, ORG, team("Mai"))).toBe(false);
+    const { team: saved } = await syncTeam(db, ORG, team("Mai"));
+    expect(await isStaleTeamList(db, ORG, team("Mai"))).toBe(true);
+    expect(await isStaleTeamList(db, ORG, [saved[0], ...team("Lan")])).toBe(false);
+    expect(await isStaleTeamList(db, ORG, [])).toBe(false);
+  });
+
   it("refuses two technicians with one name", async () => {
     await expect(syncTeam(db, ORG, team("Lan", "lan "))).rejects.toBeInstanceOf(DuplicateTechnicianName);
+  });
+});
+
+describe("syncSavedTeam (the backfill)", () => {
+  it("fills her details onto a record made before they were kept, and changes nothing the second time", async () => {
+    await fake.technician.create({ data: { organizationId: ORG, name: "Thảo" } });
+    const id = techs()[0].id;
+    await fake.organizationSettings.create({
+      data: { organizationId: ORG, teamMembers: [{ id, name: "Thảo", role: "Owner", workingDays: [3, 4], services: [] }] },
+    });
+    await syncSavedTeam(db, ORG);
+    await syncSavedTeam(db, ORG);
+    expect(techs()).toHaveLength(1);
+    expect(techs()[0]).toMatchObject({ id, role: "Owner", workingDays: [3, 4], archivedAt: null });
+  });
+
+  it("never archives everyone because the saved list is empty", async () => {
+    await syncTeam(db, ORG, team("Mai"));
+    await fake.organizationSettings.create({ data: { organizationId: ORG, teamMembers: [] } });
+    await syncSavedTeam(db, ORG);
+    expect(techs()[0].archivedAt).toBeNull();
   });
 });
 
@@ -156,6 +220,26 @@ describe("linkByName (the backfill)", () => {
     expect(tables.callback[0].technicianId).toBeNull();
     expect(tables.timeBlock[0].technicianId).toBeNull();
     expect(await linkByName(db, ORG)).toBe(0);
+  });
+
+  it("links a callback to someone known, but never makes a technician out of what a caller asked for", async () => {
+    const { team: saved } = await syncTeam(db, ORG, team("Mai"));
+    await fake.callback.create({ data: { organizationId: ORG, assignedTo: "mai", technicianId: null } });
+    await fake.callback.create({ data: { organizationId: ORG, assignedTo: "whoever's free", technicianId: null } });
+    await fake.rebookText.create({ data: { organizationId: ORG, stylist: "Jo", technicianId: null } });
+
+    expect(await linkByName(db, ORG)).toBe(1);
+    expect(tables.callback[0].technicianId).toBe(saved[0].id);
+    expect(tables.callback[1].technicianId).toBeNull();
+    expect(tables.rebookText[0].technicianId).toBeNull();
+    expect(techs()).toHaveLength(1);
+  });
+
+  it("links a callback to someone who left, once a booking of hers has made her record", async () => {
+    await fake.appointment.create({ data: { organizationId: ORG, stylistName: "Jo", technicianId: null } });
+    await fake.callback.create({ data: { organizationId: ORG, assignedTo: "Jo", technicianId: null } });
+    expect(await linkByName(db, ORG)).toBe(2);
+    expect(tables.callback[0].technicianId).toBe(techs()[0].id);
   });
 });
 

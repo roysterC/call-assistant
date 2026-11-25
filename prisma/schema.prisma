@@ -101,6 +101,8 @@ model User {
   sessions           Session[]
   bookingNotices     BookingNotice[]
   pushSubscriptions  PushSubscription[]
+  /// The nail technician this login is, if any (Technician.userId).
+  technician         Technician?
   authTokens         AuthToken[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -1092,27 +1094,46 @@ model DataMigration {
   @@map("ca_data_migrations")
 }
 
-/// A salon's nail technician, by a permanent id. Her settings (role, working
-/// days, services, calendar) stay on her entry in OrganizationSettings
-/// .teamMembers, which carries the same id; this row is who she is, so that
-/// bookings, blocked time, callbacks and rebook texts point at her rather than
-/// at a name. Renaming her changes `name` here and the name copied onto those
+/// A salon's nail technician, by a permanent id, and everything about her:
+/// role, working days, services, calendar, place in the list, whether she
+/// takes bookings, and her login. Bookings, blocked time, callbacks and rebook
+/// texts point at her rather than at a name. OrganizationSettings.teamMembers
+/// is a copy written in the same transaction, kept for one release so a
+/// rollback still has the team. Renaming her changes `name` here and the name copied onto those
 /// rows, in one transaction. Removing her archives the row: her history keeps
 /// her name, and a technician added later with the same name is someone else
 /// unless she is the one brought back (src/lib/technicians.ts).
 model Technician {
-  id             String        @id @default(cuid())
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name           String
+  id               String        @id @default(cuid())
+  organizationId   String
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name             String
+  /// "Owner", "Senior nail technician": shown to staff and told to callers.
+  role             String?
+  email            String?
+  phone            String?
+  /// Her Google Calendar, on a salon whose diary is Google's.
+  googleCalendarId String?
+  /// 0 = Sunday ... 6 = Saturday. Empty: any day the salon is open.
+  workingDays      Int[]         @default([])
+  /// Service names she does. Empty: all of them.
+  services         String[]      @default([])
+  /// Her place in the team list, the diary's columns and the online picker.
+  sortOrder        Int           @default(0)
+  /// On the team but not booked into (a receptionist, an owner who no longer
+  /// does nails): the diary, the phone and online booking leave her out.
+  takesBookings    Boolean       @default(true)
+  /// Her login, when she has one: what a per-person diary or permissions hang on.
+  userId           String?       @unique
+  user             User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   /// Set when she is taken off the team. Null while she is on it.
-  archivedAt     DateTime?
-  appointments   Appointment[]
-  timeBlocks     TimeBlock[]
-  callbacks      Callback[]
-  rebookTexts    RebookText[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  archivedAt       DateTime?
+  appointments     Appointment[]
+  timeBlocks       TimeBlock[]
+  callbacks        Callback[]
+  rebookTexts      RebookText[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   @@index([organizationId])
   @@map("ca_technicians")

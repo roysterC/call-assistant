@@ -174,6 +174,15 @@ leaves `technicianId` nullable: `post-deploy.ts` gives every salon's team its
 ids and links every existing row ("Nail technicians by id: … rows linked"),
 and until a row is linked, matching falls back to its name.
 
+The `Technician` row is her whole record: role, contact details, calendar,
+working days, services, order on the team, whether she takes bookings, and
+(once linked) her login. Settings writes the rows, and the booking engine and
+Settings read them (`loadTeam`); `teamMembers` in the settings is kept as a
+copy, written in the same transaction, for the screens that still read it. A
+salon the backfill could not do is named in the deploy log ("NOT done for
+…"); the others still go, and its rows keep matching by name until a later
+deploy gets it.
+
 Once a deploy has reported the backfill, check nothing is left, then make the
 id required on bookings, by hand on the box (blocked time for the whole salon
 and callbacks for "Team" stay without one, on purpose):

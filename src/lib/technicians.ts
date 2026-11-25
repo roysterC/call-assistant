@@ -122,31 +122,44 @@ export async function syncTeam(
   const byId = new Map(rows.map((r) => [r.id, r]));
   const used = new Set<string>();
   const renamed: Renamed[] = [];
-  const team: Stylist[] = [];
 
-  for (const entry of incoming) {
-    const name = entry.name.trim();
-    let row = entry.id ? byId.get(entry.id) : undefined;
-    if (row && used.has(row.id)) row = undefined;
-    if (!row) {
-      // Not known by id: the one on the team with this name, else one who left
-      // under it, else nobody yet.
-      row =
-        rows.find((r) => !used.has(r.id) && !r.archivedAt && key(r.name) === key(name)) ??
-        rows.find((r) => !used.has(r.id) && r.archivedAt && key(r.name) === key(name));
-    }
-    if (!row) {
-      const created = await db.technician.create({ data: { organizationId, name }, select: { id: true, name: true, archivedAt: true } });
-      row = created;
-    } else {
-      const was = row.name;
-      if (row.archivedAt || was !== name) {
-        await db.technician.update({ where: { id: row.id }, data: { name, archivedAt: null } });
-      }
-      if (was !== name) renamed.push({ id: row.id, from: was, to: name });
-    }
+  // Everyone known by id first, then the rest by name: matched in list order,
+  // a new "Lan" above a Lan being renamed in the same save took her id and her
+  // bookings.
+  const match: Array<(typeof rows)[number] | undefined> = incoming.map((entry) => {
+    const row = entry.id ? byId.get(entry.id) : undefined;
+    if (!row || used.has(row.id)) return undefined;
     used.add(row.id);
-    team.push({ ...entry, id: row.id, name });
+    return row;
+  });
+  incoming.forEach((entry, i) => {
+    if (match[i]) return;
+    const name = key(entry.name);
+    // The one on the team with this name, else one who left under it.
+    const row =
+      rows.find((r) => !used.has(r.id) && !r.archivedAt && key(r.name) === name) ??
+      rows.find((r) => !used.has(r.id) && r.archivedAt && key(r.name) === name);
+    if (row) {
+      used.add(row.id);
+      match[i] = row;
+    }
+  });
+
+  const team: Stylist[] = [];
+  for (const [i, entry] of incoming.entries()) {
+    const name = entry.name.trim();
+    const fields = detailsOf(entry, i);
+    const row = match[i];
+    let id: string;
+    if (!row) {
+      id = (await db.technician.create({ data: { organizationId, name, ...fields }, select: { id: true } })).id;
+    } else {
+      id = row.id;
+      const was = row.name;
+      await db.technician.update({ where: { id }, data: { name, archivedAt: null, ...fields } });
+      if (was !== name) renamed.push({ id, from: was, to: name });
+    }
+    team.push({ ...entry, id, name });
   }
 
   const archived: string[] = [];
@@ -159,6 +172,57 @@ export async function syncTeam(
 
   for (const r of renamed) await relabel(db, organizationId, r);
   return { team, renamed, archived };
+}
+
+/** What a team-list entry says about her, as Technician columns. */
+function detailsOf(s: Stylist, sortOrder: number) {
+  return {
+    role: s.role?.trim() || null,
+    email: s.email?.trim() || null,
+    phone: s.phone?.trim() || null,
+    googleCalendarId: s.googleCalendarId?.trim() || null,
+    workingDays: s.workingDays ?? [],
+    services: s.services ?? [],
+    takesBookings: s.takesBookings !== false,
+    sortOrder,
+  };
+}
+
+/**
+ * The team, from the Technician rows: everyone on it, in order, as the rest of
+ * the app reads a team (Stylist). Null for a salon whose team is not in the
+ * table yet (before the post-deploy backfill reaches it): its saved list is
+ * read instead.
+ */
+export async function loadTeam(db: Db, organizationId: string): Promise<Stylist[] | null> {
+  const rows = await db.technician.findMany({
+    where: { organizationId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  if (rows.length === 0) return null;
+  return rows
+    .filter((r) => !r.archivedAt)
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      ...(r.role ? { role: r.role } : {}),
+      ...(r.email ? { email: r.email } : {}),
+      ...(r.phone ? { phone: r.phone } : {}),
+      ...(r.googleCalendarId ? { googleCalendarId: r.googleCalendarId } : {}),
+      workingDays: r.workingDays,
+      services: r.services,
+      ...(r.takesBookings ? {} : { takesBookings: false }),
+    }));
+}
+
+/**
+ * A team list saved from a page loaded before technicians had ids: none of its
+ * entries carries one while the salon's do. Saving it would turn a rename on
+ * that page into a new technician, so it is refused and the page reloaded.
+ */
+export async function isStaleTeamList(db: Db, organizationId: string, incoming: Stylist[]): Promise<boolean> {
+  if (incoming.length === 0 || incoming.some((s) => s.id)) return false;
+  return (await db.technician.count({ where: { organizationId, archivedAt: null } })) > 0;
 }
 
 /** Her new name on everything of hers, and her id on anything still carrying only the old name. */
@@ -174,16 +238,21 @@ async function relabel(db: Db, organizationId: string, r: Renamed) {
 }
 
 /**
- * Sync the team as saved in settings, writing the ids back onto it: the
- * post-deploy backfill, one salon at a time.
+ * Put a salon's saved team list into the Technician table and write the ids
+ * back onto the list: the post-deploy backfill. Every save writes the list and
+ * the table together, so for a salon already in the table this changes
+ * nothing, except to fill in the details (days, calendar, services) on
+ * records made before they were kept there.
  */
 export async function syncSavedTeam(db: Db, organizationId: string): Promise<void> {
   const settings = await db.organizationSettings.findUnique({
     where: { organizationId },
     select: { teamMembers: true },
   });
-  if (!settings) return;
-  const saved = parseStylists(settings.teamMembers);
+  const saved = parseStylists(settings?.teamMembers);
+  // Nobody on it is nothing to do: a team taken off one by one is already
+  // archived, and an empty list must never be what archives everyone.
+  if (saved.length === 0) return;
   const { team } = await syncTeam(db, organizationId, saved);
   const changed = team.some((t, i) => t.id !== saved[i]?.id || t.name !== saved[i]?.name);
   if (changed) {
@@ -210,13 +279,19 @@ export async function linkByName(db: Db, organizationId: string): Promise<number
   collect(
     (await db.timeBlock.findMany({ where: { organizationId, technicianId: null, stylistName: { not: null } }, select: { stylistName: true }, distinct: ["stylistName"] })).map((r) => ({ n: r.stylistName }))
   );
-  collect(
+  // A callback's or rebook text's name is linked only to someone known: a
+  // callback's is whatever the caller asked for ("whoever's free", "Lan
+  // please"), not a technician to be made up.
+  const known = new Set<string>();
+  const collectKnown = (rows: Array<{ n: string | null }>) =>
+    rows.forEach((r) => r.n && !NOBODY.has(key(r.n)) && known.add(r.n.trim()));
+  collectKnown(
     (await db.callback.findMany({ where: { organizationId, technicianId: null }, select: { assignedTo: true }, distinct: ["assignedTo"] })).map((r) => ({ n: r.assignedTo }))
   );
-  collect(
+  collectKnown(
     (await db.rebookText.findMany({ where: { organizationId, technicianId: null, stylist: { not: null } }, select: { stylist: true }, distinct: ["stylist"] })).map((r) => ({ n: r.stylist }))
   );
-  if (names.size === 0) return 0;
+  if (names.size === 0 && known.size === 0) return 0;
 
   const rows = await db.technician.findMany({ where: { organizationId }, select: { id: true, name: true, archivedAt: true } });
   const idFor = new Map<string, string>();
@@ -225,11 +300,12 @@ export async function linkByName(db: Db, organizationId: string): Promise<number
 
   let linked = 0;
   const done = new Set<string>();
-  for (const name of names) {
+  for (const name of [...names, ...known]) {
     const k = key(name);
     if (done.has(k)) continue;
     done.add(k);
     let id = idFor.get(k);
+    if (!id && !names.has(name)) continue;
     if (!id) {
       id = (await db.technician.create({ data: { organizationId, name, archivedAt: new Date() }, select: { id: true } })).id;
       idFor.set(k, id);
@@ -251,16 +327,29 @@ export async function linkByName(db: Db, organizationId: string): Promise<number
  * The post-deploy backfill: every salon's team synced and its rows linked.
  * Safe to run any number of times.
  */
-export async function backfillTechnicians(client: PrismaClient): Promise<{ salons: number; linked: number }> {
+export async function backfillTechnicians(
+  client: PrismaClient
+): Promise<{ salons: number; linked: number; failed: string[] }> {
   // The script's own client: the same models, without the app's extensions.
   const db = client as unknown as typeof import("./prisma")["prisma"];
   const salons = await db.organizationSettings.findMany({ select: { organizationId: true } });
   let linked = 0;
+  const failed: string[] = [];
+  // Each salon on its own, with time for a big one: one that fails is reported
+  // and the rest still go. Until a row is linked it is matched by its name.
   for (const { organizationId } of salons) {
-    linked += await db.$transaction(async (tx) => {
-      await syncSavedTeam(tx, organizationId);
-      return linkByName(tx, organizationId);
-    });
+    try {
+      linked += await db.$transaction(
+        async (tx) => {
+          await syncSavedTeam(tx, organizationId);
+          return linkByName(tx, organizationId);
+        },
+        { timeout: 120_000, maxWait: 10_000 }
+      );
+    } catch (err) {
+      console.error(`[TECHNICIANS] backfill failed for ${organizationId}:`, err instanceof Error ? err.message : err);
+      failed.push(organizationId);
+    }
   }
-  return { salons: salons.length, linked };
+  return { salons: salons.length, linked, failed };
 }

@@ -75,6 +75,11 @@ export interface Stylist {
    * which is what every stylist parsed without a diary mode gets.
    */
   bookable?: boolean;
+  /**
+   * The owner's switch: false for someone on the team who is not booked into
+   * (a receptionist). Missing means she takes bookings.
+   */
+  takesBookings?: boolean;
   /** 0 = Sunday ... 6 = Saturday. Empty means "any day the salon is open". */
   workingDays: number[];
   /** Service names this stylist performs. Empty means "all services". */
@@ -191,6 +196,7 @@ export function parseStylists(raw: unknown): Stylist[] {
       phone: String(e.phone ?? "").trim() || undefined,
       role: String(e.role ?? "").trim() || undefined,
       googleCalendarId: googleCalendarId || undefined,
+      ...(e.takesBookings === false ? { takesBookings: false } : {}),
       workingDays,
       services,
     });

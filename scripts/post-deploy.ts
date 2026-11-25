@@ -131,7 +131,7 @@ async function main() {
     // not fatal: until a row is linked, matching falls back to its name.
     try {
       const techs = await backfillTechnicians(prisma);
-      console.log(`  ✓ Nail technicians by id: ${techs.salons} salons, ${techs.linked} rows linked`);
+      console.log(`  ✓ Nail technicians by id: ${techs.salons} salons, ${techs.linked} rows linked${techs.failed.length ? `, NOT done for ${techs.failed.join(", ")}` : ""}`);
     } catch (err) {
       console.error("  ! Nail technicians NOT linked by id:", err instanceof Error ? err.message : err);
     }
