@@ -7,7 +7,6 @@
  * The look is "Atelier": a serif for headings, the salon's colour for what
  * can be tapped. Treatments are tiles, not a price list: a tile opens the
  * booking flow on that treatment, where its options, prices and times are.
- * "Next free" skips straight to the last step.
  */
 
 import localFont from "next/font/local";
@@ -15,9 +14,9 @@ import { ArrowRight, MapPin, MessageCircle, Phone } from "lucide-react";
 import { BookLink } from "./book-link";
 import { TreatmentArt, artBackground } from "./treatment-art";
 import { formatMoneyShort } from "@/lib/money";
-import type { PublicSalon, PublicSlot } from "@/lib/online-booking";
-import { lowestPrice, openDaysText, openStatus, treatmentTiles, weekHours, whenText } from "@/lib/online-booking/salon-page";
-import { brandStyle, timeText } from "./format";
+import type { PublicSalon } from "@/lib/online-booking";
+import { lowestPrice, openDaysText, openStatus, treatmentTiles, weekHours } from "@/lib/online-booking/salon-page";
+import { brandStyle } from "./format";
 
 // The headings' serif ships with the app, like its other fonts (app/layout.tsx).
 const serif = localFont({
@@ -58,7 +57,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export function SalonSite({
   salon,
   takesBookings,
-  nextFree,
   bookPath,
   messageUs,
 }: {
@@ -66,8 +64,6 @@ export function SalonSite({
   takesBookings: boolean;
   /** The booking flow's path on the address this page was opened on. */
   bookPath: string;
-  /** The soonest free time for the first service, if there is one. */
-  nextFree: { service: string; slot: PublicSlot; date: string } | null;
   /** Where to send a photo of a design to be quoted: the salon's Instagram or WhatsApp. */
   messageUs: { label: string; href: string } | null;
 }) {
@@ -176,30 +172,6 @@ export function SalonSite({
                   </a>
                 )}
               </div>
-            )}
-            {takesBookings && nextFree && (
-              <BookLink
-                href={withQuery(bookPath, {
-                  service: nextFree.service,
-                  start: nextFree.slot.start,
-                  stylist: nextFree.slot.stylist,
-                })}
-                className="flex max-w-[520px] items-center gap-4 rounded-[20px] px-5 py-4"
-                style={{ background: surface }}
-              >
-                <span className="flex flex-1 flex-col gap-0.5">
-                  <span className="text-xs font-bold uppercase tracking-[0.08em]" style={{ color: muted }}>
-                    Next free
-                  </span>
-                  <span className="text-base font-semibold md:text-[17px]">
-                    {whenText(nextFree.date, timeText(nextFree.slot.start, salon.timeZone), salon.timeZone)} · {nextFree.service}
-                    {nextFree.slot.stylist && salon.stylists.length > 1 ? ` with ${nextFree.slot.stylist}` : ""}
-                  </span>
-                </span>
-                <span className="flex items-center gap-1.5 text-[15px] font-bold text-[var(--brand-ink)]">
-                  Book it <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </span>
-              </BookLink>
             )}
           </div>
 

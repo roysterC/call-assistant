@@ -139,19 +139,6 @@ export function openDaysText(hours: BusinessHours): { title: string; detail: str
   return { title: `Open ${open.length} days`, detail: `Closed ${list}` };
 }
 
-/** "Today at 2:30pm", "Tomorrow at 10am", "Friday at 11am", for the next free time. */
-export function whenText(slotDate: string, timeText: string, timeZone: string, now: Date = new Date()): string {
-  const p = zonedParts(now, timeZone);
-  const today = `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
-  const t = new Date(`${today}T12:00:00Z`);
-  t.setUTCDate(t.getUTCDate() + 1);
-  const tomorrow = t.toISOString().slice(0, 10);
-  if (slotDate === today) return `Today at ${timeText}`;
-  if (slotDate === tomorrow) return `Tomorrow at ${timeText}`;
-  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "long" }).format(new Date(`${slotDate}T12:00:00Z`));
-  return `${weekday} at ${timeText}`;
-}
-
 /**
  * Where the page's "Got a design in mind?" sends a photo: the salon's
  * Instagram, else its WhatsApp (receptionist/design-chats.ts, which the
