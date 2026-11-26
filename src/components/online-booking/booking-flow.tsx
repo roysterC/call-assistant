@@ -20,6 +20,7 @@ import { ArrowLeft, Calendar, Check, ChevronRight, Info, MapPin, Search, X } fro
 import { formatMoneyShort } from "@/lib/money";
 import type { PublicSalon, PublicService } from "@/lib/online-booking/catalogue";
 import type { DaySlots, PublicSlot } from "@/lib/online-booking/slots";
+import { CREAM, INK, TEXT, displayStyle, salonFontVars } from "./fonts";
 import { brandStyle, durationText, periodOf, PERIODS, timeText, dayLabel, longDay, icsFor } from "./format";
 
 type Step = "service" | "colour" | "time" | "details" | "done";
@@ -184,16 +185,17 @@ export function BookingFlow({
 
   const stepNumber = step === "service" ? 1 : step === "colour" || step === "time" ? 2 : 3;
 
-  const root =
-    mode === "inline"
-      ? "bg-white text-stone-900"
-      : "h-dvh overflow-y-auto bg-white text-stone-900";
+  const root = `${salonFontVars} antialiased ${mode === "inline" ? "" : "h-dvh overflow-y-auto"}`;
 
   return (
-    <div ref={rootRef} className={root} style={brandStyle(salon.brandColor)}>
+    <div
+      ref={rootRef}
+      className={root}
+      style={{ ...brandStyle(salon.brandColor), background: CREAM, color: INK, fontFamily: TEXT }}
+    >
       <div className="mx-auto flex min-h-full max-w-xl flex-col">
         {step !== "done" && (
-          <header className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-2 pb-3 pt-2 backdrop-blur">
+          <header className="sticky top-0 z-10 border-b-[1.5px] border-[#16121A] bg-[#FFF4E8] px-2 pb-3 pt-2">
             <div className="flex items-center gap-1">
               {step === "service" && mode === "inline" ? (
                 <span className="w-11" />
@@ -202,19 +204,19 @@ export function BookingFlow({
                   type="button"
                   onClick={back}
                   aria-label={step === "service" ? (mode === "popup" ? "Close" : `Back to ${salon.name}`) : "Back"}
-                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-stone-100"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#F2E8DC]"
                 >
                   {step === "service" && mode === "popup" ? <X className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
                 </button>
               )}
-              <span className="flex-1 truncate font-semibold">{salon.name}</span>
-              <span className="pr-3 text-sm text-stone-600">Step {stepNumber} of 3</span>
+              <span className="flex-1 truncate font-bold">{salon.name}</span>
+              <span className="pr-3 text-sm text-[#5A4F63]">Step {stepNumber} of 3</span>
               {mode === "popup" && step !== "service" && (
                 <button
                   type="button"
                   onClick={() => tellHost({ type: "close" })}
                   aria-label="Close"
-                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-stone-100"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#F2E8DC]"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -224,8 +226,8 @@ export function BookingFlow({
               {[1, 2, 3].map((n) => (
                 <span
                   key={n}
-                  className="h-1 rounded-full"
-                  style={{ background: n <= stepNumber ? "var(--brand)" : "#e7e5e4" }}
+                  className="h-[5px] rounded-full"
+                  style={{ background: n <= stepNumber ? INK : "#D9CCE3" }}
                 />
               ))}
             </div>
@@ -305,7 +307,7 @@ export function BookingFlow({
         </main>
 
         {mode !== "page" && (
-          <footer className="px-4 pb-4 text-center text-xs text-stone-500">Online booking by Kikai</footer>
+          <footer className="px-4 pb-4 text-center text-xs text-[#5A4F63]">Online booking by Kikai</footer>
         )}
       </div>
     </div>
@@ -314,10 +316,10 @@ export function BookingFlow({
 
 function NotTaking({ salon }: { salon: PublicSalon }) {
   return (
-    <div className="space-y-3 rounded-2xl border border-stone-200 p-5">
-      <h1 className="font-heading text-2xl font-extrabold tracking-tight">Online booking is not open just now</h1>
+    <div className="space-y-3 rounded-2xl border border-[#D9CCE3] p-5">
+      <h1 className="m-0 text-[40px]" style={displayStyle}>Online booking is not open just now</h1>
       {salon.phone ? (
-        <p className="text-stone-700">
+        <p className="text-[#3D3447]">
           Please ring us on{" "}
           <a className="font-semibold underline" href={`tel:${salon.phone}`}>
             {salon.phone}
@@ -325,7 +327,7 @@ function NotTaking({ salon }: { salon: PublicSalon }) {
           to book.
         </p>
       ) : (
-        <p className="text-stone-700">Please contact the salon to book.</p>
+        <p className="text-[#3D3447]">Please contact the salon to book.</p>
       )}
     </div>
   );
@@ -353,7 +355,7 @@ function ServiceStep({
       <div className="space-y-4">
         <div className="space-y-1">
           <p className="text-sm font-bold uppercase tracking-wide text-[var(--brand-ink)]">{treatment}</p>
-          <h1 className="font-heading text-[1.65rem] font-extrabold tracking-tight">Which one?</h1>
+          <h1 className="m-0 text-[40px]" style={displayStyle}>Which one?</h1>
         </div>
         <ul className="space-y-2">
           {pool.map((s) => (
@@ -377,10 +379,10 @@ function ServiceStep({
   }
   return (
     <div className="space-y-4">
-      <h1 className="font-heading text-[1.65rem] font-extrabold tracking-tight">What are you booking?</h1>
+      <h1 className="m-0 text-[40px]" style={displayStyle}>What are you booking?</h1>
       {salon.services.length > 8 && (
-        <label className="flex h-12 items-center gap-2.5 rounded-xl border border-stone-300 bg-stone-50 px-3.5">
-          <Search className="h-4 w-4 text-stone-500" aria-hidden="true" />
+        <label className="flex h-12 items-center gap-2.5 rounded-xl border-[1.5px] border-[#16121A] bg-white px-3.5">
+          <Search className="h-4 w-4 text-[#5A4F63]" aria-hidden="true" />
           <span className="sr-only">Search services</span>
           <input
             type="search"
@@ -394,7 +396,7 @@ function ServiceStep({
       {/* Under the salon's treatments where it has a menu (nail-menu.ts), as one list otherwise. */}
       {groups.map((g) => (
         <section key={g.heading ?? "all"} className="space-y-2">
-          {g.heading && <h2 className="pt-1 text-sm font-bold uppercase tracking-wide text-stone-500">{g.heading}</h2>}
+          {g.heading && <h2 className="pt-1 text-sm font-bold uppercase tracking-wide text-[#5A4F63]">{g.heading}</h2>}
           <ul className="space-y-2">
             {g.services.map((s) => (
               <li key={s.name}>
@@ -404,9 +406,9 @@ function ServiceStep({
           </ul>
         </section>
       ))}
-      {shown.length === 0 && <p className="text-stone-600">Nothing matches &ldquo;{q}&rdquo;.</p>}
+      {shown.length === 0 && <p className="text-[#5A4F63]">Nothing matches &ldquo;{q}&rdquo;.</p>}
       {salon.services.some((s) => s.priceMinor !== null) && (
-        <p className="text-xs text-stone-500">Prices are a guide: nail art and designs are priced individually.</p>
+        <p className="text-xs text-[#5A4F63]">Prices are a guide: nail art and designs are priced individually.</p>
       )}
     </div>
   );
@@ -418,17 +420,17 @@ function ServiceButton({ service: s, onPick }: { service: PublicService; onPick:
     <button
       type="button"
       onClick={() => onPick(s)}
-      className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-stone-200 px-4 py-3 text-left transition hover:border-stone-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+      className="flex min-h-[68px] w-full items-center gap-3 rounded-[20px] border-[1.5px] border-[#D9CCE3] bg-white py-3 pl-4 pr-3.5 text-left transition duration-200 hover:-translate-y-px hover:border-[#16121A] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#16121A]"
     >
       <span className="flex flex-1 flex-col gap-0.5">
         <span className="font-semibold">{s.name}</span>
-        <span className="text-sm text-stone-600">
+        <span className="text-sm text-[#5A4F63]">
           {durationText(s.durationMinutes)}
           {s.requiresPatchTest ? " · patch test for new clients" : ""}
         </span>
       </span>
       {s.priceMinor !== null && <span className="font-semibold">{formatMoneyShort(s.priceMinor)}</span>}
-      <ChevronRight className="h-4 w-4 text-stone-500" aria-hidden="true" />
+      <ChevronRight className="h-4 w-4 text-[#5A4F63]" aria-hidden="true" />
     </button>
   );
 }
@@ -437,10 +439,10 @@ function ColourStep({ service, onAnswer }: { service: PublicService; onAnswer: (
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <p className="text-sm text-stone-600">
+        <p className="text-sm text-[#5A4F63]">
           {service.name} · {durationText(service.durationMinutes)}
         </p>
-        <h1 className="font-heading text-[1.65rem] font-extrabold tracking-tight">Had this with us before?</h1>
+        <h1 className="m-0 text-[40px]" style={displayStyle}>Had this with us before?</h1>
       </div>
       <button
         type="button"
@@ -453,12 +455,12 @@ function ColourStep({ service, onAnswer }: { service: PublicService; onAnswer: (
       <button
         type="button"
         onClick={() => onAnswer(true)}
-        className="flex h-16 w-full items-center justify-between rounded-2xl border-2 border-stone-300 px-5 text-lg font-semibold"
+        className="flex h-16 w-full items-center justify-between rounded-2xl border-2 border-[#16121A] px-5 text-lg font-semibold"
       >
         No, it&rsquo;s my first time <ChevronRight className="h-5 w-5" aria-hidden="true" />
       </button>
-      <p className="flex gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-relaxed">
-        <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-800" aria-hidden="true" />
+      <p className="flex gap-3 rounded-2xl border border-[#D9CCE3] bg-[#F2E8DC] p-4 text-sm leading-relaxed">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#3D3447]" aria-hidden="true" />
         New clients need a quick patch test at the salon at least 48 hours before this treatment. We&rsquo;ll only
         show times that allow for it, and the salon will be in touch to arrange it.
       </p>
@@ -529,20 +531,20 @@ function TimeStep({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3 rounded-2xl bg-stone-100 px-4 py-3">
+      <div className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: "var(--brand)", color: "var(--brand-fg)" }}>
         <span className="flex flex-1 flex-col">
           <span className="font-semibold">{service.name}</span>
-          <span className="text-sm text-stone-600">
+          <span className="text-sm tabular-nums">
             {durationText(service.durationMinutes)}
             {service.priceMinor !== null ? ` · ${formatMoneyShort(service.priceMinor)}` : ""}
           </span>
         </span>
-        <button type="button" onClick={onChangeService} className="px-1 py-2.5 text-sm font-semibold text-[var(--brand-ink)]">
+        <button type="button" onClick={onChangeService} className="min-h-11 px-2 text-sm font-bold underline underline-offset-4">
           Change
         </button>
       </div>
 
-      <h1 className="font-heading text-[1.65rem] font-extrabold tracking-tight">When suits you?</h1>
+      <h1 className="m-0 text-[40px]" style={displayStyle}>When suits you?</h1>
 
       {salon.stylistChoice && service.stylists.length > 1 && (
         <div role="group" aria-label="Who with" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
@@ -554,8 +556,8 @@ function TimeStep({
                 type="button"
                 aria-pressed={on}
                 onClick={() => onStylist(s)}
-                className={`h-10 shrink-0 rounded-full border px-4 text-sm font-semibold ${
-                  on ? "border-stone-900 bg-stone-900 text-white" : "border-stone-300 bg-white"
+                className={`h-11 shrink-0 rounded-full border-[1.5px] border-[#16121A] px-4 text-[15px] font-semibold ${
+                  on ? "bg-[#16121A] text-[#FFF4E8]" : "bg-transparent"
                 }`}
               >
                 {s ?? "Anyone"}
@@ -583,7 +585,7 @@ function TimeStep({
                   setHistory(history.slice(0, -1));
                   setFrom(prev);
                 }}
-                className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-stone-100"
+                className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-[#F2E8DC]"
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
@@ -598,12 +600,12 @@ function TimeStep({
                     type="button"
                     aria-pressed={on}
                     onClick={() => setDay(d.date)}
-                    className={`flex h-[4.75rem] w-[3.9rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border ${
+                    className={`flex h-[4.75rem] w-[3.9rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[18px] border-[1.5px] tabular-nums ${
                       on
-                        ? "border-stone-900 bg-stone-900 text-white"
+                        ? "border-[#16121A] bg-[#16121A] text-[#FFF4E8]"
                         : shut
-                          ? "border-stone-100 bg-stone-100 text-stone-500"
-                          : "border-stone-300 bg-white"
+                          ? "border-dashed border-[#A89BB4] text-[#7A6E85]"
+                          : "border-[#16121A] bg-transparent"
                     }`}
                   >
                     <span className="text-xs font-medium">{dayLabel(d.date, salon.timeZone).dow}</span>
@@ -623,7 +625,7 @@ function TimeStep({
                   setHistory([...history, data.from]);
                   setFrom(data.next);
                 }}
-                className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-stone-100"
+                className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-[#F2E8DC]"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -633,7 +635,7 @@ function TimeStep({
           {loading ? (
             <SlotsSkeleton />
           ) : noneThisWeek ? (
-            <div className="space-y-3 rounded-2xl border border-stone-200 p-4">
+            <div className="space-y-3 rounded-2xl border border-[#D9CCE3] p-4">
               <p className="font-semibold">Nothing free these days{stylist ? ` with ${stylist}` : ""}.</p>
               <div className="flex flex-wrap gap-2">
                 {data.next && (
@@ -643,7 +645,7 @@ function TimeStep({
                       setHistory([...history, data.from]);
                       setFrom(data.next);
                     }}
-                    className="h-11 rounded-full border border-stone-300 px-4 text-sm font-semibold"
+                    className="h-11 rounded-full border-[1.5px] border-[#16121A] px-4 text-sm font-semibold"
                   >
                     Try the next week
                   </button>
@@ -652,7 +654,7 @@ function TimeStep({
                   <button
                     type="button"
                     onClick={() => onStylist(null)}
-                    className="h-11 rounded-full border border-stone-300 px-4 text-sm font-semibold"
+                    className="h-11 rounded-full border-[1.5px] border-[#16121A] px-4 text-sm font-semibold"
                   >
                     Anyone available
                   </button>
@@ -667,14 +669,14 @@ function TimeStep({
                 if (slots.length === 0) return null;
                 return (
                   <div key={period} className="space-y-2">
-                    <h3 className="text-sm text-stone-600">{period}</h3>
+                    <h3 className="text-sm text-[#5A4F63]">{period}</h3>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                       {slots.map((s) => (
                         <button
                           key={s.start}
                           type="button"
                           onClick={() => onPick(s)}
-                          className="h-12 rounded-xl border border-stone-300 text-base font-semibold hover:border-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+                          className="h-[50px] rounded-[14px] border-[1.5px] border-[#16121A] bg-white text-base font-semibold tabular-nums transition-colors duration-150 hover:bg-[#16121A] hover:text-[#FFF4E8] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#16121A]"
                         >
                           {timeText(s.start, salon.timeZone)}
                         </button>
@@ -683,10 +685,10 @@ function TimeStep({
                   </div>
                 );
               })}
-              <p className="text-sm text-stone-600">Tap a time to continue.</p>
+              <p className="text-sm text-[#5A4F63]">Tap a time to continue.</p>
             </section>
           ) : selected ? (
-            <p className="rounded-2xl bg-stone-100 p-4 text-stone-700">
+            <p className="rounded-2xl bg-[#F2E8DC] p-4 text-[#3D3447]">
               {selected.status === "closed"
                 ? "We're closed that day."
                 : selected.status === "off"
@@ -705,7 +707,7 @@ function SlotsSkeleton() {
   return (
     <div className="grid grid-cols-3 gap-2" aria-busy="true" aria-label="Loading times">
       {Array.from({ length: 9 }).map((_, i) => (
-        <span key={i} className="h-12 animate-pulse rounded-xl bg-stone-100" />
+        <span key={i} className="h-12 animate-pulse rounded-xl bg-[#F2E8DC]" />
       ))}
     </div>
   );
@@ -795,7 +797,7 @@ function DetailsStep({
           <p className="font-bold">{problem.error}</p>
           {problem.alternatives && problem.alternatives.length > 0 ? (
             <>
-              <p className="text-sm text-stone-700">These are the closest. Tap one and we&rsquo;ll keep your details.</p>
+              <p className="text-sm text-[#3D3447]">These are the closest. Tap one and we&rsquo;ll keep your details.</p>
               <div className="grid grid-cols-3 gap-2">
                 {problem.alternatives.map((a) => (
                   <button
@@ -805,10 +807,10 @@ function DetailsStep({
                       onSlot(a);
                       setProblem(null);
                     }}
-                    className="flex h-14 flex-col items-center justify-center rounded-xl border-2 border-stone-300 bg-white"
+                    className="flex h-14 flex-col items-center justify-center rounded-xl border-2 border-[#16121A] bg-white"
                   >
                     <span className="font-bold">{timeText(a.start, salon.timeZone)}</span>
-                    <span className="text-xs text-stone-600">{shortDay(a.start, slot.start, salon.timeZone)}</span>
+                    <span className="text-xs text-[#5A4F63]">{shortDay(a.start, slot.start, salon.timeZone)}</span>
                   </button>
                 ))}
               </div>
@@ -819,10 +821,10 @@ function DetailsStep({
           </button>
         </div>
       ) : (
-        <div className="divide-y divide-stone-100 rounded-2xl border border-stone-200 px-4">
+        <div className="divide-y divide-[#D9CCE3] rounded-2xl border border-[#D9CCE3] px-4">
           <div className="flex items-center gap-3 py-3">
             <span className="flex flex-1 flex-col">
-              <span className="text-sm text-stone-600">When</span>
+              <span className="text-sm text-[#5A4F63]">When</span>
               <span className="font-semibold">
                 {longDay(dateIn(slot.start, salon.timeZone), salon.timeZone, true)}{" "}
                 · {timeText(slot.start, salon.timeZone)}
@@ -834,12 +836,12 @@ function DetailsStep({
           </div>
           <div className="flex items-center gap-3 py-3">
             <span className="flex flex-1 flex-col">
-              <span className="text-sm text-stone-600">Service</span>
+              <span className="text-sm text-[#5A4F63]">Service</span>
               <span className="font-semibold">
                 {service.name}
                 {who ? ` with ${who}` : ""}
               </span>
-              <span className="text-sm text-stone-600">
+              <span className="text-sm text-[#5A4F63]">
                 {durationText(service.durationMinutes)}
                 {service.priceMinor !== null ? ` · ${formatMoneyShort(service.priceMinor)}, paid at the salon` : ""}
               </span>
@@ -851,7 +853,7 @@ function DetailsStep({
         </div>
       )}
 
-      <h1 className="font-heading text-2xl font-extrabold tracking-tight">Who&rsquo;s it for?</h1>
+      <h1 className="m-0 text-[40px]" style={displayStyle}>Who&rsquo;s it for?</h1>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-semibold">Your name</span>
@@ -860,7 +862,7 @@ function DetailsStep({
           autoComplete="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="h-[3.25rem] rounded-xl border border-stone-400 px-3.5 text-[1.05rem] outline-none focus:border-stone-900 focus:ring-2 focus:ring-[var(--brand)]/30"
+          className="h-[3.375rem] rounded-[14px] border-[1.5px] border-[#16121A] bg-white px-3.5 text-[1.05rem] outline-none focus:ring-4 focus:ring-[var(--brand)]/40"
         />
       </label>
       <label className="flex flex-col gap-1.5">
@@ -873,9 +875,9 @@ function DetailsStep({
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           aria-invalid={problem?.code === "phone"}
-          className="h-[3.25rem] rounded-xl border border-stone-400 px-3.5 text-[1.05rem] outline-none focus:border-stone-900 focus:ring-2 focus:ring-[var(--brand)]/30"
+          className="h-[3.375rem] rounded-[14px] border-[1.5px] border-[#16121A] bg-white px-3.5 text-[1.05rem] outline-none focus:ring-4 focus:ring-[var(--brand)]/40"
         />
-        <span className="text-sm text-stone-600">We&rsquo;ll text your confirmation and a reminder before your visit.</span>
+        <span className="text-sm text-[#5A4F63]">We&rsquo;ll text your confirmation and a reminder before your visit.</span>
       </label>
 
       {/* Never shown to a person; a bot fills in every field. */}
@@ -892,7 +894,7 @@ function DetailsStep({
             maxLength={500}
             rows={3}
             onChange={(e) => setNotes(e.target.value)}
-            className="rounded-xl border border-stone-400 px-3.5 py-2.5 outline-none focus:border-stone-900"
+            className="rounded-[14px] border-[1.5px] border-[#16121A] bg-white px-3.5 py-2.5 outline-none focus:ring-4 focus:ring-[var(--brand)]/40"
           />
         </label>
       ) : (
@@ -911,16 +913,16 @@ function DetailsStep({
         </p>
       )}
 
-      <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-stone-200 bg-white px-4 pb-4 pt-3">
+      <div className="sticky bottom-0 -mx-4 space-y-2 border-t-[1.5px] border-[#16121A] bg-[#FFF4E8] px-4 pb-4 pt-3">
         <button
           type="submit"
           disabled={sending || Boolean(timeGone)}
           className="flex h-14 w-full items-center justify-center rounded-full text-[1.05rem] font-semibold disabled:opacity-60"
-          style={{ background: "var(--brand)", color: "var(--brand-fg)" }}
+          style={{ background: INK, color: CREAM }}
         >
           {sending ? "Booking…" : "Confirm booking"}
         </button>
-        <p className="text-center text-xs text-stone-600">No account needed. You&rsquo;ll get a text to confirm.</p>
+        <p className="text-center text-xs text-[#5A4F63]">No account needed. You&rsquo;ll get a text to confirm.</p>
       </div>
     </form>
   );
@@ -961,37 +963,39 @@ function DoneStep({
   return (
     <div className="flex flex-col gap-6 pt-6">
       <div className="flex flex-col items-center gap-3 text-center">
-        <span className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-green-100">
-          <Check className="h-9 w-9 text-green-700" strokeWidth={2.5} aria-hidden="true" />
+        <span className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full" style={{ background: "var(--brand)", color: "var(--brand-fg)" }}>
+          <Check className="h-9 w-9" strokeWidth={2.5} aria-hidden="true" />
         </span>
-        <h1 className="font-heading text-[1.75rem] font-extrabold tracking-tight" tabIndex={-1}>
+        <h1 className="m-0 text-[48px]" style={displayStyle} tabIndex={-1}>
           You&rsquo;re booked{first ? `, ${first}` : ""}
         </h1>
-        <p className="text-stone-600">
+        <p className="text-[#5A4F63]">
           {booked.textSent ? "We've texted you the details." : "Keep a note of the details below."}
         </p>
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-stone-200 p-5">
+      <div className="space-y-4 rounded-[22px] border-[1.5px] border-[#16121A] bg-white p-5">
         {booked.bookingNumber !== null && (
           <div className="flex justify-between text-sm">
-            <span className="text-stone-600">Booking number</span>
+            <span className="text-[#5A4F63]">Booking number</span>
             <span className="font-bold tracking-wide">{booked.bookingNumber}</span>
           </div>
         )}
         <div className="space-y-1">
-          <p className="font-heading text-xl font-bold">
-            {longDay(dateIn(booked.start, salon.timeZone), salon.timeZone, true)} · {timeText(booked.start, salon.timeZone)}
+          <p className="text-[21px] font-bold tabular-nums">
+            {longDay(dateIn(booked.start, salon.timeZone), salon.timeZone, true)}
+            <br />
+            {timeText(booked.start, salon.timeZone)}
           </p>
           <p>
             {booked.service}
             {booked.stylist ? ` with ${booked.stylist}` : ""}
           </p>
-          {salon.address && <p className="text-sm text-stone-600">{salon.address}</p>}
+          {salon.address && <p className="text-sm text-[#5A4F63]">{salon.address}</p>}
         </div>
         {booked.skinTest && (
-          <p className="flex gap-2 rounded-xl bg-sky-50 p-3 text-sm">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-800" aria-hidden="true" />
+          <p className="flex gap-2 rounded-xl bg-[#F2E8DC] p-3 text-sm">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#3D3447]" aria-hidden="true" />
             You&rsquo;ll need a skin test at the salon at least 48 hours before. The salon will be in touch to arrange it.
           </p>
         )}
@@ -999,7 +1003,7 @@ function DoneStep({
           <a
             href={`data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`}
             download="appointment.ics"
-            className="flex h-12 items-center justify-center gap-2 rounded-xl border border-stone-300 text-[0.95rem] font-semibold"
+            className="flex h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold"
           >
             <Calendar className="h-4 w-4" aria-hidden="true" /> Add to calendar
           </a>
@@ -1008,14 +1012,14 @@ function DoneStep({
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${salon.name}, ${salon.address}`)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-12 items-center justify-center gap-2 rounded-xl border border-stone-300 text-[0.95rem] font-semibold"
+              className="flex h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold"
             >
               <MapPin className="h-4 w-4" aria-hidden="true" /> Directions
             </a>
           ) : salon.phone ? (
             <a
               href={`tel:${salon.phone}`}
-              className="flex h-12 items-center justify-center rounded-xl border border-stone-300 text-[0.95rem] font-semibold"
+              className="flex h-12 items-center justify-center rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold"
             >
               Call the salon
             </a>
@@ -1024,7 +1028,7 @@ function DoneStep({
       </div>
 
       {salon.phone && (
-        <p className="text-center text-sm text-stone-600">
+        <p className="text-center text-sm text-[#5A4F63]">
           Need to change it? Ring us on{" "}
           <a className="font-semibold underline" href={`tel:${salon.phone}`}>
             {salon.phone}
@@ -1037,12 +1041,12 @@ function DoneStep({
         <button
           type="button"
           onClick={onAgain}
-          className="h-12 rounded-full border border-stone-300 font-semibold"
+          className="h-12 rounded-full border-[1.5px] border-[#16121A] font-semibold"
         >
           Book someone else
         </button>
         {onClose && (
-          <button type="button" onClick={onClose} className="h-12 rounded-full font-semibold text-stone-700">
+          <button type="button" onClick={onClose} className="h-12 rounded-full font-semibold text-[#3D3447]">
             Close
           </button>
         )}

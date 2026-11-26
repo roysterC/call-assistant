@@ -155,3 +155,118 @@ export function designMessageLink(
   }
   return null;
 }
+
+/**
+ * The accent for stickers and the underline on the salon's page: orange,
+ * unless the salon's own colour is already red, orange or yellow, when
+ * orange would clash or vanish, so cream instead.
+ */
+export function accentFor(brandHex: string): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(brandHex.trim());
+  if (!m) return "#ff8748";
+  const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  // Greys and near-greys have no hue to clash with.
+  if (d < 0.08) return "#ff8748";
+  let hue: number;
+  if (max === r) hue = (((g - b) / d) % 6) * 60;
+  else if (max === g) hue = ((b - r) / d + 2) * 60;
+  else hue = ((r - g) / d + 4) * 60;
+  if (hue < 0) hue += 360;
+  return hue < 65 || hue > 330 ? "#fff4e8" : "#ff8748";
+}
+
+/** One answer to "Not sure what to book?", pointing at a treatment the salon offers. */
+export interface NailGoal {
+  art: TileArt;
+  /** What the client wants, in their words. */
+  goal: string;
+  /** What the treatment is, in plain English. */
+  why: string;
+  /** The salon's own name for it ("BIAB", "Builder gel"). */
+  name: string;
+  /** Where "Book" goes: as a treatment tile does. */
+  query: TreatmentTile["query"];
+  /** The lowest price among its options, in pence, if any are priced. */
+  fromMinor: number | null;
+  /** The shortest of its options, in minutes. */
+  minutes: number;
+}
+
+const GOALS: { art: TileArt; goal: string; why: string }[] = [
+  {
+    art: "biab",
+    goal: "Strong nails while mine grow",
+    why: "A builder gel overlay that protects your own nails so they can grow without snapping. Most people come back for an infill every 3 to 4 weeks.",
+  },
+  {
+    art: "gel",
+    goal: "Colour that won’t chip for weeks",
+    why: "Any colour you like, set hard under a lamp. Dry the moment you leave and chip-free for two to three weeks.",
+  },
+  {
+    art: "acrylic",
+    goal: "Length or a shape I don’t have",
+    why: "Extensions built on top of your own nails and shaped how you want them: almond, square, coffin or stiletto.",
+  },
+  {
+    art: "art",
+    goal: "Something nobody else has",
+    why: "Designs painted by hand. Bring a photo, or tell us a mood and we’ll work something out with you.",
+  },
+  {
+    art: "pedicure",
+    goal: "Feet ready to show off",
+    why: "A soak, file, hard-skin care and polish, so your feet feel as good as they look.",
+  },
+];
+
+/**
+ * The plain-English chooser on the salon's page, built from what the salon
+ * actually offers: one goal per kind of treatment it has, in the salon's own
+ * words and prices. Empty when fewer than two kinds would show, as a choice
+ * of one helps nobody.
+ */
+export function nailGoals(services: PublicService[]): NailGoal[] {
+  const tiles = treatmentTiles(services);
+  const out: NailGoal[] = [];
+  for (const g of GOALS) {
+    const tile = tiles.find((t) => t.art === g.art);
+    if (!tile) continue;
+    const q = tile.query;
+    const pool =
+      "treatment" in q
+        ? services.filter((s) => s.treatment?.trim() === q.treatment)
+        : services.filter((s) => s.name === q.service);
+    if (pool.length === 0) continue;
+    const priced = pool.map((s) => s.priceMinor).filter((p): p is number => p !== null);
+    out.push({
+      ...g,
+      name: tile.name,
+      query: tile.query,
+      fromMinor: priced.length ? Math.min(...priced) : null,
+      minutes: Math.min(...pool.map((s) => s.durationMinutes)),
+    });
+  }
+  return out.length >= 2 ? out : [];
+}
+
+/** The services under their treatment headings, in menu order, for the price list. */
+export function menuGroups(services: PublicService[]): { heading: string | null; services: PublicService[] }[] {
+  const groups: { heading: string | null; services: PublicService[] }[] = [];
+  for (const s of services) {
+    const heading = s.treatment?.trim() || null;
+    const g = groups.find((x) => x.heading === heading);
+    if (g) g.services.push(s);
+    else groups.push({ heading, services: [s] });
+  }
+  // Unheaded services go last, under "More", when anything else has a heading.
+  const loose = groups.findIndex((g) => g.heading === null);
+  if (loose >= 0 && groups.length > 1) {
+    const [g] = groups.splice(loose, 1);
+    groups.push({ heading: "More", services: g.services });
+  }
+  return groups;
+}

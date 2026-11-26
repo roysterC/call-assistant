@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  accentFor,
   artFor,
   clockText,
   designMessageLink,
   lowestPrice,
+  menuGroups,
+  nailGoals,
   openDaysText,
   openStatus,
   treatmentTiles,
@@ -114,5 +117,58 @@ describe("the rest of the page", () => {
     });
     expect(designMessageLink({ instagram: null, whatsapp: { number: "+44 7700 900123" } })?.href).toBe("https://wa.me/447700900123");
     expect(designMessageLink(null)).toBeNull();
+  });
+});
+
+describe("accentFor", () => {
+  it("is orange on cool and neutral brand colours", () => {
+    expect(accentFor("#b794f6")).toBe("#ff8748");
+    expect(accentFor("#2b6cb0")).toBe("#ff8748");
+    expect(accentFor("#777777")).toBe("#ff8748");
+  });
+  it("is cream where orange would clash", () => {
+    expect(accentFor("#9d3b5e")).toBe("#fff4e8");
+    expect(accentFor("#e0702f")).toBe("#fff4e8");
+    expect(accentFor("#f2c14e")).toBe("#fff4e8");
+  });
+  it("falls back to orange for anything that isn't a colour", () => {
+    expect(accentFor("pink")).toBe("#ff8748");
+  });
+});
+
+describe("nailGoals", () => {
+  it("offers one goal per kind of treatment, in the salon's words and prices", () => {
+    const goals = nailGoals([
+      { ...svc("BIAB overlay", "Builder gel", 3500), durationMinutes: 75 },
+      { ...svc("BIAB infill", "Builder gel", 3000), durationMinutes: 60 },
+      svc("Gel manicure", "Gel", 2800),
+      svc("Gel pedicure", "Pedicures", 3200),
+    ]);
+    expect(goals.map((g) => g.art)).toEqual(["biab", "gel", "pedicure"]);
+    expect(goals[0]).toMatchObject({ name: "Builder gel", fromMinor: 3000, minutes: 60, query: { treatment: "Builder gel" } });
+    expect(goals[1]).toMatchObject({ name: "Gel", query: { service: "Gel manicure" } });
+  });
+  it("works from service names when there are no treatments", () => {
+    const goals = nailGoals([svc("Acrylic full set", undefined, 4000), svc("Nail art (per nail)")]);
+    expect(goals.map((g) => [g.art, g.name, g.fromMinor])).toEqual([
+      ["acrylic", "Acrylic full set", 4000],
+      ["art", "Nail art (per nail)", null],
+    ]);
+  });
+  it("is empty when there would be only one choice", () => {
+    expect(nailGoals([svc("Gel manicure", "Gel"), svc("Gel removal", "Gel")])).toEqual([]);
+  });
+});
+
+describe("menuGroups", () => {
+  it("groups by treatment and puts loose services last as More", () => {
+    const groups = menuGroups([svc("Classic manicure"), svc("Gel manicure", "Gel"), svc("Gel toes", "Gel")]);
+    expect(groups.map((g) => [g.heading, g.services.length])).toEqual([
+      ["Gel", 2],
+      ["More", 1],
+    ]);
+  });
+  it("leaves a flat price list unheaded", () => {
+    expect(menuGroups([svc("A"), svc("B")])).toEqual([{ heading: null, services: [svc("A"), svc("B")] }]);
   });
 });
