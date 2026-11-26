@@ -16,7 +16,8 @@ import { hashPassword, validatePassword } from "@/lib/password";
 import { isTenantRole } from "@/lib/tenant-roles";
 import { normaliseEmail } from "@/lib/invitations";
 import { actionEmail, sendEmail } from "@/lib/email";
-import { DEFAULT_LANG, isLang, translate, type Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, isLang, type Lang } from "@/lib/i18n";
+import { translate } from "@/lib/i18n/server";
 
 /** A login's own language for its emails: theirs if chosen, English otherwise. */
 function langOf(language: string | null | undefined): Lang {

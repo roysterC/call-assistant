@@ -40,7 +40,7 @@ import { shownFailureReason, textFailureKey } from "@/lib/text-failure";
 import { useT } from "@/components/providers/language-provider";
 import { useMe } from "@/components/providers/me-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
-import { CHANNEL_META, avatarColorFor, initialsFor, type Channel } from "@/lib/channels";
+import { avatarColorFor, channelLabel, initialsFor } from "@/lib/channels";
 import { DATE_FNS_LOCALE, INTL_LOCALE, clockTime, type Clock, type Lang, type Translate } from "@/lib/i18n";
 import type { VisitSummaryJson } from "@/lib/client-summary";
 import { DuplicateCheck } from "@/components/clients/duplicate-check";
@@ -347,7 +347,7 @@ export function ClientProfile({
         <HistoryLine
           icon={<MessageCircle className="h-3.5 w-3.5" />}
           tone="bg-light-bronze-900 text-light-bronze-200"
-          title={t("client.chatOn", { channel: CHANNEL_META[c.channel as Channel]?.label ?? c.channel })}
+          title={t("client.chatOn", { channel: channelLabel(c.channel, t) ?? c.channel })}
           sub={t("client.chatLast", { when: when(c.lastMessageAt, timeZone, lang, clock) })}
           right={
             <Link href={chatHref(c)} className="text-[13px] font-semibold text-primary hover:underline">
@@ -441,7 +441,7 @@ export function ClientProfile({
           )}
           {chat ? (
             <Link href={chatHref(chat)} className={buttonVariants({ variant: "outline", className: "h-10 px-3.5 text-sm" })}>
-              <MessageCircle /> {CHANNEL_META[chat.channel as Channel]?.label ?? t("client.text")}
+              <MessageCircle /> {channelLabel(chat.channel, t) ?? t("client.text")}
             </Link>
           ) : (
             phone && (
@@ -657,7 +657,7 @@ export function ClientProfile({
         )}
         {chat ? (
           <Link href={chatHref(chat)} className={buttonVariants({ variant: "outline", className: "h-12 rounded-[14px] text-[15px]" })}>
-            <MessageCircle /> {CHANNEL_META[chat.channel as Channel]?.label ?? t("client.text")}
+            <MessageCircle /> {channelLabel(chat.channel, t) ?? t("client.text")}
           </Link>
         ) : phone ? (
           <a href={`sms:${phone}`} className={buttonVariants({ variant: "outline", className: "h-12 rounded-[14px] text-[15px]" })}>

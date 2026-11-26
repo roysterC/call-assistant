@@ -41,6 +41,15 @@ import { cn } from "@/lib/utils";
 import { CAPTURE_WORKLET, MIC_RATE } from "@/components/receptionist/capture-worklet";
 import { useT } from "@/components/providers/language-provider";
 
+
+/** What to say to the assistant. It understands English only so far, so these stay English in every language. */
+const ENGLISH_EXAMPLES = [
+  "What’s my afternoon looking like?",
+  "Sarah Jones, gel polish, Thursday at two, and text her.",
+  "When was Tom last in?",
+  "How much did we take this week?",
+];
+
 export interface VoiceDraft {
   id: string;
   kind: "book" | "move" | "cancel" | "note" | "text" | "details";
@@ -561,13 +570,14 @@ export function Assistant() {
             {lines.length === 0 && !heard && !needsTap && (
               <div className="space-y-1.5 text-sm text-muted-foreground">
                 {/* It understands English only so far: the examples stay English. */}
-                <p>{lang === "vi" ? t("assistant.englishOnly") : t("assistant.intro")}</p>
+                <p>{lang !== "en" ? t("assistant.englishOnly") : t("assistant.intro")}</p>
                 <p>
-                  <em>&ldquo;What&rsquo;s my afternoon looking like?&rdquo;</em>
-                  <br />
-                  <em>&ldquo;Sarah Jones, gel polish, Thursday at two, and text her.&rdquo;</em>
-                  <br />
-                  <em>&ldquo;When was Tom last in?&rdquo;</em> <em>&ldquo;How much did we take this week?&rdquo;</em>
+                  {ENGLISH_EXAMPLES.map((ex, i) => (
+                    <span key={ex}>
+                      {i > 0 && <br />}
+                      <em>{`“${ex}”`}</em>
+                    </span>
+                  ))}
                 </p>
                 <p>{t("assistant.nothingUntilYes")}</p>
               </div>

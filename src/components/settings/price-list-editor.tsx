@@ -366,7 +366,7 @@ function TreatmentFields({
 
       <label className="flex flex-col gap-1.5">
         <span className={label}>{t("menu.treatmentName")}</span>
-        <input value={tr.name} onChange={(e) => onChange({ ...tr, name: e.target.value })} placeholder="Acrylic" className={cn(box, "h-11")} />
+        <input value={tr.name} onChange={(e) => onChange({ ...tr, name: e.target.value })} placeholder={t("price.exampleTreatment")} className={cn(box, "h-11")} />
       </label>
 
       {/* The services, each a row: name, minutes, from-price. */}
@@ -683,7 +683,7 @@ function ExtraFields({
       <DialogTitle className="truncate pr-8 font-heading text-xl font-extrabold">{x.name || t("menu.newExtra")}</DialogTitle>
       <label className="flex flex-col gap-1.5">
         <span className={label}>{t("svc.name")}</span>
-        <input value={x.name} onChange={(e) => onChange({ ...x, name: e.target.value })} placeholder="Nail art, tier 1" className={cn(box, "h-11")} />
+        <input value={x.name} onChange={(e) => onChange({ ...x, name: e.target.value })} placeholder={t("price.exampleExtra")} className={cn(box, "h-11")} />
       </label>
       <label className="flex flex-col gap-1.5">
         <span className={label}>{t("menu.note")}</span>

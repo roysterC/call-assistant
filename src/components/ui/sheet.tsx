@@ -6,6 +6,13 @@ import { Dialog as SheetPrimitive } from "@animate-ui/react/primitives/base-ui/d
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
+import { useT } from "@/components/providers/language-provider"
+
+/** "Close", in the reader's language, read out on the corner cross. */
+function SheetCloseLabel() {
+  const { t } = useT()
+  return <span className="sr-only">{t("common.close")}</span>
+}
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -72,7 +79,7 @@ function SheetContent({
           >
             <XIcon
             />
-            <span className="sr-only">Close</span>
+            <SheetCloseLabel />
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

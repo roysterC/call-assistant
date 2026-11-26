@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { loadOnlineSalon, onlineAvailability } from "@/lib/online-booking";
+import { loadOnlineSalon } from "@/lib/online-booking";
 import { SalonSite } from "@/components/online-booking/salon-site";
 import { salonUrlsHere } from "@/lib/booking-host-server";
 import { salonChatSiteId } from "@/lib/salon-chat";
@@ -34,16 +34,6 @@ export default async function SalonPage({ params }: Props) {
   const online = await loadOnlineSalon(slug);
   if (!online) notFound();
 
-  // The soonest free time for the first service, for one-tap "Next free".
-  // Not colour: a new client would first have to say whether they are new.
-  let nextFree = null;
-  const first = online.salon.services.find((s) => !s.requiresPatchTest);
-  if (online.takesBookings && first) {
-    const res = await onlineAvailability(online, { service: first.name }).catch(() => null);
-    const day = res?.ok ? res.days.find((d) => d.slots.length > 0) : null;
-    if (day) nextFree = { service: first.name, slot: day.slots[0], date: day.date };
-  }
-
   const [urls, chat, designChats] = await Promise.all([
     salonUrlsHere(online.salon.slug),
     salonChatSiteId(online.organizationId),
@@ -54,7 +44,6 @@ export default async function SalonPage({ params }: Props) {
       <SalonSite
         salon={online.salon}
         takesBookings={online.takesBookings}
-        nextFree={nextFree}
         bookPath={urls.book}
         messageUs={designMessageLink(designChats)}
       />

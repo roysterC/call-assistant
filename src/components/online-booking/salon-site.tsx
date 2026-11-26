@@ -21,7 +21,7 @@ import { NailChooser } from "./nail-chooser";
 import { CREAM, INK, MUTED, TEXT, displayStyle, salonFontVars } from "./fonts";
 import { HERO_PHOTO, IDEA_PHOTOS, PHOTOS } from "./photos";
 import { formatMoneyShort } from "@/lib/money";
-import type { PublicSalon, PublicSlot } from "@/lib/online-booking";
+import type { PublicSalon } from "@/lib/online-booking";
 import {
   accentFor,
   lowestPrice,
@@ -31,10 +31,9 @@ import {
   openStatus,
   treatmentTiles,
   weekHours,
-  whenText,
   type TileArt,
 } from "@/lib/online-booking/salon-page";
-import { brandStyle, durationText, timeText } from "./format";
+import { brandStyle, durationText } from "./format";
 
 function withQuery(path: string, q: Record<string, string | null | undefined> = {}): string {
   const p = new URLSearchParams();
@@ -89,7 +88,6 @@ const WRAP = "mx-auto w-full max-w-[1280px] px-4 md:px-[clamp(24px,4vw,56px)]";
 export function SalonSite({
   salon,
   takesBookings,
-  nextFree,
   bookPath,
   messageUs,
 }: {
@@ -97,8 +95,6 @@ export function SalonSite({
   takesBookings: boolean;
   /** The booking flow's path on the address this page was opened on. */
   bookPath: string;
-  /** The soonest free time for the first service, if there is one. */
-  nextFree: { service: string; slot: PublicSlot; date: string } | null;
   /** Where to send a photo of a design to be quoted: the salon's Instagram or WhatsApp. */
   messageUs: { label: string; href: string } | null;
 }) {
@@ -232,23 +228,6 @@ export function SalonSite({
                       <Phone className="h-[18px] w-[18px]" aria-hidden="true" /> Call {salon.phone} to book
                     </a>
                   )
-                )}
-                {takesBookings && nextFree && (
-                  <BookLink
-                    href={withQuery(bookPath, { service: nextFree.service, start: nextFree.slot.start, stylist: nextFree.slot.stylist })}
-                    className="flex max-w-[520px] items-center gap-4 rounded-[20px] border-[1.5px] border-dashed px-5 py-4"
-                    style={{ borderColor: "currentColor" }}
-                  >
-                    <Sparkle size={24} fill="var(--pop)" stroke={INK} className="shrink-0" />
-                    <span className="flex flex-1 flex-col gap-0.5">
-                      <span className="text-[13px] font-bold">Next free</span>
-                      <span className="text-base font-semibold md:text-[17px]">
-                        {whenText(nextFree.date, timeText(nextFree.slot.start, salon.timeZone), salon.timeZone)} · {nextFree.service}
-                        {nextFree.slot.stylist && salon.stylists.length > 1 ? ` with ${nextFree.slot.stylist}` : ""}
-                      </span>
-                    </span>
-                    <ArrowUpRight className="h-5 w-5 shrink-0" aria-hidden="true" />
-                  </BookLink>
                 )}
               </div>
               <div className="relative min-w-0 self-stretch">

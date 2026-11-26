@@ -1,48 +1,76 @@
 /**
- * The CRM in more than one language: English, and Vietnamese for staff who
- * prefer it. Each person chooses (Account, or the login page); the choice
+ * The CRM in many languages: English, and whichever others are added.
+ *
+ * Each person chooses (Account, or the flags on every screen); the choice
  * lives on their user record and in the kikai-lang cookie, so the server
- * renders the right language from the first byte.
+ * renders the right language from the first byte. The words come from
+ * next-intl (src/components/providers/language-provider.tsx): one file per
+ * language, messages/<code>.json, English the master copy that every other
+ * is checked against (i18n.test.ts). A phrase missing from a language is
+ * shown in English.
  *
- * Translated so far: what staff use every day (the menu, login, Diary,
- * Clients, Callbacks, Dashboard, Account, booking alerts and the assistant's
- * panel). Other screens, messages from the server and everything clients
- * see (texts, the phone receptionist) are still English.
+ * Phrases are ICU messages: {name} fills a blank, and plurals and the like
+ * are written in the phrase ("{n, plural, one {# day} other {# days}}"), so
+ * a language with three forms of a plural can have all three.
  *
- * Messages sit side by side, English then Vietnamese, in messages/*.ts: a
- * line missing either fails the type check, and whoever checks the
- * Vietnamese sees the English it renders.
+ * What is translated: the staff app. Texts to clients, the phone
+ * receptionist and messages from the server stay in English.
+ *
+ * Adding a language: its entry in LANGUAGE_INFO below, and its
+ * messages/<code>.json (start from a copy of en.json). Its flag, if the
+ * language switch should show one, goes in language-flags.tsx.
  */
 
 import { enGB, vi } from "date-fns/locale";
 import type { Locale as DateFnsLocale } from "date-fns";
-import { MESSAGES, type MessageKey } from "./messages";
 
-export const LANGUAGES = { en: "English", vi: "Tiếng Việt" } as const;
-export type Lang = keyof typeof LANGUAGES;
+/** Each language the CRM is offered in, and how it writes dates and times. */
+export const LANGUAGE_INFO = {
+  en: { name: "English", intl: "en-GB", clock: "12h", dateFns: enGB },
+  vi: { name: "Tiếng Việt", intl: "vi-VN", clock: "24h", dateFns: vi },
+} as const satisfies Record<string, { name: string; intl: string; clock: "12h" | "24h"; dateFns: DateFnsLocale }>;
+
+export type Lang = keyof typeof LANGUAGE_INFO;
+export const LANGUAGE_CODES = Object.keys(LANGUAGE_INFO) as Lang[];
+export const LANGUAGES = Object.fromEntries(LANGUAGE_CODES.map((l) => [l, LANGUAGE_INFO[l].name])) as Record<Lang, string>;
 export const DEFAULT_LANG: Lang = "en";
 export const LANG_COOKIE = "kikai-lang";
 
 export function isLang(v: unknown): v is Lang {
-  return typeof v === "string" && v in LANGUAGES;
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(LANGUAGE_INFO, v);
 }
 
 /** For date-fns's format(): month and day names in the reader's language. */
-export const DATE_FNS_LOCALE: Record<Lang, DateFnsLocale> = { en: enGB, vi };
+export const DATE_FNS_LOCALE = Object.fromEntries(LANGUAGE_CODES.map((l) => [l, LANGUAGE_INFO[l].dateFns])) as Record<Lang, DateFnsLocale>;
 
 /** For Intl and toLocale*String: dates and numbers as each language writes them. */
-export const INTL_LOCALE: Record<Lang, string> = { en: "en-GB", vi: "vi-VN" };
+export const INTL_LOCALE = Object.fromEntries(LANGUAGE_CODES.map((l) => [l, LANGUAGE_INFO[l].intl])) as Record<Lang, string>;
+
+/** Every phrase, as English has them: the shape every language follows. */
+export type Messages = typeof import("./messages/en.json");
+
+/** "clients.title": the dotted path to one phrase. */
+type Leaves<T, P extends string = ""> = {
+  [K in keyof T & string]: T[K] extends string ? `${P}${K}` : Leaves<T[K], `${P}${K}.`>;
+}[keyof T & string];
+export type MessageKey = Leaves<Messages>;
 
 export type Vars = Record<string, string | number>;
 export type Translate = (key: MessageKey, vars?: Vars) => string;
 
-/** A message in `lang`, with {name} placeholders filled in. */
-export function translate(lang: Lang, key: MessageKey, vars?: Vars): string {
-  const text = MESSAGES[key][lang === "vi" ? 1 : 0];
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+/**
+ * The blanks as the phrase wants them. A number in a plain blank goes in as
+ * written ("Booking #1043", not ICU's "#1,043"); one the phrase counts with
+ * ({n, plural, …}) or formats ({n, number}) stays a number.
+ */
+export function blanks(raw: string, vars: Vars | undefined): Vars | undefined {
+  if (!vars) return vars;
+  const out: Vars = {};
+  for (const [k, v] of Object.entries(vars)) {
+    out[k] = typeof v === "number" && !new RegExp(`\\{\\s*${k}\\s*,`).test(raw) ? String(v) : v;
+  }
+  return out;
 }
-
-export type { MessageKey };
 
 /**
  * The clock a person reads times on: "2:15pm" or "14:15". Each chooses
@@ -58,7 +86,7 @@ export function isClock(v: unknown): v is Clock {
 }
 
 export function defaultClock(lang: Lang): Clock {
-  return lang === "vi" ? "24h" : "12h";
+  return LANGUAGE_INFO[lang].clock;
 }
 
 /**

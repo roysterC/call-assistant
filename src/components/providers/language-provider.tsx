@@ -10,7 +10,9 @@
  * had one is saved to them.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { NextIntlClientProvider, useTranslations, type AbstractIntlMessages } from "next-intl";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
 import {
@@ -18,12 +20,13 @@ import {
   DEFAULT_LANG,
   INTL_LOCALE,
   LANG_COOKIE,
+  blanks,
   defaultClock,
   isClock,
   isLang,
-  translate,
   type Clock,
   type Lang,
+  type Messages,
   type Translate,
 } from "@/lib/i18n";
 
@@ -54,23 +57,34 @@ const YEAR = 31536000;
 
 export function LanguageProvider({
   initial,
+  messages,
   initialClock = null,
   children,
 }: {
   initial: Lang;
+  /** The phrases in `initial`, from the server (src/lib/i18n/load.ts). */
+  messages: Messages;
   /** The clock chosen on this device (the kikai-clock cookie), if any. */
   initialClock?: Clock | null;
   children: React.ReactNode;
 }) {
-  const [lang, setLangState] = useState<Lang>(initial);
+  // The language is the server's: changing it sets the cookie and asks the
+  // server for the page again, which brings that language's phrases. Only
+  // the reader's language is ever sent to the browser.
+  const lang = initial;
   const [chosenClock, setChosenClock] = useState<Clock | null>(initialClock);
   const me = useMe();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
 
-  const apply = useCallback((next: Lang) => {
-    setLangState(next);
-    document.cookie = `${LANG_COOKIE}=${next}; path=/; max-age=${YEAR}; samesite=lax`;
-    document.documentElement.lang = next;
-  }, []);
+  const apply = useCallback(
+    (next: Lang) => {
+      document.cookie = `${LANG_COOKIE}=${next}; path=/; max-age=${YEAR}; samesite=lax`;
+      document.documentElement.lang = next;
+      startTransition(() => router.refresh());
+    },
+    [router]
+  );
 
   const saved = me?.language;
   const signedIn = Boolean(me);
@@ -122,7 +136,31 @@ export function LanguageProvider({
 
   const clock = chosenClock ?? defaultClock(lang);
   const value = useMemo(() => ({ lang, setLang, clock, setClock }), [lang, setLang, clock, setClock]);
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+  return (
+    <LanguageContext.Provider value={value}>
+      <NextIntlClientProvider
+        locale={lang}
+        messages={messages as unknown as AbstractIntlMessages}
+        // Dates and times are written by the app itself, in the salon's own
+        // time zone; this only quiets next-intl's warning that none is set.
+        timeZone="Europe/London"
+        onError={onMissing}
+        getMessageFallback={asWritten}
+      >
+        {children}
+      </NextIntlClientProvider>
+    </LanguageContext.Provider>
+  );
+}
+
+/** A phrase that cannot be filled in is logged while developing, never thrown. */
+function onMissing(error: Error) {
+  if (process.env.NODE_ENV !== "production") console.warn("[i18n]", error.message);
+}
+
+/** Shown in its place: the key, which a test makes sure never happens. */
+function asWritten({ key, namespace }: { key: string; namespace?: string }) {
+  return namespace ? `${namespace}.${key}` : key;
 }
 
 /** The chosen language and the means to change it. */
@@ -136,8 +174,16 @@ export function useLanguage(): LanguageState {
  */
 export function useT(): { t: Translate; lang: Lang; locale: string; clock: Clock } {
   const { lang, clock } = useContext(LanguageContext);
-  return useMemo(
-    () => ({ t: (key, vars) => translate(lang, key, vars), lang, locale: INTL_LOCALE[lang], clock }),
-    [lang, clock]
-  );
+  const intl = useTranslations() as unknown as {
+    (key: string, values?: Record<string, string | number>): string;
+    raw: (key: string) => unknown;
+  };
+  return useMemo(() => {
+    const t: Translate = (key, vars) => {
+      if (!vars) return intl(key);
+      const raw = intl.raw(key);
+      return intl(key, blanks(typeof raw === "string" ? raw : "", vars));
+    };
+    return { t, lang, locale: INTL_LOCALE[lang], clock };
+  }, [intl, lang, clock]);
 }

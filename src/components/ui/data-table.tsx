@@ -213,7 +213,7 @@ export function DataTable<T>({
             ) : visible.length === 0 ? (
               <tr>
                 <td colSpan={columnCount} className="p-0">
-                  {empty ?? <p className="px-5 py-10 text-center text-sm text-muted-foreground">Nothing here yet.</p>}
+                  {empty ?? <p className="px-5 py-10 text-center text-sm text-muted-foreground">{t("common.nothingYet")}</p>}
                 </td>
               </tr>
             ) : (
