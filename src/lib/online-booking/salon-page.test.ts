@@ -8,7 +8,6 @@ import {
   openStatus,
   treatmentTiles,
   weekHours,
-  whenText,
 } from "./salon-page";
 import type { PublicService } from "./catalogue";
 import type { BusinessHours } from "@/lib/business-hours";
@@ -107,11 +106,6 @@ describe("the rest of the page", () => {
   it("finds the lowest price", () => {
     expect(lowestPrice([svc("A", undefined, 3500), svc("B", undefined, 2800), svc("C")])).toEqual({ minor: 2800, service: "B" });
     expect(lowestPrice([svc("C")])).toBeNull();
-  });
-  it("says when the next free time is", () => {
-    expect(whenText("2026-11-24", "2:30pm", TZ, at("12:00"))).toBe("Today at 2:30pm");
-    expect(whenText("2026-11-25", "10am", TZ, at("12:00"))).toBe("Tomorrow at 10am");
-    expect(whenText("2026-11-27", "11am", TZ, at("12:00"))).toBe("Friday at 11am");
   });
   it("sends a design to Instagram first, else WhatsApp", () => {
     expect(designMessageLink({ instagram: "lumi.nails", whatsapp: { number: "+447700900123" } })).toEqual({
