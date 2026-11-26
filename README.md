@@ -590,36 +590,62 @@ offered. On a Google diary their calendars count too. Built in
 `src/lib/booking/free-now.ts` (the arithmetic) and `who-is-free.ts` (loading
 today's diary), served by `GET /api/appointments/free-now?service=`.
 
-### Languages (English and Vietnamese)
+### Languages
 
 Each person chooses the language the CRM is shown in: Account → Language,
-or the English / Tiếng Việt switch on the login page (saved to their account
-when they sign in). It is per person, so an owner can work in English while
-their stylists use Vietnamese, and it follows them to any device.
+or the flags on every screen (saved to their account when they sign in). It
+is per person, so an owner can work in English while their nail
+technicians use Vietnamese, and it follows them to any device. Today that is
+English and Vietnamese; the app is built to take many more.
 
-Translated so far: what staff use every day. That covers the menu, sign-in,
-Account, the Diary and every dialog opened from it, Clients, Callbacks, the
-Dashboard, the booking pop-ups, and the assistant's panel. Still English:
-Settings, Sales, Insights, Conversations, Websites, Call History, Admin, and
-messages that come from the server (an error saying why a booking was
-refused, for example). Anything clients see is unchanged (texts, the phone
-receptionist, the chat widget), and the personal assistant still listens and
-answers in English; its panel says so in Vietnamese.
+What is translated: the whole staff app. What stays English on purpose:
+anything clients see (texts, the phone receptionist, the website chat, the
+public booking pages), messages that come from the server (an error saying
+why a booking was refused), Kikai's own Admin and receptionist lab, and the
+legal pages. The personal assistant listens and answers in English only, so
+its spoken examples stay English and its panel says so in other languages.
 
-How it is built: `src/lib/i18n/`. Every message is a line in
-`messages/*.ts` with the English and the Vietnamese side by side, so a
-reviewer sees what each Vietnamese line is for. A missing translation fails
-the type check, and `i18n.test.ts` checks that both sides fill the same
-`{placeholders}` and that nothing was left in English by mistake. Screens use
-`useT()` (`src/components/providers/language-provider.tsx`) for `t(key)` and
-for the `locale` that dates and numbers are formatted in; Vietnamese uses the
-24-hour clock. The choice is kept on `User.language` and in the `kikai-lang`
-cookie, which the root layout reads so the page is rendered in the right
-language from the start.
+**How it is built** (`src/lib/i18n/`):
+
+- One file per language, `messages/<code>.json`, read by
+  [next-intl](https://next-intl.dev). English (`en.json`) is the master copy.
+  Phrases are ICU messages: `{name}` fills a blank, and plurals are written
+  in the phrase (`"{n, plural, one {# day} other {# days}}"`), so a language
+  with more plural forms can have them all.
+- Screens call `t("clients.title")` from `useT()`
+  (`src/components/providers/language-provider.tsx`), type-checked against
+  `en.json`, and use its `locale` for dates and numbers. A plain number blank
+  is written as given (booking #1043, never #1,043).
+- The root layout reads the `kikai-lang` cookie (kept in step with
+  `User.language`) and sends the browser only that language's phrases; a
+  phrase a language lacks shows in English. Emails a person is sent use
+  `translate()` from `src/lib/i18n/server.ts`.
+- `i18n.test.ts` fails if a language is missing a phrase, has one English
+  lacks, fills different blanks, or was left in English by mistake.
+- The lint rule `i18next/no-literal-string` (eslint.config.mjs) fails a
+  staff screen with English typed straight into it. Words built in code
+  (`notify("…")`, `setError("…")`) are not caught by it: use `t()` there too.
+- **Accented English**, for checking a screen while developing: run
+  `document.cookie = "kikai-lang=pseudo; path=/"` in the browser and reload.
+  Every phrase shows accented, a third longer, in brackets
+  (`[Çļîéñţš ··]`): plain English left on the page is untranslated, and a
+  phrase without its closing bracket is cut short. Set the cookie back to
+  `en` to leave it. It never runs in production.
+
+**Adding a language:** add its entry to `LANGUAGE_INFO` in
+`src/lib/i18n/index.ts` (name, date and number locale, default clock, date
+library locale), copy `en.json` to `messages/<code>.json` and translate it,
+and add it to `FILES` in `load.ts` and `i18n.test.ts`. A flag can be drawn
+for it in `src/components/i18n/language-flags.tsx`; without one the switch
+shows its code. A right-to-left language (Arabic, Hebrew, Urdu) also needs
+the layout's left/right spacing changed to start/end first, and Thai or
+Chinese, Japanese and Korean need fonts added: Inter covers Latin,
+Vietnamese and Cyrillic only.
 
 The Vietnamese was written for this, not by a native speaker: have one read
-it over in `messages/` before relying on it, especially the salon words
-(thợ for stylist, thử dị ứng for patch test, chặn giờ for blocked time).
+`messages/vi.json` over before relying on it, especially the salon words
+(thợ for nail technician, thử dị ứng for patch test, chặn giờ for blocked
+time).
 
 ### Booking alerts
 

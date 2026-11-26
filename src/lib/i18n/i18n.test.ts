@@ -3,6 +3,7 @@ import { parse, TYPE, type MessageFormatElement } from "@formatjs/icu-messagefor
 import { clockTime, dateClockTime, defaultClock, isClock, isLang, LANGUAGE_CODES, minutesTime } from ".";
 import { translate } from "./server";
 import { messagesFor } from "./load";
+import { pseudoMessages, pseudoPhrase } from "./pseudo";
 import en from "./messages/en.json";
 import vi from "./messages/vi.json";
 
@@ -120,5 +121,13 @@ describe("the CRM's languages", () => {
     expect(defaultClock("vi")).toBe("24h");
     expect(isClock("24h")).toBe(true);
     expect(isClock("24")).toBe(false);
+  });
+
+  it("has an accented test language whose every phrase still fills in", () => {
+    expect(pseudoPhrase("Clients")).toBe("[Çļîéñţš ··]");
+    const pseudo = flat(pseudoMessages(messagesFor("en")));
+    for (const [key, phrase] of english) {
+      expect(blanksOf(pseudo.get(key)!), key).toEqual(blanksOf(phrase));
+    }
   });
 });
