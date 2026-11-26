@@ -32,6 +32,7 @@ export default async function EmbedBookPage({ params, searchParams }: Props) {
       takesBookings={online.takesBookings}
       mode={one(q.mode) === "inline" ? "inline" : "popup"}
       initialService={one(q.service)}
+      initialTreatment={one(q.treatment)}
       initialStylist={one(q.stylist)}
     />
   );

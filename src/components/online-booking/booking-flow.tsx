@@ -66,6 +66,7 @@ export function BookingFlow({
   takesBookings,
   mode = "page",
   initialService,
+  initialTreatment,
   initialStylist,
   initialStart,
   homeHref,
@@ -74,6 +75,8 @@ export function BookingFlow({
   takesBookings: boolean;
   mode?: FlowMode;
   initialService?: string | null;
+  /** A treatment ("BIAB") from a tile on the salon's page: the first step shows only its services. */
+  initialTreatment?: string | null;
   initialStylist?: string | null;
   /**
    * A time already chosen ("Next free" on the salon's site): the flow opens
@@ -88,12 +91,18 @@ export function BookingFlow({
     [salon.services, initialService]
   );
   const [service, setService] = useState<PublicService | null>(preset);
+  const [treatment, setTreatment] = useState<string | null>(() => {
+    const t = (initialTreatment ?? "").trim().toLowerCase();
+    return (t && salon.services.find((s) => s.treatment?.toLowerCase() === t)?.treatment) || null;
+  });
   const [newClient, setNewClient] = useState(false);
-  const [stylist, setStylist] = useState<string | null>(
-    preset && initialStylist && preset.stylists.some((s) => s.toLowerCase() === initialStylist.toLowerCase())
-      ? preset.stylists.find((s) => s.toLowerCase() === initialStylist.toLowerCase())!
-      : null
-  );
+  // "Book with Mai" on the salon's page comes with no service: keep Mai for
+  // whichever service they pick, if she does it (pickService checks).
+  const [stylist, setStylist] = useState<string | null>(() => {
+    if (!initialStylist) return null;
+    const pool = preset ? preset.stylists : salon.stylists.map((p) => p.name);
+    return pool.find((s) => s.toLowerCase() === initialStylist.toLowerCase()) ?? null;
+  });
   const presetSlot =
     preset && !preset.requiresPatchTest && initialStart && !Number.isNaN(Date.parse(initialStart))
       ? { start: new Date(initialStart).toISOString(), stylist: initialStylist ?? null }
@@ -227,7 +236,7 @@ export function BookingFlow({
           {!takesBookings ? (
             <NotTaking salon={salon} />
           ) : step === "service" ? (
-            <ServiceStep salon={salon} onPick={pickService} />
+            <ServiceStep salon={salon} treatment={treatment} onAll={() => setTreatment(null)} onPick={pickService} />
           ) : step === "colour" && service ? (
             <ColourStep
               service={service}
@@ -285,12 +294,13 @@ export function BookingFlow({
                 setBooked(null);
                 setSlot(null);
                 setService(null);
+                setTreatment(null);
                 setStep("service");
               }}
               onClose={mode === "popup" ? () => tellHost({ type: "close" }) : undefined}
             />
           ) : (
-            <ServiceStep salon={salon} onPick={pickService} />
+            <ServiceStep salon={salon} treatment={treatment} onAll={() => setTreatment(null)} onPick={pickService} />
           )}
         </main>
 
@@ -321,11 +331,43 @@ function NotTaking({ salon }: { salon: PublicSalon }) {
   );
 }
 
-function ServiceStep({ salon, onPick }: { salon: PublicSalon; onPick: (s: PublicService) => void }) {
+function ServiceStep({
+  salon,
+  treatment,
+  onAll,
+  onPick,
+}: {
+  salon: PublicSalon;
+  /** Only this treatment's services ("Which one?"), from a tile on the salon's page. */
+  treatment: string | null;
+  onAll: () => void;
+  onPick: (s: PublicService) => void;
+}) {
   const [q, setQ] = useState("");
-  const shown = salon.services.filter((s) => s.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const pool = treatment ? salon.services.filter((s) => s.treatment === treatment) : salon.services;
+  const shown = pool.filter((s) => s.name.toLowerCase().includes(q.trim().toLowerCase()));
   // Headed by treatment while browsing; a search lists what matches as one.
-  const headed = !q.trim() && shown.some((s) => s.treatment);
+  const headed = !treatment && !q.trim() && shown.some((s) => s.treatment);
+  if (treatment) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <p className="text-sm font-bold uppercase tracking-wide text-[var(--brand-ink)]">{treatment}</p>
+          <h1 className="font-heading text-[1.65rem] font-extrabold tracking-tight">Which one?</h1>
+        </div>
+        <ul className="space-y-2">
+          {pool.map((s) => (
+            <li key={s.name}>
+              <ServiceButton service={s} onPick={onPick} />
+            </li>
+          ))}
+        </ul>
+        <button type="button" onClick={onAll} className="min-h-11 text-[15px] font-semibold text-[var(--brand-ink)] underline-offset-4 hover:underline">
+          See all treatments
+        </button>
+      </div>
+    );
+  }
   const groups: { heading: string | null; services: PublicService[] }[] = [];
   for (const s of shown) {
     const heading = headed ? (s.treatment ?? "Other") : null;
@@ -356,21 +398,7 @@ function ServiceStep({ salon, onPick }: { salon: PublicSalon; onPick: (s: Public
           <ul className="space-y-2">
             {g.services.map((s) => (
               <li key={s.name}>
-                <button
-                  type="button"
-                  onClick={() => onPick(s)}
-                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-stone-200 px-4 py-3 text-left transition hover:border-stone-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
-                >
-                  <span className="flex flex-1 flex-col gap-0.5">
-                    <span className="font-semibold">{s.name}</span>
-                    <span className="text-sm text-stone-600">
-                      {durationText(s.durationMinutes)}
-                      {s.requiresPatchTest ? " · skin test for new clients" : ""}
-                    </span>
-                  </span>
-                  {s.priceMinor !== null && <span className="font-semibold">{formatMoneyShort(s.priceMinor)}</span>}
-                  <ChevronRight className="h-4 w-4 text-stone-500" aria-hidden="true" />
-                </button>
+                <ServiceButton service={s} onPick={onPick} />
               </li>
             ))}
           </ul>
@@ -381,6 +409,27 @@ function ServiceStep({ salon, onPick }: { salon: PublicSalon; onPick: (s: Public
         <p className="text-xs text-stone-500">Prices are a guide: nail art and designs are priced individually.</p>
       )}
     </div>
+  );
+}
+
+/** One service to choose, with its length and price. */
+function ServiceButton({ service: s, onPick }: { service: PublicService; onPick: (s: PublicService) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(s)}
+      className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-stone-200 px-4 py-3 text-left transition hover:border-stone-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+    >
+      <span className="flex flex-1 flex-col gap-0.5">
+        <span className="font-semibold">{s.name}</span>
+        <span className="text-sm text-stone-600">
+          {durationText(s.durationMinutes)}
+          {s.requiresPatchTest ? " · patch test for new clients" : ""}
+        </span>
+      </span>
+      {s.priceMinor !== null && <span className="font-semibold">{formatMoneyShort(s.priceMinor)}</span>}
+      <ChevronRight className="h-4 w-4 text-stone-500" aria-hidden="true" />
+    </button>
   );
 }
 
