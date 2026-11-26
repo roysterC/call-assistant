@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { originsFromUrl } from "@/lib/prompt-template";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/providers/language-provider";
 
 export interface ChatSite {
   id: string;
@@ -38,9 +39,14 @@ export interface ChatSite {
   proactiveDelaySeconds: number;
 }
 
+// What clients see in the chat stays in English, as everything they are sent
+// does; only the salon's own screens are translated.
+
 /** Said first when the chat opens, until the salon writes its own. */
 const DEFAULT_GREETING = "Hi! Ask me about prices or times, or tap Book online.";
 const DEFAULT_NUDGE = "Any questions? I can check times for you.";
+/** The preview of the salon's page, as clients see it. */
+const PREVIEW = { salon: "Your salon", headline: "Book in three taps.", book: "Book online" };
 
 function originList(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((o): o is string => typeof o === "string") : [];
@@ -73,6 +79,7 @@ export function PageChat({
   pageUrl: string;
   headline: string;
 }) {
+  const { t } = useT();
   const [sites, setSites] = useState<ChatSite[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +138,7 @@ export function PageChat({
       setSavedAt(Date.now());
     } catch {
       setSites((all) => all?.map((s) => (s.id === before.id ? before : s)) ?? all);
-      setError("Couldn’t save that. Check your connection and try again.");
+      setError(t("chat.saveFailed"));
     }
   };
 
@@ -140,8 +147,8 @@ export function PageChat({
   useEffect(() => {
     if (!chosen || !on || chosen.brandColor === brand || synced.current === `${chosen.id}:${brand}`) return;
     synced.current = `${chosen.id}:${brand}`;
-    const t = setTimeout(() => save({ brandColor: brand }), 600);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => save({ brandColor: brand }), 600);
+    return () => clearTimeout(timer);
     // save reads the current chat; the colour and the chat are what matter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brand, chosen?.id, chosen?.brandColor, on]);
@@ -151,7 +158,7 @@ export function PageChat({
     // Without the page's address a new chat would have no allowed address,
     // which the widget reads as "any website".
     if (!pageUrl) {
-      setError("Save your page first, then switch the chat on.");
+      setError(t("chat.savePageFirst"));
       return;
     }
     setBusy(true);
@@ -196,7 +203,7 @@ export function PageChat({
       setSites([...sites, { launcherPosition: "right", proactiveEnabled: false, proactiveMessage: null, proactiveDelaySeconds: 15, ...site }]);
       onChange(site.siteId);
     } catch {
-      setError("Couldn’t switch the chat on. Check your connection and try again.");
+      setError(t("chat.switchFailed"));
     } finally {
       setBusy(false);
     }
@@ -212,7 +219,7 @@ export function PageChat({
     return (
       <Card>
         <p className="text-xs text-muted-foreground">
-          Website chat isn&rsquo;t on for your salon yet. Ask Kikai to switch it on.
+          {t("chat.notOn")}
         </p>
       </Card>
     );
@@ -225,7 +232,7 @@ export function PageChat({
           type="button"
           role="switch"
           aria-checked={on}
-          aria-label="Show a chat on your page"
+          aria-label={t("chat.switchLabel")}
           disabled={busy || sites === null}
           onClick={() => (on ? onChange(null) : switchOn())}
           className={cn(
@@ -252,8 +259,8 @@ export function PageChat({
       {!on && (
         <p className="rounded-xl bg-muted/50 px-3.5 py-3 text-xs text-muted-foreground">
           {busy
-            ? "Setting it up…"
-            : "Off. Switch it on and it’s ready straight away, in your page’s colour and your salon’s name. Change anything once it’s on."}
+            ? t("chat.settingUp")
+            : t("chat.off")}
         </p>
       )}
 
@@ -262,7 +269,7 @@ export function PageChat({
           <div className="min-w-0 space-y-4">
             {sites && sites.length > 1 && (
               <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">Which chat</span>
+                <span className="text-xs font-medium text-muted-foreground">{t("chat.which")}</span>
                 <select
                   value={value ?? ""}
                   onChange={(e) => onChange(e.target.value)}
@@ -271,7 +278,7 @@ export function PageChat({
                   {sites.map((s) => (
                     <option key={s.siteId} value={s.siteId}>
                       {s.name}
-                      {s.enabled ? "" : " (switched off)"}
+                      {s.enabled ? "" : t("chat.switchedOffSuffix")}
                     </option>
                   ))}
                 </select>
@@ -280,7 +287,7 @@ export function PageChat({
 
             <div className="flex flex-wrap gap-3">
               <label className="block min-w-48 flex-1 space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">It answers as</span>
+                <span className="text-xs font-medium text-muted-foreground">{t("chat.answersAs")}</span>
                 <Input
                   value={draft.botName}
                   maxLength={60}
@@ -292,8 +299,8 @@ export function PageChat({
                 />
               </label>
               <div className="space-y-1.5">
-                <span className="block text-xs font-medium text-muted-foreground">Corner</span>
-                <div role="group" aria-label="Corner" className="flex h-9 overflow-hidden rounded-lg border">
+                <span className="block text-xs font-medium text-muted-foreground">{t("chat.corner")}</span>
+                <div role="group" aria-label={t("chat.corner")} className="flex h-9 overflow-hidden rounded-lg border">
                   {(["left", "right"] as const).map((side) => (
                     <button
                       key={side}
@@ -301,11 +308,11 @@ export function PageChat({
                       aria-pressed={chosen.launcherPosition === side}
                       onClick={() => chosen.launcherPosition !== side && save({ launcherPosition: side })}
                       className={cn(
-                        "px-3.5 text-sm font-medium capitalize first:border-r",
+                        "px-3.5 text-sm font-medium first:border-r",
                         chosen.launcherPosition === side ? "bg-tea-green-800" : "hover:bg-accent"
                       )}
                     >
-                      {side}
+                      {t(`chat.${side}`)}
                     </button>
                   ))}
                 </div>
@@ -313,7 +320,7 @@ export function PageChat({
             </div>
 
             <label className="block space-y-1.5">
-              <span className="text-xs font-medium text-muted-foreground">First message</span>
+              <span className="text-xs font-medium text-muted-foreground">{t("chat.firstMessage")}</span>
               <Textarea
                 rows={2}
                 maxLength={300}
@@ -329,7 +336,7 @@ export function PageChat({
 
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="h-4 w-4 shrink-0 rounded" style={{ background: brand }} aria-hidden="true" />
-              Uses your page&rsquo;s brand colour. Change it under Your page and the chat follows.
+              {t("chat.brand")}
             </p>
 
             <button
@@ -339,17 +346,16 @@ export function PageChat({
               className="flex items-center gap-1.5 text-sm font-medium text-primary"
             >
               <ChevronRight className={cn("h-4 w-4 transition-transform", more && "rotate-90")} aria-hidden="true" />
-              More: what it knows, saying hello first
+              {t("chat.more")}
             </button>
             {more && (
               <div className="space-y-3 rounded-xl border bg-muted/30 p-3.5">
                 <p className="text-xs text-muted-foreground">
-                  It knows your services, prices, hours and team from Settings. For anything else (parking, what you
-                  don&rsquo;t do, your loyalty card) it uses your answers in{" "}
+                  {t("chat.knows")}{" "}
                   <a href="#chats" className="font-medium text-primary underline underline-offset-2">
-                    Chats &amp; texts
+                    {t("settings.tab.chats")}
                   </a>
-                  , the same ones the receptionist uses.
+                  {t("chat.knowsSame")}
                 </p>
                 <label className="flex items-start gap-2.5 text-sm">
                   <input
@@ -364,15 +370,15 @@ export function PageChat({
                     }
                   />
                   <span>
-                    <span className="font-medium">Say hello first</span>
+                    <span className="font-medium">{t("chat.helloFirst")}</span>
                     <span className="block text-xs text-muted-foreground">
-                      After {chosen.proactiveDelaySeconds} seconds on your page, once a day per visitor.
+                      {t("chat.helloWhen", { n: chosen.proactiveDelaySeconds })}
                     </span>
                   </span>
                 </label>
                 {chosen.proactiveEnabled && (
                   <Input
-                    aria-label="What it says first"
+                    aria-label={t("chat.helloLabel")}
                     maxLength={200}
                     value={draft.nudge}
                     placeholder={DEFAULT_NUDGE}
@@ -387,9 +393,9 @@ export function PageChat({
             )}
 
             <div className="space-y-3 border-t pt-4">
-              <p className="text-xs font-medium">Already have a website? Put the same chat on it.</p>
+              <p className="text-xs font-medium">{t("chat.ownSite")}</p>
               <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">Your website&rsquo;s address</span>
+                <span className="text-xs font-medium text-muted-foreground">{t("chat.ownSiteAddress")}</span>
                 <Input
                   value={draft.ownSite}
                   placeholder="yoursalon.co.uk"
@@ -398,14 +404,14 @@ export function PageChat({
                     const origins = [...new Set([...pageOrigins, ...ownSiteOrigins])];
                     const now = originList(chosen.allowedOrigins);
                     if (draft.ownSite.trim() && ownSiteOrigins.length === 0) {
-                      setError("That address doesn’t look right. Try something like yoursalon.co.uk.");
+                      setError(t("chat.ownSiteBad"));
                       return;
                     }
                     if (origins.join(" ") !== now.join(" ")) save({ allowedOrigins: origins });
                   }}
                 />
                 <span className="block text-xs text-muted-foreground">
-                  Only this site and your booking page can show the chat.
+                  {t("chat.ownSiteOnly")}
                 </span>
               </label>
               {ownSiteOrigins.length > 0 && <Snippet value={snippet} />}
@@ -413,19 +419,19 @@ export function PageChat({
 
             {savedAt && !error && (
               <p role="status" className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Check className="h-3.5 w-3.5" aria-hidden="true" /> Chat saved
+                <Check className="h-3.5 w-3.5" aria-hidden="true" /> {t("chat.saved")}
               </p>
             )}
             {!chosen.enabled && (
               <p className="flex flex-wrap items-center gap-1.5 text-xs text-papaya-whip-100">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                This chat is switched off, so it isn&rsquo;t showing.
+                {t("chat.isOff")}
                 <button
                   type="button"
                   onClick={() => save({ enabled: true })}
                   className="font-medium text-primary underline underline-offset-2"
                 >
-                  Switch it back on
+                  {t("chat.switchBack")}
                 </button>
               </p>
             )}
@@ -438,19 +444,19 @@ export function PageChat({
               aria-expanded={showPreview}
               className="h-10 w-full rounded-lg border text-sm font-medium hover:bg-accent lg:hidden"
             >
-              {showPreview ? "Hide the preview" : "See it on your page"}
+              {showPreview ? t("chat.hidePreview") : t("chat.showPreview")}
             </button>
             <div className={cn("space-y-2", !showPreview && "max-lg:hidden")}>
               <span className="block text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-                Preview · your booking page
+                {t("chat.previewTitle")}
               </span>
               <div
-                aria-label="Preview of the chat on your booking page"
+                aria-label={t("chat.previewLabel")}
                 className="relative h-[380px] overflow-hidden rounded-2xl border bg-white text-[#1c1917]"
               >
                 <div className="px-4 py-4 text-white" style={{ background: brand }}>
-                  <p className="font-heading text-base font-extrabold">{businessName || "Your salon"}</p>
-                  <p className="mt-0.5 truncate text-xs opacity-85">{headline || "Book in three taps."}</p>
+                  <p className="font-heading text-base font-extrabold">{businessName || PREVIEW.salon}</p>
+                  <p className="mt-0.5 truncate text-xs opacity-85">{headline || PREVIEW.headline}</p>
                 </div>
                 <div className="space-y-2 p-4">
                   <div className="h-10 rounded-lg bg-stone-100" />
@@ -469,7 +475,7 @@ export function PageChat({
                         className="inline-flex h-7 items-center rounded-full border-[1.5px] px-2.5 text-[11.5px] font-bold"
                         style={{ borderColor: brand, color: brand }}
                       >
-                        Book online
+                        {PREVIEW.book}
                       </span>
                     </div>
                   </div>
@@ -491,6 +497,7 @@ export function PageChat({
 }
 
 function Card({ toggle, children }: { toggle?: React.ReactNode; children: React.ReactNode }) {
+  const { t } = useT();
   return (
     <div className="space-y-4 rounded-xl border p-4">
       <div className="flex items-start gap-3">
@@ -498,11 +505,8 @@ function Card({ toggle, children }: { toggle?: React.ReactNode; children: React.
           <MessageCircle className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1 space-y-1">
-          <h3 className="text-sm font-semibold">Chat on your page</h3>
-          <p className="text-xs text-muted-foreground">
-            Answers clients&rsquo; questions from your services, prices and hours, and its Book online button opens
-            your booking. Chats land in Conversations.
-          </p>
+          <h3 className="text-sm font-semibold">{t("chat.title")}</h3>
+          <p className="text-xs text-muted-foreground">{t("chat.description")}</p>
         </div>
         {toggle}
       </div>
@@ -512,10 +516,11 @@ function Card({ toggle, children }: { toggle?: React.ReactNode; children: React.
 }
 
 function Snippet({ value }: { value: string }) {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
   return (
     <div className="space-y-1.5">
-      <span className="text-xs font-medium text-muted-foreground">Paste once on your website, before &lt;/body&gt;</span>
+      <span className="text-xs font-medium text-muted-foreground">{t("chat.paste")}</span>
       <div className="flex gap-2">
         <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre rounded-lg bg-muted px-3 py-2 font-mono text-xs leading-relaxed">
           {value}
@@ -534,7 +539,7 @@ function Snippet({ value }: { value: string }) {
           className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium hover:bg-accent"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("chat.copied") : t("chat.copy")}
         </button>
       </div>
     </div>

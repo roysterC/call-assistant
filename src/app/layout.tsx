@@ -6,10 +6,13 @@ import { SessionProvider } from "@/components/providers/session-provider";
 import { MeProvider } from "@/components/providers/me-provider";
 import { DialogsProvider } from "@/components/providers/dialogs-provider";
 import { LanguageProvider } from "@/components/providers/language-provider";
+import { IntlOnly } from "@/components/providers/intl-only";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { cookies, headers } from "next/headers";
 import { bookingOrigin, isBookingHost, requestHostname } from "@/lib/booking-host";
 import { CLOCK_COOKIE, DEFAULT_LANG, LANG_COOKIE, isClock, isLang } from "@/lib/i18n";
+import { messagesFor } from "@/lib/i18n/load";
+import { PSEUDO, pseudoMessages } from "@/lib/i18n/pseudo";
 
 // The fonts ship with the app (the @fontsource-variable packages, OFL) rather
 // than coming from Google Fonts. next/font/google downloads them during every
@@ -88,6 +91,9 @@ export default async function RootLayout({
   const jar = await cookies();
   const chosen = jar.get(LANG_COOKIE)?.value;
   const lang = isLang(chosen) ? chosen : DEFAULT_LANG;
+  // The accented-English test language, while developing only (pseudo.ts).
+  const messages =
+    chosen === PSEUDO && process.env.NODE_ENV !== "production" ? pseudoMessages(messagesFor("en")) : messagesFor(lang);
   // And their clock, 12- or 24-hour, likewise.
   const chosenClock = jar.get(CLOCK_COOKIE)?.value;
   const clock = isClock(chosenClock) ? chosenClock : null;
@@ -100,7 +106,9 @@ export default async function RootLayout({
   if (isBookingHost(requestHostname(await headers(), ""), bookingOrigin())) {
     return (
       <html lang="en" className={fonts}>
-        <body className="h-full bg-white text-stone-900 overflow-hidden">{children}</body>
+        <body className="h-full bg-white text-stone-900 overflow-hidden">
+          <IntlOnly messages={messagesFor("en")}>{children}</IntlOnly>
+        </body>
       </html>
     );
   }
@@ -113,7 +121,7 @@ export default async function RootLayout({
       <body className="h-full bg-background text-foreground overflow-hidden">
         <SessionProvider>
           <MeProvider>
-            <LanguageProvider initial={lang} initialClock={clock}>
+            <LanguageProvider initial={lang} messages={messages} initialClock={clock}>
               <MotionProvider>
                 <DialogsProvider>
                   <MainWrapper>{children}</MainWrapper>

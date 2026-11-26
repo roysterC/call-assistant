@@ -124,13 +124,13 @@ export function shiftPeriod(
 }
 
 /** How the window reads in a heading. */
-export function describePeriod(period: Period): string {
+export function describePeriod(period: Period, locale = "en-GB"): string {
   const asDate = (s: string) => {
     const { y, m, d } = parts(s);
     return new Date(Date.UTC(y, m - 1, d));
   };
   const fmt = (s: string, opts: Intl.DateTimeFormatOptions) =>
-    asDate(s).toLocaleDateString("en-GB", { ...opts, timeZone: "UTC" });
+    asDate(s).toLocaleDateString(locale, { ...opts, timeZone: "UTC" });
 
   switch (period.kind) {
     case "day":

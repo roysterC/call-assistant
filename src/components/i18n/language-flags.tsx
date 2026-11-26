@@ -50,7 +50,8 @@ function VietnamFlag({ className }: { className?: string }) {
   );
 }
 
-const FLAG: Record<Lang, (p: { className?: string }) => React.ReactElement> = { en: UkFlag, vi: VietnamFlag };
+/** A language's flag, where one is drawn; one without shows its code instead. */
+const FLAG: Partial<Record<Lang, (p: { className?: string }) => React.ReactElement>> = { en: UkFlag, vi: VietnamFlag };
 
 export function LanguageFlags({
   className,
@@ -102,7 +103,13 @@ export function LanguageFlags({
                 : "opacity-55 hover:opacity-100"
             )}
           >
-            <Flag className="h-[14px] w-[21px] rounded-[2px] shadow-[0_0_0_0.5px_rgb(0_0_0/0.25)]" />
+            {Flag ? (
+              <Flag className="h-[14px] w-[21px] rounded-[2px] shadow-[0_0_0_0.5px_rgb(0_0_0/0.25)]" />
+            ) : (
+              <span aria-hidden="true" className="text-[11px] font-bold uppercase">
+                {l}
+              </span>
+            )}
           </button>
         );
       })}

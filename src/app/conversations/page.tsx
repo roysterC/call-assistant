@@ -24,13 +24,14 @@ import type { Channel, ConversationDetail, ThreadEvent } from "@/components/conv
 import { PhotoViewer } from "@/components/ui/photo-viewer";
 import { ContactAvatar } from "@/components/conversations/contact-avatar";
 import { withAsOrg } from "@/lib/api-fetch";
-import { useLanguage } from "@/components/providers/language-provider";
+import { useT } from "@/components/providers/language-provider";
+import { DATE_FNS_LOCALE, type Lang, type MessageKey, type Translate } from "@/lib/i18n";
 import { MessageBubble } from "@/components/conversations/message-bubble";
 import { apiFetch } from "@/lib/api-fetch";
 import { useMe } from "@/components/providers/me-provider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useDialogs } from "@/components/providers/dialogs-provider";
-import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
+import { CHANNEL_META, avatarColorFor, channelLabel, initialsFor } from "@/lib/channels";
 import type { ConversationGroup, ConversationState } from "@/lib/conversation-state";
 
 interface ConversationSummary {
@@ -63,10 +64,10 @@ interface ConversationSummary {
  * waiting on someone first (longest waiting at the top), then what Kikai is
  * dealing with, then what is done, newest first.
  */
-const GROUPS: { id: ConversationGroup; title: string; dot: string; ink: string }[] = [
-  { id: "you", title: "Needs you", dot: "bg-orange-600", ink: "text-orange-800" },
-  { id: "bot", title: "Kikai is handling", dot: "bg-tea-green-300", ink: "text-tea-green-200" },
-  { id: "done", title: "Done", dot: "bg-tea-green-500", ink: "text-muted-foreground" },
+const GROUPS: { id: ConversationGroup; title: MessageKey; dot: string; ink: string }[] = [
+  { id: "you", title: "convs.group.you", dot: "bg-orange-600", ink: "text-orange-800" },
+  { id: "bot", title: "convs.group.bot", dot: "bg-tea-green-300", ink: "text-tea-green-200" },
+  { id: "done", title: "convs.group.done", dot: "bg-tea-green-500", ink: "text-muted-foreground" },
 ];
 
 function groupConversations(list: ConversationSummary[]) {
@@ -99,15 +100,15 @@ function isSameDay(a: string, b: string): boolean {
  * "Today" answers the question faster than a date they have to compare against
  * one they half-remember.
  */
-function dayLabel(dateStr: string): string {
+function dayLabel(dateStr: string, t: Translate, locale: string): string {
   const d = new Date(dateStr);
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
-  if (isSameDay(dateStr, today.toISOString())) return "Today";
-  if (isSameDay(dateStr, yesterday.toISOString())) return "Yesterday";
-  return d.toLocaleDateString("en-GB", {
+  if (isSameDay(dateStr, today.toISOString())) return t("convs.today");
+  if (isSameDay(dateStr, yesterday.toISOString())) return t("convs.yesterday");
+  return d.toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     // A year only when it isn't this one — "12 Sep" is enough until it isn't.
@@ -119,12 +120,12 @@ type Filter = "all" | "unread" | "recent" | "starred";
 type ChannelFilter = "all" | "whatsapp" | "website" | "instagram" | "facebook";
 
 
-const CHANNEL_TABS: { value: ChannelFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "website", label: "Website" },
-  { value: "instagram", label: "Instagram" },
-  { value: "facebook", label: "Messenger" },
+const CHANNEL_TABS: { value: ChannelFilter }[] = [
+  { value: "all" },
+  { value: "whatsapp" },
+  { value: "website" },
+  { value: "instagram" },
+  { value: "facebook" },
 ];
 
 type ChannelFlags = {
@@ -206,7 +207,7 @@ export default function ConversationsPage() {
   // whether its panel is open.
   const [quote, setQuote] = useState<OpenQuote | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
-  const { clock } = useLanguage();
+  const { t, clock, locale, lang } = useT();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchConversations = useCallback(
@@ -330,12 +331,12 @@ export default function ConversationsPage() {
         await refetchActive();
       } catch (err) {
         console.error("Failed to change handoff state:", err);
-        notify("Couldn't switch who is answering. Try again.");
+        notify(t("convs.handoffFailed"));
       } finally {
         setSwitchingHandoff(false);
       }
     },
-    [selectedId, selectedChannel, switchingHandoff, refetchActive, notify]
+    [selectedId, selectedChannel, switchingHandoff, refetchActive, notify, t]
   );
 
   const sendReply = useCallback(
@@ -358,12 +359,12 @@ export default function ConversationsPage() {
         await refetchActive();
       } catch (err) {
         console.error("Failed to send reply:", err);
-        notify("Your reply didn't send. Try again.");
+        notify(t("convs.replyFailed"));
       } finally {
         setReplying(false);
       }
     },
-    [reply, selectedId, selectedChannel, replying, refetchActive, notify]
+    [reply, selectedId, selectedChannel, replying, refetchActive, notify, t]
   );
 
   // Poll every 15s for new messages on the list and on the active
@@ -467,9 +468,9 @@ export default function ConversationsPage() {
   async function resetPersona() {
     if (!activeConversation) return;
     const yes = await confirm({
-      title: "Start the bot afresh on this conversation?",
-      body: "Its next replies ignore earlier messages and follow the current instructions. The customer's history stays visible here.",
-      confirmLabel: "Start afresh",
+      title: t("convs.resetTitle"),
+      body: t("convs.resetBody"),
+      confirmLabel: t("convs.resetConfirm"),
     });
     if (!yes) return;
     const res = await apiFetch(
@@ -482,11 +483,11 @@ export default function ConversationsPage() {
         prev ? { ...prev, personaResetAt: data.personaResetAt } : null
       );
     } else {
-      notify("Couldn't restart the bot on this conversation. Try again.");
+      notify(t("convs.resetFailed"));
     }
   }
 
-  const title = activeConversation ? conversationTitle(activeConversation) : "";
+  const title = activeConversation ? conversationTitle(activeConversation, t) : "";
   // Every photo in the chat, oldest first, for the viewer's arrows.
   const chatPhotoIds = activeConversation
     ? activeConversation.messages.flatMap((m) => activeConversation.photos?.[m.id] ?? [])
@@ -529,13 +530,13 @@ export default function ConversationsPage() {
       >
         <div className="shrink-0 space-y-3 border-b border-border px-4 pb-3.5 pt-4">
           <div className="flex items-center gap-2">
-            <h2 className="flex-1 font-heading text-xl font-extrabold tracking-tight">Conversations</h2>
+            <h2 className="flex-1 font-heading text-xl font-extrabold tracking-tight">{t("convs.title")}</h2>
             <button
               type="button"
               onClick={() => setFilter(filter === "starred" ? "all" : "starred")}
               aria-pressed={filter === "starred"}
-              aria-label={filter === "starred" ? "Show all conversations" : "Show starred only"}
-              title={filter === "starred" ? "Showing starred: show all" : "Show starred only"}
+              aria-label={filter === "starred" ? t("convs.showAll") : t("convs.showStarred")}
+              title={filter === "starred" ? t("convs.showingStarred") : t("convs.showStarred")}
               className={cn(
                 "flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
                 filter === "starred"
@@ -552,7 +553,7 @@ export default function ConversationsPage() {
                 setSearchOpen(!searchOpen);
               }}
               aria-pressed={searchOpen}
-              aria-label={searchOpen ? "Close search" : "Search conversations"}
+              aria-label={searchOpen ? t("convs.closeSearch") : t("convs.search")}
               className={cn(
                 "flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
                 searchOpen ? "border-tea-green-500 bg-tea-green-800 text-foreground" : "border-border text-muted-foreground hover:text-foreground"
@@ -568,8 +569,8 @@ export default function ConversationsPage() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search names, numbers or messages"
-                aria-label="Search conversations"
+                placeholder={t("convs.searchPlaceholder")}
+                aria-label={t("convs.search")}
                 className="h-10 rounded-xl pl-9 text-sm"
                 autoFocus
               />
@@ -578,7 +579,7 @@ export default function ConversationsPage() {
 
           {/* Which channel. Only shown when there is a choice to make. */}
           {visibleChannelTabs.length > 2 && (
-            <div role="group" aria-label="Channels" className="flex flex-wrap gap-1.5">
+            <div role="group" aria-label={t("convs.channels")} className="flex flex-wrap gap-1.5">
               {visibleChannelTabs.map((tab) => {
                 const on = channelFilter === tab.value;
                 const meta = tab.value === "all" ? null : CHANNEL_META[tab.value];
@@ -596,7 +597,7 @@ export default function ConversationsPage() {
                     )}
                   >
                     {meta && <span className={cn("h-2 w-2 rounded-full", meta.bg)} aria-hidden />}
-                    {tab.label}
+                    {tab.value === "all" ? t("convs.all") : channelLabel(tab.value, t)}
                   </button>
                 );
               })}
@@ -614,13 +615,13 @@ export default function ConversationsPage() {
               icon={MessageCircle}
               title={
                 search || filter !== "all" || channelFilter !== "all"
-                  ? "Nothing matches"
-                  : "No conversations yet"
+                  ? t("convs.nothingMatches")
+                  : t("convs.none")
               }
               hint={
                 search || filter !== "all" || channelFilter !== "all"
-                  ? "Try a different search or clear the filters."
-                  : "Chats from your website and connected channels land here."
+                  ? t("convs.nothingMatchesHint")
+                  : t("convs.noneHint")
               }
             />
           ) : (
@@ -634,7 +635,7 @@ export default function ConversationsPage() {
                   )}
                 >
                   <span className={cn("h-2 w-2 rounded-full", group.dot)} aria-hidden />
-                  {group.title}
+                  {t(group.title)}
                   <span className="font-semibold normal-case tracking-normal text-muted-foreground">{group.rows.length}</span>
                 </h3>
                 <div className="space-y-0.5">
@@ -677,8 +678,8 @@ export default function ConversationsPage() {
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
               icon={MessageCircle}
-              title="Select a conversation"
-              hint="Pick someone from the list to read the thread and reply."
+              title={t("convs.select")}
+              hint={t("convs.selectHint")}
             />
           </div>
         ) : loadingDetail ? (
@@ -693,7 +694,7 @@ export default function ConversationsPage() {
                 size="sm"
                 className="lg:hidden h-8 w-8 p-0"
                 onClick={() => setMobileView("list")}
-                aria-label="Back to conversations"
+                aria-label={t("convs.back")}
               >
                 <ArrowLeft className="w-4 h-4" />
               </Button>
@@ -703,7 +704,7 @@ export default function ConversationsPage() {
                 type="button"
                 onClick={() => setContactPanelOpen(true)}
                 className="flex min-w-0 flex-1 items-center gap-2.5 text-left xl:pointer-events-none"
-                aria-label={`${title}: client details`}
+                aria-label={t("convs.clientDetailsFor", { name: title })}
               >
                 <span className="relative shrink-0">
                   <ContactAvatar
@@ -722,7 +723,7 @@ export default function ConversationsPage() {
                         "absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-card",
                         CHANNEL_META[activeConversation.channel].bg
                       )}
-                      title={CHANNEL_META[activeConversation.channel].label}
+                      title={channelLabel(activeConversation.channel, t)}
                     />
                   )}
                 </span>
@@ -730,12 +731,10 @@ export default function ConversationsPage() {
                   <span className="block truncate text-base font-bold">{title}</span>
                   <span className="block truncate text-[12.5px] text-muted-foreground">
                     {activeConversation.channel === "website"
-                      ? activeConversation.site?.name || "Website chat"
-                      : CHANNEL_META[activeConversation.channel]?.label}
+                      ? activeConversation.site?.name || t("channel.website")
+                      : channelLabel(activeConversation.channel, t)}
                     {" · "}
-                    {activeConversation.messages.length === 1
-                      ? "1 message"
-                      : `${activeConversation.messages.length} messages`}
+                    {t("convs.messages", { n: activeConversation.messages.length })}
                   </span>
                 </span>
               </button>
@@ -744,8 +743,8 @@ export default function ConversationsPage() {
                 type="button"
                 onClick={toggleStar}
                 aria-pressed={activeConversation.starred}
-                aria-label={activeConversation.starred ? "Unstar" : "Star"}
-                title={activeConversation.starred ? "Starred" : "Star this conversation"}
+                aria-label={activeConversation.starred ? t("convs.unstar") : t("convs.star")}
+                title={activeConversation.starred ? t("convs.starred") : t("convs.starThis")}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Star className={cn("h-4 w-4", activeConversation.starred && "fill-papaya-whip-300 text-papaya-whip-200")} />
@@ -753,8 +752,8 @@ export default function ConversationsPage() {
               <button
                 type="button"
                 onClick={() => setContactPanelOpen(true)}
-                aria-label="Client details"
-                title="Client details"
+                aria-label={t("convs.clientDetails")}
+                title={t("convs.clientDetails")}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground xl:hidden"
               >
                 <UserRound className="h-4 w-4" />
@@ -766,14 +765,14 @@ export default function ConversationsPage() {
                 <div className="h-full flex items-center justify-center">
                   <EmptyState
                     icon={MessageCircle}
-                    title="No messages yet"
-                    hint="Nothing has been said in this conversation."
+                    title={t("convs.noMessages")}
+                    hint={t("convs.noMessagesHint")}
                   />
                 </div>
               ) : (
                 threadItems(activeConversation).map((item, i, items) => {
                   if (item.type === "event") {
-                    return <EventChip key={`ev-${i}`} event={item.event} time={time} />;
+                    return <EventChip key={`ev-${i}`} event={item.event} time={time} t={t} lang={lang} />;
                   }
                   const msg = item.msg;
                   const prevMsg = items.slice(0, i).reverse().find((x) => x.type === "msg");
@@ -794,7 +793,7 @@ export default function ConversationsPage() {
                     : msg.role === "user"
                       ? title.split(/\s+/)[0]
                       : msg.role === "agent"
-                        ? "You"
+                        ? t("convs.you")
                         : activeConversation.site?.botName || "Kikai";
 
                   return (
@@ -803,11 +802,11 @@ export default function ConversationsPage() {
                         <div
                           className="flex items-center gap-3 pb-3"
                           role="separator"
-                          aria-label={dayLabel(msg.createdAt)}
+                          aria-label={dayLabel(msg.createdAt, t, locale)}
                         >
                           <span className="h-px flex-1 bg-border" />
                           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                            {dayLabel(msg.createdAt)}
+                            {dayLabel(msg.createdAt, t, locale)}
                           </span>
                           <span className="h-px flex-1 bg-border" />
                         </div>
@@ -841,13 +840,13 @@ export default function ConversationsPage() {
                     <span className="truncate">
                       {activeConversation.handoffState === "human" ? (
                         <>
-                          <strong>You&apos;re replying.</strong>{" "}
-                          <span className="text-muted-foreground">Kikai is paused in this chat.</span>
+                          <strong>{t("convs.youReplying")}</strong>{" "}
+                          <span className="text-muted-foreground">{t("convs.kikaiPaused")}</span>
                         </>
                       ) : (
                         <>
-                          <strong>Kikai is answering.</strong>{" "}
-                          <span className="text-muted-foreground">Replying pauses it.</span>
+                          <strong>{t("convs.kikaiAnswering")}</strong>{" "}
+                          <span className="text-muted-foreground">{t("convs.replyingPauses")}</span>
                         </>
                       )}
                     </span>
@@ -858,7 +857,7 @@ export default function ConversationsPage() {
                     disabled={switchingHandoff}
                     onClick={() => setHandoff(activeConversation.handoffState === "human" ? "bot" : "human")}
                   >
-                    {activeConversation.handoffState === "human" ? "Hand back to Kikai" : "Take over"}
+                    {activeConversation.handoffState === "human" ? t("convs.handBack") : t("convs.takeOver")}
                   </Button>
                 </div>
                 <form onSubmit={sendReply} className="flex gap-2 p-3 pt-2.5 md:max-xl:pr-[5.5rem]">
@@ -867,15 +866,15 @@ export default function ConversationsPage() {
                     onChange={(e) => setReply(e.target.value)}
                     placeholder={
                       activeConversation.handoffState === "human"
-                        ? "Write to the visitor"
-                        : "Write to the visitor (this pauses Kikai)"
+                        ? t("convs.writeVisitor")
+                        : t("convs.writeVisitorPauses")
                     }
-                    aria-label="Reply to this conversation"
+                    aria-label={t("convs.replyLabel")}
                     disabled={replying}
                     className="h-11 flex-1 rounded-xl border border-input bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-3 focus:ring-ring/40 disabled:opacity-50"
                   />
                   <Button type="submit" className="h-11 px-5" disabled={replying || !reply.trim()}>
-                    {replying ? "Sending…" : "Send"}
+                    {replying ? t("convs.sending") : t("convs.send")}
                   </Button>
                 </form>
               </div>
@@ -896,14 +895,15 @@ export default function ConversationsPage() {
                   </div>
                   <p className="min-w-0 pl-2 text-[13.5px]">
                     <strong>
-                      {quote.clientName ?? "They"} {quote.clientName ? "wants" : "want"} a price
-                      {quote.items.length === 0 ? "" : quote.items.length === 1 ? " for a design" : ` for ${quote.items.length} designs`}.
+                      {quote.clientName
+                        ? t("convs.wantsPrice", { name: quote.clientName, n: quote.items.length })
+                        : t("convs.theyWantPrice", { n: quote.items.length })}
                     </strong>{" "}
-                    <span className="text-muted-foreground">Kikai has said you&rsquo;ll reply shortly.</span>
+                    <span className="text-muted-foreground">{t("convs.replyShortly")}</span>
                   </p>
                 </div>
                 <Button onClick={() => setQuoteOpen(true)} className="shrink-0 phone:h-12 phone:text-base">
-                  Quote now
+                  {t("convs.quoteNow")}
                 </Button>
               </div>
             ) : (
@@ -912,8 +912,8 @@ export default function ConversationsPage() {
               <div className="flex items-center gap-2.5 border-t border-border bg-card px-4 py-3.5 text-[13px] text-muted-foreground">
                 <span className="h-2 w-2 shrink-0 rounded-full bg-tea-green-300" aria-hidden />
                 <span>
-                  <strong className="text-foreground">Kikai is answering on {CHANNEL_META[activeConversation.channel]?.label}.</strong>{" "}
-                  Replying from here works on website chats for now.
+                  <strong className="text-foreground">{t("convs.answeringOn", { channel: channelLabel(activeConversation.channel, t) })}</strong>{" "}
+                  {t("convs.websiteOnly")}
                 </span>
               </div>
             )}
@@ -934,8 +934,8 @@ export default function ConversationsPage() {
             fetchConversations(true);
             notify(
               via === "sms"
-                ? "Quote sent by text message: the chat's 24 hours had passed."
-                : "Quote sent. Kikai books it if they say yes."
+                ? t("convs.quoteSentSms")
+                : t("convs.quoteSent")
             );
           }}
         />
@@ -954,7 +954,7 @@ export default function ConversationsPage() {
           <button
             className="flex-1 bg-tea-green-100/30 backdrop-blur-[2px]"
             onClick={() => setContactPanelOpen(false)}
-            aria-label="Close client details"
+            aria-label={t("convs.closeClient")}
           />
           <div className="flex w-full max-w-[24rem] flex-col border-l border-border bg-card animate-in slide-in-from-right">
             <ClientPanel
@@ -987,21 +987,21 @@ export default function ConversationsPage() {
         index={photoOpen === null ? null : chatPhotoIds.indexOf(photoOpen)}
         onIndex={(i) => setPhotoOpen(chatPhotoIds[i] ?? null)}
         onClose={() => setPhotoOpen(null)}
-        title={`Photo from ${title}`}
+        title={t("convs.photoFrom", { name: title })}
       />
     </div>
   );
 }
 
 /** The name a chat goes by: theirs, their lead's, or how to reach them. */
-function conversationTitle(c: ConversationDetail): string {
+function conversationTitle(c: ConversationDetail, t: Translate): string {
   return (
     c.contactName ||
     c.lead?.name ||
     (c.handle ? `@${c.handle}` : null) ||
     c.visitorEmail ||
     c.phoneNumber ||
-    "Unknown"
+    t("convs.unknown")
   );
 }
 
@@ -1023,7 +1023,7 @@ function threadItems(c: ConversationDetail): ThreadItem[] {
   return out;
 }
 
-function EventChip({ event, time }: { event: ThreadEvent; time: (iso: string) => string }) {
+function EventChip({ event, time, t, lang }: { event: ThreadEvent; time: (iso: string) => string; t: Translate; lang: Lang }) {
   const booked = event.kind === "booked";
   const Icon = booked ? CalendarCheck : PhoneCall;
   const chip = cn(
@@ -1036,13 +1036,13 @@ function EventChip({ event, time }: { event: ThreadEvent; time: (iso: string) =>
       <span className="truncate">
         {event.kind === "booked" ? (
           <>
-            <strong className="font-semibold">Booked</strong> · {event.serviceText},{" "}
-            {format(new Date(event.startsAt), "EEE d MMM")}, {time(event.startsAt)}
+            <strong className="font-semibold">{t("convs.eventBooked")}</strong> · {event.serviceText},{" "}
+            {format(new Date(event.startsAt), "EEE d MMM", { locale: DATE_FNS_LOCALE[lang] })}, {time(event.startsAt)}
             {event.bookingNumber !== null && ` · #${event.bookingNumber}`}
           </>
         ) : (
           <>
-            <strong className="font-semibold">Message taken</strong> · in Callbacks
+            <strong className="font-semibold">{t("convs.eventMessage")}</strong> · {t("convs.inCallbacks")}
           </>
         )}
       </span>

@@ -88,3 +88,10 @@ export function initialsFor(
   }
   return fallback.slice(-2).toUpperCase();
 }
+
+/** A channel's name to show: the brand's own, or "Website chat" and "Phone" in the reader's language. */
+export function channelLabel(channel: string, t: (key: "channel.website" | "channel.phone") => string): string {
+  if (channel === "website") return t("channel.website");
+  if (channel === "phone") return t("channel.phone");
+  return CHANNEL_META[channel as Channel]?.label ?? channel;
+}
