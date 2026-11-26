@@ -7,7 +7,19 @@ import {
   redirectToBookingHost,
   requestHostname,
   routeOnBookingHost,
+  routeOnSalonHost,
+  salonDomain,
+  salonFromHost,
+  type HostRoute,
 } from "@/lib/booking-host";
+
+function applyHostRoute(route: HostRoute, req: NextRequest): NextResponse {
+  const { search } = req.nextUrl;
+  if (route.kind === "rewrite") return NextResponse.rewrite(new URL(route.path + search, req.url));
+  if (route.kind === "redirect") return NextResponse.redirect(route.location, 308);
+  if (route.kind === "not_found") return new NextResponse("Not found", { status: 404 });
+  return NextResponse.next();
+}
 
 /** NextAuth v5's session cookie: the __Secure- one over https. */
 const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"] as const;
@@ -24,23 +36,24 @@ const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"
  * looked empty and broken rather than asking the user to sign in.
  */
 export async function proxy(req: NextRequest) {
-  // Salons' pages on their own address (BOOKING_URL, src/lib/booking-host.ts):
-  // first, so the CRM is never served there, bypass or not.
+  // Salons' pages on their own addresses (src/lib/booking-host.ts):
+  // <slug>.getkikai.com (SALON_DOMAIN) and book.getkikai.com (BOOKING_URL).
+  // First, so the CRM is never served there, bypass or not.
   const booking = bookingOrigin();
-  if (booking) {
+  const domain = salonDomain();
+  if (booking || domain) {
     const { pathname, search } = req.nextUrl;
-    if (isBookingHost(requestHostname(req.headers, req.nextUrl.host), booking)) {
-      const route = routeOnBookingHost(pathname, search, booking);
-      if (route.kind === "rewrite") return NextResponse.rewrite(new URL(route.path + search, req.url));
-      if (route.kind === "redirect") return NextResponse.redirect(route.location, 308);
-      if (route.kind === "not_found") return new NextResponse("Not found", { status: 404 });
-      return NextResponse.next();
+    const hostname = requestHostname(req.headers, req.nextUrl.host);
+    if (booking && isBookingHost(hostname, booking)) {
+      return applyHostRoute(routeOnBookingHost(pathname, search, booking, domain), req);
     }
+    const salon = salonFromHost(hostname, domain);
+    if (salon && domain) return applyHostRoute(routeOnSalonHost(pathname, search, salon, domain), req);
     // A salon page asked for on the app's address. Not for the app's own
     // in-page navigation (an RSC fetch), which cannot follow a redirect to
     // another address.
     if (!req.headers.get("rsc")) {
-      const to = redirectToBookingHost(pathname, search, booking);
+      const to = redirectToBookingHost(pathname, search, booking, domain);
       if (to) return NextResponse.redirect(to, 308);
     }
   }
@@ -86,6 +99,9 @@ export async function proxy(req: NextRequest) {
     // inside a salon's existing website.
     "/s/",
     "/api/book/",
+    // Caddy asking whether to fetch a certificate for <slug>.getkikai.com
+    // (src/app/api/salon-tls): only says whether a salon's page exists.
+    "/api/salon-tls",
     "/book.js",
     "/login",
     // The in-person lead funnel and where it sends; no login by design.

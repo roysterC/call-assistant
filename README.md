@@ -91,6 +91,48 @@ On netcup:
      `systemctl restart call-assistant`. Until this is set the app answers
      the name as if it were the CRM, so do it before telling anyone the
      address. Check with `curl -I https://book.getkikai.com/<a salon's slug>`.
+
+  Each salon then gets its own address, `<slug>.getkikai.com`, with
+  `book.getkikai.com/<slug>` and `app.getkikai.com/s/<slug>` redirecting
+  there. `book.getkikai.com` stays up: it serves `book.js` and the booking
+  embeds already pasted into salons' websites, and the redirects for links
+  already printed. Setting it up:
+  1. DNS: a wildcard `A` record `*.getkikai.com → 89.58.45.110`. Records
+     that already exist (`app`, `book`, `www`, the bare domain) win over the
+     wildcard, so the marketing site is untouched.
+  2. Caddyfile: Caddy fetches each salon's certificate the first time its
+     address is visited, after asking the app whether it is a real salon
+     (`/api/salon-tls`), so nobody can make it request certificates for
+     made-up names. Add the `on_demand_tls` lines to the global options block
+     at the top of the file (create the block if there is none), and the
+     `*.getkikai.com` site beside the others:
+
+     ```caddy
+     {
+         on_demand_tls {
+             ask http://127.0.0.1:3000/api/salon-tls
+         }
+     }
+
+     *.getkikai.com {
+         tls {
+             on_demand
+         }
+         reverse_proxy 127.0.0.1:3000
+     }
+     ```
+
+     then `systemctl reload caddy`. The `app.` and `book.` blocks are more
+     specific, so they keep their own certificates.
+  3. `.env` on the box: `SALON_DOMAIN=getkikai.com`. It is baked in at build
+     time (`BUILD_ENV_KEYS`), so redeploy from the Actions tab rather than
+     only restarting. Check with `curl -I https://<a salon's slug>.getkikai.com`:
+     the first request takes a few seconds while the certificate is fetched.
+
+  Some names are never a salon's (`app`, `book`, `www`, `mail`, `demo`…:
+  `RESERVED_SUBDOMAINS` in `src/lib/booking-host.ts`). Admin refuses them as
+  a new salon's slug; a salon that already has one keeps its page on
+  `book.getkikai.com/<slug>`.
 - **SSH** — as `root`, with the key at `~/.ssh/netcup-ca`
 
 Note that SSH login is `root` while the checkout belongs to `deploy`. Every
@@ -129,7 +171,7 @@ the live app and the voice server it stopped fitting: in November 2026 one
 deploy was killed for memory and the next froze until the 30-minute limit,
 with the live site slow while they ran. The settings the build bakes in
 (`NEXT_PUBLIC_*`, `RECEPTIONIST_VOICE_URL` for the security headers,
-`BOOKING_URL`, `AUTH_URL`, and Sentry's `SENTRY_ORG`, `SENTRY_PROJECT`,
+`BOOKING_URL`, `SALON_DOMAIN`, `AUTH_URL`, and Sentry's `SENTRY_ORG`, `SENTRY_PROJECT`,
 `SENTRY_AUTH_TOKEN` for source maps) are read from the box's `.env` and
 `.env.local` over SSH during the run (`BUILD_ENV_KEYS` in the workflow), so
 the box stays the one place they are set; they are masked in the log and
@@ -801,6 +843,10 @@ where the salon uses the diary. Code: `src/lib/online-booking/`.
   there, and the root layout renders the pages without the CRM's session or
   chrome. Any other path is read as a salon's slug and shows "not found".
   Without `BOOKING_URL`, everything below is at `/s/<slug>` on the app.
+  With `SALON_DOMAIN` set too (production: `getkikai.com`), each salon's
+  page is at `<slug>.getkikai.com/` and its booking at `/book` there; the
+  booking address and `/s/<slug>` redirect to it, and that address serves
+  nothing else (no other salon's pages, no CRM).
 - **`/s/<slug>`**: a one-page website built from the salon's settings
   (services and prices, team, opening hours, phone), plus a headline, about
   text, address and brand colour set in that section. A "Next free" button

@@ -1,4 +1,5 @@
 import { businessTypesOf, starterMenu, starterServices } from "@/lib/business-types";
+import { hasOwnSubdomain, RESERVED_SUBDOMAINS } from "@/lib/booking-host";
 import type { Prisma } from "@/generated/prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -56,6 +57,19 @@ export async function POST(req: NextRequest) {
     if (!/^[a-z0-9-]+$/.test(slug)) {
       return NextResponse.json(
         { error: "slug must be lowercase alphanumeric with dashes" },
+        { status: 400 }
+      );
+    }
+
+    // The slug is the salon's web address, <slug>.getkikai.com
+    // (src/lib/booking-host.ts): a name DNS accepts, and not one of ours.
+    if (!hasOwnSubdomain(slug)) {
+      return NextResponse.json(
+        {
+          error: RESERVED_SUBDOMAINS.includes(slug)
+            ? `"${slug}" is kept for Kikai's own addresses. Choose another slug.`
+            : "slug must start with a letter or number, not end with a dash, and be at most 63 characters",
+        },
         { status: 400 }
       );
     }

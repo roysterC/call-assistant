@@ -49,7 +49,9 @@ text in `.github/workflows/deploy-netcup.yml`; keep it that way.
 reliable way to check whether a change went out. Use `app.getkikai.com`.
 `getkikai.com` and `www.getkikai.com` are the marketing site, hosted
 elsewhere: not this app. `book.getkikai.com` is this app too, serving only
-salons' public booking pages (`BOOKING_URL`, `src/lib/booking-host.ts`).
+salons' public booking pages (`BOOKING_URL`, `src/lib/booking-host.ts`), and
+so is every other `<slug>.getkikai.com`: each salon's own address
+(`SALON_DOMAIN`, same file).
 The web server in front of the app is Caddy, not nginx.
 
 Full topology, secrets, and the schema-change policy: see "Deployment" in

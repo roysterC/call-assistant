@@ -9,7 +9,7 @@ import { LanguageProvider } from "@/components/providers/language-provider";
 import { IntlOnly } from "@/components/providers/intl-only";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { cookies, headers } from "next/headers";
-import { bookingOrigin, isBookingHost, requestHostname } from "@/lib/booking-host";
+import { requestHostname, servesOnlySalonPages } from "@/lib/booking-host";
 import { CLOCK_COOKIE, DEFAULT_LANG, LANG_COOKIE, isClock, isLang } from "@/lib/i18n";
 import { messagesFor } from "@/lib/i18n/load";
 import { PSEUDO, pseudoMessages } from "@/lib/i18n/pseudo";
@@ -99,11 +99,11 @@ export default async function RootLayout({
   const clock = isClock(chosenClock) ? chosenClock : null;
   const fonts = `${inter.variable} ${interVietnamese.variable} ${jakarta.variable} ${jakartaVietnamese.variable} ${jetbrainsMono.variable} h-full antialiased`;
 
-  // The booking address (src/lib/booking-host.ts) serves only salons' public
-  // pages, under paths the CRM's own chrome does not recognise (/<slug>, not
-  // /s/<slug>). They need none of the CRM around them: no sign-in session,
+  // The booking address and salons' own addresses (src/lib/booking-host.ts)
+  // serve only salons' public pages, under paths the CRM's own chrome does
+  // not recognise (/<slug> or /, not /s/<slug>). They need none of the CRM around them: no sign-in session,
   // no sidebar, no assistant, no booking pop-ups.
-  if (isBookingHost(requestHostname(await headers(), ""), bookingOrigin())) {
+  if (servesOnlySalonPages(requestHostname(await headers(), ""))) {
     return (
       <html lang="en" className={fonts}>
         <body className="h-full bg-white text-stone-900 overflow-hidden">
