@@ -40,9 +40,9 @@ env:
   BUILD_HEAP_MB: "6144"
   # What the build reads from the box's .env and bakes in: the browser's
   # error reporting, the voice server's address (in the security headers),
-  # the app's and booking addresses, and Sentry's source-map upload. Read
-  # over SSH at build time, so the box stays the one place they are set.
-  BUILD_ENV_KEYS: "NEXT_PUBLIC_[A-Z0-9_]+|RECEPTIONIST_VOICE_URL|BOOKING_URL|AUTH_URL|SENTRY_ORG|SENTRY_PROJECT|SENTRY_AUTH_TOKEN"
+  # the app's, booking and salon addresses, and Sentry's source-map upload.
+  # Read over SSH at build time, so the box stays the one place they are set.
+  BUILD_ENV_KEYS: "NEXT_PUBLIC_[A-Z0-9_]+|RECEPTIONIST_VOICE_URL|BOOKING_URL|SALON_DOMAIN|AUTH_URL|SENTRY_ORG|SENTRY_PROJECT|SENTRY_AUTH_TOKEN"
 
 jobs:
   # Fail fast on the runner, before anything touches production.

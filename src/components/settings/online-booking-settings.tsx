@@ -113,6 +113,7 @@ export function OnlineBookingSettings({
   onChange,
   slug,
   bookingOrigin,
+  salonSite,
   live,
   services,
   notReady,
@@ -125,6 +126,8 @@ export function OnlineBookingSettings({
   slug: string | null;
   /** Where salons' pages are given out (book.getkikai.com), or null for this app's /s/. */
   bookingOrigin?: string | null;
+  /** The salon's own address (https://<slug>.getkikai.com), when it has one. */
+  salonSite?: string | null;
   /** Switched on and saved: the links work. */
   live: boolean;
   services: SalonService[];
@@ -140,7 +143,7 @@ export function OnlineBookingSettings({
   const here = typeof window !== "undefined" ? window.location.origin : "";
   // The booking address serves the pages, the flow and book.js on its own.
   const origin = bookingOrigin || here;
-  const site = slug ? (bookingOrigin ? `${bookingOrigin}/${slug}` : `${here}/s/${slug}`) : "";
+  const site = slug ? (salonSite ?? (bookingOrigin ? `${bookingOrigin}/${slug}` : `${here}/s/${slug}`)) : "";
   const brand = value.siteBrandColor ?? DEFAULT_BRAND_COLOR;
 
   return (

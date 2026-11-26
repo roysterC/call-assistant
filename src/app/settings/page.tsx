@@ -144,6 +144,7 @@ export default function SettingsPage() {
   const [slug, setSlug] = useState<string | null>(null);
   // Where salons' pages are given out, when that is not this app's address.
   const [bookingOrigin, setBookingOrigin] = useState<string | null>(null);
+  const [salonSite, setSalonSite] = useState<string | null>(null);
   // Whether the salon's texts can go, and from whom (sms-sender.ts).
   const [texts, setTexts] = useState<TextsStatus | null>(null);
 
@@ -177,6 +178,7 @@ export default function SettingsPage() {
         };
         setSlug(data.organizationSlug ?? null);
         setBookingOrigin(data.bookingOrigin ?? null);
+        setSalonSite(data.salonSite ?? null);
         setTexts(data.texts ?? null);
         setSettings(s);
         setSaved(editable(s));
@@ -605,6 +607,7 @@ export default function SettingsPage() {
               onChange={(online) => setSettings({ ...settings, online })}
               slug={slug}
               bookingOrigin={bookingOrigin}
+              salonSite={salonSite}
               live={Boolean(saved?.online.onlineBookingEnabled)}
               services={settings.services}
               notReady={!readiness.ready}

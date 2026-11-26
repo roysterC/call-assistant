@@ -23,7 +23,7 @@ import { parseSmsSender } from "@/lib/sms-sender";
 import { smsStatus } from "@/lib/sms";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
 import { checkSiteChat } from "@/lib/salon-chat";
-import { bookingOrigin } from "@/lib/booking-host";
+import { bookingOrigin, salonDomain, salonOrigin } from "@/lib/booking-host";
 import {
   parseBrandColor,
   parseDaysAhead,
@@ -264,6 +264,9 @@ export async function GET(req: NextRequest) {
       // Where salons' pages are given out (BOOKING_URL), or null for /s/<slug>
       // on the app's own address (src/lib/booking-host.ts).
       bookingOrigin: bookingOrigin(),
+      // The salon's own address, https://<slug>.getkikai.com, when salons get
+      // one (SALON_DOMAIN) and its slug can be one.
+      salonSite: org?.slug ? salonOrigin(org.slug, salonDomain()) : null,
       // Whether the salon's texts can go, and from whom (sms-sender.ts).
       texts: await smsStatus(ctx.organizationId),
     });
