@@ -8,6 +8,7 @@ import { motion, useIsPresent, type Transition } from "motion/react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
+import { useT } from "@/components/providers/language-provider"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
@@ -127,12 +128,18 @@ function DialogContent({
           >
             <XIcon
             />
-            <span className="sr-only">Close</span>
+            <CloseLabel />
           </DialogPrimitive.Close>
         )}
       </DialogCard>
     </DialogPortal>
   )
+}
+
+/** "Close", in the reader's language: read out on the corner cross, or shown. */
+function CloseLabel({ visible = false }: { visible?: boolean }) {
+  const { t } = useT()
+  return visible ? <>{t("common.close")}</> : <span className="sr-only">{t("common.close")}</span>
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
@@ -165,7 +172,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close render={<Button variant="outline" />}>
-          Close
+          <CloseLabel visible />
         </DialogPrimitive.Close>
       )}
     </div>

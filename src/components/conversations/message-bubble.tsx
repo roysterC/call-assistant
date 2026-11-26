@@ -3,7 +3,7 @@ import { ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { withAsOrg } from "@/lib/api-fetch";
 import { readPhotoLine } from "@/lib/thread-photos";
-import { useLanguage } from "@/components/providers/language-provider";
+import { useT } from "@/components/providers/language-provider";
 
 interface MessageBubbleProps {
   /** "user" is the client; "assistant" is Kikai; "agent" is staff replying from this inbox. */
@@ -35,7 +35,7 @@ export function MessageBubble({
   photos = [],
   onOpenPhoto,
 }: MessageBubbleProps) {
-  const { clock } = useLanguage();
+  const { t, clock } = useT();
   const isClient = role === "user";
   const isAgent = role === "agent";
   const photo = isClient ? readPhotoLine(content) : null;
@@ -63,12 +63,12 @@ export function MessageBubble({
               type="button"
               onClick={() => onOpenPhoto?.(id)}
               className="block cursor-zoom-in overflow-hidden rounded-2xl rounded-bl-md border border-border bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
-              aria-label={photos.length > 1 ? `See photo ${i + 1} full size` : "See the photo full size"}
+              aria-label={photos.length > 1 ? t("conv.photoNFull", { n: i + 1 }) : t("conv.photoFull")}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image */}
               <img
                 src={withAsOrg(`/api/chat-photos/${id}`)}
-                alt={text ? `Photo: ${text}` : "Photo the client sent"}
+                alt={text ? t("conv.photoAltText", { text }) : t("conv.photoAlt")}
                 className={cn("block object-cover", photos.length > 1 ? "h-32 w-32" : "h-44 w-56")}
                 loading="lazy"
               />
@@ -80,7 +80,7 @@ export function MessageBubble({
       {photo?.isPhoto && photos.length === 0 && (
         <span className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
           <ImageOff className="h-3.5 w-3.5" aria-hidden />
-          {photo.saved ? "Sent a photo" : "Sent a photo that couldn't be saved"}
+          {photo.saved ? t("conv.sentPhoto") : t("conv.sentPhotoLost")}
         </span>
       )}
 

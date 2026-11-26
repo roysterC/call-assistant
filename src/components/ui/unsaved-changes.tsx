@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/components/providers/language-provider";
 
 export function SaveBar({
   dirty,
@@ -38,6 +39,7 @@ export function SaveBar({
   onSave: () => void;
   onDiscard: () => void;
 }) {
+  const { t } = useT();
   return (
     // Sticky inside the page, so it lines up with the content rather than
     // spreading under the sidebar. On a phone the page already ends above
@@ -51,7 +53,7 @@ export function SaveBar({
     >
       <div
         role="region"
-        aria-label="Unsaved changes"
+        aria-label={t("unsaved.region")}
         className={cn(
           // Clear of the assistant's round button, bottom right on a computer.
           "flex items-center gap-3 rounded-xl border bg-popover px-4 py-3 shadow-raised ring-1 ring-border transition-[opacity,translate] duration-200 ease-out md:mr-20",
@@ -59,14 +61,14 @@ export function SaveBar({
         )}
       >
         <p className="flex-1 text-sm font-medium" aria-live="polite">
-          {dirty ? "You have unsaved changes" : ""}
+          {dirty ? t("unsaved.message") : ""}
         </p>
         <Button type="button" variant="outline" size="sm" onClick={onDiscard} disabled={saving || !dirty} tabIndex={dirty ? 0 : -1}>
-          Discard
+          {t("unsaved.discard")}
         </Button>
         <Button type="button" size="sm" onClick={onSave} disabled={saving || !dirty} tabIndex={dirty ? 0 : -1}>
           {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-          {saving ? "Saving…" : "Save changes"}
+          {saving ? t("common.saving") : t("unsaved.save")}
         </Button>
       </div>
     </div>
@@ -88,6 +90,7 @@ export function useLeaveGuard({
   save: () => Promise<boolean>;
   discard: () => void;
 }) {
+  const { t } = useT();
   const router = useRouter();
   const [leavingTo, setLeavingTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,12 +142,12 @@ export function useLeaveGuard({
     <Dialog open={leavingTo !== null} onOpenChange={(open) => !open && !busy && setLeavingTo(null)}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Save your changes?</DialogTitle>
-          <DialogDescription>You have changes on this page that are not saved yet.</DialogDescription>
+          <DialogTitle>{t("unsaved.leaveTitle")}</DialogTitle>
+          <DialogDescription>{t("unsaved.leaveBody")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button type="button" variant="ghost" disabled={busy} onClick={() => setLeavingTo(null)}>
-            Stay
+            {t("unsaved.stay")}
           </Button>
           <Button
             type="button"
@@ -157,7 +160,7 @@ export function useLeaveGuard({
               go(to);
             }}
           >
-            Discard
+            {t("unsaved.discard")}
           </Button>
           <Button
             type="button"
@@ -175,7 +178,7 @@ export function useLeaveGuard({
             }}
           >
             {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            Save and leave
+            {t("unsaved.saveLeave")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -6,6 +6,7 @@ import { SessionProvider } from "@/components/providers/session-provider";
 import { MeProvider } from "@/components/providers/me-provider";
 import { DialogsProvider } from "@/components/providers/dialogs-provider";
 import { LanguageProvider } from "@/components/providers/language-provider";
+import { IntlOnly } from "@/components/providers/intl-only";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { cookies, headers } from "next/headers";
 import { bookingOrigin, isBookingHost, requestHostname } from "@/lib/booking-host";
@@ -101,7 +102,9 @@ export default async function RootLayout({
   if (isBookingHost(requestHostname(await headers(), ""), bookingOrigin())) {
     return (
       <html lang="en" className={fonts}>
-        <body className="h-full bg-white text-stone-900 overflow-hidden">{children}</body>
+        <body className="h-full bg-white text-stone-900 overflow-hidden">
+          <IntlOnly messages={messagesFor("en")}>{children}</IntlOnly>
+        </body>
       </html>
     );
   }

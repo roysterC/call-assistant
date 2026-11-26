@@ -12,7 +12,7 @@ import { CalendarPlus, Check, MessageCircle, Phone, RotateCcw, StickyNote, X } f
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/components/providers/language-provider";
-import { CHANNEL_META, avatarColorFor, initialsFor, type Channel } from "@/lib/channels";
+import { CHANNEL_META, avatarColorFor, channelLabel, initialsFor, type Channel } from "@/lib/channels";
 import { DATE_FNS_LOCALE, INTL_LOCALE, clockTime, type Clock, type Lang, type MessageKey, type Translate } from "@/lib/i18n";
 import type { VisitSummaryJson } from "@/lib/client-summary";
 import { cn } from "@/lib/utils";
@@ -116,7 +116,7 @@ function Avatar({ cb, size, t }: { cb: CallbackRow; size: "md" | "lg"; t: Transl
             "absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-card text-white",
             meta.bg
           )}
-          title={meta.label}
+          title={channelLabel(ch!, t)}
         >
           <meta.icon className="h-2.5 w-2.5" />
         </span>
@@ -290,7 +290,7 @@ export function CallbackDetail({
           )}
           {cb.chat ? (
             <Link href={chatHref(cb.chat)} className={buttonVariants({ variant: "outline", className: "h-11 flex-1 px-4 lg:flex-none" })}>
-              <MessageCircle /> {CHANNEL_META[cb.chat.channel as Channel]?.label ?? t("callbacks.openChat")}
+              <MessageCircle /> {channelLabel(cb.chat.channel, t) ?? t("callbacks.openChat")}
             </Link>
           ) : (
             phone && (
@@ -319,7 +319,7 @@ export function CallbackDetail({
                 {ch === "phone"
                   ? t("callbacks.leftOnCall", { when })
                   : ch
-                    ? t("callbacks.leftOnChat", { channel: CHANNEL_META[ch].label, when })
+                    ? t("callbacks.leftOnChat", { channel: channelLabel(ch, t), when })
                     : t("callbacks.leftAt", { when })}
                 {fromChat && (
                   <>

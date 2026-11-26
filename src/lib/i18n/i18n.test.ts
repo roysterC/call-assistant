@@ -37,7 +37,7 @@ const english = flat(en);
 
 // Words that are the same in both, or names that stay English on purpose.
 // Brand names stay as they are.
-const SAME_IN_BOTH = new Set(["Email", "OK", "Menu", "AI CRM", "Instagram", "Messenger", "WhatsApp"]);
+const SAME_IN_BOTH = new Set(["Email", "OK", "Menu", "AI CRM", "Instagram", "Messenger", "WhatsApp", "Kikai: "]);
 
 describe("the CRM's languages", () => {
   it("has a file for every language, and nothing in one that English lacks", () => {

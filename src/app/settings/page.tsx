@@ -1,7 +1,7 @@
 "use client";
 
 import { hasDiary } from "@/lib/navigation";
-import { bookingReadiness, missingText } from "@/lib/booking/readiness";
+import { bookingReadiness } from "@/lib/booking/readiness";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Users, MessageCircle, MessageSquareText, Phone, Camera, Send, Globe } from "lucide-react";
@@ -20,11 +20,13 @@ import type { DayHours } from "@/lib/business-hours";
 import type { SalonService, Stylist } from "@/lib/salon-config";
 import { SALON_FAQ_MAX } from "@/lib/salon-knowledge";
 import { useMe } from "@/components/providers/me-provider";
+import { useT } from "@/components/providers/language-provider";
+import type { Translate } from "@/lib/i18n";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { TeamLogins } from "@/components/settings/team-logins";
 import { cn } from "@/lib/utils";
-import { settingsTabs, setupSteps, tabFromHash, TAB_LABELS, type SettingsTab, type SetupStep } from "@/lib/settings-tabs";
+import { settingsTabs, setupSteps, tabFromHash, type SettingsTab, type SetupStep } from "@/lib/settings-tabs";
 import { VOICE_CHANNEL, type PhoneChannel } from "@/lib/phone-channels";
 import {
   OnlineBookingSettings,
@@ -109,6 +111,7 @@ export default function SettingsPage() {
   // too. Locked until the role has loaded, so nobody edits what they cannot
   // save.
   const me = useMe();
+  const { t } = useT();
   const canEdit = me !== null && me.role !== "member";
 
   // The salon's logins, for each technician's "Signs in as" (owners only:
@@ -232,7 +235,7 @@ export default function SettingsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        notify(data.error || "Could not save your changes.");
+        notify(data.error || t("settings.saveFailed"));
         return false;
       }
       // Show what was stored, e.g. the contact number as texts will print it.
@@ -248,11 +251,11 @@ export default function SettingsPage() {
       };
       setSettings(stored);
       setSaved(editable(stored));
-      notify("Settings saved", "success");
+      notify(t("settings.saved"), "success");
       return true;
     } catch (error) {
       console.error("Failed to save settings:", error);
-      notify("Could not reach the server. Your changes are not saved.");
+      notify(t("settings.offline"));
       return false;
     } finally {
       setSaving(false);
@@ -310,7 +313,7 @@ export default function SettingsPage() {
     staffPlural: "nail technicians",
   });
   const todo = settings.hasDiary && !readiness.ready ? steps.filter((s) => !s.done) : [];
-  const needs = (t: SettingsTab) => todo.some((s) => s.tab === t);
+  const needs = (tb: SettingsTab) => todo.some((s) => s.tab === tb);
   const counts: Partial<Record<SettingsTab, number>> = settings.hasDiary
     ? { services: settings.services.length, team: settings.teamMembers.length }
     : {};
@@ -324,9 +327,9 @@ export default function SettingsPage() {
         ? "Instagram"
         : null;
   const rebookNeeds = [
-    !rebookChat && "a WhatsApp number or your Instagram username, which Kikai sets up",
-    !readiness.ready && `the diary cannot take bookings yet (${missingText(readiness)})`,
-    !settings.services.some((s) => s.rebookWeeks) && "no service has a \"due again after\" yet",
+    !rebookChat && t("settings.rebook.needChat"),
+    !readiness.ready && t("settings.rebook.needDiary"),
+    !settings.services.some((s) => s.rebookWeeks) && t("settings.rebook.needDue"),
   ].filter((x): x is string => Boolean(x));
 
   const numberList = (nums: PhoneNumber[]) =>
@@ -338,60 +341,65 @@ export default function SettingsPage() {
   // Every channel, switched on or not, so the salon sees what it has and what
   // it could have. Kikai switches them on; nothing here changes them.
   const chatDoes = settings.chatBookingEnabled
-    ? "Answers messages and books into the diary"
+    ? t("settings.channels.chatBooks")
     : settings.hasDiary
-      ? "Answers questions, and gives your number or takes a call-back request to book"
-      : "Answers questions";
+      ? t("settings.channels.chatNumber")
+      : t("settings.channels.chatAnswers");
+  const status = (enabled: boolean, ready: boolean, notReady: string) => channelStatus(enabled, ready, notReady, t);
   const channels: ChannelRow[] = [
     // Every booking's confirmation and reminder go this way, so first, and
     // never "Off": without a sender they all fail (sms-sender.ts).
     ...(texts
       ? [
           {
-            name: "Texts to clients",
+            id: "texts",
+            name: t("settings.channels.texts"),
             icon: MessageSquareText,
-            address: texts.ready && texts.sender ? `from ${texts.sender}` : "",
-            does: texts.ready
-              ? "Booking confirmations, day-before reminders and rebooking texts"
-              : "Not sending: no confirmation or reminder texts go until Kikai sets up the salon's text sender",
+            address: texts.ready && texts.sender ? t("settings.channels.textsFrom", { sender: texts.sender }) : "",
+            does: texts.ready ? t("settings.channels.textsOn") : t("settings.channels.textsOff"),
             status: (texts.ready ? "on" : "waiting") as ChannelState,
-            statusText: texts.ready ? "On" : "Not set up",
+            statusText: texts.ready ? t("settings.on") : t("settings.channels.notSetUp"),
           },
         ]
       : []),
     {
-      name: "Phone receptionist",
+      id: "phone",
+      name: t("settings.channels.phone"),
       icon: Phone,
       address: numberList(voiceNumbers),
-      does: "Answers calls and books into the diary",
-      ...status(settings.voiceEnabled, Boolean(numberList(voiceNumbers)), "No number yet"),
+      does: t("settings.channels.phoneDoes"),
+      ...status(settings.voiceEnabled, Boolean(numberList(voiceNumbers)), t("settings.channels.noNumber")),
     },
     {
+      id: "instagram",
       name: "Instagram",
       icon: Camera,
       address: settings.instagramUsername ? `@${settings.instagramUsername}` : "",
       does: chatDoes,
-      ...status(settings.instagramEnabled, Boolean(settings.instagramBusinessId), "Not linked yet"),
+      ...status(settings.instagramEnabled, Boolean(settings.instagramBusinessId), t("settings.channels.notLinked")),
     },
     {
+      id: "whatsapp",
       name: "WhatsApp",
       icon: MessageCircle,
       address: numberList(whatsappNumbers),
       does: chatDoes,
-      ...status(settings.whatsappEnabled, Boolean(numberList(whatsappNumbers)), "No number yet"),
+      ...status(settings.whatsappEnabled, Boolean(numberList(whatsappNumbers)), t("settings.channels.noNumber")),
     },
     {
+      id: "facebook",
       name: "Facebook Messenger",
       icon: Send,
       address: "",
       does: chatDoes,
-      ...status(settings.facebookEnabled, Boolean(settings.facebookPageId), "Not linked yet"),
+      ...status(settings.facebookEnabled, Boolean(settings.facebookPageId), t("settings.channels.notLinked")),
     },
     {
-      name: "Website chat",
+      id: "website",
+      name: t("settings.channels.website"),
       icon: Globe,
       address: "",
-      does: "A chat on your website or your booking page, set up in Websites",
+      does: "",
       ...status(settings.chatbotEnabled, true, ""),
     },
   ];
@@ -406,11 +414,11 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5 pb-24">
       <PageHeader
-        title="Settings"
+        title={t("settings.title")}
         actions={
           me?.role === "member" ? (
             <span className="text-sm text-muted-foreground">
-              Only the salon&apos;s owner can change these.
+              {t("settings.ownerOnly")}
             </span>
           ) : undefined
         }
@@ -430,7 +438,7 @@ export default function SettingsPage() {
 
       <div
         role="tablist"
-        aria-label="Settings"
+        aria-label={t("settings.tabsLabel")}
         // Scrolls sideways on a phone, never up and down: the line under the
         // tabs is drawn inside the bar (an inset shadow) rather than as a
         // border the tabs overlap, which overflowed by a pixel and gave the
@@ -445,30 +453,30 @@ export default function SettingsPage() {
           document.getElementById(`tab-${next}`)?.focus();
         }}
       >
-        {tabs.map((t) => (
+        {tabs.map((tb) => (
           <button
-            key={t}
+            key={tb}
             type="button"
             role="tab"
-            id={`tab-${t}`}
-            aria-selected={t === tab}
-            aria-controls={`panel-${t}`}
-            tabIndex={t === tab ? 0 : -1}
-            onClick={() => choose(t)}
+            id={`tab-${tb}`}
+            aria-selected={tb === tab}
+            aria-controls={`panel-${tb}`}
+            tabIndex={tb === tab ? 0 : -1}
+            onClick={() => choose(tb)}
             className={cn(
               "inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm transition-colors",
-              t === tab
+              tb === tab
                 ? "border-primary font-semibold text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            {TAB_LABELS[t]}
-            {needs(t) ? (
+            {t(`settings.tab.${tb}`)}
+            {needs(tb) ? (
               <span className="h-2 w-2 rounded-full bg-papaya-whip-400">
-                <span className="sr-only"> (needs doing)</span>
+                <span className="sr-only">{t("settings.needsDoing")}</span>
               </span>
-            ) : counts[t] !== undefined ? (
-              <span className="rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">{counts[t]}</span>
+            ) : counts[tb] !== undefined ? (
+              <span className="rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">{counts[tb]}</span>
             ) : null}
           </button>
         ))}
@@ -482,19 +490,19 @@ export default function SettingsPage() {
             <>
               <SettingsSection
                 id="details"
-                title="Salon details"
-                description="How the salon is named to clients: on the phone, in chats and in every text."
+                title={t("settings.details.title")}
+                description={t("settings.details.description")}
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block space-y-1.5">
-                    <span className="text-sm font-medium">Salon name</span>
+                    <span className="text-sm font-medium">{t("settings.details.name")}</span>
                     <Input
                       value={settings.businessName}
                       onChange={(e) => setSettings({ ...settings, businessName: e.target.value })}
                     />
                   </label>
                   <label className="block space-y-1.5">
-                    <span className="text-sm font-medium">Contact number</span>
+                    <span className="text-sm font-medium">{t("settings.details.phone")}</span>
                     <Input
                       value={settings.contactPhone ?? ""}
                       placeholder="01234 567890"
@@ -503,7 +511,7 @@ export default function SettingsPage() {
                     {/* Texts go out from a one-way sender, so without this a client
                         who cannot make their appointment has no way to tell you. */}
                     <span className="block text-xs text-muted-foreground">
-                      Printed in confirmation and reminder texts, which clients cannot reply to.
+                      {t("settings.details.phoneHint")}
                     </span>
                   </label>
                 </div>
@@ -516,8 +524,8 @@ export default function SettingsPage() {
               {settings.hasDiary && (
                 <SettingsSection
                   id="hours"
-                  title="Opening hours"
-                  description="When appointments can be booked, and what the receptionist tells callers."
+                  title={t("settings.hours.title")}
+                  description={t("settings.hours.description")}
                   attention={needs("salon")}
                 >
                   <OpeningHoursEditor
@@ -533,8 +541,8 @@ export default function SettingsPage() {
           {tab === "services" && (
             <SettingsSection
               id="price-list"
-              title="Your price list"
-              description="Each treatment has its prices and lengths, the finishes it comes in, and the extras that can go on it. Prices are quoted as “from”."
+              title={t("settings.prices.title")}
+              description={t("settings.prices.description")}
               attention={needs("services")}
             >
               <PriceListEditor
@@ -561,19 +569,15 @@ export default function SettingsPage() {
               {settings.hasDiary && (
                 <SettingsSection
                   id="people"
-                  title="Your nail technicians"
-                  description={
-                    usesGoogle
-                      ? "Each needs a Google calendar shared with the service account before they can be booked."
-                      : "Who can be booked, on which days, and for what."
-                  }
+                  title={t("settings.team.title")}
+                  description={usesGoogle ? t("settings.team.descriptionGoogle") : t("settings.team.description")}
                   attention={needs("team")}
                 >
                   {settings.teamMembers.length === 0 && (
                     <EmptyState
                       icon={Users}
-                      title="No one added yet"
-                      hint="Add a nail technician so the receptionist has someone to book with."
+                      title={t("settings.team.empty")}
+                      hint={t("settings.team.emptyHint")}
                     />
                   )}
                   <StylistsEditor
@@ -589,7 +593,7 @@ export default function SettingsPage() {
               )}
 
               {/* Who can sign in: the owner invites and removes staff here. */}
-              {canEdit && <TeamLogins salon={settings.businessName || "your salon"} />}
+              {canEdit && <TeamLogins salon={settings.businessName || t("settings.yourSalon")} />}
             </>
           )}
 
@@ -603,8 +607,7 @@ export default function SettingsPage() {
               bookingOrigin={bookingOrigin}
               live={Boolean(saved?.online.onlineBookingEnabled)}
               services={settings.services}
-              notReady={readiness.ready ? null : missingText(readiness)}
-              staff="nail technician"
+              notReady={!readiness.ready}
               chatbotEnabled={settings.chatbotEnabled}
               businessName={settings.businessName}
             />
@@ -614,12 +617,12 @@ export default function SettingsPage() {
             <>
               <SettingsSection
                 id="channels"
-                title="Where clients reach you"
-                description="What each one does for you. Kikai sets these up: ask us to switch one on."
+                title={t("settings.channels.title")}
+                description={t("settings.channels.description")}
               >
                 <ul className="divide-y divide-border overflow-hidden rounded-lg ring-1 ring-border">
                   {channels.map((c) => (
-                    <li key={c.name} className="flex items-center gap-3 px-4 py-3">
+                    <li key={c.id} className="flex items-center gap-3 px-4 py-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                         <c.icon className="h-4 w-4" aria-hidden="true" />
                       </span>
@@ -629,11 +632,11 @@ export default function SettingsPage() {
                           {c.address && <span className="ml-1.5 font-normal text-muted-foreground">{c.address}</span>}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {c.name === "Website chat" ? (
+                          {c.id === "website" ? (
                             <>
-                              A chat on your booking page or your own website, set up in{" "}
+                              {t("settings.channels.websiteDoes")}{" "}
                               <a href="#online" className="font-medium underline underline-offset-2">
-                                Online booking
+                                {t("settings.tab.online")}
                               </a>
                             </>
                           ) : (
@@ -655,8 +658,8 @@ export default function SettingsPage() {
               {settings.chatBookingEnabled && (
                 <SettingsSection
                   id="rebooking"
-                  title="Rebooking texts"
-                  description="A text to clients when they are due back, offering a free time."
+                  title={t("settings.rebook.title")}
+                  description={t("settings.rebook.description")}
                   actions={
                     <span
                       className={cn(
@@ -664,7 +667,7 @@ export default function SettingsPage() {
                         STATUS_STYLE[settings.rebookTextsEnabled ? "on" : "off"]
                       )}
                     >
-                      {settings.rebookTextsEnabled ? "On" : "Off"}
+                      {settings.rebookTextsEnabled ? t("settings.on") : t("settings.off")}
                     </span>
                   }
                 >
@@ -677,30 +680,26 @@ export default function SettingsPage() {
                         onChange={(e) => setSettings({ ...settings, rebookTextsEnabled: e.target.checked })}
                       />
                       <span>
-                        <span className="font-medium">Text clients when they are due back</span>
+                        <span className="font-medium">{t("settings.rebook.label")}</span>
                         <span className="block text-xs text-muted-foreground">
-                          Sent in the morning, a few days before, to clients with nothing booked. It
-                          offers a free time with the same nail technician where there is one, and a
-                          link that opens your {rebookChat ?? "WhatsApp or Instagram"} chat with the
-                          booking written for them. Each text has a link to stop them.
+                          {t("settings.rebook.how", { chat: rebookChat ?? t("settings.rebook.eitherChat") })}
                         </span>
                       </span>
                     </label>
                     <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                      &ldquo;Hi Mai, your BIAB infill is due. Lan has Thursday at 3pm free. Book:
-                      https://…/r/Ab3kQ9 Stop these: https://…/r/Ab3kQ9/stop {settings.businessName || "Your salon"}&rdquo;
+                      {rebookSample(settings.businessName)}
                     </p>
                     {settings.rebookTextsEnabled && rebookNeeds.length > 0 && (
                       <p role="status" className="rounded-lg bg-papaya-whip-700 px-3 py-2 text-xs text-papaya-whip-100">
-                        Not sending yet: {rebookNeeds.join("; ")}.
+                        {t("settings.rebook.notSending", { reasons: rebookNeeds.join("; ") })}
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      Set when each service is due again in{" "}
+                      {t("settings.rebook.dueIn")}{" "}
                       <button type="button" className="font-medium underline underline-offset-2" onClick={() => choose("services", "price-list")}>
-                        Services
+                        {t("settings.tab.services")}
                       </button>
-                      , e.g. an infill after 3 weeks. A new set can be rebooked as an infill.
+                      {t("settings.rebook.dueExample")}
                     </p>
                   </div>
                 </SettingsSection>
@@ -713,26 +712,21 @@ export default function SettingsPage() {
               {botsOn && (
                 <SettingsSection
                   id="faq"
-                  title="What the receptionist and chats know"
-                  description="They already know your hours, services, prices and team. For anything else about the salon they only use what you write here, and say they are not sure otherwise."
+                  title={t("settings.faq.title")}
+                  description={t("settings.faq.description")}
                 >
                   <div className="space-y-1.5">
                     <Textarea
-                      aria-label="Your answers to common questions"
+                      aria-label={t("settings.faq.label")}
                       value={settings.salonFaq}
                       maxLength={SALON_FAQ_MAX}
                       rows={8}
-                      placeholder={
-                        "Where are you? 47 Bridge Street, next to the florist.\n" +
-                        "Parking? Six spaces behind the salon; the Castle Street multi-storey is two minutes away.\n" +
-                        "Cancellations: please give 24 hours' notice.\n" +
-                        "Gift vouchers: yes, any amount, from the desk."
-                      }
+                      placeholder={t("settings.faq.placeholder")}
                       onChange={(e) => setSettings({ ...settings, salonFaq: e.target.value })}
                       className="min-h-40"
                     />
                     <p className="flex justify-between gap-3 text-xs text-muted-foreground">
-                      <span>A question and its answer per line is plenty. Prices come from Services, quoted as &ldquo;from&rdquo;.</span>
+                      <span>{t("settings.faq.hint")}</span>
                       <span className="shrink-0 tabular-nums">
                         {settings.salonFaq.length}/{SALON_FAQ_MAX}
                       </span>
@@ -756,6 +750,7 @@ export default function SettingsPage() {
 type ChannelState = "on" | "waiting" | "off";
 
 interface ChannelRow {
+  id: string;
   name: string;
   icon: typeof Phone;
   address: string;
@@ -771,9 +766,17 @@ const STATUS_STYLE: Record<ChannelState, string> = {
 };
 
 /** A channel's status: on and working, switched on but not set up yet, or off. */
-function status(enabled: boolean, ready: boolean, notReady: string): { status: ChannelState; statusText: string } {
-  if (!enabled) return { status: "off", statusText: "Off" };
-  return ready ? { status: "on", statusText: "On" } : { status: "waiting", statusText: notReady };
+function channelStatus(enabled: boolean, ready: boolean, notReady: string, t: Translate): { status: ChannelState; statusText: string } {
+  if (!enabled) return { status: "off", statusText: t("settings.off") };
+  return ready ? { status: "on", statusText: t("settings.on") } : { status: "waiting", statusText: notReady };
+}
+
+/**
+ * What a rebooking text looks like. Texts to clients are in English, whatever
+ * language the CRM is read in, so the example is too.
+ */
+function rebookSample(salon: string): string {
+  return `“Hi Mai, your BIAB infill is due. Lan has Thursday at 3pm free. Book: https://…/r/Ab3kQ9 Stop these: https://…/r/Ab3kQ9/stop ${salon || "Your salon"}”`;
 }
 
 /**
@@ -791,27 +794,28 @@ function SetupProgress({
   takesMessages: boolean;
   onGo: (step: SetupStep) => void;
 }) {
+  const { t } = useT();
   const done = steps.filter((s) => s.done).length;
   return (
     <div role="status" className="space-y-2 rounded-xl bg-card px-4 py-3 shadow-surface ring-1 ring-papaya-whip-400">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span className="font-medium">{done === 0 ? "Set up your diary to take bookings" : "Almost ready to take bookings"}</span>
+        <span className="font-medium">{done === 0 ? t("settings.setup.start") : t("settings.setup.almost")}</span>
         <span aria-hidden="true" className="h-1.5 w-32 overflow-hidden rounded-full bg-muted">
           <span className="block h-full rounded-full bg-primary" style={{ width: `${(done / steps.length) * 100}%` }} />
         </span>
         <span className="text-sm text-muted-foreground">
-          {done} of {steps.length} done
+          {t("settings.setup.done", { done, total: steps.length })}
         </span>
         <button
           type="button"
           onClick={() => onGo(next)}
           className="ml-auto text-sm font-semibold text-papaya-whip-100 underline-offset-4 hover:underline"
         >
-          {next.label} →
+          {t(`settings.step.${next.key}`)} →
         </button>
       </div>
       {takesMessages && (
-        <p className="text-xs text-muted-foreground">Until then the receptionist and chats take messages instead of booking.</p>
+        <p className="text-xs text-muted-foreground">{t("settings.setup.messages")}</p>
       )}
     </div>
   );

@@ -23,6 +23,8 @@ import {
   SITE_ADDRESS_MAX,
   SITE_HEADLINE_MAX,
 } from "@/lib/online-booking/catalogue";
+import { useT } from "@/components/providers/language-provider";
+import type { Translate } from "@/lib/i18n";
 
 export interface OnlineSettings {
   onlineBookingEnabled: boolean;
@@ -52,18 +54,18 @@ export function onlineSettingsFrom(s: Record<string, unknown> | undefined | null
   };
 }
 
-const AHEAD_CHOICES = [
-  { days: 7, label: "1 week ahead" },
-  { days: 14, label: "2 weeks ahead" },
-  { days: 28, label: "4 weeks ahead" },
-  { days: 56, label: "8 weeks ahead" },
-  { days: 84, label: "12 weeks ahead" },
-  { days: 182, label: "6 months ahead" },
-];
+const AHEAD_CHOICES = [7, 14, 28, 56, 84, 182];
+
+/** "2 weeks ahead", "6 months ahead", or days for anything else. */
+function aheadLabel(days: number, t: Translate): string {
+  if (days === 182) return t("online.monthsAhead", { n: 6 });
+  return days % 7 === 0 ? t("online.weeksAhead", { n: days / 7 }) : t("online.daysAhead", { n: days });
+}
 
 const SWATCHES = ["#9d3b5e", "#1f4e5f", "#7a4b2a", "#3f5f2a", "#1c1917"];
 
 function CopyBox({ label, value, open }: { label: string; value: string; open?: string }) {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -88,7 +90,7 @@ function CopyBox({ label, value, open }: { label: string; value: string; open?: 
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium hover:bg-accent"
           >
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "Copied" : "Copy"}
+            {copied ? t("online.copied") : t("online.copy")}
           </button>
           {open && (
             <a
@@ -97,7 +99,7 @@ function CopyBox({ label, value, open }: { label: string; value: string; open?: 
               rel="noopener noreferrer"
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium hover:bg-accent"
             >
-              <ExternalLink className="h-3.5 w-3.5" /> Open
+              <ExternalLink className="h-3.5 w-3.5" /> {t("online.open")}
             </a>
           )}
         </div>
@@ -114,7 +116,6 @@ export function OnlineBookingSettings({
   live,
   services,
   notReady,
-  staff,
   chatbotEnabled,
   businessName,
 }: {
@@ -127,15 +128,14 @@ export function OnlineBookingSettings({
   /** Switched on and saved: the links work. */
   live: boolean;
   services: SalonService[];
-  /** What the diary still lacks before anything can be booked, or null. */
-  notReady: string | null;
-  /** "stylist", "nail technician"… */
-  staff: string;
+  /** The diary cannot take bookings yet. */
+  notReady: boolean;
   /** Website chat is on for the salon (Kikai switches it on), so a chat can go on the page. */
   chatbotEnabled: boolean;
   /** The salon's name, which its chat answers as to begin with. */
   businessName: string;
 }) {
+  const { t } = useT();
   const set = (patch: Partial<OnlineSettings>) => onChange({ ...value, ...patch });
   const here = typeof window !== "undefined" ? window.location.origin : "";
   // The booking address serves the pages, the flow and book.js on its own.
@@ -146,8 +146,8 @@ export function OnlineBookingSettings({
   return (
     <SettingsSection
       id="online-booking"
-      title="Website & online booking"
-      description="Clients book straight into your diary, from your own page or the website you already have."
+      title={t("online.title")}
+      description={t("online.description")}
       actions={
         <span
           className={
@@ -156,7 +156,7 @@ export function OnlineBookingSettings({
               : "rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
           }
         >
-          {value.onlineBookingEnabled ? (live ? "Live" : "On, not saved") : "Off"}
+          {value.onlineBookingEnabled ? (live ? t("online.live") : t("online.onNotSaved")) : t("online.off")}
         </span>
       }
     >
@@ -169,50 +169,43 @@ export function OnlineBookingSettings({
             onChange={(e) => set({ onlineBookingEnabled: e.target.checked })}
           />
           <span>
-            <span className="font-medium">Take bookings online</span>
-            <span className="block text-xs text-muted-foreground">
-              Three taps and a name and mobile number: no account for your clients. Bookings go in the diary with a
-              booking number and a confirmation text, the same as a phone booking, and pop up here like one.
-            </span>
+            <span className="font-medium">{t("online.take")}</span>
+            <span className="block text-xs text-muted-foreground">{t("online.takeHow")}</span>
           </span>
         </label>
 
         {value.onlineBookingEnabled && notReady && (
           <p role="status" className="flex items-start gap-2 text-xs text-papaya-whip-100">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span>
-              Your page will show, but cannot take bookings until the diary is set up: {notReady}.
-            </span>
+            <span>{t("online.notReady")}</span>
           </p>
         )}
 
         {value.onlineBookingEnabled && slug && (
           <div className="space-y-4 rounded-xl border p-4">
-            {!live && <p className="text-xs text-muted-foreground">Save to put these live.</p>}
-            <CopyBox label="Your website" value={site} open={live ? site : undefined} />
+            {!live && <p className="text-xs text-muted-foreground">{t("online.saveToLive")}</p>}
+            <CopyBox label={t("online.yourWebsite")} value={site} open={live ? site : undefined} />
             <CopyBox
-              label="Booking link: for a “Book” button anywhere, your Instagram bio or your Google listing"
+              label={t("online.bookingLink")}
               value={`${site}/book`}
               open={live ? `${site}/book` : undefined}
             />
             <div className="space-y-3 border-t pt-4">
-              <p className="text-xs font-medium">Already have a website? Add booking to it.</p>
+              <p className="text-xs font-medium">{t("online.haveSite")}</p>
               <CopyBox
-                label="1. Paste once, anywhere on your site"
+                label={t("online.step1")}
                 value={`<script src="${origin}/book.js" data-salon="${slug}" async></script>`}
               />
               <CopyBox
-                label="2. Then any link or button with data-kikai-book opens booking over the page"
+                label={t("online.step2")}
                 value={`<a href="#" data-kikai-book>Book now</a>`}
               />
               <CopyBox
-                label="Or put the booking on a page of its own"
+                label={t("online.inline")}
                 value={`<div data-kikai-book-inline></div>`}
               />
               <p className="text-xs text-muted-foreground">
-                Add <code className="font-mono">data-service=&quot;Gel polish&quot;</code> to a button to open on that
-                service, or <code className="font-mono">data-button=&quot;Book now&quot;</code> to the script for a
-                button in the corner of every page. Works with Wix, Squarespace, WordPress and hand-built sites.
+                {t("online.addService", { service: 'data-service="Gel polish"', button: 'data-button="Book now"' })}
               </p>
             </div>
           </div>
@@ -231,48 +224,45 @@ export function OnlineBookingSettings({
         )}
 
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold">Your page</h3>
-          <p className="text-xs text-muted-foreground">
-            Services, prices, the team, opening hours and your phone number come from the rest of Settings, so your
-            page never disagrees with the diary.
-          </p>
+          <h3 className="text-sm font-semibold">{t("online.page")}</h3>
+          <p className="text-xs text-muted-foreground">{t("online.pageFrom")}</p>
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Headline</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("online.headline")}</span>
             <Input
               value={value.siteHeadline}
               maxLength={SITE_HEADLINE_MAX}
-              placeholder="Nails you'll love, at a time that suits you."
+              placeholder={t("online.headlineExample")}
               onChange={(e) => set({ siteHeadline: e.target.value })}
             />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">About the salon</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("online.about")}</span>
             <Textarea
               value={value.siteAbout}
               maxLength={SITE_ABOUT_MAX}
               rows={3}
-              placeholder="A sentence or two about you."
+              placeholder={t("online.aboutExample")}
               onChange={(e) => set({ siteAbout: e.target.value })}
             />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Address</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("online.address")}</span>
             <Textarea
               value={value.siteAddress}
               maxLength={SITE_ADDRESS_MAX}
               rows={2}
-              placeholder={"47 Bridge Street\nTown, AB1 2CD"}
+              placeholder={t("online.addressExample")}
               onChange={(e) => set({ siteAddress: e.target.value })}
             />
           </label>
           <div className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Brand colour</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("online.brand")}</span>
             <div className="flex flex-wrap items-center gap-2">
               {SWATCHES.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  aria-label={`Brand colour ${c}`}
+                  aria-label={t("online.brandSwatch", { colour: c })}
                   aria-pressed={brand === c}
                   onClick={() => set({ siteBrandColor: c })}
                   className={`h-8 w-8 rounded-full ring-offset-2 ${brand === c ? "ring-2 ring-foreground" : ""}`}
@@ -285,35 +275,31 @@ export function OnlineBookingSettings({
                   value={brand}
                   onChange={(e) => set({ siteBrandColor: e.target.value })}
                   className="h-8 w-10 cursor-pointer rounded border bg-transparent"
-                  aria-label="Choose any brand colour"
+                  aria-label={t("online.chooseColour")}
                 />
-                Any colour
+                {t("online.anyColour")}
               </label>
             </div>
           </div>
         </div>
 
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold">Booking rules</h3>
-          <p className="text-xs text-muted-foreground">
-            Online bookings follow the same rules as the phone: your hours, who works when, blocked time, at least two
-            hours&rsquo; notice, and 48 hours for a new client&rsquo;s patch test.
-          </p>
+          <h3 className="text-sm font-semibold">{t("online.rules")}</h3>
+          <p className="text-xs text-muted-foreground">{t("online.rulesHow")}</p>
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Clients can book up to</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("online.upTo")}</span>
             <select
               value={value.onlineMaxDaysAhead}
               onChange={(e) => set({ onlineMaxDaysAhead: Number(e.target.value) })}
               className="h-9 rounded-lg border bg-background px-2 text-sm"
             >
-              {(AHEAD_CHOICES.some((c) => c.days === value.onlineMaxDaysAhead)
-                ? AHEAD_CHOICES
-                : [...AHEAD_CHOICES, { days: value.onlineMaxDaysAhead, label: `${value.onlineMaxDaysAhead} days ahead` }]
-              ).map((c) => (
-                <option key={c.days} value={c.days}>
-                  {c.label}
-                </option>
-              ))}
+              {(AHEAD_CHOICES.includes(value.onlineMaxDaysAhead) ? AHEAD_CHOICES : [...AHEAD_CHOICES, value.onlineMaxDaysAhead]).map(
+                (days) => (
+                  <option key={days} value={days}>
+                    {aheadLabel(days, t)}
+                  </option>
+                )
+              )}
             </select>
           </label>
           <label className="flex items-start gap-2.5">
@@ -324,15 +310,13 @@ export function OnlineBookingSettings({
               onChange={(e) => set({ onlineStylistChoice: e.target.checked })}
             />
             <span>
-              <span className="font-medium">Let clients choose their {staff}</span>
-              <span className="block text-xs text-muted-foreground">
-                Otherwise they are booked with whoever is free, as by phone.
-              </span>
+              <span className="font-medium">{t("online.chooseStylist")}</span>
+              <span className="block text-xs text-muted-foreground">{t("online.chooseStylistHint")}</span>
             </span>
           </label>
           {services.length > 0 && (
             <fieldset className="space-y-1.5">
-              <legend className="text-xs font-medium text-muted-foreground">Services clients can book online</legend>
+              <legend className="text-xs font-medium text-muted-foreground">{t("online.services")}</legend>
               <div className="flex flex-wrap gap-2 pt-1.5">
                 {services.map((s) => {
                   const on = !isHiddenOnline(s.name, value.onlineHiddenServices);
@@ -355,10 +339,7 @@ export function OnlineBookingSettings({
                   );
                 })}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Untick anything that needs a chat first, like a consultation or custom nail art. New services are
-                bookable online until you untick them.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("online.servicesHint")}</p>
             </fieldset>
           )}
         </div>

@@ -17,8 +17,9 @@ import { Check, ChevronRight, Copy, Pencil, Phone, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch, withAsOrg } from "@/lib/api-fetch";
 import { formatMoneyShort } from "@/lib/money";
-import { CHANNEL_META, avatarColorFor, initialsFor } from "@/lib/channels";
-import { useLanguage } from "@/components/providers/language-provider";
+import { CHANNEL_META, avatarColorFor, channelLabel, initialsFor } from "@/lib/channels";
+import { DATE_FNS_LOCALE, type Translate } from "@/lib/i18n";
+import { useT } from "@/components/providers/language-provider";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { waitedFor } from "@/components/conversations/conversation-list-item";
 import { ContactAvatar } from "@/components/conversations/contact-avatar";
@@ -55,8 +56,8 @@ export function displayPhone(phone: string): string {
 }
 
 /** How to reach them, from the channel they wrote on: a number, an @username or an email. */
-export function contactLine(c: ConversationDetail): { value: string | null; channel: string } {
-  const label = CHANNEL_META[c.channel]?.label ?? c.channel;
+export function contactLine(c: ConversationDetail, t: Translate): { value: string | null; channel: string } {
+  const label = channelLabel(c.channel, t);
   const phone = c.client?.phone || c.lead?.phone || null;
   switch (c.channel) {
     case "whatsapp":
@@ -68,7 +69,7 @@ export function contactLine(c: ConversationDetail): { value: string | null; chan
     case "website":
       return {
         value: c.visitorPhone || c.visitorEmail || displayOrNull(phone) || c.client?.email || null,
-        channel: "Website",
+        channel: t("channel.website"),
       };
   }
 }
@@ -86,13 +87,14 @@ export function ClientPanel({
   onResetPersona,
   onClose,
 }: ClientPanelProps) {
-  const { clock } = useLanguage();
+  const { t, clock, lang } = useT();
   const { notify } = useDialogs();
   const client = c.client;
-  const reach = contactLine(c);
+  const reach = contactLine(c, t);
   const meta = CHANNEL_META[c.channel];
   const [copied, setCopied] = useState(false);
   const time = (iso: string) => format(new Date(iso), clock === "24h" ? "HH:mm" : "h:mmaaa");
+  const day = (iso: string, pattern: string) => format(new Date(iso), pattern, { locale: DATE_FNS_LOCALE[lang] });
   const phone = client?.phone || c.lead?.phone || (c.channel === "whatsapp" ? c.phoneNumber : null) || c.visitorPhone || null;
   const isClient = Boolean(client?.isClient);
   // On the website anyone can type a client's email, so a number given there
@@ -116,7 +118,7 @@ export function ClientPanel({
       body: JSON.stringify({ id, status: "completed" }),
     }).catch(() => null);
     if (!res?.ok) {
-      notify("Couldn't mark that as done. Try again.");
+      notify(t("panel.markFailed"));
       return;
     }
     onChanged();
@@ -137,7 +139,7 @@ export function ClientPanel({
           />
           {meta && (
             <span
-              title={meta.label}
+              title={channelLabel(c.channel, t)}
               className={cn("absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-card", meta.bg)}
             />
           )}
@@ -148,14 +150,14 @@ export function ClientPanel({
             <button
               type="button"
               onClick={copyReach}
-              title={`Copy ${reach.value}`}
+              title={t("panel.copy", { value: reach.value })}
               className="group mt-0.5 flex max-w-full items-center gap-1.5 text-left text-[12.5px] text-muted-foreground hover:text-foreground"
             >
               <span className="truncate">
                 {reach.value} · {reach.channel}
               </span>
               {copied ? (
-                <Check className="h-3 w-3 shrink-0" aria-label="Copied" />
+                <Check className="h-3 w-3 shrink-0" aria-label={t("panel.copied")} />
               ) : (
                 <Copy className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" aria-hidden />
               )}
@@ -168,7 +170,7 @@ export function ClientPanel({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close client details"
+            aria-label={t("panel.close")}
             className="flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -180,38 +182,38 @@ export function ClientPanel({
         {client?.waiting ? (
           <StepCard
             tone="amber"
-            kicker={`Message for the team · waiting ${waitedFor(client.waiting.createdAt)}`}
-            title={client.waiting.message ? `“${client.waiting.message}”` : "Kikai took a message"}
-            body="Kikai said someone will get back to them."
-            primary={phone ? { label: `Call ${displayPhone(phone)}`, href: `tel:${phone.replace(/\s+/g, "")}`, icon: true } : undefined}
-            secondary={{ label: phone ? "Called them, mark done" : "Mark as done", onClick: () => markDone(client.waiting!.id) }}
+            kicker={t("panel.messageKicker", { waited: waitedFor(client.waiting.createdAt, t) })}
+            title={client.waiting.message ? `“${client.waiting.message}”` : t("panel.tookMessage")}
+            body={t("panel.tookMessageBody")}
+            primary={phone ? { label: t("panel.call", { phone: displayPhone(phone) }), href: `tel:${phone.replace(/\s+/g, "")}`, icon: true } : undefined}
+            secondary={{ label: phone ? t("panel.calledDone") : t("panel.markDone"), onClick: () => markDone(client.waiting!.id) }}
           />
         ) : state?.kind === "waiting" ? (
           <StepCard
             tone="amber"
-            kicker={`Waiting for a reply · ${waitedFor(c.lastMessageAt)}`}
-            title={lastClientMessage ? `“${clip(lastClientMessage.content)}”` : "They're waiting for a reply"}
-            body={c.channel === "website" ? "Kikai hasn't answered. Take over to reply yourself." : "Kikai hasn't answered this one."}
+            kicker={t("panel.waitingKicker", { waited: waitedFor(c.lastMessageAt, t) })}
+            title={lastClientMessage ? `“${clip(lastClientMessage.content)}”` : t("panel.waitingTitle")}
+            body={c.channel === "website" ? t("panel.waitingWebsite") : t("panel.waitingOther")}
             primary={
               c.channel === "website" && onTakeOver
-                ? { label: "Take over", onClick: onTakeOver }
+                ? { label: t("panel.takeOver"), onClick: onTakeOver }
                 : phone
-                  ? { label: `Call ${displayPhone(phone)}`, href: `tel:${phone.replace(/\s+/g, "")}`, icon: true }
+                  ? { label: t("panel.call", { phone: displayPhone(phone) }), href: `tel:${phone.replace(/\s+/g, "")}`, icon: true }
                   : undefined
             }
           />
         ) : !isClient ? (
           <StepCard
             tone="violet"
-            kicker="New · not a client yet"
-            title={c.lead?.issue || "No booking yet"}
-            body="Their visits and notes show here once they book."
-            secondary={{ label: "Book in the diary", href: "/calendar" }}
+            kicker={t("panel.newKicker")}
+            title={c.lead?.issue || t("panel.noBooking")}
+            body={t("panel.newBody")}
+            secondary={{ label: t("panel.bookInDiary"), href: "/calendar" }}
           />
         ) : client?.next?.bookedInChat ? (
           <p className="flex items-center gap-2 text-[13px] font-semibold text-tea-green-200">
             <Check className="h-4 w-4" aria-hidden />
-            Nothing to do. Kikai booked this in the chat.
+            {t("panel.bookedInChat")}
           </p>
         ) : null}
 
@@ -222,20 +224,20 @@ export function ClientPanel({
           >
             <span className="w-[46px] shrink-0 rounded-[10px] bg-white/15 py-1.5 text-center">
               <span className="block text-[10.5px] font-bold uppercase tracking-[0.06em]">
-                {format(new Date(client.next.startsAt), "EEE")}
+                {day(client.next.startsAt, "EEE")}
               </span>
               <span className="block text-[19px] font-extrabold leading-tight">{format(new Date(client.next.startsAt), "d")}</span>
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[11.5px] font-semibold opacity-80">
-                {client.next.bookedInChat ? "Next visit · booked in this chat" : "Next visit"}
+                {client.next.bookedInChat ? t("panel.nextInChat") : t("panel.next")}
               </span>
               <span className="block truncate text-[14.5px] font-bold">
                 {client.next.serviceText} · {time(client.next.startsAt)}
               </span>
               <span className="block truncate text-[12.5px] opacity-85">
-                With {client.next.stylistName} · {client.next.durationMinutes} min
-                {client.next.photos > 0 && ` · ${client.next.photos === 1 ? "photo" : `${client.next.photos} photos`} attached`}
+                {t("panel.withFor", { stylist: client.next.stylistName, minutes: client.next.durationMinutes })}
+                {client.next.photos > 0 && t("panel.photos", { n: client.next.photos })}
               </span>
             </span>
             <ChevronRight className="h-[18px] w-[18px] shrink-0" aria-hidden />
@@ -247,15 +249,15 @@ export function ClientPanel({
         {client && isClient && (
           <section className="flex flex-col">
             <div className="mb-1 flex items-baseline">
-              <h3 className="flex-1 text-[13px] font-bold">Recent visits</h3>
+              <h3 className="flex-1 text-[13px] font-bold">{t("panel.recent")}</h3>
               {client.visits > 0 && (
                 <Link href={withAsOrg(`/clients?client=${encodeURIComponent(client.id)}`)} className="text-[12.5px] font-semibold text-primary hover:underline">
-                  See all
+                  {t("panel.seeAll")}
                 </Link>
               )}
             </div>
             {client.recent.length === 0 ? (
-              <p className="py-2 text-[13px] text-muted-foreground">No visits yet. Their first is the one above.</p>
+              <p className="py-2 text-[13px] text-muted-foreground">{t("panel.noVisits")}</p>
             ) : (
               client.recent.map((v) => (
                 <Link
@@ -267,7 +269,7 @@ export function ClientPanel({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate">{v.serviceText}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {format(new Date(v.startsAt), "d MMM")} · {v.stylistName}
+                      {day(v.startsAt, "d MMM")} · {v.stylistName}
                     </span>
                   </span>
                   {v.amountMinor !== null && (
@@ -281,40 +283,39 @@ export function ClientPanel({
 
         {client && isClient && client.booksFor.length > 0 && (
           <p className="text-[12.5px] text-muted-foreground">
-            Also books for{" "}
+            {t("panel.alsoBooksFor")}{" "}
             <strong className="font-semibold text-foreground">
-              {client.booksFor.map((d) => d.name || "someone").join(", ")}
+              {client.booksFor.map((d) => d.name || t("panel.someone")).join(", ")}
             </strong>
           </p>
         )}
 
         {otherNumber && (
           <p role="note" className="rounded-xl border border-papaya-whip-400 bg-papaya-whip-800 px-3 py-2 text-[13px] leading-snug text-papaya-whip-100">
-            <strong>Gave a different number: {displayPhone(otherNumber)}.</strong> The record has{" "}
-            {displayPhone(onFile!)}. Anyone can type a client&rsquo;s email on the website, so check it is really
-            them before using it.
+            <strong>{t("panel.otherNumberStrong", { phone: displayPhone(otherNumber) })}</strong>{" "}
+            {t("panel.otherNumberRest", { onFile: displayPhone(onFile!) })}
           </p>
         )}
         {!isClient && (
           <section className="flex flex-col gap-2.5">
-            <h3 className="text-[13px] font-bold">What Kikai knows</h3>
+            <h3 className="text-[13px] font-bold">{t("panel.knows")}</h3>
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[13px]">
-              <dt className="text-muted-foreground">Name</dt>
+              <dt className="text-muted-foreground">{t("panel.name")}</dt>
               <dd className={cn(!(client?.name || c.contactName) && "text-muted-foreground")}>
-                {client?.name || c.contactName || "Not given yet"}
+                {client?.name || c.contactName || t("panel.notGiven")}
               </dd>
-              <dt className="text-muted-foreground">Phone</dt>
-              <dd className={cn(!phone && "text-muted-foreground")}>{phone ? displayPhone(phone) : "Not given yet"}</dd>
+              <dt className="text-muted-foreground">{t("panel.phone")}</dt>
+              <dd className={cn(!phone && "text-muted-foreground")}>{phone ? displayPhone(phone) : t("panel.notGiven")}</dd>
               {(client?.email || c.visitorEmail) && (
                 <>
-                  <dt className="text-muted-foreground">Email</dt>
+                  <dt className="text-muted-foreground">{t("panel.email")}</dt>
                   <dd className="truncate">{client?.email || c.visitorEmail}</dd>
                 </>
               )}
-              <dt className="text-muted-foreground">First seen</dt>
-              <dd>{format(new Date(c.createdAt), "d MMM")}, {time(c.createdAt)}</dd>
-              <dt className="text-muted-foreground">Came from</dt>
-              <dd>{c.channel === "website" ? c.site?.name || "Website chat" : `${meta?.label ?? c.channel} message`}</dd>
+              <dt className="text-muted-foreground">{t("panel.firstSeen")}</dt>
+              <dd>{day(c.createdAt, "d MMM")}, {time(c.createdAt)}</dd>
+              <dt className="text-muted-foreground">{t("panel.cameFrom")}</dt>
+              <dd>{c.channel === "website" ? c.site?.name || t("channel.website") : t("panel.channelMessage", { channel: channelLabel(c.channel, t) })}</dd>
             </dl>
           </section>
         )}
@@ -328,17 +329,17 @@ export function ClientPanel({
               href={withAsOrg(`/clients?client=${encodeURIComponent(c.lead.id)}`)}
               className="text-[13px] font-semibold text-primary hover:underline"
             >
-              Open client page
+              {t("panel.openClient")}
             </Link>
           )}
           {onResetPersona && (
             <button
               type="button"
               onClick={onResetPersona}
-              title={c.personaResetAt ? `Last started afresh ${format(new Date(c.personaResetAt), "d MMM")}` : undefined}
+              title={c.personaResetAt ? t("panel.resetAt", { date: day(c.personaResetAt, "d MMM") }) : undefined}
               className="text-xs text-muted-foreground underline underline-offset-[3px] hover:text-foreground"
             >
-              Reset Kikai&apos;s memory
+              {t("panel.reset")}
             </button>
           )}
         </div>
@@ -423,6 +424,7 @@ function ActionButton({ action, className }: { action: Action; className: string
 
 /** Notes on a sticky note, edited where they are. */
 function Notes({ clientId, notes, onSaved }: { clientId: string; notes: string | null; onSaved: () => void }) {
+  const { t } = useT();
   const { notify } = useDialogs();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(notes ?? "");
@@ -438,7 +440,7 @@ function Notes({ clientId, notes, onSaved }: { clientId: string; notes: string |
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        notify(data.error || "Couldn't save the notes. Try again.");
+        notify(data.error || t("panel.notesFailed"));
         return;
       }
       setEditing(false);
@@ -452,7 +454,7 @@ function Notes({ clientId, notes, onSaved }: { clientId: string; notes: string |
     <section className="flex flex-col gap-1 rounded-[14px] border border-papaya-whip-400 bg-cornsilk-700 px-3.5 py-3">
       <div className="flex items-center gap-1.5">
         <Pencil className="h-3.5 w-3.5 text-light-bronze-300" aria-hidden />
-        <h3 className="flex-1 text-xs font-bold text-light-bronze-300">Notes</h3>
+        <h3 className="flex-1 text-xs font-bold text-light-bronze-300">{t("panel.notes")}</h3>
         {!editing && (
           <button
             type="button"
@@ -462,7 +464,7 @@ function Notes({ clientId, notes, onSaved }: { clientId: string; notes: string |
             }}
             className="text-xs font-semibold text-light-bronze-300 hover:underline"
           >
-            {notes ? "Edit" : "Add"}
+            {notes ? t("common.edit") : t("panel.add")}
           </button>
         )}
       </div>
@@ -473,7 +475,7 @@ function Notes({ clientId, notes, onSaved }: { clientId: string; notes: string |
             onChange={(e) => setDraft(e.target.value)}
             rows={4}
             autoFocus
-            aria-label="Notes about this client"
+            aria-label={t("panel.notesLabel")}
             className="mt-1 w-full resize-y rounded-lg border border-papaya-whip-400 bg-card px-2.5 py-2 text-[13.5px] leading-normal focus:outline-none focus:ring-3 focus:ring-ring/40"
           />
           <div className="mt-1.5 flex justify-end gap-2">
@@ -482,7 +484,7 @@ function Notes({ clientId, notes, onSaved }: { clientId: string; notes: string |
               onClick={() => setEditing(false)}
               className="h-8 rounded-lg px-3 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -490,13 +492,13 @@ function Notes({ clientId, notes, onSaved }: { clientId: string; notes: string |
               disabled={saving}
               className="h-8 rounded-lg bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {saving ? "Saving…" : "Save"}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </>
       ) : (
         <p className={cn("whitespace-pre-wrap text-[13.5px] leading-normal", !notes && "text-muted-foreground")}>
-          {notes || "No notes yet."}
+          {notes || t("panel.noNotes")}
         </p>
       )}
     </section>
