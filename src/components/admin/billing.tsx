@@ -16,6 +16,148 @@ import { apiFetch } from "@/lib/api-fetch";
 import { ADDONS, changedAddons, formatPence, PRICE_KEYS, type Addon, type PriceKey, type PriceList } from "@/lib/plan";
 import type { BillingSummary } from "@/lib/billing";
 
+/** Our copy of a Stripe invoice, as Admin lists it. */
+interface InvoiceRow {
+  id: string;
+  number: string | null;
+  status: string;
+  total: number;
+  amountPaid: number;
+  amountRemaining: number;
+  issuedAt: string;
+  paidAt: string | null;
+  attemptCount: number;
+  dueAt: string | null;
+  hostedInvoiceUrl: string | null;
+}
+
+/** A Stripe notice from the log (src/lib/stripe-events.ts). */
+interface EventRow {
+  id: string;
+  type: string;
+  status?: string;
+  organizationId?: string | null;
+  error: string | null;
+  attempts: number;
+  receivedAt: string;
+}
+
+type AdminBilling = BillingSummary & { invoices: InvoiceRow[]; events: EventRow[] };
+
+const INVOICE_STATUS: Record<string, string> = {
+  draft: "Draft",
+  open: "Owed",
+  paid: "Paid",
+  uncollectible: "Written off",
+  void: "Cancelled",
+};
+
+/** Try a failed Stripe notice again. */
+function useReplay(after: () => void) {
+  const { notify } = useDialogs();
+  return async (id: string) => {
+    const res = await apiFetch(`/api/admin/stripe-events/${id}/replay`, { method: "POST" });
+    const d = await res.json();
+    if (!res.ok) return notify(`Still failing: ${d.error || "unknown error"}`);
+    notify(d.outcome === "done" ? "Done." : `Nothing to do (${d.outcome}).`, "success");
+    after();
+  };
+}
+
+/** Money taken, what is overdue, salons by state, and failed Stripe notices. */
+export function BillingOverview() {
+  const { notify } = useDialogs();
+  const [o, setO] = useState<{
+    collected: { thisMonth: number; lastMonth: number };
+    overdue: Array<{ id: string; organizationId: string; salon: string; number: string | null; amountRemaining: number; issuedAt: string; attemptCount: number; hostedInvoiceUrl: string | null }>;
+    states: Record<string, number>;
+    failedEvents: EventRow[];
+  } | null>(null);
+  const load = useCallback(() => {
+    apiFetch("/api/admin/billing-overview")
+      .then((r) => r.json())
+      .then(setO)
+      .catch(() => notify("Could not load billing."));
+  }, [notify]);
+  useEffect(load, [load]);
+  const replay = useReplay(load);
+  if (!o) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Billing</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <div className="flex flex-wrap gap-x-8 gap-y-2">
+          <div>
+            <p className="text-xs text-muted-foreground">Taken this month</p>
+            <p className="text-lg font-semibold">{formatPence(o.collected.thisMonth)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Last month</p>
+            <p className="text-lg font-semibold">{formatPence(o.collected.lastMonth)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Salons</p>
+            <p>
+              {Object.entries(o.states)
+                .map(([k, n]) => `${n} ${(STATUS_LABEL[k] ?? k).toLowerCase()}`)
+                .join(" · ") || "none"}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Overdue</p>
+          {o.overdue.length === 0 ? (
+            <p className="text-muted-foreground">Nothing overdue.</p>
+          ) : (
+            <ul className="divide-y">
+              {o.overdue.map((i) => (
+                <li key={i.id} className="flex flex-wrap items-center gap-3 py-1.5">
+                  <a href={`/admin/organizations/${i.organizationId}`} className="flex-1 font-medium underline-offset-2 hover:underline">
+                    {i.salon}
+                  </a>
+                  <span>{formatPence(i.amountRemaining)}</span>
+                  <span className="text-muted-foreground">
+                    {format(new Date(i.issuedAt), "d MMM")} · {i.attemptCount} {i.attemptCount === 1 ? "try" : "tries"}
+                  </span>
+                  {i.hostedInvoiceUrl && (
+                    <a href={i.hostedInvoiceUrl} target="_blank" rel="noreferrer" className="text-xs underline">
+                      Invoice
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {o.failedEvents.length > 0 && (
+          <div>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Stripe notices that failed</p>
+            <ul className="divide-y">
+              {o.failedEvents.map((e) => (
+                <li key={e.id} className="flex flex-wrap items-center gap-3 py-1.5">
+                  <span className="font-mono text-xs">{e.type}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={e.error ?? ""}>
+                    {e.error}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{format(new Date(e.receivedAt), "d MMM HH:mm")}</span>
+                  <Button size="sm" variant="outline" onClick={() => void replay(e.id)}>
+                    Try again
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export const PRICE_LABEL: Record<PriceKey, string> = {
   base: "Base plan (owner included)",
   seat: "Each extra team member",
@@ -110,7 +252,7 @@ export function BillingPrices() {
 /** One salon's plan: its state, add-ons, people and bill. */
 export function OrgBilling({ orgId }: { orgId: string }) {
   const { notify, confirm } = useDialogs();
-  const [b, setB] = useState<BillingSummary | null>(null);
+  const [b, setB] = useState<AdminBilling | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
@@ -120,6 +262,7 @@ export function OrgBilling({ orgId }: { orgId: string }) {
       .catch(() => notify("Could not load the plan."));
   }, [orgId, notify]);
   useEffect(load, [load]);
+  const replay = useReplay(load);
 
   async function put(body: Record<string, unknown>) {
     setBusy(true);
@@ -262,6 +405,64 @@ export function OrgBilling({ orgId }: { orgId: string }) {
               </Button>
             )}
           </div>
+        )}
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Invoices</p>
+          {b.invoices.length === 0 ? (
+            <p className="text-muted-foreground">None yet.</p>
+          ) : (
+            <ul className="divide-y">
+              {b.invoices.map((i) => (
+                <li key={i.id} className="flex flex-wrap items-center gap-3 py-1.5">
+                  <span className="w-20 text-muted-foreground">{format(new Date(i.issuedAt), "d MMM yy")}</span>
+                  <span className="flex-1">{i.number ?? i.id}</span>
+                  <span>{formatPence(i.total)}</span>
+                  <span
+                    className={
+                      i.status === "paid"
+                        ? "text-tea-green-200"
+                        : i.status === "open" && i.amountRemaining > 0 && i.attemptCount > 0
+                          ? "text-red-600"
+                          : "text-muted-foreground"
+                    }
+                  >
+                    {INVOICE_STATUS[i.status] ?? i.status}
+                    {i.status === "open" && i.attemptCount > 0 ? `, ${i.attemptCount} failed ${i.attemptCount === 1 ? "try" : "tries"}` : ""}
+                  </span>
+                  {i.hostedInvoiceUrl && (
+                    <a href={i.hostedInvoiceUrl} target="_blank" rel="noreferrer" className="text-xs underline">
+                      View
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {b.events.length > 0 && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">
+              Stripe notices ({b.events.filter((e) => e.status === "failed").length} failed)
+            </summary>
+            <ul className="mt-1 divide-y">
+              {b.events.map((e) => (
+                <li key={e.id} className="flex flex-wrap items-center gap-3 py-1">
+                  <span className="w-24 text-muted-foreground">{format(new Date(e.receivedAt), "d MMM HH:mm")}</span>
+                  <span className="flex-1 font-mono">{e.type}</span>
+                  <span className={e.status === "failed" ? "text-red-600" : "text-muted-foreground"} title={e.error ?? ""}>
+                    {e.status}
+                    {e.attempts > 1 ? ` (${e.attempts} tries)` : ""}
+                  </span>
+                  {e.status === "failed" && (
+                    <Button size="sm" variant="outline" onClick={() => void replay(e.id)}>
+                      Try again
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
       </CardContent>
     </Card>

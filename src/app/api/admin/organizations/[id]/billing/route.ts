@@ -5,14 +5,45 @@ import { billingSummary } from "@/lib/billing";
 import { cleanAddons } from "@/lib/plan-access";
 import { syncSubscription } from "@/lib/stripe-billing";
 
-/** A salon's plan, as Admin shows it (src/lib/billing.ts). */
+/** Its invoices (our copy of Stripe's) and the Stripe notices about it. */
+async function history(organizationId: string) {
+  const [invoices, events] = await Promise.all([
+    prisma.billingInvoice.findMany({
+      where: { organizationId },
+      orderBy: { issuedAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        total: true,
+        amountPaid: true,
+        amountRemaining: true,
+        issuedAt: true,
+        paidAt: true,
+        attemptCount: true,
+        dueAt: true,
+        hostedInvoiceUrl: true,
+      },
+    }),
+    prisma.stripeEvent.findMany({
+      where: { organizationId },
+      orderBy: { receivedAt: "desc" },
+      take: 10,
+      select: { id: true, type: true, status: true, error: true, attempts: true, receivedAt: true },
+    }),
+  ]);
+  return { invoices, events };
+}
+
+/** A salon's plan, as Admin shows it (src/lib/billing.ts), with its invoices and Stripe notices. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireSuperAdmin();
   if (isErrorResponse(ctx)) return ctx;
   const { id } = await params;
   const summary = await billingSummary(id);
   if (!summary) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(summary);
+  return NextResponse.json({ ...summary, ...(await history(id)) });
 }
 
 /**
@@ -79,7 +110,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // A salon with a card is billed for what changed.
   if (org.stripeSubscriptionId && "addons" in data) {
     const synced = await syncSubscription(id);
-    if (!synced.ok) return NextResponse.json({ ...(await billingSummary(id)), stripeError: synced.error });
+    if (!synced.ok) return NextResponse.json({ ...(await billingSummary(id)), ...(await history(id)), stripeError: synced.error });
   }
-  return NextResponse.json(await billingSummary(id));
+  return NextResponse.json({ ...(await billingSummary(id)), ...(await history(id)) });
 }

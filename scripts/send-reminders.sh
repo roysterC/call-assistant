@@ -31,3 +31,7 @@ post "$base/api/cron/rebook-texts" || echo "Rebooking texts run failed." >&2
 # reminder each (src/lib/invitations.ts). Refused, harmlessly, where email is
 # not set up.
 post "$base/api/cron/invite-reminders" || echo "Invitation reminders run failed (is email set up?)." >&2
+# Billing against Stripe (src/lib/stripe-reconcile.ts): puts right what a lost
+# or failed notice left wrong, and emails Kikai what it found. A no-op where
+# Stripe is not set up.
+post "$base/api/cron/billing-reconcile" || echo "Billing check failed." >&2

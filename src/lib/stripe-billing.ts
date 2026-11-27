@@ -40,7 +40,8 @@ export function setStripeClient(c: Stripe | null): void {
   client = c;
 }
 
-function stripe(): Stripe {
+/** The Stripe client (set up from STRIPE_SECRET_KEY on first use). */
+export function stripe(): Stripe {
   if (!client) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
@@ -215,7 +216,9 @@ export async function portalLink(organizationId: string, returnUrl: string): Pro
  * added or taken off. A line kept keeps its Price (the amount it joined on).
  * Nothing to do for a salon with no subscription, or with Stripe not set up.
  */
-export async function syncSubscription(organizationId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function syncSubscription(
+  organizationId: string
+): Promise<{ ok: true; changed?: boolean } | { ok: false; error: string }> {
   if (!stripeConfigured()) return { ok: true };
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
@@ -244,10 +247,10 @@ async function withBillingLock<T>(organizationId: string, fn: () => Promise<T>):
   );
 }
 
-async function syncLines(organizationId: string, subscriptionId: string): Promise<{ ok: true }> {
+async function syncLines(organizationId: string, subscriptionId: string): Promise<{ ok: true; changed: boolean }> {
   const s = stripe();
   const sub = await s.subscriptions.retrieve(subscriptionId);
-  if (sub.status === "canceled" || sub.status === "incomplete_expired") return { ok: true };
+  if (sub.status === "canceled" || sub.status === "incomplete_expired") return { ok: true, changed: false };
   const wanted = await wantedLines(organizationId);
   const items: Stripe.SubscriptionUpdateParams.Item[] = [];
   const have = new Map<PriceKey, Stripe.SubscriptionItem>();
@@ -267,7 +270,7 @@ async function syncLines(organizationId: string, subscriptionId: string): Promis
   }
   const seats = wanted.find((w) => w.key === "seat")?.quantity ?? 0;
   await prisma.organization.update({ where: { id: organizationId }, data: { billedSeats: seats } });
-  return { ok: true };
+  return { ok: true, changed: items.length > 0 };
 }
 
 /**
@@ -290,7 +293,7 @@ export async function afterTeamChange(organizationId: string): Promise<void> {
 }
 
 /** The salon a Stripe object is for: by its subscription, its customer, or the id we put on it. */
-async function orgFor(ref: { subscription?: string | null; customer?: string | null; organizationId?: string | null }) {
+export async function orgFor(ref: { subscription?: string | null; customer?: string | null; organizationId?: string | null }) {
   const or = [
     ...(ref.subscription ? [{ stripeSubscriptionId: ref.subscription }] : []),
     ...(ref.customer ? [{ stripeCustomerId: ref.customer }] : []),
@@ -353,33 +356,35 @@ export async function applySubscription(sub: Stripe.Subscription, opts: { fresh?
 }
 
 /** The subscription an invoice is for, where the API version keeps it. */
-function invoiceSubscription(inv: Stripe.Invoice): string | null {
+export function invoiceSubscription(inv: Stripe.Invoice): string | null {
   const sub = inv.parent?.subscription_details?.subscription;
   return sub ? (typeof sub === "string" ? sub : sub.id) : null;
 }
 
 /** A payment that failed: noted once, for the warning; Stripe retries it. */
-export async function invoiceFailed(inv: Stripe.Invoice): Promise<void> {
+export async function invoiceFailed(inv: Stripe.Invoice): Promise<string | null> {
   const customer = typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
   const org = await orgFor({ subscription: invoiceSubscription(inv), customer });
-  if (!org) return;
+  if (!org) return null;
   await prisma.organization.updateMany({ where: { id: org.id, paymentFailedAt: null }, data: { paymentFailedAt: new Date() } });
+  return org.id;
 }
 
 /** A payment that went through: the warning goes. */
-export async function invoicePaid(inv: Stripe.Invoice): Promise<void> {
+export async function invoicePaid(inv: Stripe.Invoice): Promise<string | null> {
   const customer = typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
   const org = await orgFor({ subscription: invoiceSubscription(inv), customer });
-  if (!org) return;
+  if (!org) return null;
   await prisma.organization.update({ where: { id: org.id }, data: { paymentFailedAt: null } });
+  return org.id;
 }
 
 /**
  * Checkout finished: the subscription is the salon's from now. Its lines are
  * then brought up to date, for a team that changed while the page was open.
  */
-export async function checkoutDone(session: Stripe.Checkout.Session): Promise<void> {
-  if (session.mode !== "subscription" || !session.subscription) return;
+export async function checkoutDone(session: Stripe.Checkout.Session): Promise<string | null> {
+  if (session.mode !== "subscription" || !session.subscription) return null;
   const subId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
   const sub = await stripe().subscriptions.retrieve(subId);
   if (!sub.metadata?.organizationId && session.client_reference_id) {
@@ -387,6 +392,7 @@ export async function checkoutDone(session: Stripe.Checkout.Session): Promise<vo
   }
   const orgId = await applySubscription(sub);
   if (orgId) await syncSubscription(orgId);
+  return orgId;
 }
 
 /** Try the salon's unpaid invoices again, after it has changed its card. */

@@ -89,6 +89,7 @@ model Organization {
   appointments          Appointment[]
   timeBlocks            TimeBlock[]
   invitations           Invitation[]
+  billingInvoices       BillingInvoice[]
 
   @@map("ca_organizations")
 }
@@ -1181,4 +1182,67 @@ model BillingPrice {
   updatedAt     DateTime @updatedAt
 
   @@map("ca_billing_prices")
+}
+
+/// Every notice Stripe sends to /api/stripe/webhook, kept once by its id
+/// (src/lib/stripe-events.ts): a notice sent again is skipped, one that
+/// failed is retried when Stripe sends it again or Kikai replays it in
+/// Admin, and Kikai has a record of what Stripe said and when.
+model StripeEvent {
+  /// Stripe's event id, "evt_...".
+  id             String    @id
+  type           String
+  /// The salon it was for, once known.
+  organizationId String?
+  /// What it was about: the subscription, invoice or Checkout page id.
+  objectId       String?
+  /// "processing", "done" or "failed".
+  status         String
+  error          String?
+  attempts       Int       @default(1)
+  payload        Json
+  receivedAt     DateTime  @default(now())
+  /// When the latest try began: one "processing" long after is stuck.
+  attemptedAt    DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([organizationId, receivedAt])
+  @@index([status, receivedAt])
+  @@map("ca_stripe_events")
+}
+
+/// A copy of each Stripe invoice for a salon, kept up to date from Stripe's
+/// notices and the nightly check (src/lib/stripe-invoices.ts): what was
+/// billed, what was paid and when, and what is overdue, for Admin. Stripe's
+/// own copy is the record; this one can always be made again from it.
+model BillingInvoice {
+  /// Stripe's invoice id, "in_...".
+  id                 String       @id
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  number             String?
+  /// Stripe's: "draft", "open", "paid", "uncollectible" or "void".
+  status             String
+  currency           String
+  /// In pence.
+  total              Int
+  amountDue          Int
+  amountPaid         Int
+  amountRemaining    Int
+  periodStart        DateTime?
+  periodEnd          DateTime?
+  /// When Stripe made it.
+  issuedAt           DateTime
+  /// When it was due, for one sent to be paid by hand.
+  dueAt              DateTime?
+  paidAt             DateTime?
+  /// Tries at taking payment so far, and when Stripe will try next.
+  attemptCount       Int          @default(0)
+  nextPaymentAttempt DateTime?
+  hostedInvoiceUrl   String?
+  updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId, issuedAt])
+  @@index([status])
+  @@map("ca_billing_invoices")
 }

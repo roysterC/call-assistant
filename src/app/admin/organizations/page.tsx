@@ -26,7 +26,7 @@ import { format } from "date-fns";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AdminUsageTable } from "@/components/usage/admin-usage-table";
-import { BillingPrices } from "@/components/admin/billing";
+import { BillingOverview, BillingPrices } from "@/components/admin/billing";
 import { InviteLinkDialog, inviteLink } from "@/components/admin/invitations";
 import { LanguageFlags } from "@/components/i18n/language-flags";
 import { Textarea } from "@/components/ui/textarea";
@@ -217,6 +217,8 @@ export default function OrganizationsPage() {
           />
         }
       />
+
+      <BillingOverview />
 
       <BillingPrices />
 

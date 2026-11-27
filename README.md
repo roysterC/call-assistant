@@ -301,7 +301,9 @@ To switch it on (once, in the Stripe dashboard, then on the server):
    `https://app.getkikai.com/api/stripe/webhook` with the events
    `checkout.session.completed`, `customer.subscription.created`,
    `customer.subscription.updated`, `customer.subscription.deleted`,
-   `invoice.payment_failed` and `invoice.paid`. Put its signing secret in
+   `invoice.finalized`, `invoice.updated`, `invoice.paid`,
+   `invoice.payment_failed`, `invoice.voided` and
+   `invoice.marked_uncollectible`. Put its signing secret in
    `.env` as `STRIPE_WEBHOOK_SECRET=whsec_…` and restart.
 3. **Customer portal**: Settings → Billing → Customer portal: allow
    updating payment methods and viewing invoices. Leave "switch plans" off;
@@ -317,6 +319,43 @@ Products are made in Stripe on first use with fixed ids (`kikai_base`,
 `kikai_seat`, `kikai_receptionist`, …), and a Price for each amount. A line
 added to a subscription by hand in Stripe, on any other product, is left
 alone.
+
+**What we keep, and what Stripe keeps.** Stripe holds the record: cards,
+every invoice, payment and refund. We keep each salon's state (above), and:
+
+- **Every notice Stripe sends** (`StripeEvent`, `src/lib/stripe-events.ts`),
+  stored once by its event id before it is acted on. A notice sent again is
+  skipped; one that failed is retried when Stripe sends it again (it retries
+  for three days), and can be replayed from Admin; one still being handled
+  is answered 409 so Stripe sends it later; one stuck mid-way for five
+  minutes (a restart) is taken over. Each notice is acted on as Stripe has
+  the subscription or invoice now, never as the notice had it, so late and
+  out-of-order notices do no harm.
+- **A copy of each invoice** (`BillingInvoice`, `src/lib/stripe-invoices.ts`):
+  what was billed, paid and when, and what is overdue. Admin → Salons shows
+  money taken this month and last, overdue invoices and whose they are, and
+  failed notices with "Try again"; each salon's page lists its invoices and
+  its recent notices. Stripe's copy is the record: ours is only ever made
+  from it.
+- **A nightly check** (`/api/cron/billing-reconcile`, run by the reminders
+  timer, `scripts/send-reminders.sh`; `src/lib/stripe-reconcile.ts`): every
+  salon with a Stripe customer is compared with Stripe. Its subscription's
+  state is read again (a lost "cancelled" or "paid"), a live subscription
+  is found for a salon with none on record (a lost Checkout), its lines are
+  matched to its team and add-ons, and its invoices are copied. What it put
+  right, salons it could not check, and failed or stuck notices are emailed
+  to `NOTIFY_EMAIL`. Safe to run by hand at any time:
+
+  ```bash
+  curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" \
+    "http://127.0.0.1:3000/api/cron/billing-reconcile"   # ?org=<id> for one salon
+  ```
+
+Calls to Stripe are made safe to retry by Stripe's library, which puts an
+idempotency key on each one. Our own repeats are stopped in our code: a
+salon's subscription changes run one at a time (a Postgres advisory lock), a
+second subscription for a salon is cancelled, and a Stripe customer is only
+recorded if the salon has none.
 
 ### Voice server
 
