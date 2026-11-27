@@ -323,6 +323,9 @@ Products are made in Stripe on first use with fixed ids (`kikai_base`,
 added to a subscription by hand in Stripe, on any other product, is left
 alone.
 
+Before charging real salons, run the manual tests in
+`docs/billing-manual-tests.md` in Stripe test mode.
+
 **What we keep, and what Stripe keeps.** Stripe holds the record: cards,
 every invoice, payment and refund. We keep each salon's state (above), and:
 
