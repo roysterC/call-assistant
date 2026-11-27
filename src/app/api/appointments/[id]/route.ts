@@ -27,6 +27,7 @@ import { moveAppointment } from "@/lib/booking/diary";
 import { matchStylist, servicesPicked } from "@/lib/salon-config";
 import { describeAppointmentWhen } from "@/lib/business-hours";
 import { rescheduleBody, sendSms } from "@/lib/sms";
+import { refuseIfRestricted } from "@/lib/plan-access";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -37,6 +38,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = (await req.json().catch(() => ({}))) ?? {};
+    // A paused plan keeps its bookings as they are: a note may still be
+    // written, but nothing moved or changed (src/lib/plan.ts).
+    if (["startsAt", "stylistName", "serviceNames", "durationMinutes", "leadId"].some((k) => body[k] !== undefined)) {
+      const paused = await refuseIfRestricted(ctx.organizationId, ctx);
+      if (paused) return paused;
+    }
 
     const appt = await prisma.appointment.findFirst({
       where: { id, organizationId: ctx.organizationId },

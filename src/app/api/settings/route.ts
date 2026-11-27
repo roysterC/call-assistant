@@ -18,7 +18,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { flattenMenu, menuOf, parseMenu } from "@/lib/nail-menu";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { featureFlags, resolveStartPage } from "@/lib/navigation";
-import { loadPlan } from "@/lib/plan-access";
+import { loadPlan, refuseIfRestricted } from "@/lib/plan-access";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSmsSender } from "@/lib/sms-sender";
 import { smsStatus } from "@/lib/sms";
@@ -297,6 +297,10 @@ function duplicateTechnicianName(raw: unknown): string | null {
 export async function PUT(req: NextRequest) {
   const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
+  // The salon's setup (its team among it) waits while the plan is paused;
+  // Plan & billing has its own routes (src/lib/plan.ts).
+  const paused = await refuseIfRestricted(ctx.organizationId, ctx);
+  if (paused) return paused;
 
   try {
     const raw = await req.json();

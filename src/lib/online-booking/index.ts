@@ -36,6 +36,7 @@ import {
   type PublicService,
 } from "./catalogue";
 import { groupSlotsByDay, nearestSlots, slotWindow, type DaySlots, type PublicSlot } from "./slots";
+import { loadPlan } from "@/lib/plan-access";
 
 export * from "./catalogue";
 export * from "./slots";
@@ -106,13 +107,18 @@ export async function loadOnlineSalon(slug: unknown): Promise<OnlineSalon | null
     stylistChoice: s.onlineStylistChoice,
     maxDaysAhead: s.onlineMaxDaysAhead,
   });
+  // A paused plan (src/lib/plan.ts) keeps its site, which says to ring.
+  const plan = await loadPlan(org.id);
   return {
     organizationId: org.id,
     salon,
     cfg,
     provider,
     takesBookings:
-      canCreateBooking(provider) && canReadAvailability(provider) && salon.services.length > 0,
+      canCreateBooking(provider) &&
+      canReadAvailability(provider) &&
+      salon.services.length > 0 &&
+      plan?.access !== "restricted",
   };
 }
 

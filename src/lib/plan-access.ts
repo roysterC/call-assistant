@@ -43,8 +43,15 @@ export async function addonOn(organizationId: string, addon: Addon): Promise<boo
   return Boolean(plan?.addonActive[addon]);
 }
 
-/** The salon's plan said in a 402, for the screens to show: null when it may go ahead. */
-export async function refuseIfRestricted(organizationId: string): Promise<NextResponse | null> {
+/**
+ * The salon's plan said in a 402, for the screens to show: null when it may
+ * go ahead. Kikai's super-admins, helping a salon, always may.
+ */
+export async function refuseIfRestricted(
+  organizationId: string,
+  ctx?: { isSuperAdmin?: boolean }
+): Promise<NextResponse | null> {
+  if (ctx?.isSuperAdmin) return null;
   const plan = await loadPlan(organizationId);
   if (!plan || plan.access === "full") return null;
   return NextResponse.json(

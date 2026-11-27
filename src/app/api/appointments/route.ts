@@ -21,6 +21,7 @@ import { normalisePhone } from "@/lib/phone";
 import { textRecipient } from "@/lib/client-link";
 import { cancellationBody, sendSms } from "@/lib/sms";
 import { describeAppointmentWhen } from "@/lib/business-hours";
+import { refuseIfRestricted } from "@/lib/plan-access";
 
 const VALID_STATUSES = ["booked", "cancelled", "completed", "no_show"];
 
@@ -263,6 +264,9 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
+  // A paused plan keeps its bookings but makes no new ones (src/lib/plan.ts).
+  const paused = await refuseIfRestricted(ctx.organizationId, ctx);
+  if (paused) return paused;
 
   try {
     const body = await req.json();

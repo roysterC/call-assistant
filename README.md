@@ -242,6 +242,82 @@ violate it fails when Postgres builds the index. That is a safe failure — the
 schema and the data are left as they were — but the deploy stops, and the
 duplicates have to be resolved on the box before it will go through.
 
+### Plans and billing
+
+Every salon has the **base plan**, always on: the diary, clients, booking
+from the desk, sales, and its own website with online booking. Nothing
+switches those off. The AI tools are **add-ons**, each with its own price:
+the phone receptionist, AI chat replies (WhatsApp, Instagram, Messenger,
+website chat), booking by message (needs chat replies) and rebooking texts
+(need booking by message). The rules are all in `src/lib/plan.ts`.
+
+**Price**: £9 a month, the owner included, plus £5 for every other person on
+the team, whether they sign in, take bookings or neither (each person
+counted once: team members, and logins not on the team). Prices include
+VAT. Kikai changes them, and sets each add-on's price, under Admin →
+Prices; an add-on with no price is "coming soon". A changed price is for
+salons that subscribe from then on: those already paying keep the price
+they joined on.
+
+**States** (`Organization.billingStatus`):
+
+| State | Means | What works |
+| --- | --- | --- |
+| `free` | Not billed (salons from before billing, Kikai's own, or ticked "Not billed" when made) | Everything it is set up for |
+| `trialing` | The 14-day free trial, from the owner's first sign-in | Base plan; add-ons once a card is on file |
+| `active` | Paying | Base plan and its add-ons |
+| `past_due` | A payment failed and Stripe is retrying | The same, with a warning |
+| `restricted` | The trial ended with no card, or Stripe gave up | Bookings stay: seeing them, checking out, cancelling and notes. No new or moved bookings (desk, assistant, online, where the site says to ring), no new team members or logins, no settings changes, no add-ons |
+
+A trial with no card turns restricted by itself at its end; nothing runs at
+midnight. Super-admins viewing a salon are never refused. The owner sees all
+this in **Settings → Plan & billing**, and a banner on every page in the
+trial's last three days, after a failed payment and while restricted.
+
+**In Admin**, each salon's page has a Plan and billing card: its state, its
+people, its add-ons (tick to add to its plan; a salon with a card is billed
+at once), its month's bill, the add-ons it has asked for (the receptionist
+is always asked for, since its number is set up first; Kikai is emailed at
+`NOTIFY_EMAIL`), and, for a salon with no card, "Not billed", "Start a
+14-day trial" and "Give 7 more trial days". An add-on's switch under
+Features still says whether it is set up; on a billed salon it works only
+while the add-on is on the plan.
+
+**Stripe** (`src/lib/stripe-billing.ts`). The owner adds a card on Stripe's
+Checkout page; the rest of the trial carries over, so the first charge is
+the day it ends. The subscription has a line for the plan, one for extra
+team members (quantity = people − 1) and one per add-on, kept in step
+whenever the team, its logins or the add-ons change; Stripe works out the
+part-month. Changing the card and seeing invoices is Stripe's own customer
+portal. Without `STRIPE_SECRET_KEY` nothing is billed and the page says card
+payments are not switched on yet.
+
+To switch it on (once, in the Stripe dashboard, then on the server):
+
+1. **Keys**: in `/home/deploy/call-assistant/.env` on netcup add
+   `STRIPE_SECRET_KEY=sk_live_…` (or `sk_test_…` to try it first) and
+   restart the service.
+2. **Webhook**: Developers → Webhooks → add an endpoint
+   `https://app.getkikai.com/api/stripe/webhook` with the events
+   `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`,
+   `invoice.payment_failed` and `invoice.paid`. Put its signing secret in
+   `.env` as `STRIPE_WEBHOOK_SECRET=whsec_…` and restart.
+3. **Customer portal**: Settings → Billing → Customer portal: allow
+   updating payment methods and viewing invoices. Leave "switch plans" off;
+   the plan follows the app.
+4. **Failed payments**: Settings → Billing → Subscriptions and emails →
+   retry for about two weeks, then **mark the subscription as unpaid**
+   (the salon is then restricted; paying unpauses it at once). Turn on the
+   emails for failed payments and for trials ending.
+5. **VAT**: prices are sent as VAT-inclusive. If Kikai registers for VAT,
+   turn on Stripe Tax; nothing in the app changes.
+
+Products are made in Stripe on first use with fixed ids (`kikai_base`,
+`kikai_seat`, `kikai_receptionist`, …), and a Price for each amount. A line
+added to a subscription by hand in Stripe, on any other product, is left
+alone.
+
 ### Voice server
 
 Our own receptionist (the "Talk" tab of the Receptionist lab, and later the

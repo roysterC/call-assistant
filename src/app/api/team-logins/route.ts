@@ -5,6 +5,7 @@ import { emailAvailable } from "@/lib/email";
 import { createInvitation, emailInvitation, INVITATION_FIELDS } from "@/lib/invitations";
 import { linkOrigin } from "@/lib/app-origin";
 import { rateLimit } from "@/lib/rate-limit";
+import { refuseIfRestricted } from "@/lib/plan-access";
 
 /**
  * The salon's logins, for its owner (Settings → Team logins): who can sign in,
@@ -45,6 +46,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
+  // Nothing new while the plan is paused (src/lib/plan.ts).
+  const paused = await refuseIfRestricted(ctx.organizationId, ctx);
+  if (paused) return paused;
   const { allowed } = rateLimit("team-invite", ctx.organizationId, { tokens: 20, refillPerSecond: 1 / 180 });
   if (!allowed) return NextResponse.json({ error: "Too many invitations at once. Try again later.", code: "tooMany" }, { status: 429 });
   const body = await req.json().catch(() => ({}));

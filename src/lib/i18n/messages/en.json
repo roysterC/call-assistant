@@ -1838,7 +1838,6 @@
       "failed": "Your last payment didn't go through. Update your card so nothing pauses.",
       "paused": "Your plan is paused: you can see and check out bookings, but not make new ones.",
       "action": "Plan and billing"
-    },
-    "blocked": "Your plan is paused. Update your card in Settings, Plan and billing, to carry on."
+    }
   }
 }

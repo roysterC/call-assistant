@@ -1838,7 +1838,6 @@
       "failed": "Lần thanh toán gần nhất không thành công. Hãy cập nhật thẻ để không bị tạm dừng.",
       "paused": "Gói của bạn đang tạm dừng: bạn vẫn xem và thanh toán lịch hẹn, nhưng không đặt lịch mới được.",
       "action": "Gói và thanh toán"
-    },
-    "blocked": "Gói của bạn đang tạm dừng. Hãy cập nhật thẻ trong Cài đặt, Gói và thanh toán, để tiếp tục."
+    }
   }
 }
