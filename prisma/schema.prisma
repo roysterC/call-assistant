@@ -66,6 +66,10 @@ model Organization {
   billedSeats             Int?
   // The first failed payment of the current run of failures; null once paid.
   paymentFailedAt         DateTime?
+  // The last "your trial is ending" email sent to the owner of a trial with
+  // no card (src/lib/plan-emails.ts): "3" or "1" days before. Cleared when
+  // the trial's end moves.
+  trialReminderSent       String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -1169,7 +1173,7 @@ model Technician {
   @@map("ca_technicians")
 }
 
-/// What Kikai charges, in pence a month, VAT included: "base" (the plan,
+/// What Kikai charges, in pence a month (Kikai is not VAT registered): "base" (the plan,
 /// owner included), "seat" (each other team member) and each add-on
 /// (src/lib/plan.ts). A missing base or seat row is the founder price; an
 /// add-on with no row is not for sale yet. stripePriceId is the Stripe Price

@@ -1265,6 +1265,16 @@
       "line": "Confirm this is your address, so you can reset your password with it if you ever forget it.",
       "button": "Confirm my email",
       "footer": "This link works once, for a day. If you don't use Kikai, ignore this email."
+    },
+    "trial": {
+      "subject3": "Your Kikai free trial ends in 3 days",
+      "subject1": "Your Kikai free trial ends tomorrow",
+      "heading3": "3 days left of your free trial",
+      "heading1": "Your free trial ends tomorrow",
+      "line": "Your free trial for {salon} ends on {date}. Add a card to carry on: nothing is charged until then.",
+      "lineAfter": "Without a card, your plan is paused after that: your bookings stay safe and your website keeps taking bookings, but you can't make new bookings from the diary or change your setup until you add one.",
+      "button": "Add a card",
+      "footer": "You're getting this because you own {salon} on Kikai."
     }
   },
   "insights": {
@@ -1806,7 +1816,7 @@
       "seats": "{n, plural, one {# more team member} other {# more team members}} × {each}"
     },
     "wouldBe": "Would be, a month",
-    "aMonth": "A month, VAT included",
+    "aMonth": "A month",
     "teamNote": "{people, plural, one {# person on your team.} other {# people on your team.}} Everyone counts, whether or not they sign in or take bookings. Add or remove someone and your bill follows, worked out to the day.",
     "tools": "AI tools",
     "toolsHint": "Add one any time, and take it off any time.",

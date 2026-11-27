@@ -253,8 +253,8 @@ website chat), booking by message (needs chat replies) and rebooking texts
 
 **Price**: £9 a month, the owner included, plus £5 for every other person on
 the team, whether they sign in, take bookings or neither (each person
-counted once: team members, and logins not on the team). Prices include
-VAT. Kikai changes them, and sets each add-on's price, under Admin →
+counted once: team members, and logins not on the team). Kikai is not
+VAT registered, so prices carry no VAT and nothing mentions it. Kikai changes them, and sets each add-on's price, under Admin →
 Prices; an add-on with no price is "coming soon". A changed price is for
 salons that subscribe from then on: those already paying keep the price
 they joined on.
@@ -267,10 +267,13 @@ they joined on.
 | `trialing` | The 14-day free trial, from the owner's first sign-in | Base plan; add-ons once a card is on file |
 | `active` | Paying | Base plan and its add-ons |
 | `past_due` | A payment failed and Stripe is retrying | The same, with a warning |
-| `restricted` | The trial ended with no card, or Stripe gave up | Bookings stay: seeing them, checking out, cancelling and notes. No new or moved bookings (desk, assistant, online, where the site says to ring), no new team members or logins, no settings changes, no add-ons |
+| `restricted` | The trial ended with no card, Stripe gave up, or the owner cancelled and the paid month ran out | Bookings stay: seeing them, checking out, cancelling and notes, adding clients and blocking out time. The website stays up and still takes online bookings. No new or moved bookings from the desk or the assistant, no new team members or logins, no settings changes, no add-ons |
 
 A trial with no card turns restricted by itself at its end; nothing runs at
-midnight. Super-admins viewing a salon are never refused. The owner sees all
+midnight. Its owner is emailed three days before and the day before
+(`src/lib/plan-emails.ts`, by the reminders timer through
+`/api/cron/trial-reminders`; Stripe's own trial emails only reach salons
+with a card). Super-admins viewing a salon are never refused. The owner sees all
 this in **Settings → Plan & billing**, and a banner on every page in the
 trial's last three days, after a failed payment and while restricted.
 
@@ -315,8 +318,8 @@ To switch it on (once, in the Stripe dashboard, then on the server):
    retry for about two weeks, then **mark the subscription as unpaid**
    (the salon is then restricted; paying unpauses it at once). Turn on the
    emails for failed payments and for trials ending.
-5. **VAT**: prices are sent as VAT-inclusive. If Kikai registers for VAT,
-   turn on Stripe Tax; nothing in the app changes.
+5. **VAT**: none; Kikai is not VAT registered. If it registers, turn on
+   Stripe Tax and add the VAT wording back to the screens.
 
 Products are made in Stripe on first use with fixed ids (`kikai_base`,
 `kikai_seat`, `kikai_receptionist`, …), and a Price for each amount. A line

@@ -85,8 +85,6 @@ export async function ensurePrice(key: PriceKey, tries = 3): Promise<string> {
     currency: "gbp",
     unit_amount: pence,
     recurring: { interval: "month" },
-    // Prices are said with VAT in.
-    tax_behavior: "inclusive",
     metadata: { kikai_key: key },
   });
   if (row) {

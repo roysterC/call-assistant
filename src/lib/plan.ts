@@ -20,10 +20,15 @@
  *  - "active":     paying.
  *  - "past_due":   a payment failed and Stripe is retrying it: everything
  *                  still works, with a warning to update the card.
- *  - "restricted": the trial ended with no card, or Stripe gave up on a
- *                  payment. The salon keeps its bookings and can still check
- *                  out, cancel and pay; nothing new can be booked or added
- *                  (src/lib/plan-access.ts), and no add-on works.
+ *  - "restricted": the trial ended with no card, Stripe gave up on a
+ *                  payment, or the owner cancelled and the paid month ran
+ *                  out. The salon keeps its bookings and can still check out,
+ *                  cancel, add clients, block out time and pay; its website
+ *                  still takes online bookings. The desk and the assistant
+ *                  book nothing new, the team and setup cannot change
+ *                  (src/lib/plan-access.ts), and no add-on works. Paused
+ *                  salons may be wiped, least recently used first, as the
+ *                  database fills (src/lib/purge.ts).
  */
 
 export const ADDONS = ["receptionist", "chatReplies", "chatBooking", "rebookTexts"] as const;
@@ -72,7 +77,7 @@ export function changedAddons(current: readonly Addon[], addon: Addon, on: boole
 export type PriceKey = "base" | "seat" | Addon;
 export const PRICE_KEYS: readonly PriceKey[] = ["base", "seat", ...ADDONS];
 
-/** The founder prices, in pence a month, VAT included: used until Kikai sets others in Admin. */
+/** The founder prices, in pence a month: used until Kikai sets others in Admin. */
 export const DEFAULT_PENCE: Record<"base" | "seat", number> = { base: 900, seat: 500 };
 
 export const TRIAL_DAYS = 14;

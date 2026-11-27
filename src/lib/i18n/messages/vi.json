@@ -1265,6 +1265,16 @@
       "line": "Xác nhận đây là địa chỉ của bạn để có thể đặt lại mật khẩu nếu quên.",
       "button": "Xác nhận email",
       "footer": "Liên kết chỉ dùng được một lần, trong một ngày. Nếu bạn không dùng Kikai, hãy bỏ qua email này."
+    },
+    "trial": {
+      "subject3": "Thời gian dùng thử Kikai của bạn kết thúc sau 3 ngày",
+      "subject1": "Thời gian dùng thử Kikai của bạn kết thúc vào ngày mai",
+      "heading3": "Còn 3 ngày dùng thử miễn phí",
+      "heading1": "Thời gian dùng thử kết thúc vào ngày mai",
+      "line": "Thời gian dùng thử miễn phí của {salon} kết thúc vào ngày {date}. Hãy thêm thẻ để tiếp tục: bạn chưa bị trừ tiền đến lúc đó.",
+      "lineAfter": "Nếu không có thẻ, gói của bạn sẽ tạm dừng sau đó: lịch hẹn vẫn an toàn và trang web vẫn nhận đặt lịch, nhưng bạn không thể đặt lịch mới từ sổ hẹn hay thay đổi cài đặt cho đến khi thêm thẻ.",
+      "button": "Thêm thẻ",
+      "footer": "Bạn nhận được email này vì bạn là chủ của {salon} trên Kikai."
     }
   },
   "insights": {
@@ -1806,7 +1816,7 @@
       "seats": "{n, plural, other {Thêm # thành viên}} × {each}"
     },
     "wouldBe": "Nếu tính phí, mỗi tháng",
-    "aMonth": "Mỗi tháng, đã gồm VAT",
+    "aMonth": "Mỗi tháng",
     "teamNote": "{people, plural, other {Nhóm của bạn có # người.}} Ai cũng được tính, dù có đăng nhập hay nhận khách hay không. Thêm hoặc bớt người thì hoá đơn đổi theo, tính theo ngày.",
     "tools": "Công cụ AI",
     "toolsHint": "Thêm bất cứ lúc nào, bỏ bất cứ lúc nào.",

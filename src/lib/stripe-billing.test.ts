@@ -136,7 +136,7 @@ describe("the subscription's lines", () => {
     db.prices.push({ key: "chatReplies", pence: 1500, stripePriceId: null });
     await syncSubscription("org1");
     expect(fake.prices.create).toHaveBeenCalledWith(
-      expect.objectContaining({ unit_amount: 1500, currency: "gbp", tax_behavior: "inclusive", product: "kikai_chatReplies" })
+      expect.objectContaining({ unit_amount: 1500, currency: "gbp", product: "kikai_chatReplies" })
     );
     expect(updateItems()).toEqual([{ price: "price_new_chatReplies", quantity: 1 }]);
   });

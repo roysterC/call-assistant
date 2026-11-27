@@ -42,7 +42,8 @@ Test cards (any future expiry, any CVC):
       orange banner on every page.
 - [ ] Trial end in the past → red "paused" banner, and:
   - [ ] New booking refused; moving a booking refused.
-  - [ ] The salon's website says to ring.
+  - [ ] The salon's website still takes online bookings.
+  - [ ] Adding a client and blocking out time still work.
   - [ ] Inviting a login and saving settings refused.
   - [ ] Checking out, cancelling and notes still work.
   - [ ] As a Kikai super-admin, everything still works.

@@ -216,7 +216,7 @@ export function BillingPrices() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          A month, VAT included. A new price is for salons that subscribe from now: those already paying keep the price
+          A month. A new price is for salons that subscribe from now: those already paying keep the price
           they joined on. An add-on with no price is not for sale.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">

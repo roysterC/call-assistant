@@ -108,6 +108,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const d = body.trialEndsAt === null ? null : new Date(String(body.trialEndsAt));
     if (d && Number.isNaN(d.getTime())) return NextResponse.json({ error: "Not a date." }, { status: 400 });
     data.trialEndsAt = d;
+    // A new end is a new countdown: its reminders go again.
+    data.trialReminderSent = null;
   }
   // A fresh start (a trial, or not billed) leaves no failed payment behind:
   // its warning would hide the way to add a card.
