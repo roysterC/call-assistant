@@ -167,7 +167,7 @@ export const PRICE_LABEL: Record<PriceKey, string> = {
   rebookTexts: "Rebooking texts",
 };
 
-const STATUS_LABEL: Record<string, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   free: "Not billed",
   trialing: "Free trial",
   active: "Paying",

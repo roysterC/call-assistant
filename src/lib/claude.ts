@@ -459,43 +459,26 @@ export const CHAT_MODEL_NAMES = Object.keys(CHAT_MODELS) as ChatModelName[];
 const DEFAULT_CHAT_MODEL: ChatModelName = "claude-haiku-5-5";
 
 /**
- * Which models each plan may use, cheapest first.
- *
- * This is the pricing lever: without it a starter customer simply selects the
- * expensive model in their own site settings. Unknown tiers deliberately fall
- * back to the most restrictive list rather than the most permissive — a typo
- * in a plan name should cost us nothing.
+ * Which models a salon's chat may use, cheapest first. Billed salons have
+ * the standard model; salons Kikai does not bill (its own, testers) may pick
+ * any. This is the cost lever: without it a salon simply selects the
+ * expensive model in its own site settings. Re-clamped on every request, so
+ * a salon that starts being billed is moved back at once.
  */
-export const PLAN_MODELS: Record<string, ChatModelName[]> = {
-  starter: ["claude-haiku-5-5"],
-  pro: ["claude-haiku-5-5", "claude-sonnet-5"],
-  // Bespoke arrangements get the full set.
-  custom: ["claude-haiku-5-5", "claude-sonnet-5"],
-};
-
-export function modelsForPlan(planTier: string | null | undefined) {
-  return PLAN_MODELS[planTier ?? ""] ?? PLAN_MODELS.starter;
+export function modelsForSalon(billingStatus: string | null | undefined): ChatModelName[] {
+  return billingStatus === "free" ? ["claude-haiku-5-5", "claude-sonnet-5"] : ["claude-haiku-5-5"];
 }
 
-/**
- * Resolve the model for a request, clamped to the plan.
- *
- * Re-clamped on every request rather than validated only on save: a customer
- * who downgrades must degrade to their new plan's model immediately, without
- * anyone remembering to rewrite stored site rows.
- */
+/** The model for a request: the site's choice where the salon may have it, else the best it may. */
 export function resolveModelForSite(
-  planTier: string | null | undefined,
+  billingStatus: string | null | undefined,
   requested: string | null | undefined
 ): ChatModelName {
-  const allowed = modelsForPlan(planTier);
+  const allowed = modelsForSalon(billingStatus);
   requested = currentModelName(requested);
   if (requested && (allowed as string[]).includes(requested)) {
     return requested as ChatModelName;
   }
-  // No explicit choice (or one the plan no longer permits) gets the best the
-  // plan allows — a paying customer shouldn't be quietly left on the cheap
-  // model because nobody ticked a box.
   return allowed[allowed.length - 1];
 }
 

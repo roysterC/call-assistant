@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         theme: true,
         fontFamily: true,
         hideBranding: true,
-        organization: { select: { planTier: true } },
+        organization: { select: { billingStatus: true } },
         proactiveEnabled: true,
         proactiveMessage: true,
         proactiveDelaySeconds: true,
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     // never from the stored flag alone. A client who downgrades gets it back
     // on their next config fetch without anyone touching their site row.
     const branding = shouldShowBranding(
-      site.organization?.planTier,
+      site.organization?.billingStatus,
       site.hideBranding
     )
       ? { show: true, ...brandingIdentity() }

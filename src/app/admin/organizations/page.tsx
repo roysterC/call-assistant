@@ -26,7 +26,7 @@ import { format } from "date-fns";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AdminUsageTable } from "@/components/usage/admin-usage-table";
-import { BillingOverview, BillingPrices } from "@/components/admin/billing";
+import { BillingOverview, BillingPrices, STATUS_LABEL } from "@/components/admin/billing";
 import { InviteLinkDialog, inviteLink } from "@/components/admin/invitations";
 import { LanguageFlags } from "@/components/i18n/language-flags";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,7 +47,7 @@ interface Organization {
   id: string;
   name: string;
   slug: string;
-  planTier: string;
+  billingStatus: string;
   enabled: boolean;
   createdAt: string;
   _count: {
@@ -70,7 +70,6 @@ export default function OrganizationsPage() {
   const blank = {
     name: "",
     slug: "",
-    planTier: "starter",
     ownerEmail: "",
     ownerLanguage: "en" as Lang,
     ownerNote: "",
@@ -149,8 +148,7 @@ export default function OrganizationsPage() {
     {
       id: "plan",
       header: "Plan",
-      accessorKey: "planTier",
-      meta: { className: "capitalize" },
+      accessorFn: (org) => STATUS_LABEL[org.billingStatus] ?? org.billingStatus,
     },
     count("users", "Users", (o) => o._count.users),
     count("leads", "Leads", (o) => o._count.leads),

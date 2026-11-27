@@ -15,7 +15,11 @@ model Organization {
   id                      String   @id @default(cuid())
   name                    String
   slug                    String   @unique
-  planTier                String   @default("starter")
+  // Withdrawn: the old starter/pro/custom tier. Billing (src/lib/plan.ts)
+  // decides everything it did. @ignore keeps it out of the Prisma client
+  // while the column stays until dropped by hand (README, schema-change
+  // policy).
+  planTier                String   @default("starter") @ignore
   // What kind of business it is (src/lib/business-types.ts): "hair",
   // "nails", "beauty" or "barber". Set by Kikai, not the salon. Changes what
   // the receptionist and chat bots know about the trade, never the diary.

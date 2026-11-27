@@ -277,6 +277,11 @@ with a card). Super-admins viewing a salon are never refused. The owner sees all
 this in **Settings → Plan & billing**, and a banner on every page in the
 trial's last three days, after a failed payment and while restricted.
 
+The old plan tier (starter, pro, custom) is gone: a salon Kikai does not
+bill may pick the better chat model and hide "Powered by Kikai" on its
+chat; billed salons have the standard model and the line. (The `planTier`
+column is no longer read; drop it by hand some day.)
+
 **Cancelling** is the owner's own: "Cancel my plan" on Plan & billing (or
 Stripe's billing page). The plan carries on to the end of the month (or the
 trial) already paid for, with no further charge, then ends and the salon is

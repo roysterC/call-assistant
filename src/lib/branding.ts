@@ -4,7 +4,7 @@
  * Two things make this enforceable rather than decorative. The widget renders
  * inside an iframe, so a client cannot CSS-hide the attribution from their own
  * page. And whether to show it is decided server-side on every config fetch,
- * from the organisation's current plan — never from a flag the client can set
+ * from the organisation's billing state — never from a flag the client can set
  * on their own record.
  */
 
@@ -20,24 +20,13 @@ export function brandingIdentity() {
   };
 }
 
-/** Plans permitted to remove the attribution. */
-const PLANS_MAY_HIDE = new Set(["pro", "custom"]);
-
-export function planMayHideBranding(planTier: string | null | undefined) {
-  return PLANS_MAY_HIDE.has(planTier ?? "");
-}
-
 /**
- * Whether the widget should render attribution.
- *
+ * Whether the widget should render attribution: always, unless the site asks
+ * to hide it and the salon is one Kikai does not bill (its own, testers).
  * Re-evaluated per request rather than trusted from the stored flag, so a
- * downgrade restores attribution immediately without anyone rewriting site
- * rows — the same reasoning as the model clamp.
+ * salon that starts being billed gets it back at once.
  */
-export function shouldShowBranding(
-  planTier: string | null | undefined,
-  hideBranding: boolean | null | undefined
-): boolean {
+export function shouldShowBranding(billingStatus: string | null | undefined, hideBranding: boolean | null | undefined): boolean {
   if (!hideBranding) return true;
-  return !planMayHideBranding(planTier);
+  return billingStatus !== "free";
 }
