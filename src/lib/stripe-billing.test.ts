@@ -62,6 +62,7 @@ import {
   applySubscription,
   invoiceFailed,
   invoicePaid,
+  setCancelAtPeriodEnd,
   setStripeClient,
   stopBillingForFree,
   syncSubscription,
@@ -302,5 +303,34 @@ describe("making a salon that pays by card free", () => {
     await stopBillingForFree("org1");
     await applySubscription(sub("canceled"));
     expect(db.org).toMatchObject({ billingStatus: "free", stripeSubscriptionId: null });
+  });
+});
+
+describe("the owner cancelling", () => {
+  it("ends the plan at the end of the paid month, and can be undone", async () => {
+    const periodEnd = 1_801_000_000;
+    fake.subscriptions.update.mockResolvedValueOnce({
+      ...sub("active"),
+      cancel_at_period_end: true,
+      items: { data: [{ current_period_end: periodEnd }] },
+    } as never);
+    expect(await setCancelAtPeriodEnd("org1", true)).toEqual({ ok: true, endsAt: new Date(periodEnd * 1000) });
+    expect(fake.subscriptions.update).toHaveBeenCalledWith("sub_1", { cancel_at_period_end: true });
+    expect(db.org).toMatchObject({ billingStatus: "active", cancelAt: new Date(periodEnd * 1000) });
+
+    fake.subscriptions.update.mockResolvedValueOnce({ ...sub("active"), cancel_at_period_end: false } as never);
+    await setCancelAtPeriodEnd("org1", false);
+    expect(db.org.cancelAt).toBeNull();
+  });
+
+  it("then pauses the salon when the month is up", async () => {
+    db.org.cancelAt = new Date();
+    await applySubscription(sub("canceled"));
+    expect(db.org).toMatchObject({ billingStatus: "restricted", stripeSubscriptionId: null, cancelAt: null });
+  });
+
+  it("needs a card to cancel", async () => {
+    db.org.stripeSubscriptionId = null;
+    expect(await setCancelAtPeriodEnd("org1", true)).toEqual({ ok: false, error: "No card on file." });
   });
 });

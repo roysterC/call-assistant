@@ -346,11 +346,41 @@ export async function applySubscription(sub: Stripe.Subscription, opts: { fresh?
       stripeSubscriptionId: ended ? null : sub.id,
       stripeCustomerId: customer,
       ...(sub.trial_end ? { trialEndsAt: new Date(sub.trial_end * 1000) } : {}),
+      // Cancelled by the owner: when it ends (the paid month's end).
+      cancelAt: ended ? null : cancelDate(sub),
       // Paid, or over: either way no payment is waiting on the salon.
       ...(status === "active" || status === "trialing" || ended ? { paymentFailedAt: null } : {}),
     },
   });
   return org.id;
+}
+
+/** When a subscription set to cancel ends: its own date, or the end of the period it has paid for. */
+function cancelDate(sub: Stripe.Subscription): Date | null {
+  if (sub.cancel_at) return new Date(sub.cancel_at * 1000);
+  if (!sub.cancel_at_period_end) return null;
+  const ends = sub.items?.data?.map((i) => i.current_period_end).filter(Boolean) ?? [];
+  if (ends.length) return new Date(Math.max(...ends) * 1000);
+  return sub.trial_end ? new Date(sub.trial_end * 1000) : null;
+}
+
+/**
+ * The owner cancels their plan, or changes their mind. It carries on to the
+ * end of the month (or trial) already paid for, then ends: no refund, no
+ * further charge. Stripe's word is written back at once.
+ */
+export async function setCancelAtPeriodEnd(organizationId: string, cancel: boolean): Promise<{ ok: true; endsAt: Date | null } | { ok: false; error: string }> {
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { stripeSubscriptionId: true } });
+  if (!org?.stripeSubscriptionId) return { ok: false, error: "No card on file." };
+  try {
+    const sub = await stripe().subscriptions.update(org.stripeSubscriptionId, { cancel_at_period_end: cancel });
+    await applySubscription(sub);
+    return { ok: true, endsAt: cancelDate(sub) };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    console.error(`[BILLING] could not ${cancel ? "cancel" : "keep"} ${organizationId}'s plan:`, error);
+    return { ok: false, error };
+  }
 }
 
 /** The subscription an invoice is for, where the API version keeps it. */

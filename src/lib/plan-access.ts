@@ -30,6 +30,7 @@ const PLAN_SELECT = {
   stripeSubscriptionId: true,
   addons: true,
   paymentFailedAt: true,
+  cancelAt: true,
 } as const;
 
 export async function loadPlan(organizationId: string, now: Date = new Date()): Promise<PlanState | null> {

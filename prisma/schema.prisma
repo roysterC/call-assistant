@@ -70,6 +70,9 @@ model Organization {
   // no card (src/lib/plan-emails.ts): "3" or "1" days before. Cleared when
   // the trial's end moves.
   trialReminderSent       String?
+  // When the owner's cancelled plan ends: the end of the month (or trial)
+  // already paid for, from Stripe. Null while it carries on.
+  cancelAt                DateTime?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 

@@ -277,6 +277,13 @@ with a card). Super-admins viewing a salon are never refused. The owner sees all
 this in **Settings → Plan & billing**, and a banner on every page in the
 trial's last three days, after a failed payment and while restricted.
 
+**Cancelling** is the owner's own: "Cancel my plan" on Plan & billing (or
+Stripe's billing page). The plan carries on to the end of the month (or the
+trial) already paid for, with no further charge, then ends and the salon is
+paused as above. Until then the page says when it ends, with "Keep my
+plan" to undo it. Adding a card again later starts a new subscription,
+charged at once.
+
 **In Admin**, each salon's page has a Plan and billing card: its state, its
 people, its add-ons (tick to add to its plan; a salon with a card is billed
 at once), its month's bill, the add-ons it has asked for (the receptionist
@@ -312,8 +319,9 @@ To switch it on (once, in the Stripe dashboard, then on the server):
    `invoice.marked_uncollectible`. Put its signing secret in
    `.env` as `STRIPE_WEBHOOK_SECRET=whsec_…` and restart.
 3. **Customer portal**: Settings → Billing → Customer portal: allow
-   updating payment methods and viewing invoices. Leave "switch plans" off;
-   the plan follows the app.
+   updating payment methods and viewing invoices, and cancelling **at the
+   end of the billing period** (never immediately). Leave "switch plans"
+   off; the plan follows the app.
 4. **Failed payments**: Settings → Billing → Subscriptions and emails →
    retry for about two weeks, then **mark the subscription as unpaid**
    (the salon is then restricted; paying unpauses it at once). Turn on the

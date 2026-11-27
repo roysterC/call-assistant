@@ -98,6 +98,7 @@ export interface PlanInput {
   stripeSubscriptionId: string | null;
   addons: string[];
   paymentFailedAt?: Date | string | null;
+  cancelAt?: Date | string | null;
 }
 
 export type Warning = "trialEnding" | "trialNoCard" | "paymentFailed" | "restricted" | null;
@@ -118,6 +119,8 @@ export interface PlanState {
   addons: Addon[];
   /** What to tell the owner, most urgent first. */
   warning: Warning;
+  /** The owner cancelled: the plan ends then (ISO), at the end of the paid month. */
+  endsAt: string | null;
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -158,7 +161,18 @@ export function planState(o: PlanInput, now: Date = new Date()): PlanState {
   else if (status === "past_due" || (status !== "free" && asDate(o.paymentFailedAt))) warning = "paymentFailed";
   else if (status === "trialing" && !hasCard) warning = trialDaysLeft !== null && trialDaysLeft <= 3 ? "trialEnding" : "trialNoCard";
 
-  return { status, access, trialDaysLeft, hasCard, billed: status !== "free", addonActive, addons, warning };
+  const cancelAt = hasCard && status !== "free" ? asDate(o.cancelAt) : null;
+  return {
+    status,
+    access,
+    trialDaysLeft,
+    hasCard,
+    billed: status !== "free",
+    addonActive,
+    addons,
+    warning,
+    endsAt: cancelAt ? cancelAt.toISOString() : null,
+  };
 }
 
 /** The trial's end for a trial starting now. */

@@ -43,6 +43,7 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   // What the salon pays: the owner's alone (Settings → Plan & billing).
   billing: { GET: "owner" },
   "billing/addons": { POST: "owner" },
+  "billing/cancel": { POST: "owner" },
   "billing/checkout": { POST: "owner" },
   "billing/portal": { POST: "owner" },
   "billing/retry": { POST: "owner" },

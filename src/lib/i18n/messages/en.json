@@ -1848,6 +1848,18 @@
       "failed": "Your last payment didn't go through. Update your card so nothing pauses.",
       "paused": "Your plan is paused: you can see and check out bookings, but not make new ones.",
       "action": "Plan and billing"
+    },
+    "cancelPlan": "Cancel my plan",
+    "cancelTitle": "Cancel your plan?",
+    "cancelBody": "Your plan carries on until the end of the month you've paid for, and you won't be charged again. After that it's paused: your bookings stay safe and your website keeps taking bookings, but you can't make new bookings from the diary, change your team or setup, or use AI tools. You can add your card again any time.",
+    "cancelConfirm": "Cancel at the end of the month",
+    "cancelFailed": "Could not change your plan. Try again in a minute.",
+    "cancelled": "Cancelled. Your plan carries on until {date}.",
+    "kept": "Your plan carries on as before.",
+    "keep": "Keep my plan",
+    "ending": {
+      "title": "Your plan ends on {date}",
+      "text": "You cancelled it. Everything works until then, and you won't be charged again. Changed your mind? Keep your plan."
     }
   }
 }

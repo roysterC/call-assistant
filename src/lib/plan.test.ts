@@ -132,6 +132,17 @@ describe("add-ons", () => {
   });
 });
 
+describe("a cancelled plan", () => {
+  it("says when it ends, and works until then", () => {
+    const s = planState(
+      { billingStatus: "active", trialEndsAt: null, stripeSubscriptionId: "sub_1", addons: ["receptionist"], cancelAt: day(12) },
+      NOW
+    );
+    expect(s).toMatchObject({ access: "full", endsAt: day(12).toISOString(), warning: null });
+    expect(s.addonActive.receptionist).toBe(true);
+  });
+});
+
 describe("a failed payment", () => {
   it("keeps everything working while Stripe retries, with a warning", () => {
     const s = planState({ billingStatus: "past_due", trialEndsAt: null, stripeSubscriptionId: "sub_1", addons: ["receptionist"] }, NOW);

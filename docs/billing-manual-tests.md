@@ -58,6 +58,16 @@ Test cards (any future expiry, any CVC):
 - [ ] Add a card again in a second tab and finish both → Stripe cancels the
       second subscription by itself; only one stays.
 
+## C2. Cancelling
+
+- [ ] Owner presses **Cancel my plan** → confirms → the page says "Your plan
+      ends on …" (the end of the paid month, or the trial); in Stripe the
+      subscription is set to cancel at period end.
+- [ ] **Keep my plan** → back as before; Stripe no longer set to cancel.
+- [ ] Cancel again, then end the period early in Stripe (Stripe test clock,
+      or cancel now in Stripe) → the salon is paused; its bookings and
+      website still work; **Add a card** starts a new subscription.
+
 ## D. Team size
 
 - [ ] Add a team member with no login → Stripe's extra-member quantity goes
