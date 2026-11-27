@@ -10,6 +10,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type Row = Record<string, unknown> & { id: string };
 const db = vi.hoisted(() => ({ technician: [] as Row[], settings: [] as Row[], seq: 0, transactions: [] as unknown[] }));
 
+// Billing the team's size runs after the response, outside these tests.
+vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: () => {} }));
+vi.mock("@/lib/plan-access", () => ({ loadPlan: async () => null }));
+
 vi.mock("@/lib/tenant", () => ({
   requireTenant: async () => ({ organizationId: "org", role: "admin", isSuperAdmin: false }),
   isErrorResponse: () => false,

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isStaleTeamList, loadTeam, syncTeam } from "@/lib/technicians";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
@@ -25,6 +25,7 @@ import { smsStatus } from "@/lib/sms";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
 import { checkSiteChat } from "@/lib/salon-chat";
 import { bookingOrigin, salonDomain, salonOrigin } from "@/lib/booking-host";
+import { afterTeamChange } from "@/lib/stripe-billing";
 import {
   parseBrandColor,
   parseDaysAhead,
@@ -415,6 +416,9 @@ export async function PUT(req: NextRequest) {
         },
       });
     }, { timeout: 30_000, maxWait: 10_000 });
+
+    // Someone added to or taken off the team changes the bill (src/lib/plan.ts).
+    if ("teamMembers" in data) after(() => afterTeamChange(ctx.organizationId));
 
     // The same masking as GET: an owner saving their hours must not get the
     // salon's keys back in the response.

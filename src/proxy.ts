@@ -73,6 +73,9 @@ export async function proxy(req: NextRequest) {
     // Twilio's "a call comes in" webhook; it proves itself with a signature.
     "/api/twilio",
     "/api/meta",
+    // Stripe's billing events; each proves itself with a signature
+    // (src/app/api/stripe/webhook).
+    "/api/stripe/webhook",
     // The server's own timer, which has no session; each job checks
     // CRON_SECRET itself.
     "/api/cron",

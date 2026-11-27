@@ -40,6 +40,12 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   // The owner's question of the receptionist: is it earning its keep?
   "insights/booked": { GET: "owner" },
   me: { GET: "members", PUT: "members" },
+  // What the salon pays: the owner's alone (Settings → Plan & billing).
+  billing: { GET: "owner" },
+  "billing/addons": { POST: "owner" },
+  "billing/checkout": { POST: "owner" },
+  "billing/portal": { POST: "owner" },
+  "billing/retry": { POST: "owner" },
   // Staff see the salon is being set up; only the owner sets it up.
   onboarding: { GET: "members", PUT: "owner", POST: "owner" },
   // The salon's logins: the owner invites and removes staff (Settings).
