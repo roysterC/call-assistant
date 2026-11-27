@@ -414,3 +414,41 @@ export async function retryPayment(organizationId: string): Promise<{ ok: boolea
   if (org.stripeSubscriptionId) await applySubscription(await s.subscriptions.retrieve(org.stripeSubscriptionId));
   return { ok: true };
 }
+
+/**
+ * Make a salon that pays by card not billed (a tester, or Kikai's own): its
+ * subscription is cancelled at once in Stripe, with no part-month charged,
+ * and anything it still owes is voided, so the card is never charged again.
+ * Only then is the salon marked "free"; if Stripe refuses, nothing changes.
+ * Its Stripe customer is kept, with its invoice history.
+ */
+export async function stopBillingForFree(organizationId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { stripeSubscriptionId: true },
+  });
+  if (!org) return { ok: false, error: "No such salon" };
+  try {
+    await withBillingLock(organizationId, async () => {
+      const subId = org.stripeSubscriptionId;
+      if (subId && stripeConfigured()) {
+        const s = stripe();
+        const sub = await s.subscriptions.retrieve(subId);
+        if (sub.status !== "canceled" && sub.status !== "incomplete_expired") {
+          await s.subscriptions.cancel(subId, { invoice_now: false, prorate: false });
+        }
+        const open = await s.invoices.list({ subscription: subId, status: "open", limit: 100 });
+        for (const inv of open.data) if (inv.id) await s.invoices.voidInvoice(inv.id);
+      }
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: { billingStatus: "free", stripeSubscriptionId: null, paymentFailedAt: null, billedSeats: null },
+      });
+    });
+    return { ok: true };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    console.error(`[BILLING] could not stop billing ${organizationId}:`, error);
+    return { ok: false, error };
+  }
+}

@@ -278,8 +278,11 @@ trial's last three days, after a failed payment and while restricted.
 people, its add-ons (tick to add to its plan; a salon with a card is billed
 at once), its month's bill, the add-ons it has asked for (the receptionist
 is always asked for, since its number is set up first; Kikai is emailed at
-`NOTIFY_EMAIL`), and, for a salon with no card, "Not billed", "Start a
-14-day trial" and "Give 7 more trial days". An add-on's switch under
+`NOTIFY_EMAIL`), "Make free (not billed)" for testers and Kikai's own
+salons (for one paying by card, this cancels its Stripe subscription at
+once, with no part-month charged, and voids anything it owes, before it is
+marked free; if Stripe refuses, nothing changes), and, for a salon with no
+card, "Start a 14-day trial" and "Give 7 more trial days". An add-on's switch under
 Features still says whether it is set up; on a billed salon it works only
 while the add-on is on the plan.
 
@@ -319,6 +322,9 @@ Products are made in Stripe on first use with fixed ids (`kikai_base`,
 `kikai_seat`, `kikai_receptionist`, …), and a Price for each amount. A line
 added to a subscription by hand in Stripe, on any other product, is left
 alone.
+
+Before charging real salons, run the manual tests in
+`docs/billing-manual-tests.md` in Stripe test mode.
 
 **What we keep, and what Stripe keeps.** Stripe holds the record: cards,
 every invoice, payment and refund. We keep each salon's state (above), and:
