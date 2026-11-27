@@ -17,11 +17,25 @@ vi.mock("@/lib/prisma", () => ({
           .filter((o) => o.billingStatus !== "free" && (o.lastActiveAt as Date) < where.lastActiveAt.lt)
           .sort((a, b) => (a.lastActiveAt as Date).getTime() - (b.lastActiveAt as Date).getTime())
       ),
-      updateMany: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        if (!where.id) {
+          // Withdrawing warnings: all of them, or those older than a date.
+          const w = where.purgeWarnedAt as { lt?: Date; not?: null };
+          const hit = db.orgs.filter((o) => o.purgeWarnedAt && (!w.lt || (o.purgeWarnedAt as Date) < w.lt));
+          hit.forEach((o) => Object.assign(o, data));
+          return { count: hit.length };
+        }
         const o = db.orgs.find((x) => x.id === where.id)!;
-        if (o.purgeWarnedAt) return { count: 0 };
+        if (o.purgeWarnedAt !== where.purgeWarnedAt) return { count: 0 };
         Object.assign(o, data);
         return { count: 1 };
+      }),
+      update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) =>
+        Object.assign(db.orgs.find((x) => x.id === where.id)!, data)
+      ),
+      findFirst: vi.fn(async ({ where }: { where: { id: string; purgeWarnedAt: unknown } }) => {
+        const o = db.orgs.find((x) => x.id === where.id);
+        return o && o.purgeWarnedAt === where.purgeWarnedAt && !o.inUseNow ? { id: o.id } : null;
       }),
       delete: vi.fn(async ({ where }: { where: { id: string } }) => db.deleted.push(where.id)),
     },
@@ -29,15 +43,17 @@ vi.mock("@/lib/prisma", () => ({
     $transaction: vi.fn(async (ops: Array<Promise<unknown>>) => Promise.all(ops)),
   },
 }));
+const mail = vi.hoisted(() => ({ configured: true, ok: true }));
 vi.mock("@/lib/email", async (orig) => ({
   ...(await orig<typeof import("@/lib/email")>()),
+  emailConfigured: () => mail.configured,
   sendEmail: vi.fn(async (e: { to: string; subject: string }) => {
     db.emails.push(e);
-    return { ok: true, id: "1" };
+    return mail.ok ? { ok: true, id: "1" } : { ok: false, error: "bounced" };
   }),
 }));
-const stripe = vi.hoisted(() => ({ stop: vi.fn(async () => ({ ok: true })) }));
-vi.mock("@/lib/stripe-billing", () => ({ stopBillingForFree: stripe.stop, stripeConfigured: () => true }));
+const stripe = vi.hoisted(() => ({ cancel: vi.fn(async () => {}) }));
+vi.mock("@/lib/stripe-billing", () => ({ cancelSubscriptionNow: stripe.cancel, stripeConfigured: () => true }));
 
 import { purgeLimitBytes, purgePaused } from "@/lib/purge";
 
@@ -66,6 +82,8 @@ beforeEach(() => {
   db.orgs = [];
   db.deleted = [];
   db.emails = [];
+  mail.configured = true;
+  mail.ok = true;
   vi.clearAllMocks();
 });
 
@@ -73,7 +91,9 @@ describe("wiping paused salons", () => {
   it("does nothing while the database is under its limit, or no limit is set", async () => {
     db.orgs = [salon("old", 200, { purgeWarnedAt: daysAgo(30) })];
     db.bytes = 5 * GB;
-    expect(await purgePaused("https://app", NOW)).toMatchObject({ over: false, candidates: 1, deleted: [], warned: [] });
+    expect(await purgePaused("https://app", NOW)).toMatchObject({ over: false, candidates: ["old"], deleted: [], warned: [] });
+    // Under the limit, the warning is withdrawn.
+    expect(db.orgs[0].purgeWarnedAt).toBeNull();
     delete process.env.PURGE_WHEN_DB_OVER_GB;
     db.bytes = 500 * GB;
     expect(await purgePaused("https://app", NOW)).toMatchObject({ over: false, deleted: [] });
@@ -105,21 +125,54 @@ describe("wiping paused salons", () => {
     ];
     const r = await purgePaused("https://app", NOW);
     expect(r.deleted).toEqual([]);
-    expect(r.candidates).toBe(0);
+    expect(r.candidates).toEqual([]);
   });
 
-  it("cancels a subscription Stripe still holds before deleting, and keeps the salon if Stripe refuses", async () => {
+  it("cancels a subscription Stripe still holds before deleting, and keeps the salon, still paused, if Stripe refuses", async () => {
     db.orgs = [salon("unpaid", 200, { billingStatus: "restricted", stripeSubscriptionId: "sub_1", purgeWarnedAt: daysAgo(20) })];
-    stripe.stop.mockResolvedValueOnce({ ok: false, error: "down" } as never);
+    stripe.cancel.mockRejectedValueOnce(new Error("Stripe is down"));
     const r = await purgePaused("https://app", NOW);
     expect(r.deleted).toEqual([]);
-    expect(r.errors[0]).toContain("Stripe: down");
+    expect(r.errors[0]).toContain("Stripe is down");
+    expect(db.orgs[0].billingStatus).toBe("restricted");
     expect((await purgePaused("https://app", NOW)).deleted).toEqual(["unpaid"]);
-    expect(stripe.stop).toHaveBeenCalledWith("unpaid");
+    expect(stripe.cancel).toHaveBeenCalledWith("sub_1");
   });
 
-  it("on a dry run, says what is a candidate and changes nothing", async () => {
-    db.orgs = [salon("quiet", 120, { purgeWarnedAt: daysAgo(30) })];
-    expect(await purgePaused("https://app", NOW, { dryRun: true })).toMatchObject({ candidates: 1, deleted: [], warned: [] });
+  it("on a dry run, names the candidates and what it would do, and changes nothing", async () => {
+    db.orgs = [salon("quiet", 120, { purgeWarnedAt: daysAgo(20) }), salon("quieter", 150)];
+    expect(await purgePaused("https://app", NOW, { dryRun: true })).toMatchObject({
+      candidates: ["quieter", "quiet"],
+      wouldDelete: ["quiet"],
+      wouldWarn: ["quieter"],
+      deleted: [],
+      warned: [],
+    });
+    expect(db.emails).toEqual([]);
+  });
+
+  it("never counts a warning nobody was sent", async () => {
+    db.orgs = [salon("quiet", 120)];
+    mail.configured = false;
+    const r = await purgePaused("https://app", NOW);
+    expect(r.warned).toEqual([]);
+    expect(r.errors[0]).toContain("Email is not set up");
+    expect(db.orgs[0].purgeWarnedAt).toBeNull();
+    mail.configured = true;
+    mail.ok = false;
+    await purgePaused("https://app", NOW);
+    expect(db.orgs[0].purgeWarnedAt).toBeNull();
+  });
+
+  it("warns again, rather than deletes, on a warning gone stale", async () => {
+    db.orgs = [salon("quiet", 300, { purgeWarnedAt: daysAgo(200) })];
+    const r = await purgePaused("https://app", NOW);
+    expect(r.deleted).toEqual([]);
+    expect(r.warned).toEqual(["quiet"]);
+  });
+
+  it("leaves a salon used or paid for during the run", async () => {
+    db.orgs = [salon("back", 200, { purgeWarnedAt: daysAgo(20), inUseNow: true })];
+    expect((await purgePaused("https://app", NOW)).deleted).toEqual([]);
   });
 });

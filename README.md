@@ -277,9 +277,9 @@ with a card). Super-admins viewing a salon are never refused. The owner sees all
 this in **Settings → Plan & billing**, and a banner on every page in the
 trial's last three days, after a failed payment and while restricted.
 
-The old plan tier (starter, pro, custom) is gone: a salon Kikai does not
-bill may pick the better chat model and hide "Powered by Kikai" on its
-chat; billed salons have the standard model and the line. (The `planTier`
+The old plan tier (starter, pro, custom) is gone: every salon's chat runs
+on the standard model, and shows "Powered by Kikai"; a salon Kikai does not
+bill may pick the better model, or hide the line, in its chat's settings. (The `planTier`
 column is no longer read; drop it by hand some day.)
 
 **Cancelling** is the owner's own: "Cancel my plan" on Plan & billing (or
@@ -290,16 +290,25 @@ plan" to undo it. Adding a card again later starts a new subscription,
 charged at once.
 
 **Wiping paused salons** (`src/lib/purge.ts`). A salon that stays paused
-and that nobody uses (no sign-in or page opened for 90 days; Kikai viewing
-it does not count) is wiped once the database grows past
+and that nobody uses is wiped once the database grows past
 `PURGE_WHEN_DB_OVER_GB` (in `.env`, e.g. `PURGE_WHEN_DB_OVER_GB=20`; unset,
-nothing is ever wiped). Each night, least recently used first, at most five
-of each: the owner is emailed that the salon will be deleted in 14 days
-unless they sign in or add a card (either withdraws it), and a salon warned
-14 days ago is deleted with its logins, after any Stripe subscription it
-still has is cancelled. Kikai is emailed what was warned and deleted.
-Salons Kikai does not bill, or has switched off, are never wiped. To see
-what would go:
+nothing is ever wiped). "Nobody uses" means no sign-in or page opened by
+its own people for 90 days (Kikai viewing it does not count), no bookings
+made in that time (its website stays open while paused) and none to come.
+On each run of the reminders timer (twice a day), least recently used
+first, at most five of each:
+
+- the owner is emailed that the salon will be deleted in 14 days unless
+  they sign in or add a card (either withdraws it). A warning counts only
+  if an email reached an owner: with email not set up, nobody is warned and
+  nothing is deleted;
+- a salon warned 14–28 days ago, still unused, is deleted with its logins,
+  after any Stripe subscription it still has is cancelled (if Stripe
+  refuses, it stays, still paused). An older warning is given again first.
+
+Back under the limit, every warning is withdrawn. Kikai is emailed what was
+warned and deleted. Salons Kikai does not bill, or has switched off, are
+never wiped. To see the candidates and what the next run would do:
 
 ```bash
 curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" \
@@ -310,11 +319,11 @@ curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" \
 (link it from getkikai.com as `https://app.getkikai.com/signup`; the login
 page links it too), gives the salon's name, their name, email and a
 password, and is signed straight in and taken through onboarding. The trial
-starts at once, with no card. The salon's web address is made from its
+starts at once, with no card. A few mistyped tries never lock anyone out;
+only salons actually made are limited, to three an hour per address. The salon's web address is made from its
 name (`mai-nails`, else `mai-nails-2`, …). Kikai is emailed at
 `NOTIFY_EMAIL`, and the owner is sent the "confirm your email" link.
-Guarded by a few sign-ups an hour per address and a field only bots fill
-in (`src/lib/signup.ts`). Inviting an owner from Admin still works as before.
+A field only bots fill in turns scripts away (`src/lib/signup.ts`). Inviting an owner from Admin still works as before.
 
 **In Admin**, each salon's page has a Plan and billing card: its state, its
 people, its add-ons (tick to add to its plan; a salon with a card is billed

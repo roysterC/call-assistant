@@ -1267,10 +1267,8 @@
       "footer": "Liên kết chỉ dùng được một lần, trong một ngày. Nếu bạn không dùng Kikai, hãy bỏ qua email này."
     },
     "trial": {
-      "subject3": "Thời gian dùng thử Kikai của bạn kết thúc sau 3 ngày",
-      "subject1": "Thời gian dùng thử Kikai của bạn kết thúc vào ngày mai",
-      "heading3": "Còn 3 ngày dùng thử miễn phí",
-      "heading1": "Thời gian dùng thử kết thúc vào ngày mai",
+      "subject": "{days, plural, =0 {Thời gian dùng thử Kikai của bạn kết thúc hôm nay} =1 {Thời gian dùng thử Kikai của bạn kết thúc vào ngày mai} other {Thời gian dùng thử Kikai của bạn kết thúc sau # ngày}}",
+      "heading": "{days, plural, =0 {Thời gian dùng thử kết thúc hôm nay} =1 {Thời gian dùng thử kết thúc vào ngày mai} other {Còn # ngày dùng thử miễn phí}}",
       "line": "Thời gian dùng thử miễn phí của {salon} kết thúc vào ngày {date}. Hãy thêm thẻ để tiếp tục: bạn chưa bị trừ tiền đến lúc đó.",
       "lineAfter": "Nếu không có thẻ, gói của bạn sẽ tạm dừng sau đó: lịch hẹn vẫn an toàn và trang web vẫn nhận đặt lịch, nhưng bạn không thể đặt lịch mới từ sổ hẹn hay thay đổi cài đặt cho đến khi thêm thẻ.",
       "button": "Thêm thẻ",

@@ -26,7 +26,7 @@ vi.mock("@/lib/email", async (orig) => ({
 
 import { sendTrialReminders, trialReminderDue } from "@/lib/plan-emails";
 
-const NOW = new Date("2026-12-01T09:00:00Z");
+const NOW = new Date("2026-12-01T10:00:00Z");
 const inDays = (n: number) => new Date(NOW.getTime() + n * 864e5);
 const trial = (days: number, sent: string | null = null) => ({
   billingStatus: "trialing",
@@ -41,14 +41,22 @@ describe("which reminder is due", () => {
   });
 
   it("the three-day one, once", () => {
-    expect(trialReminderDue(trial(2.5), NOW)).toBe("3");
-    expect(trialReminderDue(trial(2.5, "3"), NOW)).toBeNull();
+    expect(trialReminderDue(trial(3), NOW)).toBe("3");
+    expect(trialReminderDue(trial(3, "3"), NOW)).toBeNull();
   });
 
   it("the day-before one, even after the three-day one, once", () => {
-    expect(trialReminderDue(trial(0.5, "3"), NOW)).toBe("1");
-    expect(trialReminderDue(trial(0.5), NOW)).toBe("1");
-    expect(trialReminderDue(trial(0.5, "1"), NOW)).toBeNull();
+    expect(trialReminderDue(trial(1, "3"), NOW)).toBe("1");
+    expect(trialReminderDue(trial(1), NOW)).toBe("1");
+    expect(trialReminderDue(trial(1, "1"), NOW)).toBeNull();
+  });
+
+  it("counts London calendar days, so 'tomorrow' always goes the day before", () => {
+    // Ends 6pm tomorrow: 32 hours away, still "tomorrow".
+    const endsTomorrowEvening = { ...trial(0), trialEndsAt: new Date("2026-12-02T18:00:00Z") };
+    expect(trialReminderDue(endsTomorrowEvening, NOW)).toBe("1");
+    // Ends 6pm in two days: not yet "tomorrow".
+    expect(trialReminderDue({ ...trial(0), trialEndsAt: new Date("2026-12-03T18:00:00Z") }, NOW)).toBe("3");
   });
 
   it("none for a salon with a card, not on trial, or whose trial has ended", () => {
@@ -65,7 +73,7 @@ describe("sending", () => {
       {
         id: "org1",
         name: "Mai Nails",
-        ...trial(2.5),
+        ...trial(3),
         users: [
           { email: "owner@example.com", language: "en" },
           { email: "co-owner@example.com", language: "vi" },

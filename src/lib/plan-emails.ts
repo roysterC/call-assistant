@@ -14,15 +14,31 @@ import { planState } from "@/lib/plan";
 
 export type TrialStage = "3" | "1";
 
-/** Which reminder is due now, if any: the day-before one wins over a missed three-day one. */
+/** The date in London, as "2026-12-01". */
+function londonDay(d: Date): string {
+  return d.toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+}
+
+/** Whole calendar days in London from today to the trial's last day: 0 on that day. */
+export function daysToTrialEnd(trialEndsAt: Date, now: Date = new Date()): number {
+  return Math.round((Date.parse(londonDay(trialEndsAt)) - Date.parse(londonDay(now))) / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * Which reminder is due now, if any, by London calendar days, so "ends
+ * tomorrow" always goes the day before: three days before (or two, if the
+ * first run missed it), then the day before (or on the day, if missed).
+ */
 export function trialReminderDue(
   o: { billingStatus: string; trialEndsAt: Date | null; stripeSubscriptionId: string | null; trialReminderSent: string | null },
   now: Date = new Date()
 ): TrialStage | null {
   const plan = planState({ ...o, addons: [] }, now);
-  if (plan.status !== "trialing" || plan.hasCard || plan.trialDaysLeft === null) return null;
-  if (plan.trialDaysLeft <= 1) return o.trialReminderSent === "1" ? null : "1";
-  if (plan.trialDaysLeft <= 3) return o.trialReminderSent ? null : "3";
+  if (plan.status !== "trialing" || plan.hasCard || !o.trialEndsAt) return null;
+  const days = daysToTrialEnd(o.trialEndsAt, now);
+  if (days < 0) return null;
+  if (days <= 1) return o.trialReminderSent === "1" ? null : "1";
+  if (days <= 3) return o.trialReminderSent ? null : "3";
   return null;
 }
 
@@ -54,11 +70,12 @@ export async function sendTrialReminders(origin: string, now: Date = new Date())
     for (const owner of org.users) {
       const lang: Lang = isLang(owner.language) ? owner.language : DEFAULT_LANG;
       const date = org.trialEndsAt!.toLocaleDateString(INTL_LOCALE[lang], { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/London" });
+      const days = daysToTrialEnd(org.trialEndsAt!, now);
       const r = await sendEmail(
         actionEmail({
           to: owner.email,
-          subject: translate(lang, stage === "3" ? "mail.trial.subject3" : "mail.trial.subject1"),
-          heading: translate(lang, stage === "3" ? "mail.trial.heading3" : "mail.trial.heading1"),
+          subject: translate(lang, "mail.trial.subject", { days }),
+          heading: translate(lang, "mail.trial.heading", { days }),
           lines: [translate(lang, "mail.trial.line", { salon: org.name, date }), translate(lang, "mail.trial.lineAfter")],
           button: translate(lang, "mail.trial.button"),
           url: `${origin}/settings#plan`,

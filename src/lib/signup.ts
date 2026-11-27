@@ -11,7 +11,7 @@
  * nothing but a few rows, and a paused one is wiped in time (purge.ts).
  */
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { businessTypesOf, starterMenu, starterServices } from "@/lib/business-types";
 import { hasOwnSubdomain } from "@/lib/booking-host";
@@ -26,7 +26,7 @@ export const SALON_NAME_MAX = 80;
 export function slugFrom(name: string): string {
   return name
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/đ/g, "d")
     .replace(/Đ/g, "d")
     .toLowerCase()
@@ -65,58 +65,85 @@ export function starterSettings(businessName: string) {
 
 type Fail = { ok: false; status: number; error: string; code: string };
 
-export async function signUpSalon(input: {
+export interface SignUpInput {
   salon: unknown;
   name: unknown;
   email: unknown;
   password: unknown;
   language?: unknown;
   now?: Date;
-}): Promise<{ ok: true; organizationId: string; salon: string; email: string; userId: string } | Fail> {
-  const now = input.now ?? new Date();
-  const salon = String(input.salon ?? "").trim().replace(/\s+/g, " ").slice(0, SALON_NAME_MAX);
-  if (!salon) return { ok: false, status: 400, error: "Enter your salon's name.", code: "salon" };
-  const name = String(input.name ?? "").trim().slice(0, 100);
-  if (!name) return { ok: false, status: 400, error: "Enter your name.", code: "name" };
-  const email = normaliseEmail(input.email);
-  if (!email) return { ok: false, status: 400, error: "That email address does not look right.", code: "email" };
-  const password = typeof input.password === "string" ? input.password : "";
-  const weak = validatePassword(password);
-  if (weak) return { ok: false, status: 400, error: weak, code: "weak" };
-  const passwordHash = await hashPassword(password);
+}
 
-  return prisma.$transaction(async (tx) => {
-    const taken = await tx.user.findUnique({ where: { email }, select: { id: true, organizationId: true, role: true } });
-    if (taken && !isLeftoverLogin(taken)) {
-      return { ok: false as const, status: 409, error: "That email already has a login. Sign in instead.", code: "taken" };
+/** What is wrong with the form, before anything is made: null when it can go ahead. */
+export function signUpProblem(input: SignUpInput): Fail | null {
+  if (!cleanSalon(input.salon)) return { ok: false, status: 400, error: "Enter your salon's name.", code: "salon" };
+  if (!String(input.name ?? "").trim()) return { ok: false, status: 400, error: "Enter your name.", code: "name" };
+  if (!normaliseEmail(input.email)) return { ok: false, status: 400, error: "That email address does not look right.", code: "email" };
+  const weak = validatePassword(typeof input.password === "string" ? input.password : "");
+  if (weak) return { ok: false, status: 400, error: weak, code: "weak" };
+  return null;
+}
+
+function cleanSalon(v: unknown): string {
+  return String(v ?? "").trim().replace(/\s+/g, " ").slice(0, SALON_NAME_MAX);
+}
+
+const TAKEN: Fail = { ok: false, status: 409, error: "That email already has a login. Sign in instead.", code: "taken" };
+
+export async function signUpSalon(
+  input: SignUpInput
+): Promise<{ ok: true; organizationId: string; salon: string; email: string; userId: string } | Fail> {
+  const problem = signUpProblem(input);
+  if (problem) return problem;
+  const now = input.now ?? new Date();
+  const salon = cleanSalon(input.salon);
+  const name = String(input.name ?? "").trim().slice(0, 100);
+  const email = normaliseEmail(input.email)!;
+  const passwordHash = await hashPassword(input.password as string);
+
+  // Two sign-ups at once can both find a web address free, or both find an
+  // email unused: the second is tried again, and sees the first.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await create();
+    } catch (e) {
+      const unique = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+      if (!unique || attempt >= 2) throw e;
     }
-    if (taken) await tx.user.delete({ where: { id: taken.id } });
-    const { types, settings } = starterSettings(salon);
-    const org = await tx.organization.create({
-      data: {
-        name: salon,
-        slug: await freeSlug(salon, tx),
-        needsOnboarding: true,
-        businessType: types[0],
-        alsoOffers: types.slice(1),
-        billingStatus: "trialing",
-        trialEndsAt: trialEnd(now),
-        lastActiveAt: now,
-        settings: { create: settings },
-      },
-      select: { id: true, name: true },
+  }
+
+  function create() {
+    return prisma.$transaction(async (tx) => {
+      const taken = await tx.user.findUnique({ where: { email }, select: { id: true, organizationId: true, role: true } });
+      if (taken && !isLeftoverLogin(taken)) return TAKEN;
+      if (taken) await tx.user.delete({ where: { id: taken.id } });
+      const { types, settings } = starterSettings(salon);
+      const org = await tx.organization.create({
+        data: {
+          name: salon,
+          slug: await freeSlug(salon, tx),
+          needsOnboarding: true,
+          businessType: types[0],
+          alsoOffers: types.slice(1),
+          billingStatus: "trialing",
+          trialEndsAt: trialEnd(now),
+          lastActiveAt: now,
+          settings: { create: settings },
+        },
+        select: { id: true, name: true },
+      });
+      const user = await tx.user.create({
+        data: {
+          email,
+          name,
+          role: "admin",
+          organizationId: org.id,
+          passwordHash,
+          language: isLang(input.language) ? input.language : null,
+        },
+        select: { id: true },
+      });
+      return { ok: true as const, organizationId: org.id, salon: org.name, email, userId: user.id };
     });
-    const user = await tx.user.create({
-      data: {
-        email,
-        name,
-        role: "admin",
-        organizationId: org.id,
-        passwordHash,
-        language: isLang(input.language) ? input.language : null,
-      },
-      select: { id: true },
-    });
-    return { ok: true as const, organizationId: org.id, salon: org.name, email, userId: user.id };
-  });
+  }
 }

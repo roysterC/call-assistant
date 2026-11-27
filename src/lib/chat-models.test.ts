@@ -29,10 +29,11 @@ describe("chat models after the move to Haiku 5.5", () => {
     expect(resolveModelForSite("active", "claude-haiku-4-5")).toBe("claude-haiku-5-5");
   });
 
-  it("gives billed salons the standard model, and lets salons Kikai does not bill pick", () => {
+  it("gives everyone the standard model unless a salon Kikai does not bill picks another", () => {
     expect(resolveModelForSite("active", null)).toBe("claude-haiku-5-5");
     expect(resolveModelForSite("active", "claude-sonnet-5")).toBe("claude-haiku-5-5");
-    expect(resolveModelForSite("free", null)).toBe("claude-sonnet-5");
+    expect(resolveModelForSite("free", null)).toBe("claude-haiku-5-5");
+    expect(resolveModelForSite("free", "claude-sonnet-5")).toBe("claude-sonnet-5");
     expect(resolveModelForSite("free", "claude-haiku-5-5")).toBe("claude-haiku-5-5");
   });
 });

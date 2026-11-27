@@ -113,10 +113,11 @@ Test cards (any future expiry, any CVC):
 
 ## H2. Trial emails and wiping paused salons
 
-- [ ] A trial with no card and 3 days left: after the nightly run, the
-      owner has "Your Kikai free trial ends in 3 days"; with 1 day left,
-      "ends tomorrow". Each comes once.
-- [ ] `/api/cron/purge-paused?dryRun=1` lists candidates and changes nothing.
+- [ ] A trial with no card ending in 3 days: after the next timer run, the
+      owner has "Your Kikai free trial ends in 3 days"; the day before it
+      ends (by the London date), "ends tomorrow". Each comes once.
+- [ ] `/api/cron/purge-paused?dryRun=1` names the candidates, and who the
+      next run would warn and delete, and changes nothing.
 - [ ] With `PURGE_WHEN_DB_OVER_GB` set low, a paused salon idle 90+ days:
       first run emails its owner; signing in clears it; 14 days after a
       warning, the next run deletes it and emails Kikai.

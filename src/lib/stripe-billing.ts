@@ -446,6 +446,21 @@ export async function retryPayment(organizationId: string): Promise<{ ok: boolea
 }
 
 /**
+ * Cancel a subscription in Stripe at once, with no part-month charged, and
+ * void anything it still owes, so the card is never charged again. Ours is
+ * left as it is: the caller decides what the salon becomes.
+ */
+export async function cancelSubscriptionNow(subscriptionId: string): Promise<void> {
+  const s = stripe();
+  const sub = await s.subscriptions.retrieve(subscriptionId);
+  if (sub.status !== "canceled" && sub.status !== "incomplete_expired") {
+    await s.subscriptions.cancel(subscriptionId, { invoice_now: false, prorate: false });
+  }
+  const open = await s.invoices.list({ subscription: subscriptionId, status: "open", limit: 100 });
+  for (const inv of open.data) if (inv.id) await s.invoices.voidInvoice(inv.id);
+}
+
+/**
  * Make a salon that pays by card not billed (a tester, or Kikai's own): its
  * subscription is cancelled at once in Stripe, with no part-month charged,
  * and anything it still owes is voided, so the card is never charged again.
@@ -460,16 +475,7 @@ export async function stopBillingForFree(organizationId: string): Promise<{ ok: 
   if (!org) return { ok: false, error: "No such salon" };
   try {
     await withBillingLock(organizationId, async () => {
-      const subId = org.stripeSubscriptionId;
-      if (subId && stripeConfigured()) {
-        const s = stripe();
-        const sub = await s.subscriptions.retrieve(subId);
-        if (sub.status !== "canceled" && sub.status !== "incomplete_expired") {
-          await s.subscriptions.cancel(subId, { invoice_now: false, prorate: false });
-        }
-        const open = await s.invoices.list({ subscription: subId, status: "open", limit: 100 });
-        for (const inv of open.data) if (inv.id) await s.invoices.voidInvoice(inv.id);
-      }
+      if (org.stripeSubscriptionId && stripeConfigured()) await cancelSubscriptionNow(org.stripeSubscriptionId);
       await prisma.organization.update({
         where: { id: organizationId },
         data: { billingStatus: "free", stripeSubscriptionId: null, paymentFailedAt: null, billedSeats: null },

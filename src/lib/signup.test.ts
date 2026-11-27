@@ -79,6 +79,17 @@ describe("signing up", () => {
   });
 });
 
+describe("two sign-ups at once", () => {
+  it("tries again when the other took the web address first", async () => {
+    const { prisma } = await import("@/lib/prisma");
+    const { Prisma } = await import("@/generated/prisma/client");
+    vi.mocked(prisma.organization.create).mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("unique", { code: "P2002", clientVersion: "x" })
+    );
+    expect(await signUpSalon(good)).toMatchObject({ ok: true });
+  });
+});
+
 describe("the salon's web address", () => {
   it("is made from its name", () => {
     expect(slugFrom("Mai Nails & Spa")).toBe("mai-nails-spa");

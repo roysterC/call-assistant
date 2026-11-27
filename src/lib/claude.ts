@@ -469,7 +469,11 @@ export function modelsForSalon(billingStatus: string | null | undefined): ChatMo
   return billingStatus === "free" ? ["claude-haiku-5-5", "claude-sonnet-5"] : ["claude-haiku-5-5"];
 }
 
-/** The model for a request: the site's choice where the salon may have it, else the best it may. */
+/**
+ * The model for a request: the site's choice where the salon may have it,
+ * else the standard one. Never upgraded without a choice: a salon from
+ * before billing ("free") stays on the standard model unless its site picks.
+ */
 export function resolveModelForSite(
   billingStatus: string | null | undefined,
   requested: string | null | undefined
@@ -479,7 +483,7 @@ export function resolveModelForSite(
   if (requested && (allowed as string[]).includes(requested)) {
     return requested as ChatModelName;
   }
-  return allowed[allowed.length - 1];
+  return allowed[0];
 }
 
 /**

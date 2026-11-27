@@ -7,8 +7,8 @@ import { purgePaused } from "@/lib/purge";
 /**
  * Wiping paused salons, least recently used first, once the database is over
  * PURGE_WHEN_DB_OVER_GB (src/lib/purge.ts). Run nightly by the reminders
- * timer (scripts/send-reminders.sh). `?dryRun=1` says what is a candidate
- * and changes nothing.
+ * timer (scripts/send-reminders.sh). `?dryRun=1` lists the candidates and
+ * what this run would warn and delete, and changes nothing.
  */
 export async function POST(req: NextRequest) {
   if (!cronAuthorised(req)) {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
   const origin = linkOrigin(req.nextUrl.origin);
   const report = await purgePaused(origin, new Date(), { dryRun });
-  if (report.warned.length || report.deleted.length || report.errors.length) {
+  if (!dryRun && (report.warned.length || report.deleted.length || report.errors.length)) {
     await notifyKikai({
       subject: `Paused salons: ${report.deleted.length} deleted, ${report.warned.length} warned`,
       lines: [
