@@ -289,6 +289,16 @@ paused as above. Until then the page says when it ends, with "Keep my
 plan" to undo it. Adding a card again later starts a new subscription,
 charged at once.
 
+**Signing up** needs no one at Kikai: a salon owner opens `/signup`
+(link it from getkikai.com as `https://app.getkikai.com/signup`; the login
+page links it too), gives the salon's name, their name, email and a
+password, and is signed straight in and taken through onboarding. The trial
+starts at once, with no card. The salon's web address is made from its
+name (`mai-nails`, else `mai-nails-2`, …). Kikai is emailed at
+`NOTIFY_EMAIL`, and the owner is sent the "confirm your email" link.
+Guarded by a few sign-ups an hour per address and a field only bots fill
+in (`src/lib/signup.ts`). Inviting an owner from Admin still works as before.
+
 **In Admin**, each salon's page has a Plan and billing card: its state, its
 people, its add-ons (tick to add to its plan; a salon with a card is billed
 at once), its month's bill, the add-ons it has asked for (the receptionist

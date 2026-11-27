@@ -52,7 +52,7 @@
     "forgot": "Forgot password?",
     "signIn": "Sign in",
     "signingIn": "Signing in…",
-    "noAccount": "Don't have an account? Your administrator will invite you.",
+    "noAccount": "Work at a salon on Kikai? Your salon's owner invites you.",
     "legal": "Legal",
     "privacy": "Privacy",
     "terms": "Terms",
@@ -1860,6 +1860,31 @@
     "ending": {
       "title": "Your plan ends on {date}",
       "text": "You cancelled it. Everything works until then, and you won't be charged again. Changed your mind? Keep your plan."
+    }
+  },
+  "signup": {
+    "title": "Start your free trial",
+    "intro": "14 days free, no card needed. Your diary, online booking and your own website, ready in a few minutes.",
+    "salon": "Your salon's name",
+    "name": "Your name",
+    "email": "Your email",
+    "password": "Choose a password",
+    "submit": "Start my free trial",
+    "submitting": "Setting up…",
+    "failed": "Could not sign you up. Try again.",
+    "terms": "By signing up you agree to our",
+    "termsLink": "terms",
+    "privacyLink": "and privacy policy.",
+    "haveLogin": "Already have a login?",
+    "signIn": "Sign in",
+    "newHere": "New to Kikai?",
+    "start": "Start a free trial",
+    "err": {
+      "salon": "Enter your salon's name.",
+      "name": "Enter your name.",
+      "email": "That email address doesn't look right.",
+      "taken": "That email already has a login.",
+      "tooMany": "Too many tries. Wait a while and try again."
     }
   }
 }

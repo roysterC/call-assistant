@@ -77,6 +77,13 @@ model Organization {
   // When the owner's cancelled plan ends: the end of the month (or trial)
   // already paid for, from Stripe. Null while it carries on.
   cancelAt                DateTime?
+  // When someone at the salon last used the app (signed in, opened a page):
+  // updated at most hourly (src/lib/tenant.ts). Paused salons are wiped
+  // least recently used first (src/lib/purge.ts).
+  lastActiveAt            DateTime @default(now())
+  // When the owner was told a paused salon will be wiped; cleared when it
+  // pays or is used again (src/lib/purge.ts).
+  purgeWarnedAt           DateTime?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 

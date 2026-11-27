@@ -210,9 +210,14 @@ function LoginForm() {
             </Button>
           </form>
 
-          <p className="text-xs text-muted-foreground mt-8 text-center">
-            {t("login.noAccount")}
+          {/* A salon signs itself up (src/app/signup); staff are invited by their owner. */}
+          <p className="text-sm text-muted-foreground mt-8 text-center">
+            {t("signup.newHere")}{" "}
+            <Link href="/signup" className="font-medium text-foreground underline underline-offset-2">
+              {t("signup.start")}
+            </Link>
           </p>
+          <p className="text-xs text-muted-foreground mt-2 text-center">{t("login.noAccount")}</p>
           {/* The public legal pages. Meta's app review and callers reach them
               by address; this is the one place in the app that links them. */}
           <nav aria-label={t("login.legal")} className="mt-6 flex justify-center gap-3 text-xs text-muted-foreground">

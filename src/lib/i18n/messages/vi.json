@@ -52,7 +52,7 @@
     "forgot": "Quên mật khẩu?",
     "signIn": "Đăng nhập",
     "signingIn": "Đang đăng nhập…",
-    "noAccount": "Chưa có tài khoản? Quản trị viên sẽ mời bạn.",
+    "noAccount": "Bạn làm ở tiệm dùng Kikai? Chủ tiệm sẽ mời bạn.",
     "legal": "Pháp lý",
     "privacy": "Quyền riêng tư",
     "terms": "Điều khoản",
@@ -1860,6 +1860,31 @@
     "ending": {
       "title": "Gói của bạn kết thúc vào ngày {date}",
       "text": "Bạn đã huỷ gói. Mọi thứ vẫn hoạt động đến lúc đó, và bạn sẽ không bị trừ tiền nữa. Đổi ý? Hãy giữ gói."
+    }
+  },
+  "signup": {
+    "title": "Bắt đầu dùng thử miễn phí",
+    "intro": "Miễn phí 14 ngày, không cần thẻ. Sổ hẹn, đặt lịch trực tuyến và trang web riêng của bạn, sẵn sàng trong vài phút.",
+    "salon": "Tên tiệm của bạn",
+    "name": "Tên của bạn",
+    "email": "Email của bạn",
+    "password": "Chọn mật khẩu",
+    "submit": "Bắt đầu dùng thử",
+    "submitting": "Đang cài đặt…",
+    "failed": "Không đăng ký được. Hãy thử lại.",
+    "terms": "Khi đăng ký, bạn đồng ý với",
+    "termsLink": "điều khoản",
+    "privacyLink": "và chính sách quyền riêng tư của chúng tôi.",
+    "haveLogin": "Đã có tài khoản?",
+    "signIn": "Đăng nhập",
+    "newHere": "Mới dùng Kikai?",
+    "start": "Dùng thử miễn phí",
+    "err": {
+      "salon": "Hãy nhập tên tiệm.",
+      "name": "Hãy nhập tên của bạn.",
+      "email": "Địa chỉ email có vẻ không đúng.",
+      "taken": "Email này đã có tài khoản.",
+      "tooMany": "Thử quá nhiều lần. Hãy đợi một lúc rồi thử lại."
     }
   }
 }
