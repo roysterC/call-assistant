@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  assistantVoiceOn,
   countPeople,
   isAddon,
   planState,
@@ -62,6 +63,22 @@ export async function refuseIfRestricted(
     { status: 402 }
   );
 }
+
+/**
+ * Whether the assistant may listen and speak for this salon now
+ * (assistantVoiceOn). Kikai's super-admins, helping a salon, always may.
+ */
+export async function assistantVoiceAllowed(organizationId: string, ctx?: { isSuperAdmin?: boolean }): Promise<boolean> {
+  if (ctx?.isSuperAdmin) return true;
+  const plan = await loadPlan(organizationId);
+  return Boolean(plan && assistantVoiceOn(plan));
+}
+
+/** What the assistant's microphone and voice answer when the plan has no AI add-on. */
+export const VOICE_UPGRADE = {
+  error: "Talking to your assistant comes with Kikai's AI add-ons. Typing works on every plan.",
+  code: "voice_upgrade",
+} as const;
 
 /** Everyone the salon pays for: the team, and logins that are not on it. */
 export async function peopleOf(organizationId: string): Promise<number> {

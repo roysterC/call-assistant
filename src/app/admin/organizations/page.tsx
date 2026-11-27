@@ -47,7 +47,6 @@ interface Organization {
   id: string;
   name: string;
   slug: string;
-  planTier: string;
   enabled: boolean;
   createdAt: string;
   _count: {
@@ -70,7 +69,6 @@ export default function OrganizationsPage() {
   const blank = {
     name: "",
     slug: "",
-    planTier: "starter",
     ownerEmail: "",
     ownerLanguage: "en" as Lang,
     ownerNote: "",
@@ -145,12 +143,6 @@ export default function OrganizationsPage() {
       cell: ({ row: { original: org } }) => (
         <PersonCell name={org.name} detail={<code className="text-xs">{org.slug}</code>} />
       ),
-    },
-    {
-      id: "plan",
-      header: "Plan",
-      accessorKey: "planTier",
-      meta: { className: "capitalize" },
     },
     count("users", "Users", (o) => o._count.users),
     count("leads", "Leads", (o) => o._count.leads),

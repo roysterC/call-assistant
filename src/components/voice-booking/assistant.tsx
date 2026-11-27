@@ -36,6 +36,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,6 +165,13 @@ export function Assistant() {
   /** Plays the salon's voice (speech/route.ts); made, and unlocked, inside a tap. */
   const player = useRef<HTMLAudioElement | null>(null);
   const [silent, setSilent] = useState(false);
+  /**
+   * The plan has no AI add-on, so the microphone and reading aloud are off
+   * (assistantVoiceOn, src/lib/plan.ts). Their buttons stay; a press shows
+   * what to add instead. Typing works on every plan.
+   */
+  const voiceLocked = useRef(false);
+  const [upsell, setUpsell] = useState(false);
 
   // Opened by /assistant (Siri, Google Assistant, the app icon): start
   // listening straight away, and take the flag off the address so a reload
@@ -198,6 +206,10 @@ export function Assistant() {
     }
   }, []);
   function toggleSpeak() {
+    if (voiceLocked.current) {
+      setUpsell(true);
+      return;
+    }
     const next = !speakRepliesRef.current;
     speakRepliesRef.current = next;
     setSpeakReplies(next);
@@ -238,7 +250,7 @@ export function Assistant() {
    * it will not play, in the device's own.
    */
   function speak(text: string, speechId?: string) {
-    if (!speakRepliesRef.current || !text) return;
+    if (voiceLocked.current || !speakRepliesRef.current || !text) return;
     if (speechId && player.current && session.current) return speakInVoice(text, speechId, player.current);
     speakOnDevice(text);
   }
@@ -358,8 +370,11 @@ export function Assistant() {
       body: JSON.stringify({ warm: true }),
     })
       .then((r) => r.json())
-      .then((d: { sessionId?: string }) => {
+      .then((d: { sessionId?: string; voice?: boolean }) => {
         if (d.sessionId && !session.current) session.current = d.sessionId;
+        if (d.voice === false) voiceLocked.current = true;
+        // Added an AI add-on since: the buttons work again.
+        if (d.voice === true) voiceLocked.current = false;
       })
       .catch(() => {});
   }, [open]);
@@ -399,10 +414,20 @@ export function Assistant() {
   async function startListening(opts: { unprompted?: boolean } = {}) {
     setError(null);
     setNeedsTap(false);
+    if (voiceLocked.current) {
+      setUpsell(true);
+      return;
+    }
     setConnecting(true);
     try {
       const res = await apiFetch("/api/voice-booking/token", { method: "POST" });
       const data = await res.json();
+      if (res.status === 402 && data.code === "voice_upgrade") {
+        voiceLocked.current = true;
+        setUpsell(true);
+        setConnecting(false);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || t("assistant.errNoVoice"));
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -504,6 +529,7 @@ export function Assistant() {
     setLines([]);
     setDraft(null);
     setError(null);
+    setUpsell(false);
   }
 
   function openAndListen() {
@@ -586,6 +612,26 @@ export function Assistant() {
                 <span className="font-heading text-base font-semibold">{t("assistant.tapToTalk")}</span>
                 <span className="text-xs text-muted-foreground">{t("assistant.needsTap")}</span>
               </button>
+            )}
+            {upsell && (
+              <div role="status" className="flex gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="font-semibold">{t("assistant.voiceUpgradeTitle")}</p>
+                  <p className="text-muted-foreground">{t("assistant.voiceUpgradeBody")}</p>
+                  <Link href="/settings#plan" onClick={close} className="inline-flex font-semibold text-primary underline underline-offset-2">
+                    {t("assistant.voiceUpgradeLink")}
+                  </Link>
+                </div>
+                <button
+                  type="button"
+                  aria-label={t("common.close")}
+                  onClick={() => setUpsell(false)}
+                  className="-m-1 h-7 w-7 shrink-0 rounded-md text-muted-foreground hover:bg-muted"
+                >
+                  <X className="mx-auto h-4 w-4" />
+                </button>
+              </div>
             )}
             {lines.length === 0 && !heard && !needsTap && (
               <div className="space-y-3 text-sm">

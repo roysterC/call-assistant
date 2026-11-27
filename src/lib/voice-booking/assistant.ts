@@ -309,6 +309,8 @@ export interface VoiceBookingSession {
   busy: boolean;
   /** Replies waiting to be spoken, by id, each taken once (keepSpeech). */
   speech: Map<string, string>;
+  /** The plan lets the assistant listen and speak (assistantVoiceOn); set by the route. */
+  voice?: boolean;
 }
 
 export async function startVoiceBooking(

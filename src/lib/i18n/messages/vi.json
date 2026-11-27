@@ -247,7 +247,10 @@
     },
     "findTitle": "Tìm khách hàng",
     "bookTitle": "Đặt lịch cho khách",
-    "checkTitle": "Xem tình hình tiệm"
+    "checkTitle": "Xem tình hình tiệm",
+    "voiceUpgradeTitle": "Nói chuyện với trợ lý là một gói AI bổ sung",
+    "voiceUpgradeBody": "Nói và nghe trợ lý đọc câu trả lời đi kèm với bất kỳ gói AI bổ sung nào của Kikai. Bạn vẫn có thể gõ cho trợ lý với mọi gói.",
+    "voiceUpgradeLink": "Xem các gói AI bổ sung"
   },
   "diary": {
     "prevDay": "Ngày trước",

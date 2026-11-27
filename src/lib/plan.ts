@@ -181,6 +181,17 @@ export function fromStripeStatus(s: string): BillingStatus | null {
   }
 }
 
+/**
+ * Whether the personal assistant may listen and speak (speech to text, and
+ * replies read aloud). Both cost us per minute and per word, so they come
+ * with the AI add-ons: a billed salon needs at least one working. A salon
+ * not billed ("free") has them as before. Typing to the assistant works on
+ * every plan.
+ */
+export function assistantVoiceOn(plan: PlanState): boolean {
+  return plan.status === "free" || ADDONS.some((a) => plan.addonActive[a]);
+}
+
 /** People on the team: the owner is in the base price, each other one is a seat. */
 export function seatsFor(people: number): number {
   return Math.max(0, people - 1);

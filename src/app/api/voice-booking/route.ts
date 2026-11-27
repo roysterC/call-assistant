@@ -30,6 +30,7 @@ import {
 import { recordUsage } from "@/lib/usage/record";
 import { fakeBookingModel } from "@/lib/voice-booking/fake-model";
 import { logAssistantSession } from "@/lib/voice-booking/session-log";
+import { assistantVoiceAllowed } from "@/lib/plan-access";
 import { refuseIfRestricted } from "@/lib/plan-access";
 
 type Body = { text?: unknown; sessionId?: unknown; action?: unknown; warm?: unknown };
@@ -61,7 +62,9 @@ export async function POST(req: NextRequest) {
       session = started;
     }
     void session.engine.prewarm();
-    return NextResponse.json({ sessionId: session.id });
+    // Checked again on every opening, so adding an AI add-on shows at once.
+    session.voice = await assistantVoiceAllowed(ctx.organizationId, ctx);
+    return NextResponse.json({ sessionId: session.id, voice: session.voice });
   }
 
   // --- Something said -----------------------------------------------------------------
@@ -150,7 +153,9 @@ export async function DELETE(req: NextRequest) {
  * own voice, as it always did.
  */
 function out<T extends { reply?: string }>(session: VoiceBookingSession, payload: T) {
-  const speech = payload.reply && process.env.ELEVENLABS_API_KEY ? keepSpeech(session, payload.reply) : undefined;
+  // Read aloud only on a plan with the assistant's voice (src/lib/plan.ts).
+  const speech =
+    payload.reply && session.voice && process.env.ELEVENLABS_API_KEY ? keepSpeech(session, payload.reply) : undefined;
   return NextResponse.json(speech ? { ...payload, speech } : payload);
 }
 
@@ -255,6 +260,7 @@ async function newSession(ctx: TenantContext): Promise<VoiceBookingSession | Nex
     speaker: await speakerName(ctx),
     client: fake ? fakeBookingModel() : undefined,
   });
+  session.voice = await assistantVoiceAllowed(ctx.organizationId, ctx);
   keepSession(session);
   return session;
 }

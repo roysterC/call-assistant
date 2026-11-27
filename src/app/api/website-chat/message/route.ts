@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import {
   buildChatContext,
   getChatResponse,
-  resolveModelForSite,
   withSalonFacts,
 } from "@/lib/claude";
 import {
@@ -59,13 +58,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Load site config, plus the org's plan — the model choice is re-clamped
-    // against it on every request rather than trusted from the stored row, so
-    // a downgrade takes effect immediately.
-    const site = await prisma.websiteConfig.findUnique({
-      where: { siteId },
-      include: { organization: { select: { planTier: true } } },
-    });
+    const site = await prisma.websiteConfig.findUnique({ where: { siteId } });
 
     if (!site || !site.enabled) {
       return new Response(
@@ -266,10 +259,6 @@ export async function POST(req: NextRequest) {
     // a lead yet still rely on the marker flow below.
     const rawResponse = await getChatResponse(chatMessages, systemPrompt, {
       organizationId: site.organizationId,
-      chatModel: resolveModelForSite(
-        site.organization?.planTier,
-        site.chatModel
-      ),
       allowCLI: true,
       extractToLead: conversation.leadId
         ? { leadId: conversation.leadId }

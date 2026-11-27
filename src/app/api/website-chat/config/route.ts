@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { corsHeaders } from "@/lib/website-chat";
-import { brandingIdentity, shouldShowBranding } from "@/lib/branding";
+import { brandingIdentity } from "@/lib/branding";
 import { addonOn } from "@/lib/plan-access";
 
 export async function OPTIONS(req: NextRequest) {
@@ -41,8 +41,6 @@ export async function GET(req: NextRequest) {
         launcherIcon: true,
         theme: true,
         fontFamily: true,
-        hideBranding: true,
-        organization: { select: { planTier: true } },
         proactiveEnabled: true,
         proactiveMessage: true,
         proactiveDelaySeconds: true,
@@ -73,26 +71,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Attribution is decided here, from the organisation's current plan —
-    // never from the stored flag alone. A client who downgrades gets it back
-    // on their next config fetch without anyone touching their site row.
-    const branding = shouldShowBranding(
-      site.organization?.planTier,
-      site.hideBranding
-    )
-      ? { show: true, ...brandingIdentity() }
-      : { show: false };
+    const branding = { show: true, ...brandingIdentity() };
 
     // Strip anything internal before this reaches a public page.
-    const {
-      organizationId: _omitOrg,
-      organization: _omitOrgRel,
-      hideBranding: _omitFlag,
-      ...publicConfig
-    } = site;
+    const { organizationId: _omitOrg, ...publicConfig } = site;
     void _omitOrg;
-    void _omitOrgRel;
-    void _omitFlag;
     return NextResponse.json({ ...publicConfig, branding }, { headers });
   } catch (error) {
     console.error("[WEBSITE CHAT CONFIG] GET error:", error);

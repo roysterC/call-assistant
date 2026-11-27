@@ -52,7 +52,7 @@ export async function PUT(
     const { id } = await params;
     const body = await req.json();
 
-    const allowed = ["name", "planTier", "anthropicApiKeyOverride", "enabled"];
+    const allowed = ["name", "anthropicApiKeyOverride", "enabled"];
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) data[key] = body[key];

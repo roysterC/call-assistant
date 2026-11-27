@@ -15,7 +15,10 @@ model Organization {
   id                      String   @id @default(cuid())
   name                    String
   slug                    String   @unique
-  planTier                String   @default("starter")
+  // The old Starter/Pro/Custom plan, replaced by billing and add-ons
+  // (src/lib/plan.ts). No longer read; drop the column on the box, then
+  // delete this line.
+  planTier                String   @default("starter") @ignore
   // What kind of business it is (src/lib/business-types.ts): "hair",
   // "nails", "beauty" or "barber". Set by Kikai, not the salon. Changes what
   // the receptionist and chat bots know about the trade, never the diary.
@@ -875,15 +878,11 @@ model WebsiteConfig {
   theme      String @default("light") // "light" | "dark" | "auto"
   fontFamily String @default("system") // see FONT_STACKS in the embed page
 
-  // Which Claude model answers for this site. null means "best the plan
-  // allows". Always re-clamped against the org's planTier at request time, so
-  // a stored choice cannot outlive a downgrade.
-  chatModel String?
-
-  // White-label. Only honoured on plans permitted to remove attribution —
-  // re-checked server-side per request, so a downgrade restores it without
-  // anyone rewriting stored rows.
-  hideBranding Boolean @default(false)
+  // No longer read: every website chat answers on Haiku 5.5, and every
+  // widget shows the attribution (src/lib/claude.ts, src/lib/branding.ts).
+  // Drop both columns on the box, then delete these lines.
+  chatModel String? @ignore
+  hideBranding Boolean @default(false) @ignore
 
   // Proactive teaser: a small prompt that appears beside the collapsed
   // launcher after a delay, to open a conversation rather than waiting to be
