@@ -20,6 +20,7 @@ import {
 } from "@/lib/twilio-voice";
 import { normalisePhone } from "@/lib/phone";
 import { VOICE_CHANNEL } from "@/lib/phone-channels";
+import { addonOn } from "@/lib/plan-access";
 
 const twiml = (body: string, status = 200) =>
   new Response(body, { status, headers: { "Content-Type": "text/xml; charset=utf-8" } });
@@ -74,6 +75,11 @@ export async function POST(req: NextRequest) {
   }
   if (!line.organization.settings?.voiceEnabled) {
     console.warn(`[TWILIO] a call to ${params.To} reached a salon without voice switched on`);
+    return twiml(sayAndHangUpTwiml(SORRY));
+  }
+  // The receptionist is a paid add-on (src/lib/plan.ts).
+  if (!(await addonOn(line.organizationId, "receptionist"))) {
+    console.warn(`[TWILIO] a call to ${params.To} reached a salon whose plan has no receptionist`);
     return twiml(sayAndHangUpTwiml(SORRY));
   }
 

@@ -146,7 +146,7 @@ function useNavModel() {
       .then((d) => {
         setOrgName(d?.organizationName || session?.user?.organizationName || "Kikai");
         if (!d?.settings) return;
-        setFeatures(featureFlags(d.settings));
+        setFeatures(featureFlags(d.settings, d.plan?.addonActive));
       })
       .catch(() => setOrgName(session?.user?.organizationName || "Kikai"));
   }, [session?.user?.id, session?.user?.organizationName, asOrg]);

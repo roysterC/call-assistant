@@ -37,6 +37,7 @@ import { sendSms } from "@/lib/sms";
 import { smsSize, toGsm } from "@/lib/sms-encoding";
 import { bookingReadiness } from "@/lib/booking/readiness";
 import type { SalonService } from "@/lib/salon-config";
+import { addonOn } from "@/lib/plan-access";
 
 /** Texted this many days before the due date, so the offered time is a few days out. */
 export const NOTICE_DAYS = 3;
@@ -219,6 +220,7 @@ export async function salonCannotSend(organizationId: string, cfg: SalonConfig):
     select: { rebookTextsEnabled: true, chatBookingEnabled: true },
   });
   if (!settings?.rebookTextsEnabled) return "rebooking texts are off";
+  if (!(await addonOn(organizationId, "rebookTexts"))) return "rebooking texts are not on the salon's plan";
   if (!settings.chatBookingEnabled) return "booking by message is off, so the link would not book";
   if (!(await bookingChatFor(organizationId))) return "no WhatsApp number or Instagram username to book through";
   const ready = bookingReadiness({ services: cfg.services, teamMembers: cfg.stylists, businessHours: cfg.hours, diaryProvider: cfg.diary });

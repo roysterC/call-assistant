@@ -8,6 +8,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { addonOn } from "@/lib/plan-access";
 
 /** The chat to show on the salon's page, or null for none. */
 export async function salonChatSiteId(organizationId: string): Promise<string | null> {
@@ -16,6 +17,7 @@ export async function salonChatSiteId(organizationId: string): Promise<string | 
     select: { chatbotEnabled: true, siteChatSiteId: true },
   });
   if (!settings?.chatbotEnabled || !settings.siteChatSiteId) return null;
+  if (!(await addonOn(organizationId, "chatReplies"))) return null;
   const site = await prisma.websiteConfig.findFirst({
     where: { siteId: settings.siteChatSiteId, organizationId, enabled: true },
     select: { siteId: true },

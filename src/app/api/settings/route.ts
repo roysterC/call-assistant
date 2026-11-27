@@ -18,6 +18,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { flattenMenu, menuOf, parseMenu } from "@/lib/nail-menu";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { featureFlags, resolveStartPage } from "@/lib/navigation";
+import { loadPlan } from "@/lib/plan-access";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSmsSender } from "@/lib/sms-sender";
 import { smsStatus } from "@/lib/sms";
@@ -237,8 +238,10 @@ export async function GET(req: NextRequest) {
     // Where this login opens, resolved here so the sidebar and the root
     // route agree without each re-deriving the diary's state.
     const cfg = await getSalonConfig(ctx.organizationId);
+    // What the salon's plan lets it use now (src/lib/plan.ts).
+    const plan = await loadPlan(ctx.organizationId);
     const startPage = resolveStartPage({
-      flags: featureFlags(settings),
+      flags: featureFlags(settings, plan?.addonActive),
       diaryTakesBookings: selectProvider(cfg).capabilities.createBooking,
     });
 
@@ -258,6 +261,7 @@ export async function GET(req: NextRequest) {
       // Never for a super-admin, who sets salons up from Admin instead.
       startPage: org?.needsOnboarding && !ctx.isSuperAdmin ? "/onboarding" : startPage,
       needsOnboarding: Boolean(org?.needsOnboarding) && !ctx.isSuperAdmin,
+      plan,
       organizationName: org?.name ?? null,
       // The salon's web address, /s/<slug> (src/lib/online-booking).
       organizationSlug: org?.slug ?? null,

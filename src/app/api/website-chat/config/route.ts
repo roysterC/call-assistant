@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { corsHeaders } from "@/lib/website-chat";
 import { brandingIdentity, shouldShowBranding } from "@/lib/branding";
+import { addonOn } from "@/lib/plan-access";
 
 export async function OPTIONS(req: NextRequest) {
   return new Response(null, {
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
       where: { organizationId: site.organizationId },
       select: { chatbotEnabled: true },
     });
-    if (!orgSettings?.chatbotEnabled) {
+    if (!orgSettings?.chatbotEnabled || !(await addonOn(site.organizationId, "chatReplies"))) {
       return NextResponse.json(
         { error: "Site not found or disabled" },
         { status: 404, headers }

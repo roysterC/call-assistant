@@ -35,11 +35,22 @@ describe("the diary", () => {
   const diary = NAV_PAGES.find((p) => p.href === DIARY)!;
   const flags = (s: Parameters<typeof featureFlags>[0]) => featureFlags(s);
 
-  it("comes with the phone receptionist, with booking by message, or on its own", () => {
-    expect(hasDiary({ voiceEnabled: true })).toBe(true);
-    expect(hasDiary({ chatBookingEnabled: true })).toBe(true);
-    expect(hasDiary({ diaryEnabled: true })).toBe(true);
-    expect(hasDiary({ instagramEnabled: true } as never)).toBe(false);
+  it("is every salon's: the base plan, never switched off", () => {
+    expect(hasDiary({})).toBe(true);
+    expect(featureFlags({ diaryEnabled: false }).diaryEnabled).toBe(true);
+  });
+
+  it("hides the add-ons' pages when they are not on the plan", () => {
+    const set = { voiceEnabled: true, chatbotEnabled: true, whatsappEnabled: true };
+    expect(featureFlags(set, { receptionist: false, chatReplies: false })).toMatchObject({
+      voiceEnabled: false,
+      chatbotEnabled: false,
+      whatsappEnabled: false,
+      diaryEnabled: true,
+    });
+    expect(featureFlags(set, { receptionist: true, chatReplies: true })).toMatchObject({ voiceEnabled: true, whatsappEnabled: true });
+    // Not switched on is off, on the plan or not.
+    expect(featureFlags({}, { chatReplies: true }).chatbotEnabled).toBe(false);
   });
 
   it("shows the diary, clients, sales and callbacks to a salon booking only by Instagram", () => {

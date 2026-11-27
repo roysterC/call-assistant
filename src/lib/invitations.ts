@@ -16,6 +16,7 @@
  * can ask for a new link from its own page, sent to the same address.
  */
 
+import { trialEnd } from "@/lib/plan";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, validatePassword } from "@/lib/password";
@@ -279,6 +280,14 @@ export async function acceptInvitation(input: {
         emailVerified: inv!.delivery === "email" ? now : null,
       },
     });
+    // The owner's first sign-in starts the free trial (src/lib/plan.ts), not
+    // the day Kikai made the salon: an invite left unread does not eat it.
+    if (role === "admin") {
+      await tx.organization.updateMany({
+        where: { id: inv!.organizationId, billingStatus: "trialing", trialEndsAt: null },
+        data: { trialEndsAt: trialEnd(now) },
+      });
+    }
     return {
       ok: true as const,
       email: inv!.email,

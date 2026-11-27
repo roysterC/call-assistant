@@ -41,6 +41,31 @@ model Organization {
   // The onboarding step the owner has reached (src/lib/onboarding.ts), for
   // Kikai to see where they are. Null before they start.
   onboardingStep          String?
+  // ── Billing (src/lib/plan.ts) ──
+  // Every salon has the base plan: diary, clients, booking, sales and its
+  // website. "free": not billed (salons from before billing, Kikai's own),
+  // with everything it has switched on. "trialing": the 14-day free trial,
+  // then Stripe's own state ("active", "past_due"), and "restricted" when the
+  // trial ended without a card or Stripe gave up on a payment: bookings stay,
+  // making new ones stops (src/lib/plan-access.ts).
+  billingStatus           String   @default("free")
+  // When the free trial ends. Set when the owner first signs in (or when a
+  // salon is made without an owner invite), so an invite left unread for a
+  // week does not eat the trial.
+  trialEndsAt             DateTime?
+  stripeCustomerId        String?  @unique
+  stripeSubscriptionId    String?  @unique
+  // The paid add-ons on the salon's plan (ADDONS in src/lib/plan.ts). What
+  // is switched on is still the settings' own switches; an add-on missing
+  // here keeps its switch from working on a billed salon.
+  addons                  String[] @default([])
+  // Add-ons the owner asked for that Kikai sets up first (the receptionist
+  // needs a phone number): shown to Kikai in Admin.
+  addonRequests           String[] @default([])
+  // The extra team members last sent to Stripe, so a change is sent once.
+  billedSeats             Int?
+  // The first failed payment of the current run of failures; null once paid.
+  paymentFailedAt         DateTime?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -1141,4 +1166,19 @@ model Technician {
 
   @@index([organizationId])
   @@map("ca_technicians")
+}
+
+/// What Kikai charges, in pence a month, VAT included: "base" (the plan,
+/// owner included), "seat" (each other team member) and each add-on
+/// (src/lib/plan.ts). A missing base or seat row is the founder price; an
+/// add-on with no row is not for sale yet. stripePriceId is the Stripe Price
+/// made for this amount; a new amount makes a new Price, and salons already
+/// subscribed keep the one they joined on.
+model BillingPrice {
+  key           String   @id
+  pence         Int
+  stripePriceId String?
+  updatedAt     DateTime @updatedAt
+
+  @@map("ca_billing_prices")
 }

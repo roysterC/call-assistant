@@ -9,6 +9,7 @@ const db = vi.hoisted(() => {
   const tx = {
     invitation: { findUnique: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
     user: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
+    organization: { updateMany: vi.fn() },
   };
   return {
     tx,

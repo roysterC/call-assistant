@@ -8,6 +8,8 @@ import { NextRequest } from "next/server";
  */
 
 const db = vi.hoisted(() => ({ phoneNumber: { findFirst: vi.fn() } }));
+// Every add-on on the plan (src/lib/plan.ts): the plan's own checks are plan.test.ts.
+vi.mock("@/lib/plan-access", () => ({ addonOn: async () => true }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 
 import { POST } from "@/app/api/twilio/voice/route";

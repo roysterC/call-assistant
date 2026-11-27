@@ -7,6 +7,7 @@ import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
 import { createInvitation, emailInvitation, isLeftoverLogin, normaliseEmail } from "@/lib/invitations";
 import { emailAvailable } from "@/lib/email";
 import { linkOrigin } from "@/lib/app-origin";
+import { trialEnd } from "@/lib/plan";
 
 export async function GET() {
   const ctx = await requireSuperAdmin();
@@ -98,15 +99,19 @@ export async function POST(req: NextRequest) {
         needsOnboarding: Boolean(ownerEmail),
         slug,
         planTier: planTier || "starter",
+        // The 14-day free trial (src/lib/plan.ts). With an owner invite it
+        // starts when the owner first signs in (acceptInvitation); a salon
+        // Kikai sets up by hand starts it now. "free" for one Kikai does not
+        // bill (asked for by name).
+        billingStatus: body.billingStatus === "free" ? "free" : "trialing",
+        trialEndsAt: body.billingStatus === "free" || ownerEmail ? null : trialEnd(),
         businessType: types[0],
         alsoOffers: types.slice(1),
         settings: {
           create: {
             businessName: name,
-            // A salon its owner sets up is set up for its diary: onboarding
-            // is hours, services and team, and Settings shows them only
-            // where there is a diary. On unless Kikai says otherwise.
-            diaryEnabled: body.diaryEnabled === undefined ? Boolean(ownerEmail) : Boolean(body.diaryEnabled),
+            // No longer read: the diary is the base plan every salon has.
+            diaryEnabled: true,
             // A starting nail price list, mostly unpriced: the salon edits it
             // in Settings before the receptionist goes live.
             menu: starterMenu(types) as unknown as Prisma.InputJsonValue,
