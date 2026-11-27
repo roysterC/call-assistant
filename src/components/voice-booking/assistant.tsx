@@ -21,11 +21,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CalendarCheck,
+  CalendarPlus,
+  ChartColumn,
   Loader2,
   MessageSquareText,
   Mic,
   MicOff,
   NotebookPen,
+  Search,
   Send,
   Sparkles,
   UserPen,
@@ -43,12 +46,28 @@ import { useT } from "@/components/providers/language-provider";
 
 
 /** What to say to the assistant. It understands English only so far, so these stay English in every language. */
-const ENGLISH_EXAMPLES = [
-  "What’s my afternoon looking like?",
-  "Sarah Jones, gel polish, Thursday at two, and text her.",
-  "When was Tom last in?",
-  "How much did we take this week?",
-];
+/**
+ * What the empty panel offers, by what it saves time on. Examples for a name
+ * go into the box to be changed; questions that need none are asked at once.
+ * It understands English only so far, so these stay English.
+ */
+const STARTERS = [
+  {
+    icon: Search,
+    title: "assistant.findTitle",
+    fill: ["When was Sarah last in?", "Who's on 07700 900123?"],
+  },
+  {
+    icon: CalendarPlus,
+    title: "assistant.bookTitle",
+    fill: ["Sarah Jones, gel nails, Thursday at 2, and text her"],
+  },
+  {
+    icon: ChartColumn,
+    title: "assistant.checkTitle",
+    ask: ["Who's in today?", "Who's free now?", "Any messages?", "Takings this week?"],
+  },
+] as const;
 
 export interface VoiceDraft {
   id: string;
@@ -129,6 +148,7 @@ export function Assistant() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
+  const typedRef = useRef<HTMLInputElement>(null);
   const [speakReplies, setSpeakReplies] = useState(true);
   // What speak() reads. The microphone's handlers are set up once, when it
   // starts, and kept the state of that moment: switching reading aloud on or
@@ -568,18 +588,37 @@ export function Assistant() {
               </button>
             )}
             {lines.length === 0 && !heard && !needsTap && (
-              <div className="space-y-1.5 text-sm text-muted-foreground">
-                {/* It understands English only so far: the examples stay English. */}
-                <p>{lang !== "en" ? t("assistant.englishOnly") : t("assistant.intro")}</p>
-                <p>
-                  {ENGLISH_EXAMPLES.map((ex, i) => (
-                    <span key={ex}>
-                      {i > 0 && <br />}
-                      <em>{`“${ex}”`}</em>
-                    </span>
-                  ))}
-                </p>
-                <p>{t("assistant.nothingUntilYes")}</p>
+              <div className="space-y-3 text-sm">
+                {lang !== "en" && <p className="text-muted-foreground">{t("assistant.englishOnly")}</p>}
+                {STARTERS.map((g) => (
+                  <section key={g.title} className="space-y-1.5">
+                    <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                      <g.icon className="h-3.5 w-3.5" aria-hidden="true" />
+                      {t(g.title)}
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {("fill" in g ? g.fill : g.ask).map((ex) => (
+                        <button
+                          key={ex}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            unlockSpeech();
+                            if ("ask" in g) void send(ex);
+                            else {
+                              setTyped(ex);
+                              typedRef.current?.focus();
+                            }
+                          }}
+                          className="min-h-8 rounded-full border border-border px-3 py-1 text-left text-xs transition-colors hover:bg-primary/10 disabled:opacity-50"
+                        >
+                          {ex}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+                <p className="text-xs text-muted-foreground">{t("assistant.nothingUntilYes")}</p>
               </div>
             )}
             {lines.map((l, i) =>
@@ -724,6 +763,7 @@ export function Assistant() {
               {listening ? <MicOff /> : <Mic />}
             </Button>
             <Input
+              ref={typedRef}
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               placeholder={t("assistant.typePlaceholder")}

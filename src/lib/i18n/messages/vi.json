@@ -199,7 +199,6 @@
     "stopReading": "Dừng đọc câu trả lời",
     "readAloud": "Đọc to câu trả lời",
     "tapToTalk": "Chạm để nói",
-    "intro": "Hỏi bất cứ điều gì, hoặc bảo trợ lý việc cần làm:",
     "englishOnly": "Trợ lý hiện chỉ hiểu tiếng Anh. Hãy nói hoặc gõ bằng tiếng Anh, ví dụ:",
     "nothingUntilYes": "Không có gì được đặt, thay đổi hay gửi đi cho đến khi bạn đồng ý.",
     "thinking": "Đang xử lý…",
@@ -245,7 +244,10 @@
       "phone": "Số điện thoại",
       "email": "Email",
       "patchTest": "Thử dị ứng"
-    }
+    },
+    "findTitle": "Tìm khách hàng",
+    "bookTitle": "Đặt lịch cho khách",
+    "checkTitle": "Xem tình hình tiệm"
   },
   "diary": {
     "prevDay": "Ngày trước",

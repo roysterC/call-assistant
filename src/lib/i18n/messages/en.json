@@ -199,7 +199,6 @@
     "stopReading": "Stop reading replies aloud",
     "readAloud": "Read replies aloud",
     "tapToTalk": "Tap to talk",
-    "intro": "Ask it anything, or tell it what to do:",
     "englishOnly": "",
     "nothingUntilYes": "Nothing is booked, changed or sent until you say yes.",
     "thinking": "Thinking…",
@@ -245,7 +244,10 @@
       "phone": "Number",
       "email": "Email",
       "patchTest": "Patch test"
-    }
+    },
+    "findTitle": "Find a client",
+    "bookTitle": "Book someone in",
+    "checkTitle": "Check the business"
   },
   "diary": {
     "prevDay": "Previous day",
