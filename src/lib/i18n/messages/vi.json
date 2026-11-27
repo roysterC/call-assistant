@@ -1275,6 +1275,14 @@
       "lineAfter": "Nếu không có thẻ, gói của bạn sẽ tạm dừng sau đó: lịch hẹn vẫn an toàn và trang web vẫn nhận đặt lịch, nhưng bạn không thể đặt lịch mới từ sổ hẹn hay thay đổi cài đặt cho đến khi thêm thẻ.",
       "button": "Thêm thẻ",
       "footer": "Bạn nhận được email này vì bạn là chủ của {salon} trên Kikai."
+    },
+    "purge": {
+      "subject": "Tiệm của bạn trên Kikai sẽ bị xoá vào ngày {date}",
+      "heading": "{salon} sẽ bị xoá vào ngày {date}",
+      "line": "Gói của {salon} đã tạm dừng một thời gian và không ai sử dụng, nên chúng tôi sẽ xoá tiệm cùng mọi dữ liệu (sổ hẹn, khách hàng, doanh thu và trang web) vào ngày {date}.",
+      "lineKeep": "Để giữ lại, hãy đăng nhập hoặc thêm thẻ trước ngày đó.",
+      "button": "Giữ tiệm của tôi",
+      "footer": "Bạn nhận được email này vì bạn là chủ của {salon} trên Kikai. Sau khi xoá, không thể khôi phục."
     }
   },
   "insights": {

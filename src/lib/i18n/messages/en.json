@@ -1275,6 +1275,14 @@
       "lineAfter": "Without a card, your plan is paused after that: your bookings stay safe and your website keeps taking bookings, but you can't make new bookings from the diary or change your setup until you add one.",
       "button": "Add a card",
       "footer": "You're getting this because you own {salon} on Kikai."
+    },
+    "purge": {
+      "subject": "Your Kikai salon will be deleted on {date}",
+      "heading": "{salon} will be deleted on {date}",
+      "line": "Your plan for {salon} has been paused for a while and nobody has used it, so we will delete the salon and everything in it (diary, clients, sales and website) on {date}.",
+      "lineKeep": "To keep it, sign in or add a card before then.",
+      "button": "Keep my salon",
+      "footer": "You're getting this because you own {salon} on Kikai. Once deleted, it cannot be brought back."
     }
   },
   "insights": {

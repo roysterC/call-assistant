@@ -11,7 +11,7 @@ vi.mock("@/lib/prisma", () => {
     organization: {
       findUnique: vi.fn(async ({ where }: { where: { slug: string } }) => db.orgs.find((o) => o.slug === where.slug) ?? null),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
-        const o = { id: `org${db.orgs.length + 1}`, ...data };
+        const o: Record<string, unknown> = { id: `org${db.orgs.length + 1}`, ...data };
         db.orgs.push(o);
         return { id: o.id, name: o.name };
       }),

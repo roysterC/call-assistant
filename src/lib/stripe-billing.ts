@@ -350,6 +350,8 @@ export async function applySubscription(sub: Stripe.Subscription, opts: { fresh?
       cancelAt: ended ? null : cancelDate(sub),
       // Paid, or over: either way no payment is waiting on the salon.
       ...(status === "active" || status === "trialing" || ended ? { paymentFailedAt: null } : {}),
+      // Paying again withdraws a warning that the salon is about to be wiped.
+      ...(status === "active" || status === "trialing" ? { purgeWarnedAt: null } : {}),
     },
   });
   return org.id;

@@ -289,6 +289,23 @@ paused as above. Until then the page says when it ends, with "Keep my
 plan" to undo it. Adding a card again later starts a new subscription,
 charged at once.
 
+**Wiping paused salons** (`src/lib/purge.ts`). A salon that stays paused
+and that nobody uses (no sign-in or page opened for 90 days; Kikai viewing
+it does not count) is wiped once the database grows past
+`PURGE_WHEN_DB_OVER_GB` (in `.env`, e.g. `PURGE_WHEN_DB_OVER_GB=20`; unset,
+nothing is ever wiped). Each night, least recently used first, at most five
+of each: the owner is emailed that the salon will be deleted in 14 days
+unless they sign in or add a card (either withdraws it), and a salon warned
+14 days ago is deleted with its logins, after any Stripe subscription it
+still has is cancelled. Kikai is emailed what was warned and deleted.
+Salons Kikai does not bill, or has switched off, are never wiped. To see
+what would go:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  "http://127.0.0.1:3000/api/cron/purge-paused?dryRun=1"
+```
+
 **Signing up** needs no one at Kikai: a salon owner opens `/signup`
 (link it from getkikai.com as `https://app.getkikai.com/signup`; the login
 page links it too), gives the salon's name, their name, email and a

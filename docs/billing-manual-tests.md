@@ -111,6 +111,16 @@ Test cards (any future expiry, any CVC):
 - [ ] Change a subscription's extra-member quantity by hand in Stripe, run it
       again → put back, and an email says what was fixed.
 
+## H2. Trial emails and wiping paused salons
+
+- [ ] A trial with no card and 3 days left: after the nightly run, the
+      owner has "Your Kikai free trial ends in 3 days"; with 1 day left,
+      "ends tomorrow". Each comes once.
+- [ ] `/api/cron/purge-paused?dryRun=1` lists candidates and changes nothing.
+- [ ] With `PURGE_WHEN_DB_OVER_GB` set low, a paused salon idle 90+ days:
+      first run emails its owner; signing in clears it; 14 days after a
+      warning, the next run deletes it and emails Kikai.
+
 ## I. Existing salons
 
 - [ ] Every salon from before billing shows **Not billed**, with everything
