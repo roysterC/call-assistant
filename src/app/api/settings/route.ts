@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isStaleTeamList, loadTeam, syncTeam } from "@/lib/technicians";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
@@ -18,12 +18,14 @@ import { Prisma } from "@/generated/prisma/client";
 import { flattenMenu, menuOf, parseMenu } from "@/lib/nail-menu";
 import { getSalonConfig, selectProvider } from "@/lib/booking";
 import { featureFlags, resolveStartPage } from "@/lib/navigation";
+import { loadPlan, refuseIfRestricted } from "@/lib/plan-access";
 import { contactNumberForTexts } from "@/lib/phone";
 import { parseSmsSender } from "@/lib/sms-sender";
 import { smsStatus } from "@/lib/sms";
 import { parseSalonFaq } from "@/lib/salon-knowledge";
 import { checkSiteChat } from "@/lib/salon-chat";
 import { bookingOrigin, salonDomain, salonOrigin } from "@/lib/booking-host";
+import { afterTeamChange } from "@/lib/stripe-billing";
 import {
   parseBrandColor,
   parseDaysAhead,
@@ -237,8 +239,10 @@ export async function GET(req: NextRequest) {
     // Where this login opens, resolved here so the sidebar and the root
     // route agree without each re-deriving the diary's state.
     const cfg = await getSalonConfig(ctx.organizationId);
+    // What the salon's plan lets it use now (src/lib/plan.ts).
+    const plan = await loadPlan(ctx.organizationId);
     const startPage = resolveStartPage({
-      flags: featureFlags(settings),
+      flags: featureFlags(settings, plan?.addonActive),
       diaryTakesBookings: selectProvider(cfg).capabilities.createBooking,
     });
 
@@ -258,6 +262,7 @@ export async function GET(req: NextRequest) {
       // Never for a super-admin, who sets salons up from Admin instead.
       startPage: org?.needsOnboarding && !ctx.isSuperAdmin ? "/onboarding" : startPage,
       needsOnboarding: Boolean(org?.needsOnboarding) && !ctx.isSuperAdmin,
+      plan,
       organizationName: org?.name ?? null,
       // The salon's web address, /s/<slug> (src/lib/online-booking).
       organizationSlug: org?.slug ?? null,
@@ -292,6 +297,10 @@ function duplicateTechnicianName(raw: unknown): string | null {
 export async function PUT(req: NextRequest) {
   const ctx = await requireTenant(req);
   if (isErrorResponse(ctx)) return ctx;
+  // The salon's setup (its team among it) waits while the plan is paused;
+  // Plan & billing has its own routes (src/lib/plan.ts).
+  const paused = await refuseIfRestricted(ctx.organizationId, ctx);
+  if (paused) return paused;
 
   try {
     const raw = await req.json();
@@ -411,6 +420,9 @@ export async function PUT(req: NextRequest) {
         },
       });
     }, { timeout: 30_000, maxWait: 10_000 });
+
+    // Someone added to or taken off the team changes the bill (src/lib/plan.ts).
+    if ("teamMembers" in data) after(() => afterTeamChange(ctx.organizationId));
 
     // The same masking as GET: an owner saving their hours must not get the
     // salon's keys back in the response.

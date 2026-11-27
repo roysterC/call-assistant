@@ -19,6 +19,8 @@ const db = vi.hoisted(() => ({
   quoteBooked: [] as string[],
 }));
 
+// Every add-on on the plan (src/lib/plan.ts): the plan's own checks are plan.test.ts.
+vi.mock("@/lib/plan-access", () => ({ addonOn: async () => true }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     organizationSettings: { findUnique: async () => db.settings },
@@ -381,8 +383,8 @@ describe("the webhooks' way in", () => {
     },
   };
 
-  it("gives null, for the plain chat, to a business that does not use the diary", async () => {
-    db.settings = { chatBookingEnabled: false, diaryEnabled: false, voiceEnabled: false };
+  it("gives null, for the plain chat, to an organisation with no settings", async () => {
+    db.settings = null;
     expect(await chatReply(turn("hi", model([{ text: "x" }]).client))).toBeNull();
   });
 

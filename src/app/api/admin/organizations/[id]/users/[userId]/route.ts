@@ -4,11 +4,12 @@
  * to us and we set a new one here. See src/lib/admin-users.ts for the rules.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
 import { hashPassword } from "@/lib/password";
 import { USER_FIELDS, canRemove, planUserChange } from "@/lib/admin-users";
+import { afterTeamChange } from "@/lib/stripe-billing";
 
 type Params = { params: Promise<{ id: string; userId: string }> };
 
@@ -68,6 +69,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "A super-admin login can't be removed here." }, { status: 403 });
     }
     await prisma.user.delete({ where: { id: target.id } });
+    after(() => afterTeamChange(organizationId));
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[ADMIN USER] DELETE error:", error);

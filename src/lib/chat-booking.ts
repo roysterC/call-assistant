@@ -41,6 +41,7 @@ import { toClaudeTools, withCallerContext } from "@/lib/receptionist/tools";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
 import { attachPhotosToBooking } from "@/lib/chat-photos";
 import { bookedByMessageNote } from "@/lib/booked-by";
+import { addonOn } from "@/lib/plan-access";
 
 /** After this long without a message, the conversation starts afresh from its messages. */
 export const CHAT_SESSION_IDLE_MS = 12 * 60 * 60_000;
@@ -145,6 +146,8 @@ export async function chatBookingOn(organizationId: string): Promise<boolean> {
     select: { chatBookingEnabled: true },
   });
   if (!settings?.chatBookingEnabled) return false;
+  // A paid add-on (src/lib/plan.ts).
+  if (!(await addonOn(organizationId, "chatBooking"))) return false;
   const cfg = await getSalonConfig(organizationId);
   return selectProvider(cfg).capabilities.createBooking;
 }

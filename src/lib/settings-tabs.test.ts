@@ -3,11 +3,11 @@ import { settingsTabs, setupSteps, tabFromHash } from "./settings-tabs";
 
 describe("the Settings tabs", () => {
   it("a salon with a diary has all five, in order", () => {
-    expect(settingsTabs({ hasDiary: true, canEdit: true })).toEqual(["salon", "services", "team", "online", "chats"]);
+    expect(settingsTabs({ hasDiary: true, canEdit: true })).toEqual(["salon", "services", "team", "online", "chats", "plan"]);
   });
 
   it("without a diary: the salon, its logins and its chats", () => {
-    expect(settingsTabs({ hasDiary: false, canEdit: true })).toEqual(["salon", "team", "chats"]);
+    expect(settingsTabs({ hasDiary: false, canEdit: true })).toEqual(["salon", "team", "chats", "plan"]);
     expect(settingsTabs({ hasDiary: false, canEdit: false })).toEqual(["salon", "chats"]);
   });
 

@@ -30,12 +30,16 @@ import {
 import { recordUsage } from "@/lib/usage/record";
 import { fakeBookingModel } from "@/lib/voice-booking/fake-model";
 import { logAssistantSession } from "@/lib/voice-booking/session-log";
+import { refuseIfRestricted } from "@/lib/plan-access";
 
 type Body = { text?: unknown; sessionId?: unknown; action?: unknown; warm?: unknown };
 
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
+  // Nothing new while the plan is paused (src/lib/plan.ts).
+  const paused = await refuseIfRestricted(ctx.organizationId, ctx);
+  if (paused) return paused;
   const body = ((await req.json().catch(() => null)) ?? {}) as Body;
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
   let session = findSession(sessionId, ctx.organizationId, ctx.userId);

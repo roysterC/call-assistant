@@ -17,6 +17,8 @@ const db = vi.hoisted(() => ({
   texts: [] as Row[],
 }));
 
+// Every add-on on the plan (src/lib/plan.ts): the plan's own checks are plan.test.ts.
+vi.mock("@/lib/plan-access", () => ({ addonOn: async () => true }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     // Technicians by id (src/lib/technicians.ts): none here.

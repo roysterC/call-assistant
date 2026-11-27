@@ -1578,7 +1578,8 @@
       "services": "Dịch vụ",
       "team": "Nhân viên",
       "online": "Đặt lịch online",
-      "chats": "Tin nhắn & SMS"
+      "chats": "Tin nhắn & SMS",
+      "plan": "Gói và thanh toán"
     },
     "tabsLabel": "Cài đặt",
     "needsDoing": " (cần làm)",
@@ -1742,5 +1743,101 @@
     "chooseStylistHint": "Nếu không, khách được đặt với người đang rảnh, như qua điện thoại.",
     "services": "Dịch vụ khách đặt online được",
     "servicesHint": "Bỏ chọn những gì cần trao đổi trước, như tư vấn hay vẽ móng theo yêu cầu. Dịch vụ mới đặt online được cho đến khi bạn bỏ chọn."
+  },
+  "plan": {
+    "cardAdded": "Đã thêm thẻ. Cảm ơn bạn!",
+    "loadFailed": "Không tải được gói của bạn. Hãy tải lại trang để thử lại.",
+    "stripeFailed": "Không mở được trang thẻ. Hãy thử lại sau một phút.",
+    "retryFailed": "Thanh toán không thành công. Hãy kiểm tra thẻ rồi thử lại.",
+    "retryDone": "Đã thanh toán. Cảm ơn bạn!",
+    "addWithTitle": "Thêm {name}?",
+    "removeWithTitle": "Bỏ {name}?",
+    "addWith": "Tính năng này cần {names}, nên sẽ được thêm cùng.",
+    "removeWith": "{names} cần tính năng này, nên cũng sẽ bị bỏ.",
+    "add": "Thêm",
+    "remove": "Bỏ",
+    "ask": "Nhờ chúng tôi cài đặt",
+    "asked": "Đã yêu cầu",
+    "cardFirst": "Hãy thêm thẻ trước: công cụ AI được tính phí hằng tháng.",
+    "addonFailed": "Không đổi được gói. Hãy thử lại sau một phút.",
+    "requested": "Đã gửi yêu cầu. Chúng tôi sẽ liên hệ để cài đặt.",
+    "added": "Đã thêm vào gói của bạn.",
+    "removed": "Đã bỏ khỏi gói của bạn.",
+    "paused": {
+      "title": "Gói của bạn đang tạm dừng",
+      "text": "Lịch hẹn của bạn vẫn an toàn: bạn vẫn xem được, thanh toán cho khách và huỷ hẹn. Để đặt lịch mới, thêm người vào nhóm hoặc dùng công cụ AI, hãy cập nhật thẻ.",
+      "pill": "Tạm dừng"
+    },
+    "failed": {
+      "title": "Lần thanh toán gần nhất không thành công",
+      "text": "Mọi thứ vẫn hoạt động trong lúc chúng tôi thử lại vài ngày tới. Hãy cập nhật thẻ để không bị tạm dừng."
+    },
+    "trial": {
+      "title": "{days, plural, other {Dùng thử miễn phí: còn # ngày}}",
+      "text": "Thêm thẻ để tiếp tục sau ngày {date}. Bạn chưa bị trừ tiền đến lúc đó, và có thể thêm công cụ AI khi đã có thẻ.",
+      "textNoDate": "Thêm thẻ để tiếp tục sau thời gian dùng thử."
+    },
+    "trialCard": {
+      "text": "Đã có thẻ. Hoá đơn đầu tiên, {total}, vào ngày {date}."
+    },
+    "free": {
+      "title": "Không tính phí",
+      "text": "Kikai lo gói của bạn: bạn không phải trả gì."
+    },
+    "paying": {
+      "title": "Gói của bạn",
+      "text": "{total} mỗi tháng, trừ vào thẻ của bạn."
+    },
+    "addCard": "Thêm thẻ",
+    "updateCard": "Cập nhật thẻ",
+    "cardInvoices": "Thẻ và hoá đơn",
+    "tryAgain": "Thử lại",
+    "yours": "Gói của bạn",
+    "included": "Luôn có sẵn",
+    "includedPill": "Có sẵn",
+    "base": {
+      "diary": "Lịch và đặt hẹn",
+      "clients": "Khách hàng",
+      "sales": "Doanh thu",
+      "website": "Trang web và đặt lịch trực tuyến"
+    },
+    "line": {
+      "base": "Gói, gồm cả bạn",
+      "seats": "{n, plural, other {Thêm # thành viên}} × {each}"
+    },
+    "wouldBe": "Nếu tính phí, mỗi tháng",
+    "aMonth": "Mỗi tháng, đã gồm VAT",
+    "teamNote": "{people, plural, other {Nhóm của bạn có # người.}} Ai cũng được tính, dù có đăng nhập hay nhận khách hay không. Thêm hoặc bớt người thì hoá đơn đổi theo, tính theo ngày.",
+    "tools": "Công cụ AI",
+    "toolsHint": "Thêm bất cứ lúc nào, bỏ bất cứ lúc nào.",
+    "toolsPaused": "Tạm dừng cho đến khi bạn cập nhật thẻ.",
+    "soon": "Sắp có",
+    "perMonth": "{price}/tháng",
+    "on": "Đang bật",
+    "noStripe": "Chưa bật thanh toán bằng thẻ. Chúng tôi sẽ liên hệ trước khi hết thời gian dùng thử.",
+    "addon": {
+      "receptionist": {
+        "name": "Lễ tân điện thoại",
+        "does": "Nghe máy và đặt lịch cuộc gọi vào sổ hẹn."
+      },
+      "chatReplies": {
+        "name": "Trả lời tin nhắn bằng AI",
+        "does": "Trả lời trên WhatsApp, Instagram, Messenger và trang web của bạn."
+      },
+      "chatBooking": {
+        "name": "Đặt lịch qua tin nhắn",
+        "does": "Tin nhắn đặt lịch thẳng vào sổ hẹn."
+      },
+      "rebookTexts": {
+        "name": "Tin nhắn hẹn lại",
+        "does": "Nhắn khách khi đến lúc quay lại, kèm đường dẫn đặt lịch."
+      }
+    },
+    "banner": {
+      "trial": "{days, plural, =1 {Thời gian dùng thử kết thúc trong vòng một ngày.} other {Thời gian dùng thử kết thúc sau # ngày.}} Hãy thêm thẻ để tiếp tục.",
+      "failed": "Lần thanh toán gần nhất không thành công. Hãy cập nhật thẻ để không bị tạm dừng.",
+      "paused": "Gói của bạn đang tạm dừng: bạn vẫn xem và thanh toán lịch hẹn, nhưng không đặt lịch mới được.",
+      "action": "Gói và thanh toán"
+    }
   }
 }

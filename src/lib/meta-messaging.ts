@@ -24,6 +24,7 @@ import { chatReply, splitPending } from "@/lib/chat-booking";
 import { afterQuiet } from "@/lib/chat-burst";
 import { prisma } from "@/lib/prisma";
 import { linkSocialClient } from "@/lib/social-client";
+import { addonOn } from "@/lib/plan-access";
 import {
   buildChatContext,
   buildSystemPrompt,
@@ -104,6 +105,8 @@ async function resolveOrgFor(
       : settings.facebookPageId;
 
   if (!accessToken || !accountId) return null;
+  // The AI chat replies are a paid add-on (src/lib/plan.ts).
+  if (!(await addonOn(settings.organizationId, "chatReplies"))) return null;
   return { organizationId: settings.organizationId, accessToken, accountId };
 }
 

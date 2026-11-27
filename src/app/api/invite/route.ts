@@ -3,6 +3,7 @@ import { acceptInvitation, readInvitation } from "@/lib/invitations";
 import { inviteRateLimited as limited } from "@/lib/invite-rate-limit";
 import { notifyKikai } from "@/lib/notify";
 import { linkOrigin } from "@/lib/app-origin";
+import { afterTeamChange } from "@/lib/stripe-billing";
 
 /**
  * The invite link's page talks to this; no login, by design (src/proxy.ts).
@@ -33,6 +34,8 @@ export async function POST(req: NextRequest) {
       language: body?.language,
     });
     if (!result.ok) return NextResponse.json({ error: result.error, code: result.code }, { status: result.status });
+    // A new login may be a new person to bill (src/lib/plan.ts).
+    after(() => afterTeamChange(result.organizationId));
     if (result.role === "admin") {
       const origin = linkOrigin(req.nextUrl.origin);
       after(() =>

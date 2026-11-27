@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireTenant, isErrorResponse } from "@/lib/tenant";
+import { afterTeamChange } from "@/lib/stripe-billing";
 
 /**
  * Remove a member of staff's login, for the salon's owner. Staff only, in
@@ -19,5 +20,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ error: "Only a member of staff's login can be removed here." }, { status: 403 });
   }
   await prisma.user.delete({ where: { id: target.id } });
+  after(() => afterTeamChange(ctx.organizationId));
   return NextResponse.json({ ok: true });
 }

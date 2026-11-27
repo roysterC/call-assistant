@@ -21,6 +21,7 @@ import { requestHostname } from "@/lib/booking-host";
 import { upsertWebsiteLead } from "@/lib/website-lead";
 import { chatReply, splitPending } from "@/lib/chat-booking";
 import { normalisePhone } from "@/lib/phone";
+import { addonOn } from "@/lib/plan-access";
 
 export async function OPTIONS(req: NextRequest) {
   return new Response(null, {
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
       where: { organizationId: site.organizationId },
       select: { chatbotEnabled: true },
     });
-    if (!orgSettings?.chatbotEnabled) {
+    if (!orgSettings?.chatbotEnabled || !(await addonOn(site.organizationId, "chatReplies"))) {
       return new Response(
         JSON.stringify({ error: "Chatbot is not enabled for this organization" }),
         { status: 403, headers: { ...headers, "Content-Type": "application/json" } }

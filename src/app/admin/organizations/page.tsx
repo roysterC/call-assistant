@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AdminUsageTable } from "@/components/usage/admin-usage-table";
+import { BillingOverview, BillingPrices } from "@/components/admin/billing";
 import { InviteLinkDialog, inviteLink } from "@/components/admin/invitations";
 import { LanguageFlags } from "@/components/i18n/language-flags";
 import { Textarea } from "@/components/ui/textarea";
@@ -73,7 +74,8 @@ export default function OrganizationsPage() {
     ownerEmail: "",
     ownerLanguage: "en" as Lang,
     ownerNote: "",
-    diaryEnabled: true,
+    // Not billed: a salon Kikai runs for free. Otherwise the 14-day trial.
+    notBilled: false,
   };
   const [form, setForm] = useState(blank);
   // The slug follows the name until it is typed in by hand.
@@ -106,7 +108,7 @@ export default function OrganizationsPage() {
           ...form,
           // The diary switch is for a salon whose owner sets it up; without an
           // owner it starts off, as before, and is switched on from its page.
-          diaryEnabled: form.ownerEmail.trim() ? form.diaryEnabled : undefined,
+          billingStatus: form.notBilled ? "free" : undefined,
         }),
       });
       if (!res.ok) {
@@ -216,6 +218,10 @@ export default function OrganizationsPage() {
         }
       />
 
+      <BillingOverview />
+
+      <BillingPrices />
+
       <AdminUsageTable names={Object.fromEntries(orgs.map((o) => [o.id, o.name]))} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -296,22 +302,23 @@ export default function OrganizationsPage() {
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">At the top of their email, as you write it.</p>
                 </div>
-                <label className="flex items-start gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={form.diaryEnabled}
-                    onChange={(e) => setForm({ ...form, diaryEnabled: e.target.checked })}
-                    className="mt-0.5 h-4 w-4 accent-primary"
-                  />
-                  <span>
-                    <span className="font-medium">Diary on</span>
-                    <span className="block text-muted-foreground">
-                      What they set up (hours, services, team) is the diary. Leave on unless you know why not.
-                    </span>
-                  </span>
-                </label>
               </div>
             )}
+            <label className="flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={form.notBilled}
+                onChange={(e) => setForm({ ...form, notBilled: e.target.checked })}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span>
+                <span className="font-medium">Not billed</span>
+                <span className="block text-muted-foreground">
+                  Free, with every add-on it is set up for. Leave off for the 14-day trial, which starts when the
+                  owner first signs in (or now, for a salon with no owner invite).
+                </span>
+              </span>
+            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>

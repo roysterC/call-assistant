@@ -15,6 +15,7 @@ import {
   whatsappSender,
 } from "@/lib/meta-credentials";
 import { rateLimit } from "@/lib/rate-limit";
+import { addonOn } from "@/lib/plan-access";
 
 // GET - Meta webhook verification
 export async function GET(request: Request) {
@@ -114,6 +115,11 @@ async function processWebhook(body: Record<string, unknown>, verified: Set<strin
       "[WHATSAPP WEBHOOK] whatsappEnabled=false for org, ignoring:",
       organizationId
     );
+    return;
+  }
+  // The AI chat replies are a paid add-on (src/lib/plan.ts).
+  if (!(await addonOn(organizationId, "chatReplies"))) {
+    console.log("[WHATSAPP WEBHOOK] chat replies are not on this salon's plan, ignoring:", organizationId);
     return;
   }
 

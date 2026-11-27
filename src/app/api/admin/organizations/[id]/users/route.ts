@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
 import { hashPassword, validatePassword } from "@/lib/password";
 import { parsePagination } from "@/lib/pagination";
 import { ASSIGNABLE_ROLES, USER_FIELDS, isAssignableRole } from "@/lib/admin-users";
 import { isLeftoverLogin } from "@/lib/invitations";
+import { afterTeamChange } from "@/lib/stripe-billing";
 
 export async function GET(
   req: NextRequest,
@@ -122,6 +123,7 @@ export async function POST(
       select: USER_FIELDS,
     });
 
+    after(() => afterTeamChange(organizationId));
     return NextResponse.json(user);
   } catch (error) {
     console.error("[ADMIN USERS] POST error:", error);

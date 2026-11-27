@@ -10,6 +10,7 @@ import { BookingAlerts } from "@/components/notifications/booking-alerts";
 import { QuoteAlerts } from "@/components/notifications/quote-alerts";
 import { NotificationsBell, NotificationsRuntime } from "@/components/notifications/notifications-panel";
 import { useMediaQuery } from "@/lib/use-is-phone";
+import { PlanBanner } from "@/components/billing/plan-banner";
 
 export function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -80,13 +81,15 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         <NotificationsRuntime />
 
         {/* On a phone, clear of the tab bar along the bottom. */}
-        <main className="flex-1 overflow-auto min-w-0 phone:pb-[calc(68px+1.5rem+max(0.75rem,env(safe-area-inset-bottom)))]">
+        <main className="flex flex-1 flex-col overflow-auto min-w-0 phone:pb-[calc(68px+1.5rem+max(0.75rem,env(safe-area-inset-bottom)))]">
+          {/* The trial ending, a failed payment, or the plan paused (src/lib/plan.ts). */}
+          <PlanBanner />
           {isFullWidth ? (
             // On a short screen their header and the tab bar left the diary
             // or a profile a strip a finger wide; there the page scrolls instead.
-            <div className="h-full short:min-h-[36rem]">{children}</div>
+            <div className="min-h-0 flex-1 short:min-h-[36rem]">{children}</div>
           ) : (
-            <div className="max-w-7xl mx-auto p-4 md:p-8">{children}</div>
+            <div className="w-full max-w-7xl mx-auto p-4 md:p-8">{children}</div>
           )}
         </main>
       </div>

@@ -10,6 +10,7 @@
  */
 
 import type { MessageKey } from "@/lib/i18n";
+import type { Addon } from "@/lib/plan";
 
 export type FeatureKey = "voice" | "diary" | "chatbot" | "whatsapp" | "instagram" | "facebook";
 
@@ -24,16 +25,20 @@ export interface FeatureFlags {
 }
 
 /**
- * Whether the salon has the diary: switched on by itself, or by what books
- * into it, the phone receptionist or booking by message. Without this the
- * diary came only with the phone, and a salon booking only by Instagram had
- * nowhere to set up its services and team.
+ * Whether the salon has the diary. Always: the diary, clients, sales and
+ * online booking are the base plan every salon has (src/lib/plan.ts), and
+ * nothing switches them off. The old diaryEnabled switch is no longer read.
  */
-export function hasDiary(s: { diaryEnabled?: boolean | null; voiceEnabled?: boolean | null; chatBookingEnabled?: boolean | null }): boolean {
-  return Boolean(s.diaryEnabled || s.voiceEnabled || s.chatBookingEnabled);
+export function hasDiary(_s?: unknown): boolean {
+  return true;
 }
 
-/** The features a salon's settings switch on, as the menu reads them. */
+/**
+ * The features a salon's settings switch on, as the menu reads them. With the
+ * plan's add-ons (PlanState.addonActive), a switch whose add-on is not on the
+ * plan reads as off: the receptionist's pages go with "receptionist", the
+ * inbox with "chatReplies".
+ */
 export function featureFlags(s: {
   chatbotEnabled?: boolean | null;
   whatsappEnabled?: boolean | null;
@@ -42,14 +47,16 @@ export function featureFlags(s: {
   chatBookingEnabled?: boolean | null;
   instagramEnabled?: boolean | null;
   facebookEnabled?: boolean | null;
-}): FeatureFlags {
+}, active?: Partial<Record<Addon, boolean>> | null): FeatureFlags {
+  const chats = !active || Boolean(active.chatReplies);
+  const voice = !active || Boolean(active.receptionist);
   return {
-    chatbotEnabled: Boolean(s.chatbotEnabled),
-    whatsappEnabled: Boolean(s.whatsappEnabled),
-    voiceEnabled: Boolean(s.voiceEnabled),
-    diaryEnabled: hasDiary(s),
-    instagramEnabled: Boolean(s.instagramEnabled),
-    facebookEnabled: Boolean(s.facebookEnabled),
+    chatbotEnabled: chats && Boolean(s.chatbotEnabled),
+    whatsappEnabled: chats && Boolean(s.whatsappEnabled),
+    voiceEnabled: voice && Boolean(s.voiceEnabled),
+    diaryEnabled: true,
+    instagramEnabled: chats && Boolean(s.instagramEnabled),
+    facebookEnabled: chats && Boolean(s.facebookEnabled),
   };
 }
 

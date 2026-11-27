@@ -52,6 +52,7 @@ import { plural } from "@/lib/plural";
 import { VOICE_CHANNEL, WHATSAPP_CHANNEL, channelLabel } from "@/lib/phone-channels";
 import { useDialogs } from "@/components/providers/dialogs-provider";
 import { InvitationsSection } from "@/components/admin/invitations";
+import { OrgBilling } from "@/components/admin/billing";
 
 
 interface Org {
@@ -423,19 +424,6 @@ export default function OrganizationDetailPage() {
   // function with its own button. It's now folded into `save()` above so
   // a single click at the top of the page persists everything.
 
-  /**
-   * The phone or booking by message, which book into the diary: switching
-   * one on switches the diary on too, and it stays on if they are later
-   * switched off, so a salon does not lose its diary with its receptionist.
-   */
-  function switchOnWithDiary(key: "voiceEnabled" | "chatBookingEnabled", on: boolean) {
-    if (!org?.settings) return;
-    setOrg({
-      ...org,
-      settings: { ...org.settings, [key]: on, ...(on ? { diaryEnabled: true } : {}) },
-    });
-  }
-
   function updateFeature<K extends keyof NonNullable<Org["settings"]>>(
     key: K,
     value: NonNullable<Org["settings"]>[K]
@@ -723,6 +711,8 @@ export default function OrganizationDetailPage() {
         </CardContent>
       </Card>
 
+      <OrgBilling orgId={org.id} />
+
       {/* Features & Prompts (super-admin only) */}
       {org.settings && (
         <Card>
@@ -759,28 +749,22 @@ export default function OrganizationDetailPage() {
                 enabled={org.settings.facebookEnabled}
                 onToggle={(v) => updateFeature("facebookEnabled", v)}
               />
-              <FeatureToggle
-                label="Diary"
-                description={
-                  org.settings.voiceEnabled || org.settings.chatBookingEnabled
-                    ? "Diary, clients, sales and callbacks. On while the phone receptionist or booking from messages is: they book into it."
-                    : "Diary, clients, sales and callbacks, for a salon running its book on Kikai, with or without the receptionist."
-                }
-                enabled={hasDiary(org.settings)}
-                locked={org.settings.voiceEnabled || org.settings.chatBookingEnabled}
-                onToggle={(v) => updateFeature("diaryEnabled", v)}
-              />
+              <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                The diary, clients, sales and the salon&apos;s website are the base plan: always on. The switches
+                here say whether an add-on is set up; on a billed salon it works only while it is on the plan
+                (Plan and billing, above).
+              </p>
               <FeatureToggle
                 label="Book from messages"
                 description="WhatsApp, Instagram and Messenger book into the diary, read back and confirmed like the phone. Needs the salon's diary set up."
                 enabled={org.settings.chatBookingEnabled}
-                onToggle={(v) => switchOnWithDiary("chatBookingEnabled", v)}
+                onToggle={(v) => updateFeature("chatBookingEnabled", v)}
               />
               <FeatureToggle
                 label="Phone receptionist"
                 description="Calls to the salon's Voice numbers answered by our receptionist"
                 enabled={org.settings.voiceEnabled}
-                onToggle={(v) => switchOnWithDiary("voiceEnabled", v)}
+                onToggle={(v) => updateFeature("voiceEnabled", v)}
               />
               <BookingStatus org={org} />
             </div>
