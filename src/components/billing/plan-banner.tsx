@@ -21,12 +21,12 @@ export function PlanBanner() {
   const { t } = useT();
   const pathname = usePathname();
   const { data: session } = useSession();
-  const [plan, setPlan] = useState<PlanState | null>(null);
+  const [plan, setPlan] = useState<Pick<PlanState, "warning" | "trialDaysLeft"> | null>(null);
 
   // Again on each page: a card added, or a payment made, clears it.
   useEffect(() => {
     let live = true;
-    apiFetch("/api/settings")
+    apiFetch("/api/billing/state")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => live && setPlan(d?.plan ?? null))
       .catch(() => {});

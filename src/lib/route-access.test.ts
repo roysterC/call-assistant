@@ -46,6 +46,8 @@ const ACCESS: Record<string, Partial<Record<string, Access>>> = {
   "billing/checkout": { POST: "owner" },
   "billing/portal": { POST: "owner" },
   "billing/retry": { POST: "owner" },
+  // Only where the plan stands, for the banner staff see too.
+  "billing/state": { GET: "members" },
   // Staff see the salon is being set up; only the owner sets it up.
   onboarding: { GET: "members", PUT: "owner", POST: "owner" },
   // The salon's logins: the owner invites and removes staff (Settings).

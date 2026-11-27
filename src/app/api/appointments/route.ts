@@ -154,6 +154,9 @@ export async function PATCH(req: NextRequest) {
     // Undoing a cancellation puts the booking back in the diary, where its
     // time may have gone to someone else since.
     if (status === "booked" && existing.status === "cancelled") {
+      // Back in the diary is a booking made: not while the plan is paused.
+      const paused = await refuseIfRestricted(ctx.organizationId, ctx);
+      if (paused) return paused;
       const taken = await prisma.appointment.findFirst({
         where: {
           organizationId: ctx.organizationId,

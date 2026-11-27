@@ -32,8 +32,19 @@ const db = vi.hoisted(() => {
           return { count: ok ? 1 : 0 };
         }),
       },
+      $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ $executeRaw: vi.fn() })),
       billingPrice: {
         findMany: vi.fn(async () => prices),
+        updateMany: vi.fn(async ({ where, data }: { where: { key: string; pence: number }; data: Record<string, unknown> }) => {
+          const row = prices.find((p) => p.key === where.key && p.pence === where.pence);
+          if (row) Object.assign(row, data);
+          return { count: row ? 1 : 0 };
+        }),
+        createMany: vi.fn(async ({ data }: { data: Array<{ key: string; pence: number; stripePriceId: string }> }) => {
+          const fresh = data.filter((d) => !prices.some((p) => p.key === d.key));
+          prices.push(...fresh);
+          return { count: fresh.length };
+        }),
         upsert: vi.fn(async ({ where, create, update }: { where: { key: string }; create: never; update: Record<string, unknown> }) => {
           const row = prices.find((p) => p.key === where.key);
           if (row) Object.assign(row, update);
@@ -63,8 +74,9 @@ const fake = {
   products: { retrieve: vi.fn(async () => ({})), create: vi.fn() },
   prices: { create: vi.fn(async (p: { metadata: { kikai_key: string } }) => ({ id: `price_new_${p.metadata.kikai_key}` })) },
   subscriptions: {
-    retrieve: vi.fn(async () => ({ id: "sub_1", status: "active", items: { data: subItems } })),
+    retrieve: vi.fn(async (id?: string) => ({ id: id ?? "sub_1", status: "active", items: { data: subItems } }) as Record<string, unknown>),
     update: vi.fn(),
+    cancel: vi.fn(),
   },
 };
 
@@ -86,6 +98,7 @@ beforeEach(() => {
   db.logins.length = 0;
   subItems = [item("si_base", "base", 1)];
   vi.clearAllMocks();
+  fake.prices.create.mockImplementation(async (p: { metadata: { kikai_key: string } }) => ({ id: `price_new_${p.metadata.kikai_key}` }));
   setStripeClient(fake as unknown as Stripe);
 });
 
@@ -117,6 +130,13 @@ describe("the subscription's lines", () => {
     expect(updateItems()).toEqual([{ price: "price_new_chatReplies", quantity: 1 }]);
   });
 
+  it("keep an add-on taken off sale billed for the salons that have it", async () => {
+    db.org.addons = ["chatReplies"];
+    subItems.push(item("si_chat", "chatReplies", 1));
+    await syncSubscription("org1");
+    expect(fake.subscriptions.update).not.toHaveBeenCalled();
+  });
+
   it("drop an add-on taken off the plan, and leave alone a line Kikai added by hand", async () => {
     subItems.push(item("si_recep", "receptionist", 1), item("si_other", null, 1));
     await syncSubscription("org1");
@@ -137,6 +157,24 @@ describe("the subscription's lines", () => {
 
 const sub = (status: string, extra: Record<string, unknown> = {}) =>
   ({ id: "sub_1", status, customer: "cus_1", metadata: { organizationId: "org1" }, trial_end: null, ...extra }) as unknown as Stripe.Subscription;
+
+describe("a price", () => {
+  it("made at the amount Admin has, even when Admin changes it while it is being made", async () => {
+    db.prices.push({ key: "chatReplies", pence: 1500, stripePriceId: null });
+    db.org.addons = ["chatReplies"];
+    let first = true;
+    fake.prices.create.mockImplementation(async (p: { metadata: { kikai_key: string }; unit_amount?: number }) => {
+      if (first) {
+        first = false;
+        db.prices.find((r) => r.key === "chatReplies")!.pence = 2000; // Admin, meanwhile
+      }
+      return { id: `price_${(p as { unit_amount: number }).unit_amount}` };
+    });
+    await syncSubscription("org1");
+    expect(updateItems()).toEqual([{ price: "price_2000", quantity: 1 }]);
+    expect(db.prices.find((r) => r.key === "chatReplies")).toMatchObject({ pence: 2000, stripePriceId: "price_2000" });
+  });
+});
 
 describe("Stripe's word on the subscription", () => {
   it("sets the salon's state", async () => {
@@ -168,6 +206,36 @@ describe("Stripe's word on the subscription", () => {
     db.org.stripeSubscriptionId = "sub_new";
     await applySubscription(sub("canceled"));
     expect(db.org).toMatchObject({ billingStatus: "active", stripeSubscriptionId: "sub_new" });
+    expect(fake.subscriptions.cancel).not.toHaveBeenCalled();
+  });
+
+  it("cancels a second subscription, so the card is not charged twice", async () => {
+    db.org.stripeSubscriptionId = "sub_first";
+    await applySubscription(sub("trialing"));
+    expect(fake.subscriptions.cancel).toHaveBeenCalledWith("sub_1");
+    expect(db.org.stripeSubscriptionId).toBe("sub_first");
+  });
+
+  it("never takes back a subscription once it has ended, whatever a late event says", async () => {
+    await applySubscription(sub("canceled"));
+    fake.subscriptions.retrieve.mockResolvedValueOnce({ ...sub("canceled") } as never);
+    await applySubscription(sub("active"), { fresh: true });
+    expect(db.org).toMatchObject({ billingStatus: "restricted", stripeSubscriptionId: null });
+  });
+
+  it("waits for a first payment still being made before counting the card", async () => {
+    db.org.stripeSubscriptionId = null;
+    db.org.billingStatus = "trialing";
+    await applySubscription(sub("incomplete"));
+    expect(db.org.stripeSubscriptionId).toBeNull();
+    await applySubscription(sub("active"));
+    expect(db.org).toMatchObject({ billingStatus: "active", stripeSubscriptionId: "sub_1" });
+  });
+
+  it("leaves no failed payment behind once a subscription ends", async () => {
+    db.org.paymentFailedAt = new Date();
+    await applySubscription(sub("canceled"));
+    expect(db.org.paymentFailedAt).toBeNull();
   });
 });
 

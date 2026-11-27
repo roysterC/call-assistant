@@ -60,8 +60,13 @@ const PRODUCT_NAME: Record<PriceKey, string> = {
 
 const productId = (key: PriceKey) => `kikai_${key}`;
 
-/** The Stripe Price for this key at its current amount, made if it is new. */
-export async function ensurePrice(key: PriceKey): Promise<string> {
+/**
+ * The Stripe Price for this key at its current amount, made if it is new.
+ * The Price made is recorded only if the amount is still the one it was made
+ * for: an amount changed in Admin meanwhile is made again, never left with
+ * the old Price.
+ */
+export async function ensurePrice(key: PriceKey, tries = 3): Promise<string> {
   const { rows } = await loadPrices();
   const row = rows[key];
   if (row?.stripePriceId) return row.stripePriceId;
@@ -83,11 +88,21 @@ export async function ensurePrice(key: PriceKey): Promise<string> {
     tax_behavior: "inclusive",
     metadata: { kikai_key: key },
   });
-  await prisma.billingPrice.upsert({
-    where: { key },
-    create: { key, pence, stripePriceId: price.id },
-    update: { stripePriceId: price.id },
-  });
+  if (row) {
+    const kept = await prisma.billingPrice.updateMany({ where: { key, pence }, data: { stripePriceId: price.id } });
+    if (kept.count === 0) {
+      if (tries <= 1) throw new Error(`${PRODUCT_NAME[key]}'s price kept changing; try again`);
+      return ensurePrice(key, tries - 1);
+    }
+  } else {
+    // The founder base or seat price, never set in Admin: recorded now. One
+    // set in Admin at the same moment wins, and is made on the next try.
+    const made = await prisma.billingPrice.createMany({ data: [{ key, pence, stripePriceId: price.id }], skipDuplicates: true });
+    if (made.count === 0) {
+      if (tries <= 1) throw new Error(`${PRODUCT_NAME[key]}'s price kept changing; try again`);
+      return ensurePrice(key, tries - 1);
+    }
+  }
   return price.id;
 }
 
@@ -96,14 +111,17 @@ interface WantedLine {
   quantity: number;
 }
 
-/** The lines the subscription should have: the plan, the seats, and each add-on with a price. */
+/**
+ * The lines the subscription should have: the plan, the seats, and each
+ * add-on on the plan. An add-on taken off sale stays on the plans that have
+ * it, and so stays billed at the Price its line already has.
+ */
 async function wantedLines(organizationId: string): Promise<WantedLine[]> {
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { addons: true } });
-  const { prices } = await loadPrices();
   const seats = await seatsOf(organizationId);
   const lines: WantedLine[] = [{ key: "base", quantity: 1 }];
   if (seats > 0) lines.push({ key: "seat", quantity: seats });
-  for (const a of ADDONS) if (org?.addons.includes(a) && prices[a] != null) lines.push({ key: a, quantity: 1 });
+  for (const a of ADDONS) if (org?.addons.includes(a)) lines.push({ key: a, quantity: 1 });
   return lines;
 }
 
@@ -205,34 +223,51 @@ export async function syncSubscription(organizationId: string): Promise<{ ok: tr
   });
   if (!org?.stripeSubscriptionId) return { ok: true };
   try {
-    const s = stripe();
-    const sub = await s.subscriptions.retrieve(org.stripeSubscriptionId);
-    if (sub.status === "canceled" || sub.status === "incomplete_expired") return { ok: true };
-    const wanted = await wantedLines(organizationId);
-    const items: Stripe.SubscriptionUpdateParams.Item[] = [];
-    const have = new Map<PriceKey, Stripe.SubscriptionItem>();
-    for (const item of sub.items.data) {
-      const key = lineKey(item);
-      if (!key) continue; // a line Kikai added by hand in Stripe: left alone
-      const want = wanted.find((w) => w.key === key);
-      if (!want || have.has(key)) items.push({ id: item.id, deleted: true });
-      else {
-        have.set(key, item);
-        if (item.quantity !== want.quantity) items.push({ id: item.id, quantity: want.quantity });
-      }
-    }
-    for (const w of wanted) if (!have.has(w.key)) items.push({ price: await ensurePrice(w.key), quantity: w.quantity });
-    if (items.length) {
-      await s.subscriptions.update(sub.id, { items, proration_behavior: "create_prorations" });
-    }
-    const seats = wanted.find((w) => w.key === "seat")?.quantity ?? 0;
-    await prisma.organization.update({ where: { id: organizationId }, data: { billedSeats: seats } });
-    return { ok: true };
+    // One at a time per salon: two at once (an add-on added while a team
+    // change is being billed) would each add the same line.
+    return await withBillingLock(organizationId, () => syncLines(organizationId, org.stripeSubscriptionId!));
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     console.error(`[BILLING] could not bring ${organizationId}'s subscription up to date:`, error);
     return { ok: false, error };
   }
+}
+
+/** Run `fn` holding this salon's billing lock (a Postgres advisory lock, for as long as Stripe takes). */
+async function withBillingLock<T>(organizationId: string, fn: () => Promise<T>): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${`billing|${organizationId}`}))`;
+      return fn();
+    },
+    { timeout: 60_000, maxWait: 30_000 }
+  );
+}
+
+async function syncLines(organizationId: string, subscriptionId: string): Promise<{ ok: true }> {
+  const s = stripe();
+  const sub = await s.subscriptions.retrieve(subscriptionId);
+  if (sub.status === "canceled" || sub.status === "incomplete_expired") return { ok: true };
+  const wanted = await wantedLines(organizationId);
+  const items: Stripe.SubscriptionUpdateParams.Item[] = [];
+  const have = new Map<PriceKey, Stripe.SubscriptionItem>();
+  for (const item of sub.items.data) {
+    const key = lineKey(item);
+    if (!key) continue; // a line Kikai added by hand in Stripe: left alone
+    const want = wanted.find((w) => w.key === key);
+    if (!want || have.has(key)) items.push({ id: item.id, deleted: true });
+    else {
+      have.set(key, item);
+      if (item.quantity !== want.quantity) items.push({ id: item.id, quantity: want.quantity });
+    }
+  }
+  for (const w of wanted) if (!have.has(w.key)) items.push({ price: await ensurePrice(w.key), quantity: w.quantity });
+  if (items.length) {
+    await s.subscriptions.update(sub.id, { items, proration_behavior: "create_prorations" });
+  }
+  const seats = wanted.find((w) => w.key === "seat")?.quantity ?? 0;
+  await prisma.organization.update({ where: { id: organizationId }, data: { billedSeats: seats } });
+  return { ok: true };
 }
 
 /**
@@ -265,18 +300,43 @@ async function orgFor(ref: { subscription?: string | null; customer?: string | n
   return prisma.organization.findFirst({ where: { OR: or }, select: { id: true, stripeSubscriptionId: true, billingStatus: true } });
 }
 
-/** Stripe's word on a subscription: its state, and whether it is the salon's. */
-export async function applySubscription(sub: Stripe.Subscription): Promise<string | null> {
+/**
+ * Stripe's word on a subscription: its state, and whether it is the salon's.
+ *
+ * With `fresh`, the subscription is read from Stripe as it is now rather
+ * than as the event had it: events come late, twice and out of order, and an
+ * old "active" must never bring back a subscription since cancelled.
+ */
+export async function applySubscription(sub: Stripe.Subscription, opts: { fresh?: boolean } = {}): Promise<string | null> {
+  if (opts.fresh) {
+    const now = await stripe().subscriptions.retrieve(sub.id);
+    sub = now.metadata?.organizationId || !sub.metadata?.organizationId ? now : { ...now, metadata: sub.metadata };
+  }
   const customer = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const org = await orgFor({ subscription: sub.id, customer, organizationId: sub.metadata?.organizationId });
   if (!org) {
     console.warn(`[BILLING] subscription ${sub.id} matches no salon`);
     return null;
   }
-  // An old subscription's events, after the salon has started a new one.
-  if (org.stripeSubscriptionId && org.stripeSubscriptionId !== sub.id) return org.id;
   const status = fromStripeStatus(sub.status);
   const ended = sub.status === "canceled" || sub.status === "incomplete_expired";
+  if (org.stripeSubscriptionId && org.stripeSubscriptionId !== sub.id) {
+    // A second subscription for a salon that has one (two Checkout pages
+    // finished): cancelled, so the card is not charged twice. Otherwise an
+    // old one's events, after it ended: nothing to do.
+    if (!ended) {
+      console.warn(`[BILLING] ${org.id} already has ${org.stripeSubscriptionId}; cancelling the second, ${sub.id}`);
+      await stripe().subscriptions.cancel(sub.id);
+    }
+    return org.id;
+  }
+  if (!org.stripeSubscriptionId) {
+    // Not (or no longer) the salon's: an ended one is not taken back on.
+    if (ended) return org.id;
+    // A first payment still being made (3-D Secure) is not a card on file
+    // yet: it is taken on once Stripe says it is paid.
+    if (sub.status === "incomplete") return org.id;
+  }
   await prisma.organization.update({
     where: { id: org.id },
     data: {
@@ -285,7 +345,8 @@ export async function applySubscription(sub: Stripe.Subscription): Promise<strin
       stripeSubscriptionId: ended ? null : sub.id,
       stripeCustomerId: customer,
       ...(sub.trial_end ? { trialEndsAt: new Date(sub.trial_end * 1000) } : {}),
-      ...(status === "active" || status === "trialing" ? { paymentFailedAt: null } : {}),
+      // Paid, or over: either way no payment is waiting on the salon.
+      ...(status === "active" || status === "trialing" || ended ? { paymentFailedAt: null } : {}),
     },
   });
   return org.id;

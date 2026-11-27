@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted":
-        await applySubscription(event.data.object as Stripe.Subscription);
+        // As Stripe has it now: events come late and out of order.
+        await applySubscription(event.data.object as Stripe.Subscription, { fresh: true });
         break;
       case "invoice.payment_failed":
         await invoiceFailed(event.data.object as Stripe.Invoice);
