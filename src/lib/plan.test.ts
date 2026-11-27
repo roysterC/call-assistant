@@ -72,7 +72,7 @@ describe("the free trial", () => {
 
   it("is the base plan only, until there is a card", () => {
     const s = planState({ ...base, addons: ["chatReplies"] }, NOW);
-    expect(s).toMatchObject({ status: "trialing", access: "full", trialDaysLeft: 9, hasCard: false, warning: "trialNoCard" });
+    expect(s).toMatchObject({ status: "trialing", access: "full", trialDaysLeft: 10, hasCard: false, warning: "trialNoCard" });
     expect(s.addonActive.chatReplies).toBe(false);
   });
 

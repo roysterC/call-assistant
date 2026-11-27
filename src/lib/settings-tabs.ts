@@ -4,10 +4,10 @@
  * each step is on.
  *
  * Grouped so each tab is one job: the salon's basics, its price list, its
- * people, its online booking, and how it talks to clients.
+ * people, its online booking, how it talks to clients, and what it pays.
  */
 
-export type SettingsTab = "salon" | "services" | "team" | "online" | "chats";
+export type SettingsTab = "salon" | "services" | "team" | "online" | "chats" | "plan";
 
 export const TAB_LABELS: Record<SettingsTab, string> = {
   salon: "Salon",
@@ -15,6 +15,7 @@ export const TAB_LABELS: Record<SettingsTab, string> = {
   team: "Team",
   online: "Online booking",
   chats: "Chats & texts",
+  plan: "Plan & billing",
 };
 
 /**
@@ -28,6 +29,8 @@ export function settingsTabs(s: { hasDiary: boolean; canEdit: boolean }): Settin
   if (s.hasDiary || s.canEdit) tabs.push("team");
   if (s.hasDiary) tabs.push("online");
   tabs.push("chats");
+  // What the salon pays (src/lib/plan.ts): the owner's alone.
+  if (s.canEdit) tabs.push("plan");
   return tabs;
 }
 

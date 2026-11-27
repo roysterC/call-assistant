@@ -101,7 +101,7 @@ export interface PlanState {
   status: BillingStatus;
   /** "restricted": bookings stay; nothing new can be booked or added. */
   access: "full" | "restricted";
-  /** Whole days left of the free trial (0 on its last day); null when not on trial. */
+  /** Days left of the free trial, a part day counting as one (1 in its last 24 hours); null when not on trial. */
   trialDaysLeft: number | null;
   /** A card is on file: a Stripe subscription exists. */
   hasCard: boolean;
@@ -137,7 +137,7 @@ export function planState(o: PlanInput, now: Date = new Date()): PlanState {
 
   const access = status === "restricted" ? "restricted" : "full";
   const trialDaysLeft =
-    status === "trialing" && trialEnd ? Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / DAY) - 1) : null;
+    status === "trialing" && trialEnd ? Math.max(1, Math.ceil((trialEnd.getTime() - now.getTime()) / DAY)) : null;
 
   const on = (a: Addon): boolean => {
     if (status === "free") return true;

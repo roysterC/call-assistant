@@ -1,6 +1,7 @@
 "use client";
 
 import { hasDiary } from "@/lib/navigation";
+import { PlanBilling } from "@/components/settings/plan-billing";
 import { bookingReadiness } from "@/lib/booking/readiness";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -461,6 +462,9 @@ export default function SettingsPage() {
             type="button"
             role="tab"
             id={`tab-${tb}`}
+            // The open tab in view on a phone, where the bar scrolls sideways
+            // (opened from a link to #plan, say).
+            ref={tb === tab ? (el) => el?.scrollIntoView({ block: "nearest", inline: "nearest" }) : undefined}
             aria-selected={tb === tab}
             aria-controls={`panel-${tb}`}
             tabIndex={tb === tab ? 0 : -1}
@@ -615,6 +619,9 @@ export default function SettingsPage() {
               businessName={settings.businessName}
             />
           )}
+
+          {/* What the salon pays, and its AI tools (src/lib/plan.ts). */}
+          {tab === "plan" && <PlanBilling />}
 
           {tab === "chats" && (
             <>

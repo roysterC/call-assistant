@@ -1578,7 +1578,8 @@
       "services": "Services",
       "team": "Team",
       "online": "Online booking",
-      "chats": "Chats & texts"
+      "chats": "Chats & texts",
+      "plan": "Plan & billing"
     },
     "tabsLabel": "Settings",
     "needsDoing": " (needs doing)",
@@ -1742,5 +1743,102 @@
     "chooseStylistHint": "Otherwise they are booked with whoever is free, as by phone.",
     "services": "Services clients can book online",
     "servicesHint": "Untick anything that needs a chat first, like a consultation or custom nail art. New services are bookable online until you untick them."
+  },
+  "plan": {
+    "cardAdded": "Card added. Thank you!",
+    "loadFailed": "Could not load your plan. Reload the page to try again.",
+    "stripeFailed": "Could not open the card page. Try again in a minute.",
+    "retryFailed": "The payment did not go through. Check your card, then try again.",
+    "retryDone": "Paid. Thank you!",
+    "addWithTitle": "Add {name}?",
+    "removeWithTitle": "Remove {name}?",
+    "addWith": "It works through {names}, which will be added too.",
+    "removeWith": "{names} works through it, and will be removed too.",
+    "add": "Add",
+    "remove": "Remove",
+    "ask": "Ask us to set it up",
+    "asked": "Asked for",
+    "cardFirst": "Add a card first: AI tools are billed monthly.",
+    "addonFailed": "Could not change your plan. Try again in a minute.",
+    "requested": "Asked for. We'll be in touch to set it up.",
+    "added": "Added to your plan.",
+    "removed": "Removed from your plan.",
+    "paused": {
+      "title": "Your plan is paused",
+      "text": "Your bookings are safe: you can see them, check clients out and cancel. To make new bookings, add to your team or use AI tools, update your card.",
+      "pill": "Paused"
+    },
+    "failed": {
+      "title": "Your last payment didn't go through",
+      "text": "Everything still works while we try again over the next few days. Update your card so nothing pauses."
+    },
+    "trial": {
+      "title": "{days, plural, one {Free trial: # day left} other {Free trial: # days left}}",
+      "text": "Add a card to carry on after {date}. Nothing is charged until then, and you can add AI tools once your card is in.",
+      "textNoDate": "Add a card to carry on after your free trial."
+    },
+    "trialCard": {
+      "text": "Your card is in. The first bill, {total}, is on {date}."
+    },
+    "free": {
+      "title": "Not billed",
+      "text": "Kikai looks after your plan: there is nothing to pay."
+    },
+    "paying": {
+      "title": "Your plan",
+      "text": "{total} a month, taken from your card."
+    },
+    "addCard": "Add a card",
+    "updateCard": "Update card",
+    "cardInvoices": "Card and invoices",
+    "tryAgain": "Try again",
+    "yours": "Your plan",
+    "included": "Always included",
+    "includedPill": "Included",
+    "base": {
+      "diary": "Diary and bookings",
+      "clients": "Clients",
+      "sales": "Sales",
+      "website": "Your website and online booking"
+    },
+    "line": {
+      "base": "Plan, you included",
+      "seats": "{n, plural, one {# more team member} other {# more team members}} × {each}"
+    },
+    "wouldBe": "Would be, a month",
+    "aMonth": "A month, VAT included",
+    "teamNote": "{people, plural, one {# person on your team.} other {# people on your team.}} Everyone counts, whether or not they sign in or take bookings. Add or remove someone and your bill follows, worked out to the day.",
+    "tools": "AI tools",
+    "toolsHint": "Add one any time, and take it off any time.",
+    "toolsPaused": "Paused until your card is updated.",
+    "soon": "Coming soon",
+    "perMonth": "{price}/mo",
+    "on": "On",
+    "noStripe": "Card payments are not switched on yet. We'll be in touch before your trial ends.",
+    "addon": {
+      "receptionist": {
+        "name": "Phone receptionist",
+        "does": "Answers your phone and books calls into the diary."
+      },
+      "chatReplies": {
+        "name": "AI chat replies",
+        "does": "Replies on WhatsApp, Instagram, Messenger and your website."
+      },
+      "chatBooking": {
+        "name": "Booking by message",
+        "does": "Chats book straight into the diary."
+      },
+      "rebookTexts": {
+        "name": "Rebooking texts",
+        "does": "Texts clients when they're due back, with a link to book."
+      }
+    },
+    "banner": {
+      "trial": "{days, plural, one {Your free trial ends within a day.} other {Your free trial ends in # days.}} Add a card to carry on.",
+      "failed": "Your last payment didn't go through. Update your card so nothing pauses.",
+      "paused": "Your plan is paused: you can see and check out bookings, but not make new ones.",
+      "action": "Plan and billing"
+    },
+    "blocked": "Your plan is paused. Update your card in Settings, Plan and billing, to carry on."
   }
 }
