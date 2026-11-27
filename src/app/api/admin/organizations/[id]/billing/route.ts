@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
 import { billingSummary } from "@/lib/billing";
 import { cleanAddons } from "@/lib/plan-access";
-import { syncSubscription } from "@/lib/stripe-billing";
+import { stopBillingForFree, syncSubscription } from "@/lib/stripe-billing";
 
 /** Its invoices (our copy of Stripe's) and the Stripe notices about it. */
 async function history(organizationId: string) {
@@ -49,8 +49,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 /**
  * Kikai's changes to a salon's plan:
  *  - addons: the add-ons on its plan (a salon with a card is billed for them);
- *  - billingStatus "free" (not billed) or "trialing" (back on a trial), only
- *    while it has no Stripe subscription, which owns the state otherwise;
+ *  - billingStatus "free" (not billed): for a salon paying by card, its
+ *    Stripe subscription is cancelled at once and what it owes voided
+ *    (stopBillingForFree), so the card is never charged again;
+ *  - billingStatus "trialing" (back on a trial), only while it has no
+ *    Stripe subscription, which owns the state otherwise;
  *  - trialEndsAt: move the trial's end (extend it, say), only while it has
  *    no card: a card's trial is Stripe's;
  *  - dismissRequest: an add-on it asked for that Kikai will not set up.
@@ -80,10 +83,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Set a salon to not billed or on trial; Stripe sets the rest." }, { status: 400 });
     }
     if (org.stripeSubscriptionId) {
-      return NextResponse.json(
-        { error: "This salon pays by card: change its subscription in Stripe, which keeps this page up to date." },
-        { status: 409 }
-      );
+      if (body.billingStatus === "trialing") {
+        return NextResponse.json(
+          { error: "This salon pays by card: change its subscription in Stripe, which keeps this page up to date." },
+          { status: 409 }
+        );
+      }
+      // Not billed: Stripe first, and only then ours.
+      const stopped = await stopBillingForFree(id);
+      if (!stopped.ok) {
+        return NextResponse.json({ error: `Stripe would not cancel the subscription, so nothing changed: ${stopped.error}` }, { status: 502 });
+      }
     }
     data.billingStatus = body.billingStatus;
   }
@@ -107,8 +117,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   await prisma.organization.update({ where: { id }, data });
-  // A salon with a card is billed for what changed.
-  if (org.stripeSubscriptionId && "addons" in data) {
+  // A salon with a card is billed for what changed (not one just made free).
+  if (org.stripeSubscriptionId && "addons" in data && data.billingStatus !== "free") {
     const synced = await syncSubscription(id);
     if (!synced.ok) return NextResponse.json({ ...(await billingSummary(id)), ...(await history(id)), stripeError: synced.error });
   }

@@ -284,6 +284,19 @@ export function OrgBilling({ orgId }: { orgId: string }) {
   if (!b) return null;
   const { plan } = b;
 
+  /** Not billed: a tester, or Kikai's own. With a card, its Stripe subscription is cancelled first. */
+  async function makeFree() {
+    const ok = await confirm({
+      title: "Make this salon free?",
+      body: plan.hasCard
+        ? "Its Stripe subscription is cancelled now and anything it owes is voided, so its card is never charged again. Every AI tool it is set up for keeps working."
+        : "It is never billed, and every AI tool it is set up for works. You can start a trial again later.",
+      confirmLabel: "Make free",
+      destructive: plan.hasCard,
+    });
+    if (ok) await put({ billingStatus: "free" });
+  }
+
   async function toggle(a: Addon, on: boolean) {
     const next = changedAddons(plan.addons, a, on);
     const extra = next.filter((x) => x !== a && !plan.addons.includes(x));
@@ -375,37 +388,36 @@ export function OrgBilling({ orgId }: { orgId: string }) {
           </div>
         </div>
 
-        {!plan.hasCard && (
-          <div className="flex flex-wrap gap-2">
-            {plan.status !== "free" ? (
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => void put({ billingStatus: "free" })}>
-                Stop billing (not billed)
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={() => void put({ billingStatus: "trialing", trialEndsAt: new Date(Date.now() + 14 * 864e5).toISOString() })}
-              >
-                Start a 14-day trial
-              </Button>
-            )}
-            {plan.status !== "free" && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  const from = b.trialEndsAt && new Date(b.trialEndsAt) > new Date() ? new Date(b.trialEndsAt) : new Date();
-                  void put({ billingStatus: "trialing", trialEndsAt: new Date(from.getTime() + 7 * 864e5).toISOString() });
-                }}
-              >
-                Give 7 more trial days
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {plan.status !== "free" ? (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void makeFree()}>
+              Make free (not billed)
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void put({ billingStatus: "trialing", trialEndsAt: new Date(Date.now() + 14 * 864e5).toISOString() })}
+            >
+              Start a 14-day trial
+            </Button>
+          )}
+          {plan.status !== "free" && !plan.hasCard && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                const from = b.trialEndsAt && new Date(b.trialEndsAt) > new Date() ? new Date(b.trialEndsAt) : new Date();
+                void put({ billingStatus: "trialing", trialEndsAt: new Date(from.getTime() + 7 * 864e5).toISOString() });
+              }}
+            >
+              Give 7 more trial days
+            </Button>
+          )}
+        </div>
+
         <div className="space-y-1">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Invoices</p>
           {b.invoices.length === 0 ? (

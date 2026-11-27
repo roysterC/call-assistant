@@ -58,7 +58,14 @@ const db = vi.hoisted(() => {
 });
 vi.mock("@/lib/prisma", () => ({ prisma: db.prisma }));
 
-import { applySubscription, invoiceFailed, invoicePaid, setStripeClient, syncSubscription } from "@/lib/stripe-billing";
+import {
+  applySubscription,
+  invoiceFailed,
+  invoicePaid,
+  setStripeClient,
+  stopBillingForFree,
+  syncSubscription,
+} from "@/lib/stripe-billing";
 import { verifyStripeEvent } from "@/lib/stripe-webhook";
 
 function item(id: string, key: string | null, quantity: number) {
@@ -77,6 +84,10 @@ const fake = {
     retrieve: vi.fn(async (id?: string) => ({ id: id ?? "sub_1", status: "active", items: { data: subItems } }) as Record<string, unknown>),
     update: vi.fn(),
     cancel: vi.fn(),
+  },
+  invoices: {
+    list: vi.fn(async () => ({ data: [] as Array<{ id: string }> })),
+    voidInvoice: vi.fn(),
   },
 };
 
@@ -267,5 +278,29 @@ describe("the webhook", () => {
     expect(verifyStripeEvent(body, null, secret)).toBeNull();
     expect(verifyStripeEvent(body, other, secret)).toBeNull();
     expect(verifyStripeEvent(body, other, undefined)).toBeNull();
+  });
+});
+
+describe("making a salon that pays by card free", () => {
+  it("cancels its subscription now, voids what it owes, then marks it not billed", async () => {
+    fake.invoices.list.mockResolvedValueOnce({ data: [{ id: "in_owed" }] });
+    db.org.paymentFailedAt = new Date();
+    expect(await stopBillingForFree("org1")).toEqual({ ok: true });
+    expect(fake.subscriptions.cancel).toHaveBeenCalledWith("sub_1", { invoice_now: false, prorate: false });
+    expect(fake.invoices.list).toHaveBeenCalledWith({ subscription: "sub_1", status: "open", limit: 100 });
+    expect(fake.invoices.voidInvoice).toHaveBeenCalledWith("in_owed");
+    expect(db.org).toMatchObject({ billingStatus: "free", stripeSubscriptionId: null, paymentFailedAt: null, stripeCustomerId: "cus_1" });
+  });
+
+  it("changes nothing when Stripe refuses", async () => {
+    fake.subscriptions.cancel.mockRejectedValueOnce(new Error("Stripe is down"));
+    expect(await stopBillingForFree("org1")).toEqual({ ok: false, error: "Stripe is down" });
+    expect(db.org).toMatchObject({ billingStatus: "active", stripeSubscriptionId: "sub_1" });
+  });
+
+  it("stays free when Stripe's 'cancelled' notice comes after", async () => {
+    await stopBillingForFree("org1");
+    await applySubscription(sub("canceled"));
+    expect(db.org).toMatchObject({ billingStatus: "free", stripeSubscriptionId: null });
   });
 });
