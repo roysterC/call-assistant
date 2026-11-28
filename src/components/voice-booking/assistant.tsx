@@ -171,6 +171,12 @@ export function Assistant() {
    * what to add instead. Typing works on every plan.
    */
   const voiceLocked = useRef(false);
+  /** The same, for drawing: the speaker shows off while voice is locked. */
+  const [locked, setLockedState] = useState(false);
+  const setLocked = (v: boolean) => {
+    voiceLocked.current = v;
+    setLockedState(v);
+  };
   const [upsell, setUpsell] = useState(false);
 
   // Opened by /assistant (Siri, Google Assistant, the app icon): start
@@ -372,9 +378,8 @@ export function Assistant() {
       .then((r) => r.json())
       .then((d: { sessionId?: string; voice?: boolean }) => {
         if (d.sessionId && !session.current) session.current = d.sessionId;
-        if (d.voice === false) voiceLocked.current = true;
         // Added an AI add-on since: the buttons work again.
-        if (d.voice === true) voiceLocked.current = false;
+        if (typeof d.voice === "boolean") setLocked(!d.voice);
       })
       .catch(() => {});
   }, [open]);
@@ -411,11 +416,16 @@ export function Assistant() {
     }
   }
 
-  async function startListening(opts: { unprompted?: boolean } = {}) {
+  /**
+   * opts.pressedMic: the person pressed a microphone button. Only then is
+   * "this needs an AI add-on" shown; opening the panel (the launcher, the
+   * phone's tab, /assistant) just leaves it ready to type in.
+   */
+  async function startListening(opts: { unprompted?: boolean; pressedMic?: boolean } = {}) {
     setError(null);
     setNeedsTap(false);
     if (voiceLocked.current) {
-      setUpsell(true);
+      if (opts.pressedMic) setUpsell(true);
       return;
     }
     setConnecting(true);
@@ -423,8 +433,8 @@ export function Assistant() {
       const res = await apiFetch("/api/voice-booking/token", { method: "POST" });
       const data = await res.json();
       if (res.status === 402 && data.code === "voice_upgrade") {
-        voiceLocked.current = true;
-        setUpsell(true);
+        setLocked(true);
+        if (opts.pressedMic) setUpsell(true);
         setConnecting(false);
         return;
       }
@@ -587,11 +597,11 @@ export function Assistant() {
               variant="ghost"
               size="icon-sm"
               className="ml-auto"
-              aria-label={speakReplies ? t("assistant.stopReading") : t("assistant.readAloud")}
-              aria-pressed={speakReplies}
+              aria-label={speakReplies && !locked ? t("assistant.stopReading") : t("assistant.readAloud")}
+              aria-pressed={speakReplies && !locked}
               onClick={toggleSpeak}
             >
-              {speakReplies ? <Volume2 /> : <VolumeX />}
+              {speakReplies && !locked ? <Volume2 /> : <VolumeX />}
             </Button>
             <Button variant="ghost" size="icon-sm" aria-label={t("common.close")} onClick={close}>
               <X />
@@ -604,7 +614,7 @@ export function Assistant() {
                 type="button"
                 onClick={() => {
                   unlockSpeech();
-                  void startListening();
+                  void startListening({ pressedMic: true });
                 }}
                 className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 py-8 text-primary"
               >
@@ -803,7 +813,7 @@ export function Assistant() {
                 stopSpeaking();
                 unlockSpeech();
                 if (listening || connecting) stopListening();
-                else void startListening();
+                else void startListening({ pressedMic: true });
               }}
             >
               {listening ? <MicOff /> : <Mic />}

@@ -37,13 +37,16 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "find_client",
     description:
-      "Look a client up by name as heard, or by phone number (whole, or just the last few digits). Returns up " +
-      "to five, best first, with the last three digits of their number, last visit and patch test. exactMatch " +
-      "means the whole name or whole number matched.",
+      "Look a client up by name as heard, by phone number (whole, or just the last few digits), or both. " +
+      "Returns the best five, and everyone on that number, with the last three digits of their number, last " +
+      "visit and patch test. exactMatch: the whole name matched, or the whole number is this client's alone " +
+      "(and fits any name said). Several on one number (a parent and a child) are none of them exact: ask which.",
     input_schema: {
       type: "object",
-      properties: { name: { type: "string", description: "The name, or the number or its ending, as said" } },
-      required: ["name"],
+      properties: {
+        name: { type: "string", description: "The name as said, without the number" },
+        phone: { type: "string", description: "The number or its ending, as said, without the name" },
+      },
     },
   },
   {
@@ -252,8 +255,9 @@ Every second counts:
   thing. "No Tom on the books. Book him as new?"
 
 Answering (changes nothing):
-- A client: find_client with the name or number, then client_history. "When
-  was Sarah last in", "what colour did she have", "who's 07700 900123".
+- A client: find_client with the name, the number (phone), or both, then
+  client_history. "When was Sarah last in", "what colour did she have",
+  "who's 07700 900123".
   Answer from their notes and visits; if it isn't written down, say so.
 - The day: day_schedule. "What's my afternoon like", "who's first in
   tomorrow", "who's free on Friday".
@@ -264,9 +268,12 @@ Answering (changes nothing):
 - Money: takings. Amount taken and appointments done; no-shows only if any.
 
 Doing (every one of these only puts a card on screen):
-- Book: find_client with the name as heard. One exactMatch: use it. Nobody:
-  a new client, booked by name, with a number only if one was said. Then
-  propose_booking with the service, day and time in the words used.
+- Book: find_client with the name and any number as heard, each in its own
+  field (name, phone); the same apart in propose_booking. One exactMatch: use
+  it. Several who could be meant and no single exactMatch: ask which in one
+  line before anything else ("Sarah Jones, ending 123, or Sarah Johnson?").
+  Nobody: a new client, booked by name, with a number only if one was said.
+  Then propose_booking with the service, day and time in the words used.
 - Move or cancel: find_client, find_bookings, then propose_move or
   propose_cancel. Pick the booking described; ask only if you cannot tell.
 - "And text her": set textClient on that proposal.
@@ -374,7 +381,7 @@ export async function startVoiceBooking(
       const i = input as Record<string, string | boolean | number | undefined>;
       switch (name) {
         case "find_client":
-          return { clients: await findClients(asker.organizationId, String(i.name ?? "")) };
+          return { clients: await findClients(asker.organizationId, { name: str(i.name), phone: str(i.phone) }) };
         case "find_bookings":
           return { bookings: await upcomingBookings(asker, String(i.clientId ?? ""), cfg) };
         case "check_availability":

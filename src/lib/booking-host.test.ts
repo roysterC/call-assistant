@@ -187,28 +187,30 @@ describe("salons' own addresses (SALON_DOMAIN)", () => {
     }
   });
 
-  it("sends book.getkikai.com/<slug> on to the salon's own address", () => {
-    const route = (p: string, q = "") => routeOnBookingHost(p, q, ORIGIN, DOMAIN);
-    expect(route("/maison-nails")).toEqual({ kind: "redirect", location: "https://maison-nails.getkikai.com/" });
-    expect(route("/maison-nails/book", "?service=Gel")).toEqual({
-      kind: "redirect",
-      location: "https://maison-nails.getkikai.com/book?service=Gel",
-    });
-    expect(route("/s/maison-nails")).toEqual({ kind: "redirect", location: "https://maison-nails.getkikai.com/" });
+  it("leaves sending a salon on to its own address to its page, which knows it exists", () => {
+    const route = (p: string, q = "") => routeOnBookingHost(p, q, ORIGIN);
+    // A typo is "not found" on the booking address, not a redirect to a name with no certificate.
+    expect(route("/maison-nails")).toEqual({ kind: "rewrite", path: "/s/maison-nails" });
+    expect(route("/maison-nails/book")).toEqual({ kind: "rewrite", path: "/s/maison-nails/book" });
+    expect(route("/s/maison-nails")).toEqual({ kind: "redirect", location: `${ORIGIN}/maison-nails` });
     // The booking script and embeds stay where salons' websites load them.
     expect(route("/book.js")).toEqual({ kind: "pass" });
     expect(route("/embed/book/maison-nails")).toEqual({ kind: "pass" });
-    // A salon whose slug can't be an address stays here.
-    expect(route("/demo")).toEqual({ kind: "rewrite", path: "/s/demo" });
   });
 
-  it("sends the app's /s/<slug> to the salon's own address", () => {
-    expect(redirectToBookingHost("/s/maison-nails/book", "?x=1", ORIGIN, DOMAIN)).toBe(
-      "https://maison-nails.getkikai.com/book?x=1"
-    );
-    expect(redirectToBookingHost("/s/maison-nails", "", null, DOMAIN)).toBe("https://maison-nails.getkikai.com/");
-    expect(redirectToBookingHost("/s/demo", "", ORIGIN, DOMAIN)).toBe(`${ORIGIN}/demo`);
-    expect(redirectToBookingHost("/s/demo", "", null, DOMAIN)).toBeNull();
+  it("serves only its own salon's booking API and embed", () => {
+    const route = (p: string) => routeOnSalonHost(p, "", "maison-nails", DOMAIN);
+    expect(route("/api/book/maison-nails/availability")).toEqual({ kind: "pass" });
+    expect(route("/embed/book/maison-nails")).toEqual({ kind: "pass" });
+    expect(route("/api/book/rival-salon/availability")).toEqual({ kind: "not_found" });
+    expect(route("/embed/book/rival-salon")).toEqual({ kind: "not_found" });
+  });
+
+  it("never takes the app's own hostnames, or labels Let's Encrypt refuses, for a salon", () => {
+    expect(salonFromHost("crm.getkikai.com", DOMAIN, ["crm.getkikai.com"])).toBeNull();
+    expect(salonFromHost("maison-nails.getkikai.com", DOMAIN, ["crm.getkikai.com"])).toBe("maison-nails");
+    expect(hasOwnSubdomain("ab--nails")).toBe(false);
+    expect(hasOwnSubdomain("nails--ab")).toBe(true);
   });
 
   it("links within the salon's address from /, and gives the own address out", () => {
@@ -232,5 +234,6 @@ describe("salons' own addresses (SALON_DOMAIN)", () => {
     expect(servesOnlySalonPages("maison-nails.getkikai.com", env)).toBe(true);
     expect(servesOnlySalonPages("app.getkikai.com", env)).toBe(false);
     expect(servesOnlySalonPages("maison-nails.getkikai.com", { BOOKING_URL: ORIGIN })).toBe(false);
+    expect(servesOnlySalonPages("crm.getkikai.com", { ...env, AUTH_URL: "https://crm.getkikai.com" })).toBe(false);
   });
 });

@@ -67,7 +67,8 @@ export function NailChooser({
                 className={`${styles.pressWide} flex min-h-[60px] w-full items-center justify-between gap-4 rounded-[18px] border-[1.5px] px-[22px] py-3 text-left text-[17px] font-semibold active:bg-[rgba(255,244,232,.12)]`}
                 style={
                   on
-                    ? { background: "var(--brand)", color: "var(--brand-fg)", borderColor: "var(--brand)" }
+                    ? // A cream edge, so the choice shows on ink whatever the salon's colour.
+                      { background: "var(--brand)", color: "var(--brand-fg)", borderColor: CREAM }
                     : { color: CREAM, borderColor: "rgba(255,244,232,.35)" }
                 }
               >

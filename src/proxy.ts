@@ -45,15 +45,16 @@ export async function proxy(req: NextRequest) {
     const { pathname, search } = req.nextUrl;
     const hostname = requestHostname(req.headers, req.nextUrl.host);
     if (booking && isBookingHost(hostname, booking)) {
-      return applyHostRoute(routeOnBookingHost(pathname, search, booking, domain), req);
+      return applyHostRoute(routeOnBookingHost(pathname, search, booking), req);
     }
     const salon = salonFromHost(hostname, domain);
     if (salon && domain) return applyHostRoute(routeOnSalonHost(pathname, search, salon, domain), req);
     // A salon page asked for on the app's address. Not for the app's own
     // in-page navigation (an RSC fetch), which cannot follow a redirect to
     // another address.
-    if (!req.headers.get("rsc")) {
-      const to = redirectToBookingHost(pathname, search, booking, domain);
+    // (A salon with its own address is sent on from its page: sendToOwnAddress.)
+    if (booking && !req.headers.get("rsc")) {
+      const to = redirectToBookingHost(pathname, search, booking);
       if (to) return NextResponse.redirect(to, 308);
     }
   }
@@ -106,7 +107,8 @@ export async function proxy(req: NextRequest) {
     "/s/",
     "/api/book/",
     // Caddy asking whether to fetch a certificate for <slug>.getkikai.com
-    // (src/app/api/salon-tls): only says whether a salon's page exists.
+    // (src/app/api/salon-tls): answered only over 127.0.0.1, and only says
+    // whether a salon's page exists, which the page itself would.
     "/api/salon-tls",
     "/book.js",
     "/login",

@@ -2,11 +2,12 @@
  * The addresses salons' pages are given out on: their own,
  * <slug>.getkikai.com (SALON_DOMAIN, below), or book.getkikai.com/<slug>,
  * rather than app.getkikai.com/s/<slug>. With both set, book.getkikai.com
- * keeps serving the booking script and embeds, and sends a salon's page on
- * to the salon's own address.
+ * keeps serving the booking script and embeds, and a salon's page there
+ * sends the visitor on to the salon's own address (the page does, once it
+ * knows the salon exists: booking-host-server.ts).
  *
  * Set by BOOKING_URL on the server (e.g. https://book.getkikai.com), pointed
- * at the same app by DNS and nginx. Unset, nothing here does anything: the
+ * at the same app by DNS and Caddy. Unset, nothing here does anything: the
  * pages stay at /s/<slug> on whatever address the app has.
  *
  * On the booking address only the public booking pages exist. The CRM, its
@@ -56,7 +57,7 @@ export function bookingOrigin(raw: string | undefined = process.env.BOOKING_URL)
   }
 }
 
-/** The hostname a request was made to, as nginx passed it on. */
+/** The hostname a request was made to, as Caddy passed it on. */
 export function requestHostname(headers: Headers, fallback: string): string {
   const raw = headers.get("x-forwarded-host")?.split(",")[0] || headers.get("host") || fallback;
   return raw.trim().toLowerCase().replace(/:\d+$/, "");
@@ -89,14 +90,34 @@ export const RESERVED_SUBDOMAINS: readonly string[] = [
   "staging", "dev", "test", "demo", "beta", "preview", "m", "go", "link", "links",
 ];
 
-/** Whether a salon with this slug can have <slug>.<domain>: a usable DNS label, not one of ours. */
+/**
+ * Whether a salon with this slug can have <slug>.<domain>: a label DNS and
+ * Let's Encrypt accept (no dash at either end, none of the "ab--" form,
+ * kept for encoded names), and not one of ours.
+ */
 export function hasOwnSubdomain(slug: string): boolean {
-  return new RegExp(`^${SLUG}$`).test(slug) && !slug.endsWith("-") && !RESERVED_SUBDOMAINS.includes(slug);
+  return (
+    new RegExp(`^${SLUG}$`).test(slug) &&
+    !slug.endsWith("-") &&
+    slug.slice(2, 4) !== "--" &&
+    !RESERVED_SUBDOMAINS.includes(slug)
+  );
+}
+
+/** The hostnames the app itself answers on (AUTH_URL, NEXTAUTH_URL, BOOKING_URL): never a salon's. */
+export function appHostnames(env: Record<string, string | undefined> = process.env): string[] {
+  return [env.AUTH_URL, env.NEXTAUTH_URL, env.BOOKING_URL].flatMap((u) => {
+    try {
+      return u ? [new URL(u).hostname.toLowerCase()] : [];
+    } catch {
+      return [];
+    }
+  });
 }
 
 /** The salon whose own address `hostname` is, or null. */
-export function salonFromHost(hostname: string, domain: string | null): string | null {
-  if (!domain) return null;
+export function salonFromHost(hostname: string, domain: string | null, notHosts: string[] = appHostnames()): string | null {
+  if (!domain || notHosts.includes(hostname)) return null;
   const suffix = `.${domain}`;
   if (!hostname.endsWith(suffix)) return null;
   const label = hostname.slice(0, -suffix.length);
@@ -143,12 +164,7 @@ export type HostRoute =
  * What a request to the booking address gets: a salon's page (rewritten onto
  * /s/<slug>), something the pages need, a redirect, or nothing at all.
  */
-export function routeOnBookingHost(
-  pathname: string,
-  search: string,
-  origin: string,
-  domain: string | null = null
-): HostRoute {
+export function routeOnBookingHost(pathname: string, search: string, origin: string): HostRoute {
   // The bare address: the company's own site, one level up
   // (book.getkikai.com -> getkikai.com).
   if (pathname === "/" || pathname === "") {
@@ -160,19 +176,13 @@ export function routeOnBookingHost(
 
   // An old /s/<slug> link: to the address it now has.
   const old = OLD_SALON_PATH.exec(pathname);
-  if (old) {
-    const own = salonOrigin(old[1], domain);
-    return { kind: "redirect", location: own ? `${own}${old[2] ?? "/"}${search}` : `${origin}/${old[1]}${old[2] ?? ""}${search}` };
-  }
+  if (old) return { kind: "redirect", location: `${origin}/${old[1]}${old[2] ?? ""}${search}` };
 
+  // A salon with an address of its own is sent on by its page, which knows
+  // whether the salon exists: a typo here gets "not found", never a
+  // redirect to a name with no certificate.
   const m = SALON_PATH.exec(pathname);
-  if (m) {
-    // A salon with an address of its own: there, so flyers and Instagram
-    // bios printed with book.getkikai.com/<slug> keep working.
-    const own = salonOrigin(m[1], domain);
-    if (own) return { kind: "redirect", location: `${own}${m[2] ?? "/"}${search}` };
-    return { kind: "rewrite", path: `/s/${m[1]}${m[2] ?? ""}` };
-  }
+  if (m) return { kind: "rewrite", path: `/s/${m[1]}${m[2] ?? ""}` };
 
   return { kind: "not_found" };
 }
@@ -182,17 +192,9 @@ export function routeOnBookingHost(
  * booking address, so the links salons were given before keep working and
  * every page has one address. Null for anything else.
  */
-export function redirectToBookingHost(
-  pathname: string,
-  search: string,
-  origin: string | null,
-  domain: string | null = null
-): string | null {
+export function redirectToBookingHost(pathname: string, search: string, origin: string): string | null {
   const m = OLD_SALON_PATH.exec(pathname);
-  if (!m) return null;
-  const own = salonOrigin(m[1], domain);
-  if (own) return `${own}${m[2] ?? "/"}${search}`;
-  return origin ? `${origin}/${m[1]}${m[2] ?? ""}${search}` : null;
+  return m ? `${origin}/${m[1]}${m[2] ?? ""}${search}` : null;
 }
 
 /**
@@ -202,6 +204,9 @@ export function redirectToBookingHost(
 export function routeOnSalonHost(pathname: string, search: string, slug: string, domain: string): HostRoute {
   if (pathname === "/" || pathname === "") return { kind: "rewrite", path: `/s/${slug}` };
   if (pathname === "/book" || pathname === "/book/") return { kind: "rewrite", path: `/s/${slug}/book` };
+  // Its own booking API and embed only, never another salon's under its name.
+  const other = /^\/(?:api|embed)\/book\/([^/]+)/.exec(pathname);
+  if (other && other[1] !== slug) return { kind: "not_found" };
   if (passes(pathname)) return { kind: "pass" };
   // Its own old /s/<slug> path, typed onto the new address.
   const old = OLD_SALON_PATH.exec(pathname);
@@ -217,5 +222,8 @@ export function servesOnlySalonPages(
   hostname: string,
   env: Record<string, string | undefined> = process.env
 ): boolean {
-  return isBookingHost(hostname, bookingOrigin(env.BOOKING_URL)) || salonFromHost(hostname, salonDomain(env.SALON_DOMAIN)) !== null;
+  return (
+    isBookingHost(hostname, bookingOrigin(env.BOOKING_URL)) ||
+    salonFromHost(hostname, salonDomain(env.SALON_DOMAIN), appHostnames(env)) !== null
+  );
 }

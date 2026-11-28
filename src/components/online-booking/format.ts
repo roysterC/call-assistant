@@ -13,16 +13,18 @@ export type Period = (typeof PERIODS)[number];
 
 /**
  * The brand colour as CSS variables: --brand for fills, --brand-fg for text
- * on it, and --brand-ink for brand-coloured text on white, which falls back
- * to near-black when the brand is too pale to read.
+ * on it, and --brand-ink for brand-coloured text on the page's ground (the
+ * salon pages' cream, or white), which falls back to near-black when the
+ * brand is too pale to read there.
  */
-export function brandStyle(hex: string): CSSProperties {
+export function brandStyle(hex: string, ground = "#ffffff"): CSSProperties {
   const rgb = parseHex(hex);
-  const onWhite = rgb ? contrastRatio(relativeLuminance(rgb), 1) : 1;
+  const under = parseHex(ground);
+  const onGround = rgb && under ? contrastRatio(relativeLuminance(rgb), relativeLuminance(under)) : 1;
   return {
     "--brand": hex,
     "--brand-fg": readableTextOn(hex).color,
-    "--brand-ink": onWhite >= 4.5 ? hex : "#1c1917",
+    "--brand-ink": onGround >= 4.5 ? hex : "#1c1917",
   } as CSSProperties;
 }
 

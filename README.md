@@ -102,8 +102,8 @@ On netcup:
      wildcard, so the marketing site is untouched.
   2. Caddyfile: Caddy fetches each salon's certificate the first time its
      address is visited, after asking the app whether it is a real salon
-     (`/api/salon-tls`), so nobody can make it request certificates for
-     made-up names. Add the `on_demand_tls` lines to the global options block
+     (`/api/salon-tls`, which answers only requests from the box itself), so
+     nobody can make it request certificates for made-up names. Add the `on_demand_tls` lines to the global options block
      at the top of the file (create the block if there is none), and the
      `*.getkikai.com` site beside the others:
 
@@ -1034,8 +1034,10 @@ where the salon uses the diary. Code: `src/lib/online-booking/`.
   Without `BOOKING_URL`, everything below is at `/s/<slug>` on the app.
   With `SALON_DOMAIN` set too (production: `getkikai.com`), each salon's
   page is at `<slug>.getkikai.com/` and its booking at `/book` there; the
-  booking address and `/s/<slug>` redirect to it, and that address serves
-  nothing else (no other salon's pages, no CRM).
+  booking address and `/s/<slug>` redirect to it (from the salon's page,
+  once it is known to exist: a typo is "not found" where it was typed), and
+  that address serves nothing else (no other salon's pages or booking API,
+  no CRM).
 - **`/s/<slug>`**: a one-page website built from the salon's settings
   (services and prices, team, opening hours, phone), plus a headline, about
   text, address and brand colour set in that section. A "Next free" button

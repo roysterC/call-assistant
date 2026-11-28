@@ -39,6 +39,12 @@ describe("format", () => {
     expect(pale["--brand-fg"]).not.toBe("#ffffff");
   });
 
+  it("judges brand-coloured text against the cream the salon pages sit on", () => {
+    // Just readable on white, not quite on cream.
+    expect((brandStyle("#767676") as Record<string, string>)["--brand-ink"]).toBe("#767676");
+    expect((brandStyle("#767676", "#FFF4E8") as Record<string, string>)["--brand-ink"]).toBe("#1c1917");
+  });
+
   it("makes a calendar file in UTC with its text escaped", () => {
     const ics = icsFor({
       start: "2026-11-11T15:15:00.000Z",
