@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   closedBands,
@@ -102,27 +102,6 @@ function lengthLabel(min: number, t: Translate): string {
 }
 
 /** Who a booking is for, as the diary names them. */
-/**
- * The bookings that overlap another of the same person's that day:
- * double-booked. Cancelled ones hold no time, so never count.
- */
-export function doubleBookedIds(appointments: CalendarAppointment[]): Set<string> {
-  const live = appointments
-    .filter((a) => a.status !== "cancelled")
-    .map((a) => ({ id: a.id, who: a.stylistName.toLowerCase(), from: Date.parse(a.startsAt), to: Date.parse(a.endsAt) }))
-    .sort((x, y) => x.from - y.from);
-  const out = new Set<string>();
-  for (let i = 0; i < live.length; i++) {
-    for (let j = i + 1; j < live.length && live[j].from < live[i].to; j++) {
-      if (live[j].who === live[i].who) {
-        out.add(live[i].id);
-        out.add(live[j].id);
-      }
-    }
-  }
-  return out;
-}
-
 export function clientLabel(lead: CalendarAppointment["lead"], t: Translate): string {
   if (lead.anonymisedAt) return t("grid.deletedClient");
   return lead.name ?? t("grid.client");
@@ -382,11 +361,6 @@ export function DayGrid({
   const nearNow = (min: number) => nowShown && Math.abs(min - nowMinutes!) < 14;
   // Nobody to book all day: closed, or everyone off. Said once, across the grid.
   const nobodyToday = stylists.length > 0 && (!open || stylists.every((s) => !s.worksToday));
-  // Whose lane holds two bookings at once, flagged in its header too.
-  const doubled = doubleBookedIds(appointments.filter((a) => isOnDate(new Date(a.startsAt), date, timeZone)));
-  const doubledLanes = new Map(
-    stylists.map((s) => [s.name, appointments.filter((a) => doubled.has(a.id) && isTechnicians(a, s)).length] as const)
-  );
 
   return (
     <div ref={scroller} className="flex-1 min-w-0 min-h-0 overflow-auto rounded-xl border border-border bg-card shadow-surface">
@@ -419,18 +393,6 @@ export function DayGrid({
                         ? null
                         : t("grid.notIn")}
                 </div>
-                {(doubledLanes.get(s.name) ?? 0) > 0 && (
-                  // A mark and how many, which fit any lane; the word is in
-                  // its title and its name, and on the bookings themselves.
-                  <span
-                    title={t("grid.doubleBookedTitle")}
-                    className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-red-50 px-1.5 py-px text-[11px] font-bold tabular-nums text-red-800"
-                  >
-                    <TriangleAlert className="h-3 w-3 shrink-0" aria-hidden="true" />
-                    {doubledLanes.get(s.name)}
-                    <span className="sr-only">{t("grid.doubleBookedTitle")}</span>
-                  </span>
-                )}
               </div>
             </div>
           ))}
@@ -910,12 +872,11 @@ function StylistColumn({
         const roomy = length > 30;
         // New from the receptionist: its own colour until it is opened.
         const tone = a.unseen ? NEW_BOOKING : toneFor(a.serviceText, tones);
-        // Two bookings at once for one person: flagged in words and red, the
-        // start time kept whole (the end time goes first when it is narrow).
-        const doubled = b.lanes > 1;
-        // Doubled bookings share the column side by side, across its whole
-        // width (the overbook strip gives way to them there), and each sizes
-        // its time to its own width rather than cutting it.
+        // Two bookings at once for one person (an overbook from the desk,
+        // ordinary in a salon) share the column side by side, across its
+        // whole width (the overbook strip gives way to them there), and look
+        // like any other booking; each sizes its time to its own width.
+        const shared = b.lanes > 1;
         const done = a.status === "completed";
         const noShow = a.status === "no_show";
         const statusWord = done ? t("grid.done") : noShow ? t("grid.noShow") : null;
@@ -968,12 +929,11 @@ function StylistColumn({
               stylist.name,
               a.unseen ? t("grid.new") : null,
               statusWord,
-              doubled ? t("grid.doubleBooked") : null,
             ]
               .filter(Boolean)
               .join(", ")}
             className={cn(
-              doubled && "px-1.5",
+              shared && "px-1.5",
               // Content from the top, where the booking starts: a button
               // centres it otherwise, putting a long booking's time halfway down.
               // Lines keep their height and the card clips at the bottom, rather
@@ -990,16 +950,15 @@ function StylistColumn({
             )}
             style={{
               background: done ? "var(--secondary)" : tone.fill,
-              borderColor: doubled ? "var(--destructive)" : tone.border,
-              borderWidth: doubled ? 2 : undefined,
+              borderColor: tone.border,
               top: `${b.topPct}%`,
               height: `${b.heightPct}%`,
               // Every block sits inside the column minus the overbook strip,
               // so there is always bare column left to click on.
-              left: doubled
+              left: shared
                 ? `calc(100% * ${b.lane / b.lanes} + 2px)`
                 : "2px",
-              width: doubled
+              width: shared
                 ? `calc(100% / ${b.lanes} - 4px)`
                 : `calc(100% - ${OVERBOOK_GUTTER_PX}px - 4px)`,
               // Above the now line, which shows only in the gaps.
@@ -1033,7 +992,6 @@ function StylistColumn({
                   {shortTime(startMin, clock)}
                 </span>
               )}
-              {doubled && <TriangleAlert className="h-3.5 w-3.5 shrink-0 self-center text-destructive @max-[3.5rem]:hidden" aria-hidden="true" />}
               {a.unseen && (
                 <span
                   className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-white"
@@ -1046,13 +1004,6 @@ function StylistColumn({
             </span>
             {length > 15 && <span className="block truncate text-foreground/80">{a.serviceText}</span>}
             {statusChip}
-            {/* The word where it fits; the red border, the mark and the lane's
-                header say it on a narrow one. */}
-            {doubled && length > 45 && (
-              <span className="mt-0.5 inline-flex w-fit max-w-full items-center truncate rounded-full bg-red-50 px-1.5 py-px text-[10.5px] font-bold text-red-800 @max-[6.5rem]:hidden">
-                {t("grid.doubleBookedTitle")}
-              </span>
-            )}
             {a.patchTestRequired && (
               <span className="block truncate font-medium text-papaya-whip-100">{t("grid.patchTest")}</span>
             )}

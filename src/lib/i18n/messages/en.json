@@ -304,11 +304,9 @@
     "done": "Done",
     "noShow": "No-show",
     "cancelled": "Cancelled",
-    "doubleBooked": "double-booked",
     "dayOff": "Day off",
     "closedDay": "Closed",
-    "nobodyIn": "Nobody's in",
-    "doubleBookedTitle": "Double-booked"
+    "nobodyIn": "Nobody's in"
   },
   "month": {
     "prevMonth": "Previous month",

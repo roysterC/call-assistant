@@ -304,11 +304,9 @@
     "done": "Xong",
     "noShow": "Không đến",
     "cancelled": "Đã hủy",
-    "doubleBooked": "trùng lịch",
     "dayOff": "Nghỉ",
     "closedDay": "Tiệm nghỉ",
-    "nobodyIn": "Không ai làm",
-    "doubleBookedTitle": "Trùng lịch"
+    "nobodyIn": "Không ai làm"
   },
   "month": {
     "prevMonth": "Tháng trước",

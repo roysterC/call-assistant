@@ -12,8 +12,7 @@ import { INTL_LOCALE, clockTime } from "@/lib/i18n";
 import { formatMoneyShort } from "@/lib/money";
 import { salonDate } from "@/lib/calendar-layout";
 import { initialsFor } from "@/lib/channels";
-import { TriangleAlert } from "lucide-react";
-import { clientLabel, doubleBookedIds, type CalendarAppointment } from "@/components/calendar/day-grid";
+import { clientLabel, type CalendarAppointment } from "@/components/calendar/day-grid";
 import type { ServiceTone } from "@/lib/service-colours";
 import { toneFor } from "@/lib/service-colours";
 import { cn } from "@/lib/utils";
@@ -57,9 +56,6 @@ export function WeekView({
     const d = salonDate(new Date(a.startsAt), timeZone);
     byDay.set(d, [...(byDay.get(d) ?? []), a]);
   }
-
-  // The day view's double-booking flag, on the same bookings.
-  const doubled = doubleBookedIds(appointments);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -126,12 +122,11 @@ export function WeekView({
                           "flex flex-col rounded-[10px] border-[1.5px] px-2 py-1.5 text-xs leading-tight",
                           // The day view's marks: a dashed edge for a no-show, a
                           // quieter fill for one that is done, and the word.
-                          a.status === "no_show" && "border-dashed",
-                          doubled.has(a.id) && "border-2"
+                          a.status === "no_show" && "border-dashed"
                         )}
                         style={{
                           background: a.status === "completed" ? "var(--secondary)" : tone.fill,
-                          borderColor: doubled.has(a.id) ? "var(--destructive)" : tone.border,
+                          borderColor: tone.border,
                         }}
                         title={`${a.serviceText} · ${a.stylistName}`}
                       >
@@ -145,7 +140,7 @@ export function WeekView({
                         </span>
                         <span className="truncate">{clientLabel(a.lead, t)}</span>
                         {/* The day view's chips, smaller. */}
-                        {(a.status === "completed" || a.status === "no_show" || doubled.has(a.id)) && (
+                        {(a.status === "completed" || a.status === "no_show") && (
                           <span className="mt-0.5 flex flex-wrap gap-1">
                             {(a.status === "completed" || a.status === "no_show") && (
                               <span
@@ -155,12 +150,6 @@ export function WeekView({
                                 )}
                               >
                                 {t(a.status === "no_show" ? "grid.noShow" : "grid.done")}
-                              </span>
-                            )}
-                            {doubled.has(a.id) && (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-red-50 px-1.5 py-px text-[10.5px] font-bold text-red-800">
-                                <TriangleAlert className="h-3 w-3" aria-hidden="true" />
-                                {t("grid.doubleBookedTitle")}
                               </span>
                             )}
                           </span>

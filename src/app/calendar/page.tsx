@@ -37,7 +37,6 @@ import {
   type CalendarAppointment,
   type CalendarStylist,
   type DiaryBlock,
-  doubleBookedIds,
 } from "@/components/calendar/day-grid";
 import { AppointmentSheet } from "@/components/calendar/appointment-sheet";
 import { useIsPhone } from "@/lib/use-is-phone";
@@ -665,9 +664,6 @@ export default function CalendarPage() {
   };
 
   const firstQuote = quotes[0];
-  // Whose lane holds two bookings at once: a red dot on their phone tab.
-  const doubled = doubleBookedIds(appointments);
-  const doubledNames = new Set(appointments.filter((a) => doubled.has(a.id)).map((a) => a.stylistName.toLowerCase()));
   // A phone has no room for "Today, " before the date (the Today button
   // already says it), and Vietnamese runs long enough to cut the month off.
   const phoneTitle = mode === "week" ? title : shortDate(selected);
@@ -800,18 +796,13 @@ export default function CalendarPage() {
                   aria-selected={on}
                   aria-label={c.name}
                   onClick={() => setPhonePick(c.name)}
-                  className={`relative flex h-11 min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[9px] px-1.5 text-[13.5px] font-semibold transition-colors ${
+                  className={`flex h-11 min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[9px] px-1.5 text-[13.5px] font-semibold transition-colors ${
                     on ? "bg-card shadow-sm" : "text-muted-foreground active:bg-card/60"
                   } ${c.worksToday ? "" : "italic"}`}
                 >
                   {/* Five across leaves room for the name alone. */}
                   {columns.length <= 4 && <StylistBadge stylist={{ ...c, worksToday: true }} size="sm" />}
                   <span className="truncate">{c.name.split(/\s+/)[0]}</span>
-                  {doubledNames.has(c.name.toLowerCase()) && (
-                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive">
-                      <span className="sr-only">, {t("grid.doubleBookedTitle")}</span>
-                    </span>
-                  )}
                 </button>
               );
             })}
