@@ -80,6 +80,25 @@ exports[`the assistant's reply catalogue > book: a day the stylist does not work
 }
 `;
 
+exports[`the assistant's reply catalogue > book: a name on the books said with a number nobody has 1`] = `
+{
+  "candidates": [
+    {
+      "clientId": "sarah",
+      "exactMatch": false,
+      "lastVisit": null,
+      "name": "Sarah Friend",
+      "onThatNumber": false,
+      "patchTest": null,
+      "phoneEnding": "715",
+      "reachedThrough": null,
+    },
+  ],
+  "message": "That number isn't on the books. Ask if it's one of these with a new number, or a new client.",
+  "ok": false,
+}
+`;
+
 exports[`the assistant's reply catalogue > book: a new client by name and number 1`] = `
 {
   "draft": {
@@ -93,6 +112,31 @@ exports[`the assistant's reply catalogue > book: a new client by name and number
     "newClient": {
       "name": "Pat Newcomer",
       "phone": "+447700900111",
+    },
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a new client by name with their number 1`] = `
+{
+  "draft": {
+    "clientName": "Tom Baker",
+    "clientType": "new",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T13:45:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": null,
+    "newClient": {
+      "name": "Tom Baker",
+      "phone": "+447700900999",
     },
     "notes": null,
     "patchTestRequired": false,

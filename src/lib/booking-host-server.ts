@@ -51,7 +51,7 @@ export async function sendToOwnAddress(
   const search = q.toString();
   // Temporary, not permanent: a browser keeps a 308 for good, and would go
   // on jumping to the salon's address after it stops taking bookings there
-  // (where there is then no certificate). Search engines follow the page's
-  // canonical link to the salon's address instead.
+  // (where there is then no certificate). The page it lands on names that
+  // address as its canonical one, which is what search engines go by.
   redirect(`${own}${path}${search ? `?${search}` : ""}`);
 }

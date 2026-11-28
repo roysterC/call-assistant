@@ -157,60 +157,114 @@ const DIGIT_WORDS = new Map<string, string>(Object.entries({
 }));
 
 /**
- * A number as dictation may give it, in digits: "oh seven seven double oh"
- * is 07700. Words that aren't digits are left as they are.
+ * Words around a name or number that are neither: titles, "the one ending",
+ * "book … for". Left out of the name, so "Mrs Jones" is matched as Jones.
  */
-export function spokenDigits(heard: string): string {
-  const out: string[] = [];
-  const words = heard.toLowerCase().split(/\s+/);
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i].replace(/[^a-z0-9]/g, "");
-    const after = (words[i + 1] ?? "").replace(/[^a-z0-9]/g, "");
-    const next = DIGIT_WORDS.get(after) ?? (/^\d$/.test(after) ? after : undefined);
-    if ((w === "double" || w === "triple") && next) {
-      out.push(next.repeat(w === "double" ? 2 : 3));
-      i++;
-    } else out.push(DIGIT_WORDS.get(w) ?? words[i]);
+const FILLER = new Set([
+  "mr", "mrs", "ms", "miss", "mx", "dr",
+  "the", "a", "an", "one", "for", "with", "to", "is", "it", "its", "it's", "that", "who", "who's", "whos",
+  "client", "called", "named", "ending", "ends", "number", "phone", "mobile", "on", "in", "book", "booking",
+]);
+
+const isDigitToken = (t: string) => /\d/.test(t) && /^[+()\d-]+$/.test(t);
+const cleanToken = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}'+()-]+/gu, "");
+
+/**
+ * What was heard, split into a number and a name. The number is the
+ * longest run of digits next to each other (typed, or spoken: "oh seven
+ * seven double oh"); a lone digit word elsewhere is part of the name, so
+ * "Ji-woo Oh" and "Sean O Neill ending 456" keep their surnames, and "the
+ * one ending 123" is 123. Fewer than three digits is no number at all.
+ */
+export function splitLookup(heard: string): { digits: string | null; name: string[]; nameText: string } {
+  const raw = heard.split(/\s+/).filter(Boolean);
+  const tokens = raw.map(cleanToken);
+  // Each token as digits, if it is part of a number.
+  const asDigits = (i: number): { digits: string; used: number } | null => {
+    const t = tokens[i];
+    if (isDigitToken(t)) return { digits: t.replace(/\D/g, ""), used: 1 };
+    if (DIGIT_WORDS.has(t)) return { digits: DIGIT_WORDS.get(t)!, used: 1 };
+    if ((t === "double" || t === "triple") && i + 1 < tokens.length) {
+      const next = DIGIT_WORDS.get(tokens[i + 1]) ?? (/^\d$/.test(tokens[i + 1]) ? tokens[i + 1] : undefined);
+      if (next) return { digits: next.repeat(t === "double" ? 2 : 3), used: 2 };
+    }
+    return null;
+  };
+  let best: { from: number; to: number; digits: string } | null = null;
+  for (let i = 0; i < tokens.length; ) {
+    let j = i;
+    let digits = "";
+    for (let d = asDigits(j); d; d = asDigits(j)) {
+      digits += d.digits;
+      j += d.used;
+    }
+    if (j > i) {
+      if (!best || digits.length > best.digits.length) best = { from: i, to: j, digits };
+      i = j;
+    } else i++;
   }
-  return out.join(" ");
+  // A spoken digit word at the edge of a typed number is part of the name:
+  // "Ji-woo Oh 07700 900123" is Ji-woo Oh on 07700 900123.
+  if (best) {
+    while (best.to - best.from > 1 && DIGIT_WORDS.has(tokens[best.from]) && isDigitToken(tokens[best.from + 1])) {
+      best = { ...best, from: best.from + 1, digits: best.digits.slice(DIGIT_WORDS.get(tokens[best.from])!.length) };
+    }
+    while (best.to - best.from > 1 && DIGIT_WORDS.has(tokens[best.to - 1]) && isDigitToken(tokens[best.to - 2])) {
+      best = { ...best, to: best.to - 1, digits: best.digits.slice(0, -DIGIT_WORDS.get(tokens[best.to - 1])!.length) };
+    }
+  }
+  const number = best && best.digits.length >= 3 ? best : null;
+  const kept = raw
+    .map((w, i) => ({ w: w.replace(/[^\p{L}'-]+/gu, ""), t: tokens[i], i }))
+    .filter(({ w, t, i }) => w && !(number && i >= number.from && i < number.to) && !FILLER.has(t));
+  return {
+    digits: number ? number.digits : null,
+    name: kept.map(({ t }) => t.replace(/[^\p{L}'-]+/gu, "")).filter(Boolean),
+    nameText: kept.map(({ w }) => w).join(" "),
+  };
 }
 
 /**
- * The digits of a number said or typed ("07700 900123", "ending 123",
- * "oh seven seven…"), as a search: the whole number matched on its last
+ * The number in a lookup as a search: a whole number matched on its last
  * nine digits, so 07700… and +447700… are the same client; three to five
  * digits, the number's ending. Null when there is no number in it.
  */
 export function phoneSearch(heard: string): { endsWith: string } | null {
-  const digits = spokenDigits(heard).replace(/\D/g, "");
-  if (digits.length < 3) return null;
-  return { endsWith: digits.slice(-9) };
+  const { digits } = splitLookup(heard);
+  return digits ? { endsWith: digits.slice(-9) } : null;
 }
 
-/** Words in a lookup that are about the number, not the name. */
-const NUMBER_WORDS = new Set(["ending", "number", "phone", "mobile", "on", "in"]);
+/**
+ * Whether the name said fits a client: the same name (namesMatch), or one
+ * word that is one of theirs ("Jones" for Sarah Jones).
+ */
+function nameAgrees(clientName: string | null, said: string[]): boolean {
+  if (namesMatch(clientName, said.join(" "))) return true;
+  const theirs = (clientName ?? "").toLowerCase().split(/\s+/);
+  return said.length === 1 && theirs.includes(said[0]);
+}
 
 /**
  * Clients matching what was heard, best first: by name, by phone number,
- * or both. The name comes through speech recognition, so each word is
- * matched on its own and a near miss on one ("Jon" for "John") still finds
- * the other; a number said with a name also finds the name, so one misheard
- * digit doesn't lose the client.
+ * or both (splitLookup tells them apart). The name comes through speech
+ * recognition, so each word is matched on its own and a near miss on one
+ * ("Jon" for "John") still finds the other; a number said with a name also
+ * finds the name, so one misheard digit doesn't lose the client.
  *
  * exactMatch is the assistant's licence to go ahead without asking: the
  * whole name matched, or the whole number is this client's own and nobody
  * else's (a child booked through a parent's number shares it, so then it
- * asks).
+ * asks), and any name said with it fits them. onThatNumber: the number
+ * said is theirs, or reaches them through someone.
  */
 export async function findClients(organizationId: string, heard: string) {
-  const byPhone = phoneSearch(heard);
-  const words = heard
-    .toLowerCase()
-    .replace(/[^\p{L}' -]+/gu, " ")
-    .split(/\s+/)
-    // Digit words leave the name only when there is a number: "Ji-woo Oh" is a name.
-    .filter((w) => w.length >= 2 && !NUMBER_WORDS.has(w) && !(byPhone && (DIGIT_WORDS.has(w) || w === "double" || w === "triple")))
-    .slice(0, 4);
+  const lookup = splitLookup(heard);
+  const byPhone = lookup.digits ? { endsWith: lookup.digits.slice(-9) } : null;
+  const nameWords = lookup.name.filter((w) => w.length >= 2);
+  // Searched by its longer words: a two-letter one ("Oh", "Jo") is in too many
+  // names to find anyone by, so it only ranks, unless it is all there is.
+  const long = nameWords.filter((w) => w.length >= 3);
+  const words = (long.length ? long : nameWords).slice(0, 4);
   if (words.length === 0 && !byPhone) return [];
   const select = {
     id: true,
@@ -251,12 +305,11 @@ export async function findClients(organizationId: string, heard: string) {
   const ownNumber = (r: { phone: string | null }) => Boolean(byPhone && r.phone?.endsWith(byPhone.endsWith));
   const viaContact = (r: { contactLead: { phone: string | null } | null }) =>
     Boolean(byPhone && r.contactLead?.phone?.endsWith(byPhone.endsWith));
-  const nameWords = (name: string | null) => words.filter((w) => (name ?? "").toLowerCase().includes(w)).length;
-  // The name as said, without the number's words ("ending", "oh seven…").
-  const nameSaid = byPhone ? words.join(" ") : heard;
+  const sharedWords = (name: string | null) => nameWords.filter((w) => (name ?? "").toLowerCase().includes(w)).length;
+  const nameSaid = byPhone ? nameWords.join(" ") : heard;
   const score = (r: (typeof rows)[number]) => {
     const number = ownNumber(r) ? 60 : viaContact(r) ? 40 : 0;
-    const name = words.length && namesMatch(r.name, nameSaid) ? 100 : nameWords(r.name);
+    const name = nameWords.length && namesMatch(r.name, nameSaid) ? 100 : sharedWords(r.name);
     return number + name;
   };
   const wholeNumber = Boolean(byPhone && byPhone.endsWith.length >= 9);
@@ -275,9 +328,9 @@ export async function findClients(organizationId: string, heard: string) {
         reachedThrough: r.contactLead?.name ?? null,
         lastVisit: r.appointments[0]?.startsAt.toISOString().slice(0, 10) ?? null,
         patchTest: r.patchTestAt ? spokenPatchTest(r.patchTestAt) : null,
-        // With a name said as well, the number alone isn't enough: both must agree.
+        onThatNumber: ownNumber(r) || viaContact(r),
         exactMatch: byPhone
-          ? numberIsTheirs && (words.length === 0 || namesMatch(r.name, nameSaid))
+          ? numberIsTheirs && (nameWords.length === 0 || nameAgrees(r.name, nameWords))
           : namesMatch(r.name, nameSaid),
       };
     });
@@ -411,20 +464,36 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
       clientName = exact[0].name;
     } else if (exact.length > 1) {
       return { ok: false, message: "More than one client has that name. Ask which one.", candidates: exact };
-    } else if (phoneSearch(name)) {
-      // Given a number: it is someone on the books (a parent and a child
-      // share one), or nobody we know. Never a new client named after digits.
-      if (found.length) return { ok: false, message: "Not sure which client that is. Ask which one.", candidates: found };
-      return { ok: false, message: "No client has that number. Ask for their name." };
     } else {
+      // Given a number: someone on it (a parent and a child share one) is
+      // asked about; nobody on it, with a name said, is a new client with
+      // that number; a number alone is never made into a client's name.
+      const said = splitLookup(name);
+      const onIt = found.filter((c) => c.onThatNumber);
+      if (said.digits && onIt.length) {
+        return { ok: false, message: "Not sure which client that is. Ask which one.", candidates: onIt };
+      }
+      if (said.digits && !said.nameText) return { ok: false, message: "No client has that number. Ask for their name." };
+      // Someone by that name, on another number: them with a new number, or
+      // someone new? Asked, not guessed.
+      if (said.digits && found.length) {
+        return {
+          ok: false,
+          message: "That number isn't on the books. Ask if it's one of these with a new number, or a new client.",
+          candidates: found,
+        };
+      }
+      const newName = said.digits ? said.nameText : name;
+      // A whole number said with the name is theirs, unless one was given apart.
+      const givenPhone = req.clientPhone?.trim() || (said.digits && said.digits.length >= 10 ? said.digits : "");
       let phone: string | null = null;
-      if (req.clientPhone?.trim()) {
-        const parsed = normalisePhone(req.clientPhone);
+      if (givenPhone) {
+        const parsed = normalisePhone(givenPhone);
         if (!parsed.ok) return { ok: false, message: `That number does not look right: ${parsed.reason}` };
         phone = parsed.e164;
       }
-      newClient = { name, phone };
-      clientName = name;
+      newClient = { name: newName, phone };
+      clientName = newName;
     }
   }
 

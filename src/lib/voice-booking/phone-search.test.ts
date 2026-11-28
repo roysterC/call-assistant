@@ -28,7 +28,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { findClients, phoneSearch, spokenDigits } from "./drafts";
+import { findClients, phoneSearch, splitLookup } from "./drafts";
 
 const lead = (id: string, name: string, phone: string | null, contact?: { name: string; phone: string }): Row => ({
   id,
@@ -56,11 +56,11 @@ describe("phoneSearch", () => {
   });
 
   it("reads a number dictation spelled out", () => {
-    expect(spokenDigits("oh seven seven double oh nine")).toBe("0 7 7 00 9");
-    expect(spokenDigits("07700 double 0 9123")).toBe("07700 00 9123");
-    // Only digit words: nothing an object happens to have.
-    expect(spokenDigits("constructor toString")).toBe("constructor tostring");
+    expect(splitLookup("oh seven seven double oh nine").digits).toBe("077009");
+    expect(splitLookup("07700 double 0 9123").digits).toBe("07700009123");
     expect(phoneSearch("ending one two three")).toEqual({ endsWith: "123" });
+    // Only digit words: nothing an object happens to have.
+    expect(splitLookup("constructor toString").digits).toBeNull();
   });
 
   it("is not a number search for a name, or too few digits to mean anything", () => {
@@ -126,5 +126,36 @@ describe("findClients by number", () => {
     ];
     const found = await findClients("o", "Sarah Jones 07700 900123");
     expect(found.find((f) => f.clientId === "s")!.exactMatch).toBe(false);
+  });
+});
+
+describe("splitLookup", () => {
+  it("keeps a surname that is a digit word out of the number", () => {
+    expect(splitLookup("Ji-woo Oh 07700 900123")).toEqual({ digits: "07700900123", name: ["ji-woo", "oh"], nameText: "Ji-woo Oh" });
+    expect(splitLookup("07700 900123 for Ji-woo Oh")).toMatchObject({ digits: "07700900123", nameText: "Ji-woo Oh" });
+    expect(splitLookup("Sean O Neill ending 456")).toMatchObject({ digits: "456", nameText: "Sean O Neill" });
+    expect(splitLookup("Ji-woo Oh")).toEqual({ digits: null, name: ["ji-woo", "oh"], nameText: "Ji-woo Oh" });
+  });
+
+  it("reads 'the one ending 123' as 123, and leaves titles out of the name", () => {
+    expect(splitLookup("the one ending 123")).toEqual({ digits: "123", name: [], nameText: "" });
+    expect(splitLookup("Mrs Jones 07700 900123")).toMatchObject({ digits: "07700900123", name: ["jones"] });
+  });
+});
+
+describe("findClients with a name and a number", () => {
+  it("doesn't take a different surname that is a digit word for agreement", async () => {
+    db.rows = [lead("k", "Ji-woo Kim", "+447700900123")];
+    expect((await findClients("o", "Ji-woo Oh 07700 900123"))[0].exactMatch).toBe(false);
+  });
+
+  it("takes a title and surname as agreeing", async () => {
+    db.rows = [lead("s", "Sarah Jones", "+447700900123")];
+    expect((await findClients("o", "Mrs Jones 07700 900123"))[0]).toMatchObject({ clientId: "s", exactMatch: true });
+  });
+
+  it("still finds 'Oh' by its first name when many names contain 'oh'", async () => {
+    db.rows = [...Array.from({ length: 30 }, (_, i) => lead(`j${i}`, `John ${i}`, null)), lead("o", "Ji-woo Oh", null)];
+    expect((await findClients("o", "Ji-woo Oh"))[0]).toMatchObject({ clientId: "o", exactMatch: true });
   });
 });
