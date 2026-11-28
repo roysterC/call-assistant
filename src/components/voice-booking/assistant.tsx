@@ -411,11 +411,16 @@ export function Assistant() {
     }
   }
 
-  async function startListening(opts: { unprompted?: boolean } = {}) {
+  /**
+   * opts.pressedMic: the person pressed a microphone button. Only then is
+   * "this needs an AI add-on" shown; opening the panel (the launcher, the
+   * phone's tab, /assistant) just leaves it ready to type in.
+   */
+  async function startListening(opts: { unprompted?: boolean; pressedMic?: boolean } = {}) {
     setError(null);
     setNeedsTap(false);
     if (voiceLocked.current) {
-      setUpsell(true);
+      if (opts.pressedMic) setUpsell(true);
       return;
     }
     setConnecting(true);
@@ -424,7 +429,7 @@ export function Assistant() {
       const data = await res.json();
       if (res.status === 402 && data.code === "voice_upgrade") {
         voiceLocked.current = true;
-        setUpsell(true);
+        if (opts.pressedMic) setUpsell(true);
         setConnecting(false);
         return;
       }
@@ -604,7 +609,7 @@ export function Assistant() {
                 type="button"
                 onClick={() => {
                   unlockSpeech();
-                  void startListening();
+                  void startListening({ pressedMic: true });
                 }}
                 className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 py-8 text-primary"
               >
@@ -803,7 +808,7 @@ export function Assistant() {
                 stopSpeaking();
                 unlockSpeech();
                 if (listening || connecting) stopListening();
-                else void startListening();
+                else void startListening({ pressedMic: true });
               }}
             >
               {listening ? <MicOff /> : <Mic />}
