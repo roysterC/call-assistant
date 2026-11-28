@@ -82,14 +82,14 @@ export function CloseButton({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Initials in a circle: sage for someone who has been in, warm for someone new. */
+/** Initials in a circle: sage for someone who has been in, cornsilk for a first visit (bronze is kept for "waiting"). */
 export function ClientAvatar({ name, regular, className }: { name: string | null; regular: boolean; className?: string }) {
   return (
     <span
       aria-hidden="true"
       className={cn(
         "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full text-sm font-bold",
-        regular ? "bg-tea-green-700 text-tea-green-100" : "bg-papaya-whip-600 text-light-bronze-200",
+        regular ? "bg-tea-green-700 text-tea-green-100" : "bg-cornsilk-600 text-cornsilk-100 ring-1 ring-cornsilk-400",
         className
       )}
     >
@@ -231,16 +231,16 @@ export function ClientPicker({
                 {reach && <span className="block truncate text-[13px] text-muted-foreground">{reach}</span>}
               </span>
               <span className="flex shrink-0 flex-col items-end gap-1 phone:hidden">
-                <span className={cn("text-[12.5px] font-semibold", regular ? "text-tea-green-200" : "text-light-bronze-300")}>
+                <span className={cn("text-[12.5px] font-semibold", regular ? "text-tea-green-200" : "text-cornsilk-100")}>
                   {regular && c.lastVisit
                     ? t(c.visits === 1 ? "picker.visitLast" : "picker.visitsLast", {
                         n: c.visits,
                         date: shortDate(c.lastVisit, timeZone, locale),
                       })
-                    : t("picker.newClient")}
+                    : t("picker.firstVisit")}
                 </span>
                 {c.nextBooking && (
-                  <span className="rounded-full bg-papaya-whip-600 px-2 py-0.5 text-[11.5px] font-semibold text-light-bronze-200">
+                  <span className="rounded-full bg-tea-green-800 px-2 py-0.5 text-[11.5px] font-semibold text-tea-green-200">
                     {t("picker.bookedFor", { when: shortDateTime(c.nextBooking, timeZone, locale, clock) })}
                   </span>
                 )}

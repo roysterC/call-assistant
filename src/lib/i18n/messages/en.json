@@ -300,7 +300,14 @@
     "lenMin": "{n} min",
     "lenHours": "{h} h",
     "lenHoursMin": "{h} h {m}",
-    "patchTest": "patch test"
+    "patchTest": "patch test",
+    "done": "Done",
+    "noShow": "No-show",
+    "cancelled": "Cancelled",
+    "doubleBooked": "double-booked",
+    "dayOff": "Day off",
+    "closedDay": "Closed today",
+    "nobodyIn": "Nobody's in today"
   },
   "month": {
     "prevMonth": "Previous month",
@@ -516,7 +523,8 @@
     "blockShort": "Block this time",
     "nobodyNamed": "Nobody called “{q}” yet.",
     "addNamed": "Add “{q}” as a new client",
-    "more": "{n} more: type to narrow it down"
+    "more": "{n} more: type to narrow it down",
+    "firstVisit": "First visit"
   },
   "dup": {
     "label": "Possible duplicate",

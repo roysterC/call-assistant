@@ -300,7 +300,14 @@
     "lenMin": "{n} phút",
     "lenHours": "{h} giờ",
     "lenHoursMin": "{h} giờ {m} phút",
-    "patchTest": "thử dị ứng"
+    "patchTest": "thử dị ứng",
+    "done": "Xong",
+    "noShow": "Không đến",
+    "cancelled": "Đã hủy",
+    "doubleBooked": "trùng lịch",
+    "dayOff": "Nghỉ",
+    "closedDay": "Hôm nay tiệm nghỉ",
+    "nobodyIn": "Hôm nay không ai làm"
   },
   "month": {
     "prevMonth": "Tháng trước",
@@ -516,7 +523,8 @@
     "blockShort": "Chặn giờ này",
     "nobodyNamed": "Chưa có ai tên “{q}”.",
     "addNamed": "Thêm “{q}” làm khách mới",
-    "more": "Còn {n} khách nữa: gõ thêm để thu hẹp"
+    "more": "Còn {n} khách nữa: gõ thêm để thu hẹp",
+    "firstVisit": "Lần đầu"
   },
   "dup": {
     "label": "Có thể trùng",

@@ -115,10 +115,11 @@ export function WeekView({
                         key={a.id}
                         className={cn(
                           "flex flex-col rounded-[10px] border-[1.5px] px-2 py-1.5 text-xs leading-tight",
-                          a.status === "completed" && "opacity-75",
-                          a.status === "no_show" && "line-through opacity-60"
+                          // The day view's marks: a dashed edge for a no-show, a
+                          // quieter fill for one that is done, and the word.
+                          a.status === "no_show" && "border-dashed"
                         )}
-                        style={{ background: tone.fill, borderColor: tone.border }}
+                        style={{ background: a.status === "completed" ? "var(--secondary)" : tone.fill, borderColor: tone.border }}
                         title={`${a.serviceText} · ${a.stylistName}`}
                       >
                         <span className="flex items-center gap-1.5">
@@ -130,6 +131,11 @@ export function WeekView({
                           )}
                         </span>
                         <span className="truncate">{clientLabel(a.lead, t)}</span>
+                        {(a.status === "completed" || a.status === "no_show") && (
+                          <span className={a.status === "no_show" ? "font-bold text-red-800" : "font-semibold text-tea-green-200"}>
+                            {t(a.status === "no_show" ? "grid.noShow" : "grid.done")}
+                          </span>
+                        )}
                       </span>
                     );
                   })}

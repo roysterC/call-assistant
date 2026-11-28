@@ -51,3 +51,6 @@ receptionist-stress-report.md
 
 # Claude Code personal settings (local hooks, permissions)
 .claude/settings.local.json
+
+# Impeccable review captures (screenshots), not source
+.impeccable/review/

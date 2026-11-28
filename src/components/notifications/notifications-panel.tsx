@@ -69,7 +69,7 @@ export function NotificationsBell({ variant, collapsed = false }: { variant: "me
           type="button"
           onClick={() => setOpen(true)}
           aria-label={aria}
-          className="relative flex h-10 w-10 items-center justify-center rounded-full text-sidebar-strong transition-colors hover:bg-sidebar-hover"
+          className="relative flex h-11 w-11 items-center justify-center rounded-full text-sidebar-strong transition-colors hover:bg-sidebar-hover"
         >
           <Bell className="h-5 w-5" strokeWidth={1.75} />
           {total > 0 && (
