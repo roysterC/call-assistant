@@ -168,6 +168,9 @@ const cases: Array<[string, () => Promise<unknown>, (() => void)?]> = [
   ["book: a name on the books said with a number nobody has", book({ clientName: "Sarah", clientPhone: "07700 900999", service: "blow dry", date: "Tuesday", time: "2pm" })],
   ["book: a name and number run together", book({ clientName: "Tom Baker 07700 900999", service: "blow dry", date: "Tuesday", time: "2pm" })],
   ["book: an ending nobody has", book({ clientName: "Sarah", clientPhone: "ending 123", service: "blow dry", date: "Tuesday", time: "2pm" })],
+  ["book: a name on the books with an ending nobody has", book({ clientName: "Sarah Friend", clientPhone: "ending 124", service: "blow dry", date: "Tuesday", time: "2pm" })],
+  ["book: a new client with an overseas number", book({ clientName: "Aoife Murphy", clientPhone: "+353 87 123 4567", service: "blow dry", date: "Tuesday", time: "2pm" })],
+  ["book: a number spoken as the name", book({ clientName: "oh seven seven double oh nine double oh seven one five", service: "blow dry", date: "Tuesday", time: "2pm" })],
 
   ["move: to a free time the same day", move({ appointmentId: "appt-1", time: "2pm" })],
   ["move: to a time the stylist is booked", move({ appointmentId: "appt-1", time: "2pm" }), () => busy.clashes.push({ stylist: "Jo", at: "2026-09-29T14:00:00+01:00" })],

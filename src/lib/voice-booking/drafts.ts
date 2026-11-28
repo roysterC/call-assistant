@@ -164,12 +164,14 @@ const DIGIT_WORDS = new Map<string, string>(Object.entries({
  */
 export function phoneDigits(said: string | null | undefined): string | null {
   if (!said) return null;
-  const words = said.toLowerCase().split(/[\s,.-]+/).filter(Boolean);
+  const words = said.toLowerCase().split(/[\s,.-]+/).map((w) => w.replace(/[^a-z0-9]/g, "")).filter(Boolean);
+  const numeric = (w: string | undefined) =>
+    w !== undefined && (/\d/.test(w) || DIGIT_WORDS.has(w) || w === "double" || w === "triple");
   let digits = "";
   for (let i = 0; i < words.length; i++) {
-    const w = words[i].replace(/[^a-z0-9]/g, "");
+    const w = words[i];
     if ((w === "double" || w === "triple") && i + 1 < words.length) {
-      const n = words[i + 1].replace(/[^a-z0-9]/g, "");
+      const n = words[i + 1];
       const d = DIGIT_WORDS.get(n) ?? (/^\d$/.test(n) ? n : undefined);
       if (d) {
         digits += d.repeat(w === "double" ? 2 : 3);
@@ -177,9 +179,28 @@ export function phoneDigits(said: string | null | undefined): string | null {
         continue;
       }
     }
-    digits += DIGIT_WORDS.get(w) ?? w.replace(/\D/g, "");
+    if (/\d/.test(w)) digits += w.replace(/\D/g, "");
+    // A digit word counts beside other digits only: "the one ending 123" is 123.
+    else if (DIGIT_WORDS.has(w) && (numeric(words[i - 1]) || numeric(words[i + 1]))) digits += DIGIT_WORDS.get(w);
   }
   return digits.length >= 3 ? digits : null;
+}
+
+/** Words that only lead into a number: "ending", "the one ending in". */
+const NUMBER_LEAD_INS = new Set(["the", "one", "ending", "ends", "in", "on", "number", "phone", "mobile", "whos", "who"]);
+
+/**
+ * Whether text is a number and nothing else (digits, spoken digits,
+ * "ending…"), so it is looked up as a number even if given as a name.
+ */
+export function isNumberText(text: string | null | undefined): boolean {
+  if (!phoneDigits(text)) return false;
+  return (text ?? "")
+    .toLowerCase()
+    .split(/[\s,.-]+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean)
+    .every((w) => /^\d+$/.test(w) || DIGIT_WORDS.has(w) || w === "double" || w === "triple" || NUMBER_LEAD_INS.has(w));
 }
 
 /**
@@ -191,6 +212,9 @@ export function phoneSearch(said: string | null | undefined): { endsWith: string
   const digits = phoneDigits(said);
   return digits ? { endsWith: digits.slice(-9) } : null;
 }
+
+/** Curly apostrophes as straight ones, as names are stored ("O’Brien"). */
+const straightQuotes = (s: string) => s.replace(/[’‘]/g, "'");
 
 /** A name's words for comparing: no accents, apostrophes or hyphens, lower case (as namesMatch). */
 function plainWords(name: string | null | undefined): string[] {
@@ -245,8 +269,11 @@ export async function findClients(
   lookup: { name?: string | null; phone?: string | null }
 ): Promise<FoundClient[]> {
   // Curly apostrophes as straight ones, as names are stored ("O’Brien").
-  const name = (lookup.name ?? "").trim().replace(/[’‘]/g, "'");
-  const byPhone = phoneSearch(lookup.phone);
+  let name = straightQuotes(lookup.name ?? "").trim();
+  let phoneSaid = lookup.phone ?? null;
+  // A number given as the name, with no number apart: looked up as a number.
+  if (!phoneSaid && isNumberText(name)) [phoneSaid, name] = [name, ""];
+  const byPhone = phoneSearch(phoneSaid);
   const words = name
     .toLowerCase()
     .replace(/[’‘]/g, "'")
@@ -286,7 +313,9 @@ export async function findClients(
             OR: words.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })),
           },
           select,
-          take: 25,
+          // Wide enough that a short word ("Jo", "An") in many names can't
+          // push the client out before the ranking below.
+          take: 200,
         })
       : [],
   ]);
@@ -316,11 +345,14 @@ export async function findClients(
   // Everyone on the number first (the owner ahead of those reached through
   // them), then the best of the names to make five.
   const numberFirst = [...onNumber].sort((a, b) => Number(ownNumber(b)) - Number(ownNumber(a)) || score(b) - score(a));
+  // Names that match in full always get in, however many share the number:
+  // a misheard digit must not lose the client whose name was said.
   const others = byName
     .filter((r) => r.name && !onNumber.some((n) => n.id === r.id))
-    .sort((a, b) => score(b) - score(a))
-    .slice(0, Math.max(0, 5 - numberFirst.length));
-  return [...numberFirst, ...others].map(show);
+    .sort((a, b) => score(b) - score(a));
+  const fullNames = others.filter((r) => namesMatch(r.name, name)).slice(0, 3);
+  const rest = others.filter((r) => !fullNames.includes(r)).slice(0, Math.max(0, 5 - numberFirst.length - fullNames.length));
+  return [...numberFirst, ...fullNames, ...rest].map(show);
 }
 
 /** A client's upcoming bookings, for moving or cancelling one. */
@@ -442,12 +474,11 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
     leadId = lead.id;
     clientName = lead.name ?? "Client";
   } else {
-    const name = req.clientName?.trim() ?? "";
+    const name = straightQuotes(req.clientName?.trim() ?? "");
     const phone = req.clientPhone?.trim() ?? "";
     // A number given as the name, with no name: looked up as a number.
-    const nameIsNumber = /\d/.test(name) && !/\p{L}{2,}/u.test(name.replace(/\b(?:ending|ends|in)\b/gi, ""));
-    const lookup = nameIsNumber && !phone ? { name: "", phone: name } : { name, phone };
-    if (/\d{3}/.test(lookup.name)) {
+    const lookup = isNumberText(name) && !phone ? { name: "", phone: name } : { name, phone };
+    if (/\d{3}/.test(lookup.name) || phoneDigits(lookup.name)) {
       return { ok: false, message: "Give the client's name and their number separately (clientName and clientPhone)." };
     }
     if (!lookup.name && !lookup.phone) return { ok: false, message: "Who is the booking for?" };
@@ -466,7 +497,14 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
       return { ok: false, message: "Not sure which client that is. Ask which one.", candidates: onIt };
     } else if (digits && digits.length < 10) {
       // An ending nobody has: a misheard digit, not a new client.
-      return { ok: false, message: "No client's number ends in that. Check the number or ask for their name." };
+      const byName = found.filter((c) => nameAgrees(c.name, lookup.name));
+      return {
+        ok: false,
+        message: byName.length
+          ? "No client's number ends in that. Ask if it's one of these."
+          : "No client's number ends in that. Check the number or ask for their name.",
+        ...(byName.length ? { candidates: byName } : {}),
+      };
     } else if (!lookup.name) {
       return { ok: false, message: "No client has that number. Ask for their name." };
     } else if (digits && found.some((c) => nameAgrees(c.name, lookup.name))) {
@@ -480,7 +518,8 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
     } else {
       let e164: string | null = null;
       if (lookup.phone) {
-        const parsed = normalisePhone(digits ?? lookup.phone);
+        // As written when it has digits (a + keeps an overseas number), else the spoken digits.
+        const parsed = normalisePhone(/\d/.test(lookup.phone) ? lookup.phone : (digits ?? lookup.phone));
         if (!parsed.ok) return { ok: false, message: `That number does not look right: ${parsed.reason}` };
         e164 = parsed.e164;
       }

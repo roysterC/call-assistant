@@ -28,7 +28,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { findClients, phoneDigits, phoneSearch } from "./drafts";
+import { findClients, isNumberText, phoneDigits, phoneSearch } from "./drafts";
 
 const lead = (id: string, name: string, phone: string | null, contact?: { name: string; phone: string }): Row => ({
   id,
@@ -61,6 +61,8 @@ describe("phoneSearch", () => {
     expect(phoneDigits("oh seven seven double oh nine")).toBe("077009");
     expect(phoneDigits("07700 double 0 9123")).toBe("07700009123");
     expect(phoneDigits("ending one two three")).toBe("123");
+    // A lone digit word leading in is not a digit.
+    expect(phoneDigits("the one ending 123")).toBe("123");
     // Only digit words: nothing an object happens to have.
     expect(phoneDigits("constructor toString 12")).toBeNull();
   });
@@ -126,5 +128,21 @@ describe("findClients", () => {
   it("finds a two-letter first name when the surname is misheard", async () => {
     db.rows = [lead("j", "Jo Smith", null)];
     expect((await find("Jo Smyth")).map((f) => f.clientId)).toEqual(["j"]);
+  });
+
+  it("looks up a number given as the name", async () => {
+    db.rows = [lead("s", "Sarah Jones", "+447700900123")];
+    expect((await find("07700 900123"))[0]).toMatchObject({ clientId: "s", exactMatch: true });
+    expect(isNumberText("oh seven seven double oh nine double oh one two three")).toBe(true);
+    expect(isNumberText("Sarah 07700 900123")).toBe(false);
+  });
+
+  it("keeps a full name said even when many share the number's ending", async () => {
+    db.rows = [
+      ...Array.from({ length: 6 }, (_, i) => lead(`e${i}`, `Client ${i}`, `+44770090${i}124`)),
+      lead("s", "Sarah Jones", "+447700900123"),
+    ];
+    const found = await find("Sarah Jones", "ending 124");
+    expect(found.some((f) => f.clientId === "s")).toBe(true);
   });
 });
