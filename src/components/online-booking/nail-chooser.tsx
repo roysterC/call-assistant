@@ -7,12 +7,13 @@
  */
 
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import type { NailGoal } from "@/lib/online-booking/salon-page";
 import { BookLink } from "./book-link";
 import { CREAM, INK, MUTED, displayStyle } from "./fonts";
 import { PHOTOS } from "./photos";
+import styles from "./salon.module.css";
 
 export function NailChooser({
   goals,
@@ -31,7 +32,18 @@ export function NailChooser({
   takesBookings: boolean;
 }) {
   const [picked, setPicked] = useState(0);
+  const answer = useRef<HTMLDivElement>(null);
   const g = goals[picked] ?? goals[0];
+
+  // On a phone the answer sits under all the choices, often off the screen:
+  // bring it up, or a tap seems to do nothing.
+  const pick = (i: number) => {
+    setPicked(i);
+    const el = answer.current;
+    if (!el || el.getBoundingClientRect().top < window.innerHeight * 0.55) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  };
   const photo = PHOTOS[g.art];
   return (
     <div className="grid items-start gap-8 md:grid-cols-2 md:gap-16">
@@ -51,12 +63,12 @@ export function NailChooser({
                 key={x.art}
                 type="button"
                 aria-pressed={on}
-                onClick={() => setPicked(i)}
-                className="flex min-h-[60px] w-full items-center justify-between gap-4 rounded-[18px] border-[1.5px] px-[22px] text-left text-[17px] font-semibold transition-colors duration-200 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--brand)]"
+                onClick={() => pick(i)}
+                className={`${styles.pressWide} flex min-h-[60px] w-full items-center justify-between gap-4 rounded-[18px] border-[1.5px] px-[22px] py-3 text-left text-[17px] font-semibold active:bg-[rgba(255,244,232,.12)]`}
                 style={
                   on
                     ? { background: "var(--brand)", color: "var(--brand-fg)", borderColor: "var(--brand)" }
-                    : { background: "transparent", color: CREAM, borderColor: "rgba(255,244,232,.35)" }
+                    : { color: CREAM, borderColor: "rgba(255,244,232,.35)" }
                 }
               >
                 {x.goal}
@@ -66,7 +78,12 @@ export function NailChooser({
           })}
         </div>
       </div>
-      <div aria-live="polite" className="flex min-w-0 flex-col overflow-hidden rounded-[28px]" style={{ background: CREAM, color: INK }}>
+      <div
+        ref={answer}
+        aria-live="polite"
+        className="flex min-w-0 scroll-mt-20 flex-col overflow-hidden rounded-[28px] [--ring:#16121A]"
+        style={{ background: CREAM, color: INK }}
+      >
         <div className="relative aspect-[16/10] w-full">
           <Image src={photo.src} alt={photo.alt} fill sizes="(min-width: 768px) 560px, 100vw" className="object-cover" placeholder="blur" />
         </div>
@@ -85,7 +102,7 @@ export function NailChooser({
           {takesBookings && (
             <BookLink
               href={bookHrefs[picked]}
-              className="mt-1.5 inline-flex min-h-[52px] items-center gap-2.5 self-start rounded-full px-6 text-base font-semibold transition-transform duration-200 hover:-translate-y-0.5"
+              className={`${styles.press} mt-1.5 inline-flex min-h-[52px] items-center gap-2.5 self-start rounded-full px-6 text-base font-semibold hover:-translate-y-0.5`}
               style={{ background: INK, color: CREAM }}
             >
               Book {g.name}

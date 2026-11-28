@@ -9,30 +9,45 @@
 
 import Link from "next/link";
 import { useLinkStatus } from "next/link";
+import { createPortal } from "react-dom";
 import type { ComponentProps } from "react";
 
 /**
- * A bar across the top of the screen in the salon's colour. Above the sticky
- * header (z-10) as long as nothing between it and the page makes a stacking
- * context of its own: so the link doesn't fade (opacity would trap it), and
- * the phone's fixed bottom bar sits above the header too.
+ * While the next page loads: the tapped link itself takes a pulsing tint of
+ * its own text colour, so it's plain which one was tapped, and a bar in the
+ * salon's colour runs across the top of the screen.
+ *
+ * The bar goes on the page's root ([data-salon-root], where --brand is set)
+ * rather than inside the link: a link that is pressed in or lifted on hover
+ * is transformed, and a transformed parent pins a fixed bar to itself instead
+ * of to the screen. Only ever rendered after a tap, so `document` is there.
  */
 function Pending() {
   const { pending } = useLinkStatus();
   if (!pending) return null;
+  const host = document.querySelector("[data-salon-root]") ?? document.body;
   return (
-    <span
-      role="progressbar"
-      aria-label="Loading"
-      className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse"
-      style={{ background: "var(--brand)" }}
-    />
+    <>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-[inherit] bg-current opacity-15 motion-safe:animate-pulse"
+      />
+      {createPortal(
+        <span
+          role="progressbar"
+          aria-label="Loading"
+          className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse"
+          style={{ background: "var(--brand)" }}
+        />,
+        host
+      )}
+    </>
   );
 }
 
-export function BookLink({ children, ...props }: ComponentProps<typeof Link>) {
+export function BookLink({ children, className, ...props }: ComponentProps<typeof Link>) {
   return (
-    <Link {...props}>
+    <Link {...props} className={`relative ${className ?? ""}`}>
       {children}
       <Pending />
     </Link>

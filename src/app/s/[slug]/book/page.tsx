@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { loadOnlineSalon } from "@/lib/online-booking";
+import { CREAM } from "@/components/online-booking/fonts";
 import { BookingFlow } from "@/components/online-booking/booking-flow";
 import { salonUrlsHere } from "@/lib/booking-host-server";
 
@@ -10,6 +11,8 @@ import { salonUrlsHere } from "@/lib/booking-host-server";
  * choosing among that treatment's services (a tile on the salon's page).
  */
 export const dynamic = "force-dynamic";
+/** The phone's own bar above the page in the page's cream, not the app's green. */
+export const viewport: Viewport = { themeColor: CREAM };
 
 type Props = {
   params: Promise<{ slug: string }>;

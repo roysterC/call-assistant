@@ -1,0 +1,55 @@
+/*
+ * How a salon's own page and its booking flow (salon-site.tsx,
+ * booking-flow.tsx) answer a finger or a keyboard.
+ *
+ * Every control there has its own pressed state (.press), so the phone's
+ * grey tap flash is switched off. Keyboard focus gets one ring in --ring:
+ * ink on cream, swapped for a light one on the salon's colour and on ink.
+ */
+
+.root {
+  -webkit-tap-highlight-color: transparent;
+  --ring: #16121a;
+}
+
+/* No double-tap-to-zoom wait before a tap counts. */
+.root :is(a, button, label) {
+  touch-action: manipulation;
+}
+
+.root :is(a, button, summary):focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+
+/*
+ * A quick press-in under the finger, springing back on release: buttons and
+ * links (.press) dip further than wide rows and cards (.pressWide), which
+ * would otherwise lurch. `scale` composes with the hover lift's `translate`.
+ */
+.press,
+.pressWide {
+  transition-property: scale, translate, background-color, color, border-color, opacity;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.press:not(:disabled):active {
+  scale: 0.96;
+  transition-duration: 70ms;
+}
+.pressWide:not(:disabled):active {
+  scale: 0.985;
+  transition-duration: 70ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press,
+  .pressWide {
+    transition-duration: 0s;
+  }
+  .press:not(:disabled):active,
+  .pressWide:not(:disabled):active {
+    scale: none;
+    opacity: 0.7;
+  }
+}

@@ -34,6 +34,7 @@ import {
   type TileArt,
 } from "@/lib/online-booking/salon-page";
 import { brandStyle, durationText } from "./format";
+import styles from "./salon.module.css";
 
 function withQuery(path: string, q: Record<string, string | null | undefined> = {}): string {
   const p = new URLSearchParams();
@@ -81,7 +82,12 @@ function wordmarkSize(name: string): string {
   return `clamp(48px, ${Math.min(22, 150 / n).toFixed(1)}vw, 320px)`;
 }
 
-const BUTTON = "inline-flex min-h-[52px] items-center gap-2.5 rounded-full px-6 text-base font-semibold transition-transform duration-200 hover:-translate-y-0.5";
+const BUTTON = `${styles.press} inline-flex min-h-[52px] items-center gap-2.5 rounded-full px-6 text-base font-semibold hover:-translate-y-0.5`;
+/** A round outline button on cream (call), filled in ink while pressed. */
+const ROUND = `${styles.press} flex shrink-0 items-center justify-center rounded-full border-[1.5px] active:bg-[#16121A] active:text-[#FFF4E8]`;
+/** Light focus rings on the salon's colour and on ink (salon.module.css). */
+const ON_BRAND = "[--ring:var(--brand-fg)]";
+const ON_INK = "[--ring:#FFF4E8]";
 const SECTION_H2 = "m-0 text-[48px] md:text-[clamp(56px,6vw,88px)]";
 const WRAP = "mx-auto w-full max-w-[1280px] px-4 md:px-[clamp(24px,4vw,56px)]";
 
@@ -127,12 +133,13 @@ export function SalonSite({
 
   return (
     <div
-      className={`${salonFontVars} h-dvh overflow-y-auto antialiased selection:bg-[#16121A] selection:text-[#EFE3FF]`}
+      data-salon-root=""
+      className={`${salonFontVars} ${styles.root} h-dvh overflow-y-auto antialiased selection:bg-[#16121A] selection:text-[#EFE3FF]`}
       style={{ ...brandStyle(salon.brandColor), ["--pop" as string]: accentFor(salon.brandColor), background: CREAM, color: INK, fontFamily: TEXT }}
     >
       <header className="sticky top-0 z-10 border-b-[1.5px]" style={{ background: CREAM, borderColor: INK }}>
         <div className={`${WRAP} flex h-16 items-center gap-4 md:h-[76px] md:gap-7`}>
-          <a href="#top" className="flex min-w-0 flex-1 items-center gap-2 no-underline md:flex-none" style={{ color: INK }}>
+          <a href="#top" className="flex min-h-11 min-w-0 flex-1 items-center gap-2 no-underline md:flex-none" style={{ color: INK }}>
             <span
               className="block min-w-0 truncate text-[24px] leading-[1.1] md:text-[28px]"
               style={{ ...displayStyle, textTransform: "none", letterSpacing: "-0.03em", fontVariationSettings: "'wdth' 75, 'opsz' 48" }}
@@ -160,7 +167,7 @@ export function SalonSite({
             <a
               href={tel}
               aria-label={`Call ${salon.phone}`}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[1.5px] md:hidden"
+              className={`${ROUND} h-11 w-11 md:hidden`}
               style={{ borderColor: INK }}
             >
               <Phone className="h-5 w-5" aria-hidden="true" />
@@ -169,7 +176,7 @@ export function SalonSite({
           {takesBookings && (
             <BookLink
               href={withQuery(bookPath)}
-              className="hidden min-h-[46px] items-center gap-2.5 rounded-full px-5 text-[15px] font-semibold transition-transform duration-200 hover:-translate-y-0.5 md:inline-flex"
+              className={`${styles.press} hidden min-h-[46px] items-center gap-2.5 rounded-full px-5 text-[15px] font-semibold hover:-translate-y-0.5 md:inline-flex`}
               style={inkButton}
             >
               Book now
@@ -179,9 +186,9 @@ export function SalonSite({
         </div>
       </header>
 
-      <main id="top" className="pb-28 md:pb-0">
+      <main id="top">
         {/* Hero, on the salon's colour */}
-        <section className="overflow-hidden" style={{ background: "var(--brand)", color: "var(--brand-fg)" }}>
+        <section className={`${ON_BRAND} overflow-hidden`} style={{ background: "var(--brand)", color: "var(--brand-fg)" }}>
           <div className={`${WRAP} pt-6 md:pt-7`}>
             <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-[0.12em]">
               {tiles.length > 0 && (
@@ -216,7 +223,7 @@ export function SalonSite({
                       <ArrowUpRight className="h-[18px] w-[18px]" aria-hidden="true" />
                     </BookLink>
                     {groups.length > 0 && (
-                      <a href="#treatments" className="inline-flex min-h-[52px] items-center gap-2 px-1 text-base font-semibold">
+                      <a href="#treatments" className={`${styles.press} inline-flex min-h-[52px] items-center gap-2 px-1 text-base font-semibold active:opacity-70`}>
                         See prices
                         <ArrowDown className="h-[18px] w-[18px]" aria-hidden="true" />
                       </a>
@@ -272,7 +279,7 @@ export function SalonSite({
                   <span className="text-[26px] md:text-[32px]" style={displayStyle}>
                     {f.title}
                   </span>
-                  <span className="text-[13px] md:text-sm" style={{ color: MUTED }}>
+                  <span className="text-sm" style={{ color: MUTED }}>
                     {f.detail}
                   </span>
                 </div>
@@ -324,7 +331,7 @@ export function SalonSite({
                             <BookLink
                               href={withQuery(bookPath, { service: s.name })}
                               aria-label={`Book ${s.name}`}
-                              className="inline-flex min-h-11 items-center justify-self-end rounded-full border-[1.5px] px-4 text-[15px] font-semibold transition-colors duration-150 hover:bg-[#16121A] hover:text-[#FFF4E8] sm:order-4"
+                              className={`${styles.press} inline-flex min-h-11 min-w-[72px] items-center justify-center justify-self-end rounded-full border-[1.5px] px-4 text-[15px] font-semibold hover:bg-[#16121A] hover:text-[#FFF4E8] active:bg-[#16121A] active:text-[#FFF4E8] sm:order-4`}
                               style={{ borderColor: INK }}
                             >
                               Book
@@ -346,7 +353,7 @@ export function SalonSite({
         )}
 
         {goals.length > 0 && (
-          <section style={{ background: INK, color: CREAM }}>
+          <section className={ON_INK} style={{ background: INK, color: CREAM }}>
             <div className={`${WRAP} py-16 md:py-28`}>
               <NailChooser
                 goals={goals}
@@ -394,7 +401,7 @@ export function SalonSite({
                         )}
                       </span>
                       {takesBookings && (
-                        <span className="inline-flex items-center gap-1.5 text-[15px] font-bold underline decoration-[1.5px] underline-offset-4">
+                        <span className="inline-flex basis-full items-center gap-1.5 text-[15px] font-bold underline decoration-[1.5px] underline-offset-4 sm:basis-auto">
                           Book with {p.name}
                           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                         </span>
@@ -402,11 +409,11 @@ export function SalonSite({
                     </>
                   );
                   const card =
-                    "flex h-full flex-row flex-wrap items-center gap-4 rounded-[24px] border-[1.5px] bg-white p-5 transition-transform duration-200 sm:flex-col sm:items-start sm:p-7";
+                    "flex h-full flex-row flex-wrap items-center gap-4 rounded-[24px] border-[1.5px] bg-white p-5 sm:flex-col sm:items-start sm:p-7";
                   return (
                     <li key={p.name}>
                       {takesBookings ? (
-                        <BookLink href={withQuery(bookPath, { stylist: p.name })} className={`${card} hover:-translate-y-0.5`} style={{ borderColor: INK }}>
+                        <BookLink href={withQuery(bookPath, { stylist: p.name })} className={`${card} ${styles.pressWide} hover:-translate-y-0.5 active:bg-[#FBF3EA]`} style={{ borderColor: INK }}>
                           {body}
                         </BookLink>
                       ) : (
@@ -423,7 +430,7 @@ export function SalonSite({
         )}
 
         {messageUs && (
-          <section className="overflow-hidden" style={{ background: "var(--brand)", color: "var(--brand-fg)" }}>
+          <section className={`${ON_BRAND} overflow-hidden`} style={{ background: "var(--brand)", color: "var(--brand-fg)" }}>
             <div className={`${WRAP} flex flex-col gap-10 py-16 md:gap-12 md:py-28`}>
               <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
                 <h2 className={SECTION_H2} style={displayStyle}>
@@ -482,7 +489,7 @@ export function SalonSite({
                   </a>
                 )}
                 {tel && (
-                  <a href={tel} className={`${BUTTON} border-[1.5px]`} style={{ borderColor: INK }}>
+                  <a href={tel} className={`${BUTTON} border-[1.5px] active:bg-[#16121A] active:text-[#FFF4E8]`} style={{ borderColor: INK }}>
                     <Phone className="h-[18px] w-[18px]" aria-hidden="true" /> {salon.phone}
                   </a>
                 )}
@@ -514,8 +521,9 @@ export function SalonSite({
         </section>
       </main>
 
-      <footer className="overflow-hidden border-t-[1.5px]" style={{ background: "var(--brand)", color: "var(--brand-fg)", borderColor: INK }}>
-        <div className={`${WRAP} flex flex-col gap-10 pb-32 pt-14 md:pb-8`}>
+      <footer className={`${ON_BRAND} overflow-hidden border-t-[1.5px]`} style={{ background: "var(--brand)", color: "var(--brand-fg)", borderColor: INK }}>
+        {/* On phones, clear of the Book bar pinned to the bottom of the screen. */}
+        <div className={`${WRAP} flex flex-col gap-10 pt-14 ${takesBookings ? "pb-32 md:pb-8" : "pb-8"}`}>
           {takesBookings && (
             <div className="flex flex-wrap items-center justify-between gap-6">
               <p className="m-0 max-w-[26ch] text-[20px] font-semibold">Ready when you are.</p>
@@ -538,7 +546,11 @@ export function SalonSite({
               {address ? ` · ${address}` : ""}
             </span>
             <span className="flex flex-wrap gap-x-5">
-              {tel && <a href={tel}>{salon.phone}</a>}
+              {tel && (
+                <a href={tel} className="-my-3 inline-flex min-h-11 items-center underline-offset-4 active:underline">
+                  {salon.phone}
+                </a>
+              )}
               <span>Online booking by Kikai</span>
             </span>
           </div>
@@ -554,7 +566,7 @@ export function SalonSite({
             <a
               href={tel}
               aria-label={`Call ${salon.phone}`}
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-[1.5px]"
+              className={`${ROUND} h-14 w-14`}
               style={{ borderColor: INK }}
             >
               <Phone className="h-[22px] w-[22px]" aria-hidden="true" />
@@ -562,7 +574,7 @@ export function SalonSite({
           )}
           <BookLink
             href={withQuery(bookPath)}
-            className="flex h-14 flex-1 items-center justify-center gap-2.5 rounded-full text-[17px] font-semibold"
+            className={`${styles.press} flex h-14 flex-1 items-center justify-center gap-2.5 overflow-hidden rounded-full text-[17px] font-semibold`}
             style={inkButton}
           >
             Book an appointment

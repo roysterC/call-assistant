@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { loadOnlineSalon } from "@/lib/online-booking";
+import { CREAM } from "@/components/online-booking/fonts";
 import { SalonSite } from "@/components/online-booking/salon-site";
 import { salonUrlsHere } from "@/lib/booking-host-server";
 import { salonChatSiteId } from "@/lib/salon-chat";
@@ -12,6 +13,8 @@ import { designMessageLink } from "@/lib/online-booking/salon-page";
  * Only there once the salon has switched on online booking in Settings.
  */
 export const dynamic = "force-dynamic";
+/** The phone's own bar above the page in the page's cream, not the app's green. */
+export const viewport: Viewport = { themeColor: CREAM };
 
 type Props = { params: Promise<{ slug: string }> };
 
