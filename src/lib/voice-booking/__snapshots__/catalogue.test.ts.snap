@@ -80,6 +80,13 @@ exports[`the assistant's reply catalogue > book: a day the stylist does not work
 }
 `;
 
+exports[`the assistant's reply catalogue > book: a name and number run together 1`] = `
+{
+  "message": "Give the client's name and their number separately (clientName and clientPhone).",
+  "ok": false,
+}
+`;
+
 exports[`the assistant's reply catalogue > book: a name on the books said with a number nobody has 1`] = `
 {
   "candidates": [
@@ -184,6 +191,13 @@ exports[`the assistant's reply catalogue > book: a stylist who does not do the s
 exports[`the assistant's reply catalogue > book: a time already gone 1`] = `
 {
   "message": "That time has already gone.",
+  "ok": false,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: an ending nobody has 1`] = `
+{
+  "message": "No client's number ends in that. Check the number or ask for their name.",
   "ok": false,
 }
 `;
