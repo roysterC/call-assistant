@@ -598,7 +598,7 @@ export function Assistant() {
               size="icon-sm"
               className="ml-auto"
               aria-label={speakReplies && !locked ? t("assistant.stopReading") : t("assistant.readAloud")}
-              aria-pressed={speakReplies}
+              aria-pressed={speakReplies && !locked}
               onClick={toggleSpeak}
             >
               {speakReplies && !locked ? <Volume2 /> : <VolumeX />}

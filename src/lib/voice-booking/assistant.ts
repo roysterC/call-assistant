@@ -38,8 +38,9 @@ const TOOLS: Anthropic.Tool[] = [
     name: "find_client",
     description:
       "Look a client up by name as heard, or by phone number (whole, or just the last few digits). Returns up " +
-      "to five, best first, with the last three digits of their number, last visit and patch test. exactMatch " +
-      "means the whole name or whole number matched.",
+      "to five, best first, with the last three digits of their number, last visit and patch test. exactMatch: " +
+      "the whole name matched, or the whole number is this client's alone (and agrees with any name said). " +
+      "Several on one number (a parent and a child) are none of them exact: ask which.",
     input_schema: {
       type: "object",
       properties: { name: { type: "string", description: "The name, or the number or its ending, as said" } },

@@ -31,12 +31,7 @@ export default async function BookPage({ params, searchParams }: Props) {
   const [{ slug }, q] = await Promise.all([params, searchParams]);
   const online = await loadOnlineSalon(slug);
   if (!online) notFound();
-  await sendToOwnAddress(online.salon.slug, "/book", {
-    service: one(q.service),
-    treatment: one(q.treatment),
-    stylist: one(q.stylist),
-    start: one(q.start),
-  });
+  await sendToOwnAddress(online.salon.slug, "/book", q);
   const urls = await salonUrlsHere(online.salon.slug);
   return (
     <BookingFlow

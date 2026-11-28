@@ -16,7 +16,10 @@ export const dynamic = "force-dynamic";
 /** The phone's own bar above the page in the page's cream, not the app's green. */
 export const viewport: Viewport = { themeColor: CREAM };
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -32,11 +35,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SalonPage({ params }: Props) {
-  const { slug } = await params;
+export default async function SalonPage({ params, searchParams }: Props) {
+  const [{ slug }, q] = await Promise.all([params, searchParams]);
   const online = await loadOnlineSalon(slug);
   if (!online) notFound();
-  await sendToOwnAddress(online.salon.slug, "/");
+  await sendToOwnAddress(online.salon.slug, "/", q);
 
   const [urls, chat, designChats] = await Promise.all([
     salonUrlsHere(online.salon.slug),

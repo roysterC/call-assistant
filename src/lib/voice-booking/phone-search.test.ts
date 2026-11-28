@@ -9,8 +9,24 @@ type Row = {
   appointments: { startsAt: Date; status: string }[];
 };
 const db = vi.hoisted(() => ({ rows: [] as unknown[] }));
-// The query itself is Postgres's job; these tests are about what comes back.
-vi.mock("@/lib/prisma", () => ({ prisma: { lead: { findMany: async () => db.rows } } }));
+// A small stand-in for Postgres: the number lookup and the name lookup, as findClients asks them.
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    lead: {
+      findMany: async ({ where }: { where: { OR: Record<string, unknown>[] } }) =>
+        (db.rows as Row[]).filter((r) =>
+          where.OR.some((c) => {
+            const ends = (c.phone as { endsWith?: string } | undefined)?.endsWith;
+            if (ends) return Boolean(r.phone?.endsWith(ends));
+            const via = (c.contactLead as { phone?: { endsWith: string } } | undefined)?.phone?.endsWith;
+            if (via) return Boolean(r.contactLead?.phone?.endsWith(via));
+            const word = (c.name as { contains?: string } | undefined)?.contains;
+            return Boolean(word && r.name?.toLowerCase().includes(word));
+          })
+        ),
+    },
+  },
+}));
 
 import { findClients, phoneSearch, spokenDigits } from "./drafts";
 
@@ -41,6 +57,7 @@ describe("phoneSearch", () => {
 
   it("reads a number dictation spelled out", () => {
     expect(spokenDigits("oh seven seven double oh nine")).toBe("0 7 7 00 9");
+    expect(spokenDigits("07700 double 0 9123")).toBe("07700 00 9123");
     expect(phoneSearch("ending one two three")).toEqual({ endsWith: "123" });
   });
 
@@ -79,5 +96,27 @@ describe("findClients by number", () => {
     expect(found.find((f) => f.clientId === "t")!.exactMatch).toBe(false);
     // A misheard digit still finds her by name, ahead of the stranger on that number.
     expect(found[0].clientId).toBe("s");
+  });
+
+  it("puts a full name said ahead of a stranger on a spelled-out number", async () => {
+    db.rows = [lead("t", "Tom Price", "+447700900123"), lead("s", "Sarah Jones", "+447700900999")];
+    const found = await findClients("o", "Sarah Jones oh seven seven double oh nine double oh one two three");
+    expect(found[0].clientId).toBe("s");
+  });
+
+  it("keeps a hyphenated name's full match", async () => {
+    db.rows = [lead("s", "Anne-Marie Smithson", null), lead("a", "Anne-Marie Smith", null)];
+    const [first] = await findClients("o", "Anne-Marie Smith");
+    expect(first).toMatchObject({ clientId: "a", exactMatch: true });
+  });
+
+  it("counts everyone on a number, however many share the name said", async () => {
+    db.rows = [
+      ...Array.from({ length: 30 }, (_, i) => lead(`x${i}`, `Sarah Jones ${i}`, null)),
+      lead("m", "Mia Jones", null, { name: "Sarah Jones", phone: "+447700900123" }),
+      lead("s", "Sarah Jones", "+447700900123"),
+    ];
+    const found = await findClients("o", "Sarah Jones 07700 900123");
+    expect(found.find((f) => f.clientId === "s")!.exactMatch).toBe(false);
   });
 });

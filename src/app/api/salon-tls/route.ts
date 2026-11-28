@@ -5,17 +5,18 @@ import { requestHostname, salonDomain, salonFromHost } from "@/lib/booking-host"
 /**
  * Caddy's question before it fetches a certificate for a name it has not
  * seen (on_demand_tls "ask", README "Salons' pages"): is
- * maison-nails.getkikai.com a salon? 200 yes, 404 no.
+ * maison-nails.getkikai.com a salon's page? 200 yes, 404 no.
  *
  * Without it, anyone could make Caddy request certificates for any name
- * under *.getkikai.com and run into Let's Encrypt's rate limits. Yes for
- * any salon that exists and is switched on, online booking or not, so a
- * salon that has paused it shows its own "not found" page rather than a
- * certificate error.
+ * under *.getkikai.com and run into Let's Encrypt's rate limits. Yes exactly
+ * where the page itself would answer (the salon is switched on and online
+ * booking is on, as loadOnlineSalon decides), so it tells nobody anything
+ * the page doesn't.
  *
- * Caddy asks over 127.0.0.1, so only that is answered: from the internet,
- * through Caddy, the request arrives named app.getkikai.com and is refused
- * before the database is touched.
+ * Caddy asks over 127.0.0.1. A request that came in through Caddy is named
+ * after the address it was sent to, so it is refused before the database
+ * is touched. The name is the request's own say-so, so this sheds load
+ * rather than keeping anything secret: the answer is public anyway.
  */
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,9 @@ export async function GET(req: NextRequest) {
   const name = (req.nextUrl.searchParams.get("domain") ?? "").trim().toLowerCase();
   const slug = salonFromHost(name, salonDomain());
   if (!slug) return new NextResponse(null, { status: 404 });
-  const org = await prisma.organization.findUnique({ where: { slug }, select: { enabled: true } });
-  return new NextResponse(null, { status: org?.enabled ? 200 : 404 });
+  const online = await prisma.organization.findFirst({
+    where: { slug, enabled: true, settings: { onlineBookingEnabled: true } },
+    select: { id: true },
+  });
+  return new NextResponse(null, { status: online ? 200 : 404 });
 }

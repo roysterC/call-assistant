@@ -164,7 +164,8 @@ export function spokenDigits(heard: string): string {
   const words = heard.toLowerCase().split(/\s+/);
   for (let i = 0; i < words.length; i++) {
     const w = words[i].replace(/[^a-z0-9]/g, "");
-    const next = DIGIT_WORDS[(words[i + 1] ?? "").replace(/[^a-z]/g, "")];
+    const after = (words[i + 1] ?? "").replace(/[^a-z0-9]/g, "");
+    const next = DIGIT_WORDS[after] ?? (/^\d$/.test(after) ? after : undefined);
     if ((w === "double" || w === "triple") && next) {
       out.push(next.repeat(w === "double" ? 2 : 3));
       i++;
@@ -209,41 +210,55 @@ export async function findClients(organizationId: string, heard: string) {
     .filter((w) => w.length >= 2 && !NOT_NAME.has(w))
     .slice(0, 4);
   if (words.length === 0 && !byPhone) return [];
-  const rows = await prisma.lead.findMany({
-    where: {
-      organizationId,
-      anonymisedAt: null,
-      OR: [
-        ...words.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })),
-        ...(byPhone ? [{ phone: byPhone }, { contactLead: { phone: byPhone } }] : []),
-      ],
+  const select = {
+    id: true,
+    name: true,
+    phone: true,
+    patchTestAt: true,
+    contactLead: { select: { name: true, phone: true } },
+    appointments: {
+      where: { status: { in: ["booked" as const, "completed" as const] } },
+      select: { startsAt: true, status: true },
+      orderBy: { startsAt: "desc" as const },
+      take: 1,
     },
-    select: {
-      id: true,
-      name: true,
-      phone: true,
-      patchTestAt: true,
-      contactLead: { select: { name: true, phone: true } },
-      appointments: {
-        where: { status: { in: ["booked", "completed"] } },
-        select: { startsAt: true, status: true },
-        orderBy: { startsAt: "desc" },
-        take: 1,
-      },
-    },
-    take: 25,
-  });
+  };
+  // The number and the name as two lookups: a common name can't crowd out
+  // the number's owner, and everyone on the number is counted.
+  const [byNumber, byName] = await Promise.all([
+    byPhone
+      ? prisma.lead.findMany({
+          where: { organizationId, anonymisedAt: null, OR: [{ phone: byPhone }, { contactLead: { phone: byPhone } }] },
+          select,
+          take: 25,
+        })
+      : [],
+    words.length
+      ? prisma.lead.findMany({
+          where: {
+            organizationId,
+            anonymisedAt: null,
+            OR: words.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })),
+          },
+          select,
+          take: 25,
+        })
+      : [],
+  ]);
+  const rows = [...byNumber, ...byName.filter((r) => !byNumber.some((n) => n.id === r.id))];
   const ownNumber = (r: { phone: string | null }) => Boolean(byPhone && r.phone?.endsWith(byPhone.endsWith));
   const viaContact = (r: { contactLead: { phone: string | null } | null }) =>
     Boolean(byPhone && r.contactLead?.phone?.endsWith(byPhone.endsWith));
   const nameWords = (name: string | null) => words.filter((w) => (name ?? "").toLowerCase().includes(w)).length;
+  // The name as said, without the number's words ("ending", "oh seven…").
+  const nameSaid = byPhone ? words.join(" ") : heard;
   const score = (r: (typeof rows)[number]) => {
     const number = ownNumber(r) ? 60 : viaContact(r) ? 40 : 0;
-    const name = words.length && namesMatch(r.name, heard.replace(/[\d+()-]/g, " ")) ? 100 : nameWords(r.name);
+    const name = words.length && namesMatch(r.name, nameSaid) ? 100 : nameWords(r.name);
     return number + name;
   };
   const wholeNumber = Boolean(byPhone && byPhone.endsWith.length >= 9);
-  const onThisNumber = rows.filter((r) => r.name && (ownNumber(r) || viaContact(r)));
+  const onThisNumber = byNumber.filter((r) => r.name);
   return rows
     .filter((r) => r.name)
     .sort((a, b) => score(b) - score(a))
@@ -261,7 +276,7 @@ export async function findClients(organizationId: string, heard: string) {
         // With a name said as well, the number alone isn't enough: both must agree.
         exactMatch: byPhone
           ? numberIsTheirs && (words.length === 0 || nameWords(r.name) > 0)
-          : namesMatch(r.name, heard),
+          : namesMatch(r.name, nameSaid),
       };
     });
 }
