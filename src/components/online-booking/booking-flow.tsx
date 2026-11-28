@@ -202,7 +202,7 @@ export function BookingFlow({
       ref={rootRef}
       data-salon-root=""
       className={root}
-      style={{ ...brandStyle(salon.brandColor), background: CREAM, color: INK, fontFamily: TEXT }}
+      style={{ ...brandStyle(salon.brandColor, CREAM), background: CREAM, color: INK, fontFamily: TEXT }}
     >
       <div className="mx-auto flex min-h-full max-w-xl flex-col">
         {step !== "done" && (

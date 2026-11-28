@@ -263,10 +263,14 @@ export function menuGroups(services: PublicService[]): { heading: string | null;
     else groups.push({ heading, services: [s] });
   }
   // Unheaded services go last, under "More", when anything else has a heading.
+  // A treatment the salon itself calls "More" takes them in, rather than
+  // there being two "More" sections.
   const loose = groups.findIndex((g) => g.heading === null);
   if (loose >= 0 && groups.length > 1) {
     const [g] = groups.splice(loose, 1);
-    groups.push({ heading: "More", services: g.services });
+    const more = groups.find((x) => x.heading === "More");
+    if (more) more.services.push(...g.services);
+    else groups.push({ heading: "More", services: g.services });
   }
   return groups;
 }

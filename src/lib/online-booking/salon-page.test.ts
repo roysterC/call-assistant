@@ -168,6 +168,14 @@ describe("menuGroups", () => {
       ["More", 1],
     ]);
   });
+  it("puts loose services into the salon's own More rather than a second one", () => {
+    const groups = menuGroups([svc("Extras", "More"), svc("Classic manicure"), svc("Gel manicure", "Gel")]);
+    expect(groups.map((g) => [g.heading, g.services.map((s) => s.name)])).toEqual([
+      ["More", ["Extras", "Classic manicure"]],
+      ["Gel", ["Gel manicure"]],
+    ]);
+  });
+
   it("leaves a flat price list unheaded", () => {
     expect(menuGroups([svc("A"), svc("B")])).toEqual([{ heading: null, services: [svc("A"), svc("B")] }]);
   });

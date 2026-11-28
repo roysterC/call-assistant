@@ -59,11 +59,11 @@ function Sparkle({ size, fill = "currentColor", stroke, className }: { size: num
 }
 
 /** A photo in a nail-tip arch. */
-function Arch({ art, className, sizes, priority }: { art: TileArt | "hero"; className?: string; sizes: string; priority?: boolean }) {
+function Arch({ art, className, sizes }: { art: TileArt | "hero"; className?: string; sizes: string }) {
   const photo = art === "hero" ? HERO_PHOTO : PHOTOS[art];
   return (
     <div className={`relative overflow-hidden ${className ?? ""}`} style={{ borderRadius: "999px 999px 24px 24px" }}>
-      <Image src={photo.src} alt={photo.alt} fill sizes={sizes} priority={priority} placeholder="blur" className="object-cover" />
+      <Image src={photo.src} alt={photo.alt} fill sizes={sizes} placeholder="blur" className="object-cover" />
     </div>
   );
 }
@@ -76,10 +76,16 @@ function heroSize(text: string): string {
   return "clamp(34px, 4.2vw, 62px)";
 }
 
-/** The salon's name across the footer, as big as its length allows. */
+/**
+ * The salon's name across the footer, as big as its length allows: about
+ * 150vw shared between its letters, so it fills the width without running
+ * off it. The floor is low enough for a long name on a phone; a name too
+ * long even for that wraps (the wordmark is allowed to) rather than being
+ * cut off.
+ */
 function wordmarkSize(name: string): string {
   const n = Math.max(4, name.length);
-  return `clamp(48px, ${Math.min(22, 150 / n).toFixed(1)}vw, 320px)`;
+  return `clamp(28px, ${Math.min(22, 150 / n).toFixed(1)}vw, 320px)`;
 }
 
 const BUTTON = `${styles.press} inline-flex min-h-[52px] items-center gap-2.5 rounded-full px-6 text-base font-semibold hover:-translate-y-0.5`;
@@ -135,7 +141,7 @@ export function SalonSite({
     <div
       data-salon-root=""
       className={`${salonFontVars} ${styles.root} h-dvh overflow-y-auto antialiased selection:bg-[#16121A] selection:text-[#EFE3FF]`}
-      style={{ ...brandStyle(salon.brandColor), ["--pop" as string]: accentFor(salon.brandColor), background: CREAM, color: INK, fontFamily: TEXT }}
+      style={{ ...brandStyle(salon.brandColor, CREAM), ["--pop" as string]: accentFor(salon.brandColor), background: CREAM, color: INK, fontFamily: TEXT }}
     >
       <header className="sticky top-0 z-10 border-b-[1.5px]" style={{ background: CREAM, borderColor: INK }}>
         <div className={`${WRAP} flex h-16 items-center gap-4 md:h-[76px] md:gap-7`}>
@@ -167,10 +173,16 @@ export function SalonSite({
             <a
               href={tel}
               aria-label={`Call ${salon.phone}`}
-              className={`${ROUND} h-11 w-11 md:hidden`}
+              className={`${ROUND} h-11 w-11 lg:hidden`}
               style={{ borderColor: INK }}
             >
               <Phone className="h-5 w-5" aria-hidden="true" />
+            </a>
+          )}
+          {tel && (
+            <a href={tel} className="hidden shrink-0 items-center gap-2 text-[15px] font-semibold tabular-nums lg:inline-flex">
+              <Phone className="h-4 w-4" aria-hidden="true" />
+              {salon.phone}
             </a>
           )}
           {takesBookings && (
@@ -243,7 +255,7 @@ export function SalonSite({
                     src={HERO_PHOTO.src}
                     alt={HERO_PHOTO.alt}
                     fill
-                    priority
+                    preload
                     placeholder="blur"
                     sizes="(min-width: 768px) 520px, 100vw"
                     className="object-cover"
@@ -478,8 +490,8 @@ export function SalonSite({
               </h2>
               <address className="flex flex-col text-lg not-italic leading-relaxed">
                 <strong className="text-[20px]">{salon.name}</strong>
-                {addressLines.map((l) => (
-                  <span key={l}>{l}</span>
+                {addressLines.map((l, i) => (
+                  <span key={i}>{l}</span>
                 ))}
               </address>
               <div className="flex flex-wrap gap-3">
@@ -535,8 +547,8 @@ export function SalonSite({
           )}
           <div
             aria-hidden="true"
-            className="whitespace-nowrap"
-            style={{ ...displayStyle, fontSize: wordmarkSize(salon.name), lineHeight: 0.8, letterSpacing: "-0.04em", textTransform: "lowercase" }}
+            className="[overflow-wrap:anywhere]"
+            style={{ ...displayStyle, fontSize: wordmarkSize(salon.name), lineHeight: 0.85, letterSpacing: "-0.04em", textTransform: "lowercase" }}
           >
             {salon.name}
           </div>

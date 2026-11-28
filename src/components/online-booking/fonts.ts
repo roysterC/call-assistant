@@ -10,29 +10,40 @@
 import localFont from "next/font/local";
 
 // "standard" files carry the width and optical-size axes as well as weight.
+// `weight` is the face's whole range: without it the browser takes a variable
+// face for 400 only and fakes the bold. Only the Latin files are preloaded;
+// the others are fetched when a page has those letters, as in app/layout.tsx.
 const display = localFont({
   src: "../../../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-standard-normal.woff2",
   variable: "--font-salon-display",
+  weight: "200 800",
   adjustFontFallback: false,
 });
 const displayExt = localFont({
   src: "../../../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-ext-standard-normal.woff2",
   variable: "--font-salon-display-ext",
+  weight: "200 800",
+  preload: false,
   adjustFontFallback: false,
 });
 const displayVietnamese = localFont({
   src: "../../../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-vietnamese-standard-normal.woff2",
   variable: "--font-salon-display-vi",
+  weight: "200 800",
+  preload: false,
   adjustFontFallback: false,
 });
 const text = localFont({
   src: "../../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-standard-normal.woff2",
   variable: "--font-salon-text",
+  weight: "400 700",
   adjustFontFallback: false,
 });
 const textExt = localFont({
   src: "../../../node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-ext-standard-normal.woff2",
   variable: "--font-salon-text-ext",
+  weight: "400 700",
+  preload: false,
   adjustFontFallback: false,
 });
 
