@@ -35,6 +35,7 @@ async function main() {
         id: DOAI_ORG_ID,
         name: "Kikai",
         slug: "doai",
+        billingStatus: "free",
       },
     });
     console.log("  ✓ Organization:", org.name);

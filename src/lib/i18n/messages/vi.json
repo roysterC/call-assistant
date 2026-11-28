@@ -52,7 +52,7 @@
     "forgot": "Quên mật khẩu?",
     "signIn": "Đăng nhập",
     "signingIn": "Đang đăng nhập…",
-    "noAccount": "Chưa có tài khoản? Quản trị viên sẽ mời bạn.",
+    "noAccount": "Bạn làm ở tiệm dùng Kikai? Chủ tiệm sẽ mời bạn.",
     "legal": "Pháp lý",
     "privacy": "Quyền riêng tư",
     "terms": "Điều khoản",
@@ -1103,7 +1103,8 @@
       "expired": "Liên kết đã hết hạn.",
       "inactive": "Tiệm này hiện không hoạt động.",
       "taken": "Email này đã có tài khoản. Hãy đăng nhập.",
-      "name": "Hãy nhập tên của bạn."
+      "name": "Hãy nhập tên của bạn.",
+      "paused": "Gói của tiệm đang tạm dừng nên chưa thể thêm người mới. Hãy nhờ chủ tiệm cập nhật thẻ, rồi dùng lại đường dẫn này."
     }
   },
   "auth": {
@@ -1270,6 +1271,22 @@
       "line": "Xác nhận đây là địa chỉ của bạn để có thể đặt lại mật khẩu nếu quên.",
       "button": "Xác nhận email",
       "footer": "Liên kết chỉ dùng được một lần, trong một ngày. Nếu bạn không dùng Kikai, hãy bỏ qua email này."
+    },
+    "trial": {
+      "subject": "{days, plural, =0 {Thời gian dùng thử Kikai của bạn kết thúc hôm nay} =1 {Thời gian dùng thử Kikai của bạn kết thúc vào ngày mai} other {Thời gian dùng thử Kikai của bạn kết thúc sau # ngày}}",
+      "heading": "{days, plural, =0 {Thời gian dùng thử kết thúc hôm nay} =1 {Thời gian dùng thử kết thúc vào ngày mai} other {Còn # ngày dùng thử miễn phí}}",
+      "line": "Thời gian dùng thử miễn phí của {salon} kết thúc vào ngày {date}. Hãy thêm thẻ để tiếp tục: bạn chưa bị trừ tiền đến lúc đó.",
+      "lineAfter": "Nếu không có thẻ, gói của bạn sẽ tạm dừng sau đó: lịch hẹn vẫn an toàn và trang web vẫn nhận đặt lịch, nhưng bạn không thể đặt lịch mới từ sổ hẹn hay thay đổi cài đặt cho đến khi thêm thẻ.",
+      "button": "Thêm thẻ",
+      "footer": "Bạn nhận được email này vì bạn là chủ của {salon} trên Kikai."
+    },
+    "purge": {
+      "subject": "Tiệm của bạn trên Kikai sẽ bị xoá vào ngày {date}",
+      "heading": "{salon} sẽ bị xoá vào ngày {date}",
+      "line": "Gói của {salon} đã tạm dừng một thời gian và không ai sử dụng, nên chúng tôi sẽ xoá tiệm cùng mọi dữ liệu (sổ hẹn, khách hàng, doanh thu và trang web) vào ngày {date}.",
+      "lineKeep": "Để giữ lại, hãy đăng nhập hoặc thêm thẻ trước ngày đó.",
+      "button": "Giữ tiệm của tôi",
+      "footer": "Bạn nhận được email này vì bạn là chủ của {salon} trên Kikai. Sau khi xoá, không thể khôi phục."
     }
   },
   "insights": {
@@ -1642,7 +1659,8 @@
       "websiteDoes": "Chat trên trang đặt lịch hoặc trang web của bạn, thiết lập trong",
       "chatBooks": "Trả lời tin nhắn và đặt lịch vào sổ hẹn",
       "chatNumber": "Trả lời câu hỏi, và đưa số của bạn hoặc ghi yêu cầu gọi lại để đặt lịch",
-      "chatAnswers": "Trả lời câu hỏi"
+      "chatAnswers": "Trả lời câu hỏi",
+      "chatStaffOnly": "Tin nhắn vào hộp thư để bạn trả lời. Thêm Trả lời tin nhắn bằng AI trong Gói và thanh toán để được trả lời tự động."
     },
     "on": "Bật",
     "off": "Tắt",
@@ -1811,7 +1829,7 @@
       "seats": "{n, plural, other {Thêm # thành viên}} × {each}"
     },
     "wouldBe": "Nếu tính phí, mỗi tháng",
-    "aMonth": "Mỗi tháng, đã gồm VAT",
+    "aMonth": "Mỗi tháng",
     "teamNote": "{people, plural, other {Nhóm của bạn có # người.}} Ai cũng được tính, dù có đăng nhập hay nhận khách hay không. Thêm hoặc bớt người thì hoá đơn đổi theo, tính theo ngày.",
     "tools": "Công cụ AI",
     "toolsHint": "Thêm bất cứ lúc nào, bỏ bất cứ lúc nào.",
@@ -1843,6 +1861,44 @@
       "failed": "Lần thanh toán gần nhất không thành công. Hãy cập nhật thẻ để không bị tạm dừng.",
       "paused": "Gói của bạn đang tạm dừng: bạn vẫn xem và thanh toán lịch hẹn, nhưng không đặt lịch mới được.",
       "action": "Gói và thanh toán"
+    },
+    "cancelPlan": "Huỷ gói của tôi",
+    "cancelTitle": "Huỷ gói của bạn?",
+    "cancelBody": "Gói của bạn vẫn dùng được đến hết tháng đã trả tiền, và bạn sẽ không bị trừ tiền nữa. Sau đó gói sẽ tạm dừng: lịch hẹn vẫn an toàn và trang web vẫn nhận đặt lịch, nhưng bạn không thể đặt lịch mới từ sổ hẹn, thay đổi nhóm hay cài đặt, hoặc dùng công cụ AI. Bạn có thể thêm thẻ lại bất cứ lúc nào.",
+    "cancelConfirm": "Huỷ vào cuối tháng",
+    "cancelFailed": "Không đổi được gói. Hãy thử lại sau một phút.",
+    "cancelled": "Đã huỷ. Gói của bạn vẫn dùng được đến {date}.",
+    "kept": "Gói của bạn tiếp tục như cũ.",
+    "keep": "Giữ gói của tôi",
+    "ending": {
+      "title": "Gói của bạn kết thúc vào ngày {date}",
+      "text": "Bạn đã huỷ gói. Mọi thứ vẫn hoạt động đến lúc đó, và bạn sẽ không bị trừ tiền nữa. Đổi ý? Hãy giữ gói."
+    },
+    "busy": "Một thay đổi khác cho gói của bạn vẫn đang được thực hiện. Hãy thử lại sau giây lát."
+  },
+  "signup": {
+    "title": "Bắt đầu dùng thử miễn phí",
+    "intro": "Miễn phí 14 ngày, không cần thẻ. Sổ hẹn, đặt lịch trực tuyến và trang web riêng của bạn, sẵn sàng trong vài phút.",
+    "salon": "Tên tiệm của bạn",
+    "name": "Tên của bạn",
+    "email": "Email của bạn",
+    "password": "Chọn mật khẩu",
+    "submit": "Bắt đầu dùng thử",
+    "submitting": "Đang cài đặt…",
+    "failed": "Không đăng ký được. Hãy thử lại.",
+    "terms": "Khi đăng ký, bạn đồng ý với",
+    "termsLink": "điều khoản",
+    "privacyLink": "và chính sách quyền riêng tư của chúng tôi.",
+    "haveLogin": "Đã có tài khoản?",
+    "signIn": "Đăng nhập",
+    "newHere": "Mới dùng Kikai?",
+    "start": "Dùng thử miễn phí",
+    "err": {
+      "salon": "Hãy nhập tên tiệm.",
+      "name": "Hãy nhập tên của bạn.",
+      "email": "Địa chỉ email có vẻ không đúng.",
+      "taken": "Email này đã có tài khoản.",
+      "tooMany": "Thử quá nhiều lần. Hãy đợi một lúc rồi thử lại."
     }
   }
 }

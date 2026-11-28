@@ -148,6 +148,8 @@ export default function SettingsPage() {
   const [salonSite, setSalonSite] = useState<string | null>(null);
   // Whether the salon's texts can go, and from whom (sms-sender.ts).
   const [texts, setTexts] = useState<TextsStatus | null>(null);
+  // Which AI tools work now (src/lib/plan.ts): what the chats say they do.
+  const [aiOn, setAiOn] = useState<{ chatReplies: boolean; chatBooking: boolean }>({ chatReplies: true, chatBooking: true });
 
   useEffect(() => {
     async function fetchAll() {
@@ -181,6 +183,9 @@ export default function SettingsPage() {
         setBookingOrigin(data.bookingOrigin ?? null);
         setSalonSite(data.salonSite ?? null);
         setTexts(data.texts ?? null);
+        if (data.plan?.addonActive) {
+          setAiOn({ chatReplies: Boolean(data.plan.addonActive.chatReplies), chatBooking: Boolean(data.plan.addonActive.chatBooking) });
+        }
         setSettings(s);
         setSaved(editable(s));
 
@@ -343,7 +348,9 @@ export default function SettingsPage() {
 
   // Every channel, switched on or not, so the salon sees what it has and what
   // it could have. Kikai switches them on; nothing here changes them.
-  const chatDoes = settings.chatBookingEnabled
+  const chatDoes = !aiOn.chatReplies
+    ? t("settings.channels.chatStaffOnly")
+    : settings.chatBookingEnabled && aiOn.chatBooking
     ? t("settings.channels.chatBooks")
     : settings.hasDiary
       ? t("settings.channels.chatNumber")

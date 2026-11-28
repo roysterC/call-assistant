@@ -117,11 +117,6 @@ async function processWebhook(body: Record<string, unknown>, verified: Set<strin
     );
     return;
   }
-  // The AI chat replies are a paid add-on (src/lib/plan.ts).
-  if (!(await addonOn(organizationId, "chatReplies"))) {
-    console.log("[WHATSAPP WEBHOOK] chat replies are not on this salon's plan, ignoring:", organizationId);
-    return;
-  }
 
   const contacts = value.contacts as Array<Record<string, unknown>>;
   const contactProfile = contacts?.[0]?.profile as Record<string, unknown>;
@@ -245,5 +240,7 @@ async function processMessage(
 
   // Without a token the message is kept for the inbox, unanswered. With one,
   // the reply goes once they have stopped sending (whatsapp-reply.ts).
-  if (sender) replyWhenQuiet(organizationId, conversation.id, sender);
+  // The AI chat replies are a paid add-on (src/lib/plan.ts): without them the
+  // message is kept for the inbox, unanswered.
+  if (sender && (await addonOn(organizationId, "chatReplies"))) replyWhenQuiet(organizationId, conversation.id, sender);
 }

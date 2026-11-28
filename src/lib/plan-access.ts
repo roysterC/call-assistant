@@ -31,6 +31,7 @@ const PLAN_SELECT = {
   stripeSubscriptionId: true,
   addons: true,
   paymentFailedAt: true,
+  cancelAt: true,
 } as const;
 
 export async function loadPlan(organizationId: string, now: Date = new Date()): Promise<PlanState | null> {
@@ -83,8 +84,8 @@ export const VOICE_UPGRADE = {
 /** Everyone the salon pays for: the team, and logins that are not on it. */
 export async function peopleOf(organizationId: string): Promise<number> {
   const [team, logins] = await Promise.all([
-    prisma.technician.findMany({ where: { organizationId, archivedAt: null }, select: { userId: true } }),
-    prisma.user.findMany({ where: { organizationId }, select: { id: true, role: true } }),
+    prisma.technician.findMany({ where: { organizationId, archivedAt: null }, select: { userId: true, email: true, name: true } }),
+    prisma.user.findMany({ where: { organizationId }, select: { id: true, role: true, email: true, name: true } }),
   ]);
   return countPeople(team, logins);
 }

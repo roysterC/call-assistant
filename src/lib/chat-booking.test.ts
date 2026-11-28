@@ -388,6 +388,11 @@ describe("the webhooks' way in", () => {
     expect(await chatReply(turn("hi", model([{ text: "x" }]).client))).toBeNull();
   });
 
+  it("gives null, for the plain chat, to an organisation that is not a salon (Kikai's own)", async () => {
+    db.settings = { chatBookingEnabled: false, diaryEnabled: false, voiceEnabled: false };
+    expect(await chatReply(turn("hi", model([{ text: "x" }]).client))).toBeNull();
+  });
+
   it("where booking by message is off, still answers as the receptionist, with the number and a call back", async () => {
     db.settings = { chatBookingEnabled: false, diaryEnabled: true, businessName: "Polished", contactPhone: "01234 567890" };
     const m = model([{ text: "You can ring us on 01234 567890 to book, or we can ring you. Which would you prefer?" }]);

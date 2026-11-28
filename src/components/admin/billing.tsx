@@ -167,7 +167,7 @@ export const PRICE_LABEL: Record<PriceKey, string> = {
   rebookTexts: "Rebooking texts",
 };
 
-const STATUS_LABEL: Record<string, string> = {
+export const STATUS_LABEL: Record<string, string> = {
   free: "Not billed",
   trialing: "Free trial",
   active: "Paying",
@@ -216,7 +216,7 @@ export function BillingPrices() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          A month, VAT included. A new price is for salons that subscribe from now: those already paying keep the price
+          A month. A new price is for salons that subscribe from now: those already paying keep the price
           they joined on. An add-on with no price is not for sale.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -356,7 +356,8 @@ export function OrgBilling({ orgId }: { orgId: string }) {
                   type="checkbox"
                   className="h-4 w-4 accent-primary"
                   checked={on}
-                  disabled={busy}
+                  // Nothing to bill a new one at until it has a price.
+                  disabled={busy || (!on && price == null)}
                   onChange={(e) => void toggle(a, e.target.checked)}
                 />
                 <span className="flex-1">{PRICE_LABEL[a]}</span>

@@ -16,7 +16,7 @@
  * can ask for a new link from its own page, sent to the same address.
  */
 
-import { trialEnd } from "@/lib/plan";
+import { planState, trialEnd } from "@/lib/plan";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, validatePassword } from "@/lib/password";
@@ -79,7 +79,7 @@ export const INVITATION_FIELDS = {
 export type InviteDelivery = "email" | "link";
 
 /** Why a link cannot be used, for the page to say in the reader's language. */
-export type InviteCode = "invalid" | "used" | "replaced" | "expired" | "inactive" | "taken" | "name" | "weak" | "email" | "role" | "notFound" | "send";
+export type InviteCode = "invalid" | "used" | "replaced" | "expired" | "inactive" | "taken" | "name" | "weak" | "email" | "role" | "notFound" | "send" | "paused";
 
 type Fail = { ok: false; status: number; error: string; code: InviteCode };
 
@@ -242,11 +242,24 @@ export async function acceptInvitation(input: {
         acceptedAt: true,
         revokedAt: true,
         expiresAt: true,
-        organization: { select: { enabled: true, name: true } },
+        organization: {
+          select: { enabled: true, name: true, billingStatus: true, trialEndsAt: true, stripeSubscriptionId: true, addons: true },
+        },
       },
     });
     const unusable = checkUsable(inv, now);
     if (unusable) return unusable;
+    // A paused salon takes no new people (src/lib/plan.ts): an invite sent
+    // before it was paused waits for the plan to carry on. The owner may
+    // still join, to put the plan right.
+    if (inv!.role !== "admin" && planState(inv!.organization, now).access === "restricted") {
+      return {
+        ok: false as const,
+        status: 410,
+        error: "This salon's plan is paused. Ask the owner to update their card, then use this link again.",
+        code: "paused" as const,
+      };
+    }
     // Before the claim, so a refusal leaves the link as it was.
     const taken = await tx.user.findUnique({
       where: { email: inv!.email },

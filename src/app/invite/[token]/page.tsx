@@ -23,7 +23,7 @@ import { isLang, type MessageKey } from "@/lib/i18n";
 
 type Invite = { email: string; salon: string; role: string; language: string };
 
-const ERRORS = ["invalid", "used", "replaced", "expired", "inactive", "taken", "name"] as const;
+const ERRORS = ["invalid", "used", "replaced", "expired", "inactive", "taken", "name", "paused"] as const;
 type ErrorCode = (typeof ERRORS)[number];
 const errorKey = (code: unknown): MessageKey =>
   ERRORS.includes(code as ErrorCode) ? (`inv.err.${code}` as MessageKey) : "inv.err.invalid";
@@ -75,7 +75,7 @@ export default function InvitePage() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (["used", "replaced", "expired", "inactive", "invalid"].includes(d.code)) setProblem({ code: d.code });
+        if (["used", "replaced", "expired", "inactive", "invalid", "paused"].includes(d.code)) setProblem({ code: d.code });
         else setError(d.code === "weak" ? t("pw.short") : res.status === 429 ? t("common.tooMany") : d.code ? t(errorKey(d.code)) : t("inv.failed"));
         setBusy(false);
         return;

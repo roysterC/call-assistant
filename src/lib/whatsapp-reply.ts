@@ -11,6 +11,7 @@ import { afterQuiet } from "@/lib/chat-burst";
 import { buildChatContext, buildSystemPrompt, CHAT_UNAVAILABLE, getChatResponse } from "@/lib/claude";
 import { markAsRead, sendTextMessage, type WhatsAppSender } from "@/lib/whatsapp";
 import { whatsappSender } from "@/lib/meta-credentials";
+import { addonOn } from "@/lib/plan-access";
 
 export function replyWhenQuiet(organizationId: string, conversationId: string, sender: WhatsAppSender): void {
   afterQuiet(`whatsapp:${conversationId}`, () => answerWhatsApp(organizationId, conversationId, sender));
@@ -96,6 +97,8 @@ export async function answerWhatsAppAfterRestart(conversationId: string): Promis
     select: { id: true, organizationId: true },
   });
   if (!conversation) return;
+  // The AI chat replies are a paid add-on (src/lib/plan.ts).
+  if (!(await addonOn(conversation.organizationId, "chatReplies"))) return;
   const number = await prisma.phoneNumber.findFirst({
     where: { organizationId: conversation.organizationId, channel: "whatsapp", active: true },
     select: { whatsappPhoneNumberId: true },

@@ -73,10 +73,12 @@ export async function handleEvent(event: Stripe.Event): Promise<string | null> {
     return applySubscription(event.data.object as Stripe.Subscription, { fresh: true });
   }
   if (type.startsWith("invoice.")) {
-    const inv = event.data.object as Stripe.Invoice;
-    const orgId = await recordInvoice(inv, { fresh: true });
-    if (!orgId) return null;
-    if (type === "invoice.payment_failed") await invoiceFailed(inv);
+    const kept = await recordInvoice(event.data.object as Stripe.Invoice, { fresh: true });
+    if (!kept) return null;
+    const { organizationId: orgId, invoice: inv } = kept;
+    // Failed, by the notice; noted only if still unpaid now: a failure
+    // arriving after the invoice was paid must not bring the warning back.
+    if (type === "invoice.payment_failed" && inv.status === "open" && inv.amount_remaining > 0) await invoiceFailed(inv);
     // Paid: the warning goes, unless another invoice is still owed (an old
     // "paid" arriving after a newer failure must not hide it).
     if (type === "invoice.paid") {

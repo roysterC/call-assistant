@@ -49,14 +49,34 @@ describe("people on the team", () => {
     expect(countPeople([{ userId: "u1" }, { userId: null }, { userId: null }], [{ id: "u1", role: "admin" }])).toBe(3);
   });
 
-  it("counts a login that is not on the team, once, and never Kikai's own", () => {
+  it("counts a login that is not on the team, once, and never Kikai's own or a withdrawn one", () => {
     const team = [{ userId: "u1" }];
     const logins = [
       { id: "u1", role: "admin" },
       { id: "u2", role: "member" },
       { id: "k", role: "superAdmin" },
+      { id: "old", role: "stylist" },
     ];
     expect(countPeople(team, logins)).toBe(2);
+  });
+
+  it("counts the owner who added themselves to the team once, and staff whose login matches their entry", () => {
+    // Onboarding's "Add me": a team entry with the owner's name, not linked.
+    expect(countPeople([{ userId: null, name: "Mai Tran" }], [{ id: "o", role: "admin", name: "mai tran", email: "mai@x.com" }])).toBe(1);
+    // A member of staff invited by email, her entry carrying it.
+    expect(
+      countPeople(
+        [{ userId: null, name: "Mai" }, { userId: null, name: "Kim Le", email: "kim@x.com" }],
+        [
+          { id: "o", role: "admin", name: "Mai" },
+          { id: "k", role: "member", name: "Kimmy", email: "KIM@x.com" },
+        ]
+      )
+    ).toBe(2);
+    // Staff are matched by email, never by name alone: two may share one.
+    expect(countPeople([{ userId: null, name: "Kim" }], [{ id: "a", role: "member", name: "Kim" }])).toBe(2);
+    // One entry stands for one login only.
+    expect(countPeople([{ userId: null, name: "Sam" }], [{ id: "a", role: "admin", name: "Sam" }, { id: "b", role: "admin", name: "Sam" }])).toBe(2);
   });
 
   it("charges for each one but the owner", () => {
@@ -130,6 +150,17 @@ describe("add-ons", () => {
     const s = planState({ billingStatus: "restricted", trialEndsAt: null, stripeSubscriptionId: "sub_1", addons: ["receptionist"] }, NOW);
     expect(s.addonActive.receptionist).toBe(false);
     expect(s.warning).toBe("restricted");
+  });
+});
+
+describe("a cancelled plan", () => {
+  it("says when it ends, and works until then", () => {
+    const s = planState(
+      { billingStatus: "active", trialEndsAt: null, stripeSubscriptionId: "sub_1", addons: ["receptionist"], cancelAt: day(12) },
+      NOW
+    );
+    expect(s).toMatchObject({ access: "full", endsAt: day(12).toISOString(), warning: null });
+    expect(s.addonActive.receptionist).toBe(true);
   });
 });
 

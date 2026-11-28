@@ -20,10 +20,15 @@
  *  - "active":     paying.
  *  - "past_due":   a payment failed and Stripe is retrying it: everything
  *                  still works, with a warning to update the card.
- *  - "restricted": the trial ended with no card, or Stripe gave up on a
- *                  payment. The salon keeps its bookings and can still check
- *                  out, cancel and pay; nothing new can be booked or added
- *                  (src/lib/plan-access.ts), and no add-on works.
+ *  - "restricted": the trial ended with no card, Stripe gave up on a
+ *                  payment, or the owner cancelled and the paid month ran
+ *                  out. The salon keeps its bookings and can still check out,
+ *                  cancel, add clients, block out time and pay; its website
+ *                  still takes online bookings. The desk and the assistant
+ *                  book nothing new, the team and setup cannot change
+ *                  (src/lib/plan-access.ts), and no add-on works. Paused
+ *                  salons may be wiped, least recently used first, as the
+ *                  database fills (src/lib/purge.ts).
  */
 
 export const ADDONS = ["receptionist", "chatReplies", "chatBooking", "rebookTexts"] as const;
@@ -72,7 +77,7 @@ export function changedAddons(current: readonly Addon[], addon: Addon, on: boole
 export type PriceKey = "base" | "seat" | Addon;
 export const PRICE_KEYS: readonly PriceKey[] = ["base", "seat", ...ADDONS];
 
-/** The founder prices, in pence a month, VAT included: used until Kikai sets others in Admin. */
+/** The founder prices, in pence a month: used until Kikai sets others in Admin. */
 export const DEFAULT_PENCE: Record<"base" | "seat", number> = { base: 900, seat: 500 };
 
 export const TRIAL_DAYS = 14;
@@ -93,6 +98,7 @@ export interface PlanInput {
   stripeSubscriptionId: string | null;
   addons: string[];
   paymentFailedAt?: Date | string | null;
+  cancelAt?: Date | string | null;
 }
 
 export type Warning = "trialEnding" | "trialNoCard" | "paymentFailed" | "restricted" | null;
@@ -113,6 +119,8 @@ export interface PlanState {
   addons: Addon[];
   /** What to tell the owner, most urgent first. */
   warning: Warning;
+  /** The owner cancelled: the plan ends then (ISO), at the end of the paid month. */
+  endsAt: string | null;
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -153,7 +161,18 @@ export function planState(o: PlanInput, now: Date = new Date()): PlanState {
   else if (status === "past_due" || (status !== "free" && asDate(o.paymentFailedAt))) warning = "paymentFailed";
   else if (status === "trialing" && !hasCard) warning = trialDaysLeft !== null && trialDaysLeft <= 3 ? "trialEnding" : "trialNoCard";
 
-  return { status, access, trialDaysLeft, hasCard, billed: status !== "free", addonActive, addons, warning };
+  const cancelAt = hasCard && status !== "free" ? asDate(o.cancelAt) : null;
+  return {
+    status,
+    access,
+    trialDaysLeft,
+    hasCard,
+    billed: status !== "free",
+    addonActive,
+    addons,
+    warning,
+    endsAt: cancelAt ? cancelAt.toISOString() : null,
+  };
 }
 
 /** The trial's end for a trial starting now. */
@@ -199,11 +218,33 @@ export function seatsFor(people: number): number {
 
 /**
  * Count each person once: everyone on the team (taking bookings or not) and
- * every login that is not one of them. Kikai's own logins are not the salon's.
+ * every login that is not one of them. A login is one of them when a team
+ * entry is linked to it, or, unlinked, has its email or its name: the owner
+ * who adds themselves in onboarding, or a member of staff invited by email,
+ * is one person, not two. Kikai's own logins, and withdrawn ones, are nobody.
  */
-export function countPeople(team: Array<{ userId: string | null }>, logins: Array<{ id: string; role: string }>): number {
-  const onTeam = new Set(team.map((t) => t.userId).filter(Boolean));
-  const others = logins.filter((u) => u.role !== "superAdmin" && !onTeam.has(u.id));
+export function countPeople(
+  team: Array<{ userId: string | null; email?: string | null; name?: string | null }>,
+  logins: Array<{ id: string; role: string; email?: string | null; name?: string | null }>
+): number {
+  const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
+  const linked = new Set(team.map((t) => t.userId).filter(Boolean));
+  // Unlinked entries each stand for at most one login.
+  const free = team.filter((t) => !t.userId);
+  const others = logins.filter((u) => {
+    if (u.role !== "admin" && u.role !== "member") return false;
+    if (linked.has(u.id)) return false;
+    // By email for anyone; by name only for the owner (onboarding's "Add me"
+    // from before it linked the entry), since two members of staff may share one.
+    const i = free.findIndex(
+      (t) =>
+        (norm(t.email) && norm(t.email) === norm(u.email)) ||
+        (u.role === "admin" && norm(t.name) && norm(t.name) === norm(u.name))
+    );
+    if (i < 0) return true;
+    free.splice(i, 1);
+    return false;
+  });
   return team.length + others.length;
 }
 

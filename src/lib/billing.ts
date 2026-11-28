@@ -41,6 +41,7 @@ export async function billingSummary(organizationId: string): Promise<BillingSum
       addons: true,
       addonRequests: true,
       paymentFailedAt: true,
+      cancelAt: true,
     },
   });
   if (!org) return null;

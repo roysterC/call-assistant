@@ -437,14 +437,15 @@ export default function OrganizationDetailPage() {
     if (!org) return;
     const yes = await confirm({
       title: `Delete "${org.name}" and all its data?`,
-      body: "Every booking, client, call and login goes with it. This cannot be undone.",
+      body: "Every booking, client, call and login goes with it, and a card subscription is cancelled in Stripe. This cannot be undone.",
       confirmLabel: "Delete organisation",
       destructive: true,
     });
     if (!yes) return;
     const res = await fetch(`/api/admin/organizations/${org.id}`, { method: "DELETE" });
     if (!res.ok) {
-      notify("Couldn't delete the organisation. Try again.");
+      const d = await res.json().catch(() => ({}));
+      notify(d.error || "Couldn't delete the organisation. Try again.");
       return;
     }
     router.push("/admin/organizations");

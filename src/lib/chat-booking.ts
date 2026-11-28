@@ -36,7 +36,6 @@ import { ClientTypeMemory } from "@/lib/receptionist/client-type-memory";
 import { ReceptionistEngine, type StreamingClient } from "@/lib/receptionist/engine";
 import { buildChatSystem, COLLEAGUE_PREFIX, type ChatChannel } from "@/lib/receptionist/prompt";
 import { manualProvider } from "@/lib/booking/providers/manual";
-import { hasDiary } from "@/lib/navigation";
 import { toClaudeTools, withCallerContext } from "@/lib/receptionist/tools";
 import { receptionistApiKey, receptionistModel, receptionistRequestOptions } from "@/lib/receptionist/session";
 import { attachPhotosToBooking } from "@/lib/chat-photos";
@@ -165,8 +164,18 @@ export async function chatMode(organizationId: string): Promise<ChatMode | null>
     where: { organizationId },
     select: { chatBookingEnabled: true, diaryEnabled: true, voiceEnabled: true },
   });
-  if (!settings || !hasDiary(settings)) return null;
+  if (!settings || !runsSalonDiary(settings)) return null;
   return (await chatBookingOn(organizationId)) ? "book" : "messages";
+}
+
+/**
+ * Whether the organisation's chats speak for a salon diary. Every salon has
+ * the diary now (src/lib/plan.ts), but an organisation that is not a salon
+ * (Kikai's own chats) has none of these on, and keeps the plain chat. Every
+ * salon Kikai makes, or that signs up, has diaryEnabled set.
+ */
+function runsSalonDiary(s: { diaryEnabled?: boolean | null; voiceEnabled?: boolean | null; chatBookingEnabled?: boolean | null }): boolean {
+  return Boolean(s.diaryEnabled || s.voiceEnabled || s.chatBookingEnabled);
 }
 
 /** One of the conversation's stored messages: theirs ("user"), the bot's, or the salon's staff ("agent"). */

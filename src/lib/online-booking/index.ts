@@ -36,7 +36,6 @@ import {
   type PublicService,
 } from "./catalogue";
 import { groupSlotsByDay, nearestSlots, slotWindow, type DaySlots, type PublicSlot } from "./slots";
-import { loadPlan } from "@/lib/plan-access";
 
 export * from "./catalogue";
 export * from "./slots";
@@ -107,8 +106,8 @@ export async function loadOnlineSalon(slug: unknown): Promise<OnlineSalon | null
     stylistChoice: s.onlineStylistChoice,
     maxDaysAhead: s.onlineMaxDaysAhead,
   });
-  // A paused plan (src/lib/plan.ts) keeps its site, which says to ring.
-  const plan = await loadPlan(org.id);
+  // The website is the base plan: it keeps taking bookings even while the
+  // salon's plan is paused (src/lib/plan.ts), so its clients can still book.
   return {
     organizationId: org.id,
     salon,
@@ -117,8 +116,7 @@ export async function loadOnlineSalon(slug: unknown): Promise<OnlineSalon | null
     takesBookings:
       canCreateBooking(provider) &&
       canReadAvailability(provider) &&
-      salon.services.length > 0 &&
-      plan?.access !== "restricted",
+      salon.services.length > 0,
   };
 }
 

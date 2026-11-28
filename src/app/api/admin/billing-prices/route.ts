@@ -13,7 +13,7 @@ export async function GET() {
 }
 
 /**
- * Set one price: { key, pence }, pence a month with VAT. An add-on's pence
+ * Set one price: { key, pence }, pence a month. An add-on's pence
  * null takes it off sale (salons that have it keep it). The base and seat
  * prices cannot be cleared, only changed.
  */

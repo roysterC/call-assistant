@@ -42,7 +42,8 @@ Test cards (any future expiry, any CVC):
       orange banner on every page.
 - [ ] Trial end in the past → red "paused" banner, and:
   - [ ] New booking refused; moving a booking refused.
-  - [ ] The salon's website says to ring.
+  - [ ] The salon's website still takes online bookings.
+  - [ ] Adding a client and blocking out time still work.
   - [ ] Inviting a login and saving settings refused.
   - [ ] Checking out, cancelling and notes still work.
   - [ ] As a Kikai super-admin, everything still works.
@@ -56,6 +57,16 @@ Test cards (any future expiry, any CVC):
 - [ ] Admin shows "Card on file".
 - [ ] Add a card again in a second tab and finish both → Stripe cancels the
       second subscription by itself; only one stays.
+
+## C2. Cancelling
+
+- [ ] Owner presses **Cancel my plan** → confirms → the page says "Your plan
+      ends on …" (the end of the paid month, or the trial); in Stripe the
+      subscription is set to cancel at period end.
+- [ ] **Keep my plan** → back as before; Stripe no longer set to cancel.
+- [ ] Cancel again, then end the period early in Stripe (Stripe test clock,
+      or cancel now in Stripe) → the salon is paused; its bookings and
+      website still work; **Add a card** starts a new subscription.
 
 ## D. Team size
 
@@ -99,6 +110,17 @@ Test cards (any future expiry, any CVC):
   It lists the salons checked, nothing fixed.
 - [ ] Change a subscription's extra-member quantity by hand in Stripe, run it
       again → put back, and an email says what was fixed.
+
+## H2. Trial emails and wiping paused salons
+
+- [ ] A trial with no card ending in 3 days: after the next timer run, the
+      owner has "Your Kikai free trial ends in 3 days"; the day before it
+      ends (by the London date), "ends tomorrow". Each comes once.
+- [ ] `/api/cron/purge-paused?dryRun=1` names the candidates, and who the
+      next run would warn and delete, and changes nothing.
+- [ ] With `PURGE_WHEN_DB_OVER_GB` set low, a paused salon idle 90+ days:
+      first run emails its owner; signing in clears it; 14 days after a
+      warning, the next run deletes it and emails Kikai.
 
 ## I. Existing salons
 
