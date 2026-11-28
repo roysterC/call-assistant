@@ -150,10 +150,11 @@ const PAST_GRACE_MS = 15 * 60_000;
 
 // --- Finding things ------------------------------------------------------------------
 
-const DIGIT_WORDS: Record<string, string> = {
+/** Spoken digits. A Map, so a word like "constructor" is never mistaken for one. */
+const DIGIT_WORDS = new Map<string, string>(Object.entries({
   zero: "0", oh: "0", o: "0", nought: "0", one: "1", two: "2", three: "3", four: "4",
   five: "5", six: "6", seven: "7", eight: "8", nine: "9",
-};
+}));
 
 /**
  * A number as dictation may give it, in digits: "oh seven seven double oh"
@@ -165,11 +166,11 @@ export function spokenDigits(heard: string): string {
   for (let i = 0; i < words.length; i++) {
     const w = words[i].replace(/[^a-z0-9]/g, "");
     const after = (words[i + 1] ?? "").replace(/[^a-z0-9]/g, "");
-    const next = DIGIT_WORDS[after] ?? (/^\d$/.test(after) ? after : undefined);
+    const next = DIGIT_WORDS.get(after) ?? (/^\d$/.test(after) ? after : undefined);
     if ((w === "double" || w === "triple") && next) {
       out.push(next.repeat(w === "double" ? 2 : 3));
       i++;
-    } else out.push(DIGIT_WORDS[w] ?? words[i]);
+    } else out.push(DIGIT_WORDS.get(w) ?? words[i]);
   }
   return out.join(" ");
 }
@@ -208,7 +209,7 @@ export async function findClients(organizationId: string, heard: string) {
     .replace(/[^\p{L}' -]+/gu, " ")
     .split(/\s+/)
     // Digit words leave the name only when there is a number: "Ji-woo Oh" is a name.
-    .filter((w) => w.length >= 2 && !NUMBER_WORDS.has(w) && !(byPhone && (w in DIGIT_WORDS || w === "double" || w === "triple")))
+    .filter((w) => w.length >= 2 && !NUMBER_WORDS.has(w) && !(byPhone && (DIGIT_WORDS.has(w) || w === "double" || w === "triple")))
     .slice(0, 4);
   if (words.length === 0 && !byPhone) return [];
   const select = {
@@ -413,7 +414,7 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
     } else if (phoneSearch(name)) {
       // Given a number: it is someone on the books (a parent and a child
       // share one), or nobody we know. Never a new client named after digits.
-      if (found.length) return { ok: false, message: "More than one client is on that number. Ask which one.", candidates: found };
+      if (found.length) return { ok: false, message: "Not sure which client that is. Ask which one.", candidates: found };
       return { ok: false, message: "No client has that number. Ask for their name." };
     } else {
       let phone: string | null = null;

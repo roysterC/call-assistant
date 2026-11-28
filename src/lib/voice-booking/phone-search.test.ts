@@ -58,6 +58,8 @@ describe("phoneSearch", () => {
   it("reads a number dictation spelled out", () => {
     expect(spokenDigits("oh seven seven double oh nine")).toBe("0 7 7 00 9");
     expect(spokenDigits("07700 double 0 9123")).toBe("07700 00 9123");
+    // Only digit words: nothing an object happens to have.
+    expect(spokenDigits("constructor toString")).toBe("constructor tostring");
     expect(phoneSearch("ending one two three")).toEqual({ endsWith: "123" });
   });
 
