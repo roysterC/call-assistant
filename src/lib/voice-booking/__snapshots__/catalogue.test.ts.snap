@@ -22,6 +22,28 @@ exports[`the assistant's reply catalogue > book: a client found by name 1`] = `
 }
 `;
 
+exports[`the assistant's reply catalogue > book: a client found by their number 1`] = `
+{
+  "draft": {
+    "clientName": "Sarah Friend",
+    "clientType": "new",
+    "durationMinutes": 45,
+    "endsAt": "2026-09-29T13:45:00.000Z",
+    "id": "<id>",
+    "kind": "book",
+    "leadId": "sarah",
+    "newClient": null,
+    "notes": null,
+    "patchTestRequired": false,
+    "service": "Blow dry",
+    "startsAt": "2026-09-29T13:00:00.000Z",
+    "stylist": "Jo",
+    "text": null,
+  },
+  "ok": true,
+}
+`;
+
 exports[`the assistant's reply catalogue > book: a client on the books, stylist named, free 1`] = `
 {
   "draft": {
@@ -80,6 +102,13 @@ exports[`the assistant's reply catalogue > book: a new client by name and number
     "text": null,
   },
   "ok": true,
+}
+`;
+
+exports[`the assistant's reply catalogue > book: a number nobody has 1`] = `
+{
+  "message": "No client has that number. Ask for their name.",
+  "ok": false,
 }
 `;
 

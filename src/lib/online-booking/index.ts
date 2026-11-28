@@ -60,6 +60,15 @@ export function isSlug(raw: unknown): raw is string {
  * whose diary is not set up yet still has a site; it just cannot be booked
  * (`takesBookings` false), and says to ring.
  */
+/**
+ * The organisations that have a salon page, as a query: what loadOnlineSalon
+ * below checks, for anything that only needs to know (the certificate
+ * check, src/app/api/salon-tls). Change the two together.
+ */
+export function onlineSalonWhere(slug: string) {
+  return { slug, enabled: true, settings: { onlineBookingEnabled: true } } as const;
+}
+
 export async function loadOnlineSalon(slug: unknown): Promise<OnlineSalon | null> {
   if (!isSlug(slug)) return null;
   const org = await prisma.organization.findUnique({
@@ -86,6 +95,7 @@ export async function loadOnlineSalon(slug: unknown): Promise<OnlineSalon | null
     },
   });
   const s = org?.settings;
+  // The same rule as onlineSalonWhere above.
   if (!org || !org.enabled || !s?.onlineBookingEnabled) return null;
 
   const cfg = await getSalonConfig(org.id);

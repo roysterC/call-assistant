@@ -151,7 +151,7 @@ const PAST_GRACE_MS = 15 * 60_000;
 // --- Finding things ------------------------------------------------------------------
 
 const DIGIT_WORDS: Record<string, string> = {
-  zero: "0", oh: "0", nought: "0", one: "1", two: "2", three: "3", four: "4",
+  zero: "0", oh: "0", o: "0", nought: "0", one: "1", two: "2", three: "3", four: "4",
   five: "5", six: "6", seven: "7", eight: "8", nine: "9",
 };
 
@@ -187,7 +187,7 @@ export function phoneSearch(heard: string): { endsWith: string } | null {
 }
 
 /** Words in a lookup that are about the number, not the name. */
-const NOT_NAME = new Set(["ending", "number", "phone", "mobile", "on", "in", "double", "triple", ...Object.keys(DIGIT_WORDS)]);
+const NUMBER_WORDS = new Set(["ending", "number", "phone", "mobile", "on", "in"]);
 
 /**
  * Clients matching what was heard, best first: by name, by phone number,
@@ -207,7 +207,8 @@ export async function findClients(organizationId: string, heard: string) {
     .toLowerCase()
     .replace(/[^\p{L}' -]+/gu, " ")
     .split(/\s+/)
-    .filter((w) => w.length >= 2 && !NOT_NAME.has(w))
+    // Digit words leave the name only when there is a number: "Ji-woo Oh" is a name.
+    .filter((w) => w.length >= 2 && !NUMBER_WORDS.has(w) && !(byPhone && (w in DIGIT_WORDS || w === "double" || w === "triple")))
     .slice(0, 4);
   if (words.length === 0 && !byPhone) return [];
   const select = {
@@ -275,7 +276,7 @@ export async function findClients(organizationId: string, heard: string) {
         patchTest: r.patchTestAt ? spokenPatchTest(r.patchTestAt) : null,
         // With a name said as well, the number alone isn't enough: both must agree.
         exactMatch: byPhone
-          ? numberIsTheirs && (words.length === 0 || nameWords(r.name) > 0)
+          ? numberIsTheirs && (words.length === 0 || namesMatch(r.name, nameSaid))
           : namesMatch(r.name, nameSaid),
       };
     });
@@ -409,6 +410,11 @@ export async function proposeBooking(asker: Asker, req: BookingRequest): Promise
       clientName = exact[0].name;
     } else if (exact.length > 1) {
       return { ok: false, message: "More than one client has that name. Ask which one.", candidates: exact };
+    } else if (phoneSearch(name)) {
+      // Given a number: it is someone on the books (a parent and a child
+      // share one), or nobody we know. Never a new client named after digits.
+      if (found.length) return { ok: false, message: "More than one client is on that number. Ask which one.", candidates: found };
+      return { ok: false, message: "No client has that number. Ask for their name." };
     } else {
       let phone: string | null = null;
       if (req.clientPhone?.trim()) {

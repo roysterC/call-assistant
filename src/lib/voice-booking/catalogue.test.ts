@@ -20,9 +20,13 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: async ({ where }: { where: { id: string; organizationId: string } }) =>
         db.leads.find((l) => l.id === where.id && l.organizationId === where.organizationId) ?? null,
       findUnique: async ({ where }: { where: { id: string } }) => db.leads.find((l) => l.id === where.id) ?? null,
-      findMany: async ({ where }: { where: { OR: Array<{ name: { contains: string } }> } }) =>
+      findMany: async ({ where }: { where: { OR: Array<{ name?: { contains: string }; phone?: { endsWith: string } }> } }) =>
         db.leads
-          .filter((l) => where.OR.some((o) => (l.name ?? "").toLowerCase().includes(o.name.contains)))
+          .filter((l) =>
+            where.OR.some((o) =>
+              o.name ? (l.name ?? "").toLowerCase().includes(o.name.contains) : Boolean(o.phone && l.phone?.endsWith(o.phone.endsWith))
+            )
+          )
           .map((l) => ({ ...l, contactLead: null, appointments: [] })),
     },
     appointment: {
@@ -158,6 +162,8 @@ const cases: Array<[string, () => Promise<unknown>, (() => void)?]> = [
   ["book: a new client by name and number", book({ clientName: "Pat Newcomer", clientPhone: "07700 900111", service: "blow dry", date: "Tuesday", time: "2pm" })],
   ["book: a client found by name", book({ clientName: "Sarah Friend", service: "blow dry", date: "Tuesday", time: "2pm" })],
   ["book: nobody named", book({ service: "blow dry", date: "Tuesday", time: "2pm" })],
+  ["book: a client found by their number", book({ clientName: "07700 900715", service: "blow dry", date: "Tuesday", time: "2pm" })],
+  ["book: a number nobody has", book({ clientName: "07700 900000", service: "blow dry", date: "Tuesday", time: "2pm" })],
 
   ["move: to a free time the same day", move({ appointmentId: "appt-1", time: "2pm" })],
   ["move: to a time the stylist is booked", move({ appointmentId: "appt-1", time: "2pm" }), () => busy.clashes.push({ stylist: "Jo", at: "2026-09-29T14:00:00+01:00" })],

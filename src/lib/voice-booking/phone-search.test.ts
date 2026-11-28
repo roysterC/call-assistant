@@ -13,7 +13,7 @@ const db = vi.hoisted(() => ({ rows: [] as unknown[] }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     lead: {
-      findMany: async ({ where }: { where: { OR: Record<string, unknown>[] } }) =>
+      findMany: async ({ where, take }: { where: { OR: Record<string, unknown>[] }; take?: number }) =>
         (db.rows as Row[]).filter((r) =>
           where.OR.some((c) => {
             const ends = (c.phone as { endsWith?: string } | undefined)?.endsWith;
@@ -23,7 +23,7 @@ vi.mock("@/lib/prisma", () => ({
             const word = (c.name as { contains?: string } | undefined)?.contains;
             return Boolean(word && r.name?.toLowerCase().includes(word));
           })
-        ),
+        ).slice(0, take),
     },
   },
 }));
@@ -88,6 +88,12 @@ describe("findClients by number", () => {
   it("never treats an ending as certain", async () => {
     db.rows = [lead("s", "Sarah Jones", "+447700900123")];
     expect((await findClients("o", "ending 123"))[0].exactMatch).toBe(false);
+  });
+
+  it("doesn't take a different surname for agreement", async () => {
+    db.rows = [lead("s", "Sarah Jones", "+447700900123")];
+    expect((await findClients("o", "Sarah Smith 07700 900123"))[0].exactMatch).toBe(false);
+    expect((await findClients("o", "Sarah 07700 900123"))[0].exactMatch).toBe(true);
   });
 
   it("needs the name and the number to agree when both are said", async () => {

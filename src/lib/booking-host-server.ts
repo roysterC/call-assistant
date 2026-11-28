@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { permanentRedirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import {
   bookingOrigin,
   isBookingHost,
@@ -47,7 +47,11 @@ export async function sendToOwnAddress(
   const host = requestHostname(await headers(), "");
   if (salonFromHost(host, domain) === slug) return;
   const q = new URLSearchParams();
-  for (const [k, v] of Object.entries(query)) for (const one of Array.isArray(v) ? v : v ? [v] : []) q.append(k, one);
+  for (const [k, v] of Object.entries(query)) for (const one of Array.isArray(v) ? v : v !== undefined ? [v] : []) q.append(k, one);
   const search = q.toString();
-  permanentRedirect(`${own}${path}${search ? `?${search}` : ""}`);
+  // Temporary, not permanent: a browser keeps a 308 for good, and would go
+  // on jumping to the salon's address after it stops taking bookings there
+  // (where there is then no certificate). Search engines follow the page's
+  // canonical link to the salon's address instead.
+  redirect(`${own}${path}${search ? `?${search}` : ""}`);
 }

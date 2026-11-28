@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requestHostname, salonDomain, salonFromHost } from "@/lib/booking-host";
+import { onlineSalonWhere } from "@/lib/online-booking";
 
 /**
  * Caddy's question before it fetches a certificate for a name it has not
@@ -20,7 +21,7 @@ import { requestHostname, salonDomain, salonFromHost } from "@/lib/booking-host"
  */
 export const dynamic = "force-dynamic";
 
-const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 export async function GET(req: NextRequest) {
   if (!LOOPBACK.has(requestHostname(req.headers, req.nextUrl.hostname))) {
@@ -29,9 +30,6 @@ export async function GET(req: NextRequest) {
   const name = (req.nextUrl.searchParams.get("domain") ?? "").trim().toLowerCase();
   const slug = salonFromHost(name, salonDomain());
   if (!slug) return new NextResponse(null, { status: 404 });
-  const online = await prisma.organization.findFirst({
-    where: { slug, enabled: true, settings: { onlineBookingEnabled: true } },
-    select: { id: true },
-  });
+  const online = await prisma.organization.findFirst({ where: onlineSalonWhere(slug), select: { id: true } });
   return new NextResponse(null, { status: online ? 200 : 404 });
 }

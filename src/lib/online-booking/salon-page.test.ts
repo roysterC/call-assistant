@@ -176,6 +176,14 @@ describe("menuGroups", () => {
     ]);
   });
 
+  it("shows one group as a plain list, and matches the salon's More in any case", () => {
+    expect(menuGroups([svc("Extras", "More"), svc("Classic manicure")])).toEqual([
+      { heading: null, services: [svc("Extras", "More"), svc("Classic manicure")] },
+    ]);
+    const groups = menuGroups([svc("Extras", "more"), svc("Classic manicure"), svc("Gel manicure", "Gel")]);
+    expect(groups.map((g) => g.heading)).toEqual(["more", "Gel"]);
+  });
+
   it("leaves a flat price list unheaded", () => {
     expect(menuGroups([svc("A"), svc("B")])).toEqual([{ heading: null, services: [svc("A"), svc("B")] }]);
   });

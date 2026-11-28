@@ -268,9 +268,11 @@ export function menuGroups(services: PublicService[]): { heading: string | null;
   const loose = groups.findIndex((g) => g.heading === null);
   if (loose >= 0 && groups.length > 1) {
     const [g] = groups.splice(loose, 1);
-    const more = groups.find((x) => x.heading === "More");
+    const more = groups.find((x) => x.heading?.toLowerCase() === "more");
     if (more) more.services.push(...g.services);
     else groups.push({ heading: "More", services: g.services });
   }
+  // Everything under one heading is a plain list.
+  if (groups.length === 1) groups[0].heading = null;
   return groups;
 }
