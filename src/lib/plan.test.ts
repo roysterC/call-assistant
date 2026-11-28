@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addonsNeeding,
   addonsWith,
+  assistantVoiceOn,
   changedAddons,
   countPeople,
   formatPence,
@@ -180,5 +181,28 @@ describe("a failed payment", () => {
 
   it("treats a state it does not know as restricted, never as free", () => {
     expect(planState({ billingStatus: "frее", trialEndsAt: null, stripeSubscriptionId: null, addons: [] }, NOW).access).toBe("restricted");
+  });
+});
+
+describe("the assistant's voice", () => {
+  const voice = (o: Partial<PlanInput>) => assistantVoiceOn(planState({ ...base, ...o }, NOW));
+
+  it("is off on a trial or a paid plan with no AI add-on", () => {
+    expect(voice({})).toBe(false);
+    expect(voice({ stripeSubscriptionId: "sub_1" })).toBe(false);
+    expect(voice({ billingStatus: "active", stripeSubscriptionId: "sub_1" })).toBe(false);
+  });
+
+  it("is on with any AI add-on that works", () => {
+    expect(voice({ billingStatus: "active", stripeSubscriptionId: "sub_1", addons: ["chatReplies"] })).toBe(true);
+    expect(voice({ billingStatus: "active", stripeSubscriptionId: "sub_1", addons: ["receptionist"] })).toBe(true);
+    // On trial, an add-on works once a card is on file.
+    expect(voice({ stripeSubscriptionId: "sub_1", addons: ["chatReplies"] })).toBe(true);
+    expect(voice({ addons: ["chatReplies"] })).toBe(false);
+  });
+
+  it("is on for a salon that isn't billed, and off once restricted", () => {
+    expect(voice({ billingStatus: "free", trialEndsAt: null })).toBe(true);
+    expect(voice({ billingStatus: "restricted", addons: ["chatReplies"] })).toBe(false);
   });
 });

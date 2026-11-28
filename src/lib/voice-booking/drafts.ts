@@ -155,19 +155,34 @@ const PAST_GRACE_MS = 15 * 60_000;
  * through speech recognition, so each word is matched on its own and a
  * near miss on one ("Jon" for "John") still finds the other.
  */
+/**
+ * The digits of a number said or typed ("07700 900123", "ending 123"), as
+ * a search: the whole number matched on its last nine digits, so 07700… and
+ * +447700… are the same client; three to five digits, the number's ending.
+ * Null when there is no number in it.
+ */
+export function phoneSearch(heard: string): { endsWith: string } | null {
+  const digits = heard.replace(/\D/g, "");
+  if (digits.length < 3) return null;
+  return { endsWith: digits.slice(-9) };
+}
+
 export async function findClients(organizationId: string, heard: string) {
+  const byPhone = phoneSearch(heard);
   const words = heard
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}' -]+/gu, " ")
+    .replace(/[^\p{L}' -]+/gu, " ")
     .split(/\s+/)
-    .filter((w) => w.length >= 2)
+    .filter((w) => w.length >= 2 && !["ending", "number", "phone", "mobile", "on", "in"].includes(w))
     .slice(0, 4);
-  if (words.length === 0) return [];
+  if (words.length === 0 && !byPhone) return [];
   const rows = await prisma.lead.findMany({
     where: {
       organizationId,
       anonymisedAt: null,
-      OR: words.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })),
+      OR: byPhone
+        ? [{ phone: byPhone }, { contactLead: { phone: byPhone } }]
+        : words.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })),
     },
     select: {
       id: true,
@@ -185,6 +200,7 @@ export async function findClients(organizationId: string, heard: string) {
     take: 25,
   });
   const score = (name: string | null) => {
+    if (byPhone) return words.filter((w) => (name ?? "").toLowerCase().includes(w)).length;
     if (namesMatch(name, heard)) return 100;
     const have = (name ?? "").toLowerCase();
     return words.filter((w) => have.includes(w)).length;
@@ -202,7 +218,8 @@ export async function findClients(organizationId: string, heard: string) {
         reachedThrough: r.contactLead?.name ?? null,
         lastVisit: r.appointments[0]?.startsAt.toISOString().slice(0, 10) ?? null,
         patchTest: r.patchTestAt ? spokenPatchTest(r.patchTestAt) : null,
-        exactMatch: namesMatch(r.name, heard),
+        // A whole number is one client; a name must match in full.
+        exactMatch: byPhone ? byPhone.endsWith.length >= 9 : namesMatch(r.name, heard),
       };
     });
 }

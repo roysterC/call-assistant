@@ -6,9 +6,9 @@ import { cleanAddons, loadPrices } from "@/lib/plan-access";
 import { trialEnd } from "@/lib/plan";
 import { stopBillingForFree, syncLinesNow, withBillingLock } from "@/lib/stripe-billing";
 
-/** Its invoices (our copy of Stripe's), the Stripe notices about it, and its premium-chat switch. */
+/** Its invoices (our copy of Stripe's) and the Stripe notices about it. */
 async function history(organizationId: string) {
-  const [invoices, events, org] = await Promise.all([
+  const [invoices, events] = await Promise.all([
     prisma.billingInvoice.findMany({
       where: { organizationId },
       orderBy: { issuedAt: "desc" },
@@ -33,9 +33,8 @@ async function history(organizationId: string) {
       take: 10,
       select: { id: true, type: true, status: true, error: true, attempts: true, receivedAt: true },
     }),
-    prisma.organization.findUnique({ where: { id: organizationId }, select: { premiumChat: true } }),
   ]);
-  return { invoices, events, premiumChat: Boolean(org?.premiumChat) };
+  return { invoices, events };
 }
 
 /** A salon's plan, as Admin shows it (src/lib/billing.ts), with its invoices and Stripe notices. */
@@ -58,9 +57,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
  *    Stripe subscription, which owns the state otherwise;
  *  - trialEndsAt: move the trial's end (extend it, say), only while it has
  *    no card: a card's trial is Stripe's;
- *  - dismissRequest: an add-on it asked for that Kikai will not set up;
- *  - premiumChat: its chat may use the better model and hide "Powered by
- *    Kikai".
+ *  - dismissRequest: an add-on it asked for that Kikai will not set up.
  */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireSuperAdmin();
@@ -133,8 +130,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const requests = (data.addonRequests as string[] | undefined) ?? org.addonRequests;
     data.addonRequests = requests.filter((a) => a !== body.dismissRequest);
   }
-  // The better chat model and no "Powered by Kikai": Kikai's own choice.
-  if (typeof body.premiumChat === "boolean") data.premiumChat = body.premiumChat;
 
   // Not billed, for a salon with a card: Stripe first, and only then ours.
   if (data.billingStatus === "free" && org.stripeSubscriptionId) {

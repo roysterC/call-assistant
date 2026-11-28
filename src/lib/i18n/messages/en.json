@@ -199,7 +199,6 @@
     "stopReading": "Stop reading replies aloud",
     "readAloud": "Read replies aloud",
     "tapToTalk": "Tap to talk",
-    "intro": "Ask it anything, or tell it what to do:",
     "englishOnly": "",
     "nothingUntilYes": "Nothing is booked, changed or sent until you say yes.",
     "thinking": "Thinking…",
@@ -245,7 +244,13 @@
       "phone": "Number",
       "email": "Email",
       "patchTest": "Patch test"
-    }
+    },
+    "findTitle": "Find a client",
+    "bookTitle": "Book someone in",
+    "checkTitle": "Check the business",
+    "voiceUpgradeTitle": "Talking to your assistant is an AI add-on",
+    "voiceUpgradeBody": "Speaking and hearing replies read aloud come with any of Kikai's AI add-ons. You can still type to it on every plan.",
+    "voiceUpgradeLink": "See AI add-ons"
   },
   "diary": {
     "prevDay": "Previous day",

@@ -279,15 +279,18 @@ with a card). Super-admins viewing a salon are never refused. The owner sees all
 this in **Settings → Plan & billing**, and a banner on every page in the
 trial's last three days, after a failed payment and while restricted.
 
-The old plan tier (starter, pro, custom) is gone: every salon's chat runs
-on the standard model and shows "Powered by Kikai". **Premium chat**, a
-switch on a salon's Plan and billing card in Admin, lets its chat pick the
-better (dearer) model and hide the line, if the chat's settings ask; it is
-off for every salon until Kikai turns it on (turn it on for Kikai's own).
+The old plan tier (starter, pro, custom) is gone, and so is the "premium
+chat" switch that briefly replaced it: every chat (website, WhatsApp,
+Instagram) answers on Haiku 5.5 (`CHAT_MODEL` in `src/lib/claude.ts`; there
+is no setting) and every chat widget shows "Powered by Kikai".
 
-Two AI features stay free on the base plan, by choice: the staff's voice
-assistant and reading a price list from a photo or file. (The `planTier`
-column is no longer read; drop it by hand some day.)
+Two AI features stay free on the base plan, by choice: the staff's
+assistant, typed, and reading a price list from a photo or file. Talking to
+the assistant (its microphone, and replies read aloud) needs at least one
+AI add-on working (`assistantVoiceOn` in `src/lib/plan.ts`); salons not
+billed have it as before. The `planTier` and `premiumChat` columns on
+`ca_organizations`, and `chatModel` and `hideBranding` on the website chat
+table, are no longer read: drop them by hand, then delete the fields.
 
 **Cancelling** is the owner's own: "Cancel my plan" on Plan & billing (or
 Stripe's billing page). The plan carries on to the end of the month (or the

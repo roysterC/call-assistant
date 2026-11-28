@@ -25,15 +25,12 @@ const TENANT_FIELDS = [
   "launcherIcon",
   "theme",
   "fontFamily",
-  "hideBranding",
   "ctaLabel",
   "ctaSelector",
   "ctaUrl",
 ];
 // Fields only super-admins can edit
-// chatModel is a pricing lever, not a customer preference — a plan decides
-// what a site gets, and the request path re-clamps it regardless.
-const SUPER_ADMIN_FIELDS = ["systemPrompt", "chatModel"];
+const SUPER_ADMIN_FIELDS = ["systemPrompt"];
 
 export async function GET(
   req: NextRequest,
@@ -48,8 +45,6 @@ export async function GET(
       where: { id },
       include: {
         _count: { select: { conversations: true } },
-        // Whether white-label is available to this org (premium chat, set by Kikai).
-        organization: { select: { premiumChat: true } },
       },
     });
     if (!site || site.organizationId !== ctx.organizationId) {

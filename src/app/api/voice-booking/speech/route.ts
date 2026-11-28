@@ -16,10 +16,13 @@ import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { findSession, takeSpeech } from "@/lib/voice-booking/assistant";
 import { elevenLabsSettings, elevenLabsStream } from "@/lib/receptionist/voice/providers";
 import { recordUsage } from "@/lib/usage/record";
+import { assistantVoiceAllowed, VOICE_UPGRADE } from "@/lib/plan-access";
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, { members: true });
   if (isErrorResponse(ctx)) return ctx;
+  // Text to speech comes with the AI add-ons (src/lib/plan.ts).
+  if (!(await assistantVoiceAllowed(ctx.organizationId, ctx))) return NextResponse.json(VOICE_UPGRADE, { status: 402 });
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "No voice is set up." }, { status: 503 });
 

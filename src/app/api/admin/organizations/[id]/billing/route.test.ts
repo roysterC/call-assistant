@@ -76,9 +76,4 @@ describe("making a salon free", () => {
     expect(res.status).toBe(409);
     expect(stripe.stop).not.toHaveBeenCalled();
   });
-
-  it("sets premium chat, Kikai's own switch", async () => {
-    await put({ premiumChat: true });
-    expect(db.org.premiumChat).toBe(true);
-  });
 });
