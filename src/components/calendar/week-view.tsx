@@ -29,6 +29,7 @@ export function WeekView({
   tones,
   timeZone,
   closed,
+  nobodyIn = () => false,
   priceOf,
   onOpenDay,
 }: {
@@ -40,6 +41,8 @@ export function WeekView({
   tones: Map<string, ServiceTone>;
   timeZone: string;
   closed: (date: string) => boolean;
+  /** A day open but with nobody on the rota. */
+  nobodyIn?: (date: string) => boolean;
   /** What a booking comes to: its own price, else the price list's. */
   priceOf: (a: CalendarAppointment) => number | null;
   onOpenDay: (date: string) => void;
@@ -109,7 +112,9 @@ export function WeekView({
               {shut && list.length === 0 ? (
                 <span className="m-auto text-[13px] text-muted-foreground">{t("diary.closedDay")}</span>
               ) : list.length === 0 ? (
-                <span className="m-auto text-[13px] text-muted-foreground">{t("diary.nothingBooked")}</span>
+                <span className="m-auto text-[13px] text-muted-foreground">
+                  {nobodyIn(date) ? t("grid.nobodyIn") : t("diary.nothingBooked")}
+                </span>
               ) : (
                 <span className="flex min-h-0 flex-col gap-1 overflow-y-auto">
                   {list.map((a) => {

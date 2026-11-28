@@ -624,6 +624,10 @@ export default function CalendarPage() {
     return () => window.removeEventListener(DIARY_CHANGED, onChanged);
   });
 
+  // A day nobody works, by the team's working days (the day view's rule).
+  const nobodyInOn = (date: string) =>
+    stylists.length > 0 &&
+    stylists.every((s) => (s.workingDays?.length ?? 0) > 0 && !(s.workingDays ?? []).includes(weekdayOf(date)));
   // A day the salon is shut, by its opening hours.
   const closedOn = (date: string) => {
     const row = hours.find((h) => h.day === weekdayOf(date));
@@ -796,7 +800,7 @@ export default function CalendarPage() {
                   aria-selected={on}
                   aria-label={c.name}
                   onClick={() => setPhonePick(c.name)}
-                  className={`flex h-11 min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[9px] px-1.5 text-[13.5px] font-semibold transition-colors ${
+                  className={`relative flex h-11 min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[9px] px-1.5 text-[13.5px] font-semibold transition-colors ${
                     on ? "bg-card shadow-sm" : "text-muted-foreground active:bg-card/60"
                   } ${c.worksToday ? "" : "italic"}`}
                 >
@@ -804,7 +808,7 @@ export default function CalendarPage() {
                   {columns.length <= 4 && <StylistBadge stylist={{ ...c, worksToday: true }} size="sm" />}
                   <span className="truncate">{c.name.split(/\s+/)[0]}</span>
                   {doubledNames.has(c.name.toLowerCase()) && (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-destructive">
+                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive">
                       <span className="sr-only">, {t("grid.doubleBookedTitle")}</span>
                     </span>
                   )}
@@ -841,6 +845,7 @@ export default function CalendarPage() {
           tones={tones}
           timeZone={timeZone}
           closed={closedOn}
+          nobodyIn={nobodyInOn}
           priceOf={(a) => a.amountMinor ?? listPriceFor(a.serviceText, services)}
           onOpenDay={pickDay}
         />

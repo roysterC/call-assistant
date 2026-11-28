@@ -384,8 +384,8 @@ export function DayGrid({
   const nobodyToday = stylists.length > 0 && (!open || stylists.every((s) => !s.worksToday));
   // Whose lane holds two bookings at once, flagged in its header too.
   const doubled = doubleBookedIds(appointments.filter((a) => isOnDate(new Date(a.startsAt), date, timeZone)));
-  const doubledLanes = new Set(
-    stylists.filter((s) => appointments.some((a) => doubled.has(a.id) && isTechnicians(a, s))).map((s) => s.name)
+  const doubledLanes = new Map(
+    stylists.map((s) => [s.name, appointments.filter((a) => doubled.has(a.id) && isTechnicians(a, s)).length] as const)
   );
 
   return (
@@ -419,10 +419,16 @@ export function DayGrid({
                         ? null
                         : t("grid.notIn")}
                 </div>
-                {doubledLanes.has(s.name) && (
-                  <span className="mt-0.5 inline-flex max-w-full items-center gap-1 overflow-hidden whitespace-nowrap rounded-full bg-red-50 px-1.5 py-px text-[11px] font-bold text-red-800">
+                {(doubledLanes.get(s.name) ?? 0) > 0 && (
+                  // A mark and how many, which fit any lane; the word is in
+                  // its title and its name, and on the bookings themselves.
+                  <span
+                    title={t("grid.doubleBookedTitle")}
+                    className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-red-50 px-1.5 py-px text-[11px] font-bold tabular-nums text-red-800"
+                  >
                     <TriangleAlert className="h-3 w-3 shrink-0" aria-hidden="true" />
-                    <span className="truncate">{t("grid.doubleBookedTitle")}</span>
+                    {doubledLanes.get(s.name)}
+                    <span className="sr-only">{t("grid.doubleBookedTitle")}</span>
                   </span>
                 )}
               </div>
@@ -865,26 +871,32 @@ function StylistColumn({
           const e0 = minutesOfDay(new Date(a.endsAt), timeZone);
           const label = `${shortTime(s0, clock)}–${shortTime(e0, clock)}, ${clientLabel(a.lead, t)}, ${a.serviceText}, ${t("grid.cancelled")}`;
           // One line at its start time, on the right so a "free" note at the
-          // left still reads; only the line takes clicks, so its time books.
+          // left still reads. The strip across the lane is the container the
+          // narrow-lane rule measures and lets clicks through; only the pill
+          // takes them, so the cancelled time books like any free time.
           return (
-            <button
+            <div
               key={a.id}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenAppointment(a);
-              }}
-              aria-label={label}
-              title={label}
-              className="@container absolute z-[6] flex h-[22px] max-w-[calc(100%-6px)] items-center gap-1 truncate rounded-full border border-tea-green-600 bg-card px-2 text-[11px] font-medium leading-none text-muted-foreground hover:text-foreground focus-visible:ring-2"
+              className="@container pointer-events-none absolute left-1 z-[6] flex justify-end"
               style={{ top: `calc(${g.topPct}% + 2px)`, right: `${OVERBOOK_GUTTER_PX + 2}px` }}
             >
-              <span className="shrink-0 tabular-nums">{shortTime(s0, clock)}</span>
-              <span className="min-w-[3ch] truncate line-through">{clientLabel(a.lead, t)}</span>
-              {/* The word goes before the name on a narrow lane; the strike
-                  and the name, its label and its sheet still say it. */}
-              <span className="hidden shrink-0 @min-[9rem]:inline">· {t("grid.cancelled")}</span>
-            </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenAppointment(a);
+                }}
+                aria-label={label}
+                title={label}
+                className="pointer-events-auto flex h-[22px] min-w-0 max-w-full items-center gap-1 rounded-full border border-tea-green-600 bg-card px-2 text-[11px] font-medium leading-none text-muted-foreground hover:text-foreground focus-visible:ring-2"
+              >
+                <span className="shrink-0 tabular-nums">{shortTime(s0, clock)}</span>
+                <span className="min-w-0 truncate line-through">{clientLabel(a.lead, t)}</span>
+                {/* The word goes before the name on a narrow lane; the strike
+                    and the name, its label and its sheet still say it. */}
+                <span className="hidden shrink-0 @min-[10rem]:inline">· {t("grid.cancelled")}</span>
+              </button>
+            </div>
           );
         })}
 
@@ -911,7 +923,8 @@ function StylistColumn({
         const statusChip = statusWord && (
           <span
             className={cn(
-              "mt-0.5 inline-flex w-fit max-w-full shrink-0 items-center gap-0.5 truncate rounded-full px-1.5 py-px text-[10.5px] font-bold",
+              "inline-flex w-fit max-w-full shrink-0 items-center gap-0.5 truncate rounded-full px-1.5 py-px text-[10.5px] font-bold",
+              doubled ? "my-px leading-tight" : "mt-0.5",
               noShow ? "bg-red-50 text-red-800" : "bg-tea-green-700 text-tea-green-100"
             )}
           >
@@ -961,6 +974,7 @@ function StylistColumn({
               .filter(Boolean)
               .join(", ")}
             className={cn(
+              doubled && "py-1",
               // Content from the top, where the booking starts: a button
               // centres it otherwise, putting a long booking's time halfway down.
               // Lines keep their height and the card clips at the bottom, rather
@@ -994,11 +1008,13 @@ function StylistColumn({
                 time sits small beside it. Half-hour and quarter-hour
                 bookings put it before the name, a little smaller. */}
             {roomy && (
-              <span className="flex items-baseline gap-1.5 min-w-0">
+              <span className="flex flex-wrap items-baseline gap-x-1.5 min-w-0">
+                {/* A doubled booking sets its lines tighter: the one on top
+                    leaves it about half an hour of card for time, status and name. */}
                 <span
                   className={cn(
-                    "shrink-0 font-extrabold leading-[1.1] tracking-[-0.01em] tabular-nums text-tea-green-100",
-                    "text-[20px]"
+                    "shrink-0 font-extrabold tracking-[-0.01em] tabular-nums text-tea-green-100",
+                    doubled ? "text-[18px] leading-none" : "text-[20px] leading-[1.1]"
                   )}
                 >
                   {shortTime(startMin, clock)}
@@ -1012,7 +1028,7 @@ function StylistColumn({
                 {doubled && statusChip}
               </span>
             )}
-            <span className={cn("flex items-baseline gap-1.5 font-semibold min-w-0 text-[13px]", roomy && "mt-0.5")}>
+            <span className={cn("flex items-baseline gap-1.5 font-semibold min-w-0 text-[13px]", roomy && !doubled && "mt-0.5", doubled && "leading-tight")}>
               {!roomy && (
                 <span
                   className={cn(
@@ -1034,11 +1050,11 @@ function StylistColumn({
               )}
               <span className="truncate">{clientLabel(a.lead, t)}</span>
             </span>
-            {length > 15 && <span className="block truncate text-foreground/80">{a.serviceText}</span>}
+            {length > 15 && !doubled && <span className="block truncate text-foreground/80">{a.serviceText}</span>}
             {statusWord && !(doubled && roomy) && statusChip}
             {/* The word where it fits; the red border, the mark and the lane's
                 header say it on a narrow lane. */}
-            {doubled && length > 45 && (
+            {doubled && b.lane === b.lanes - 1 && length > 45 && (
               <span className="mt-0.5 inline-flex w-fit max-w-full items-center truncate rounded-full bg-red-50 px-1.5 py-px text-[10.5px] font-bold text-red-800 @max-[6.5rem]:hidden">
                 {t("grid.doubleBookedTitle")}
               </span>
