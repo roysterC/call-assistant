@@ -105,8 +105,6 @@ async function resolveOrgFor(
       : settings.facebookPageId;
 
   if (!accessToken || !accountId) return null;
-  // The AI chat replies are a paid add-on (src/lib/plan.ts).
-  if (!(await addonOn(settings.organizationId, "chatReplies"))) return null;
   return { organizationId: settings.organizationId, accessToken, accountId };
 }
 
@@ -432,6 +430,11 @@ async function processMessageEvent(
     data: { lastMessageAt: new Date(), isRead: false },
   });
 
+  // The AI chat replies are a paid add-on (src/lib/plan.ts): without them
+  // the message is kept for the inbox, unanswered. Staff replies and quotes
+  // still go (orgContextFor is not gated).
+  if (!(await addonOn(ctx.organizationId, "chatReplies"))) return;
+
   // "typing…" while they may still be sending, then one reply to it all
   // once they have stopped (chat-burst.ts).
   void sendTyping(ctx, channel, senderId);
@@ -544,6 +547,7 @@ export async function answerSocialAfterRestart(conversationId: string): Promise<
   const channel = conversation.channel as SocialChannel;
   const ctx = await orgContextFor(conversation.organizationId, channel);
   if (!ctx) return;
+  if (!(await addonOn(conversation.organizationId, "chatReplies"))) return;
   afterQuiet(`${channel}:${conversation.id}`, () => answerSocial(ctx, channel, conversation.id, conversation.externalUserId), {
     quietMs: 0,
   });

@@ -35,7 +35,7 @@ vi.mock("@/lib/prisma", () => ({
       ),
       findFirst: vi.fn(async ({ where }: { where: { id: string; purgeWarnedAt: unknown } }) => {
         const o = db.orgs.find((x) => x.id === where.id);
-        return o && o.purgeWarnedAt === where.purgeWarnedAt && !o.inUseNow ? { id: o.id } : null;
+        return o && o.purgeWarnedAt === where.purgeWarnedAt && !o.inUseNow ? { ...o } : null;
       }),
       delete: vi.fn(async ({ where }: { where: { id: string } }) => db.deleted.push(where.id)),
     },
@@ -53,7 +53,8 @@ vi.mock("@/lib/email", async (orig) => ({
   }),
 }));
 const stripe = vi.hoisted(() => ({ cancel: vi.fn(async () => {}) }));
-vi.mock("@/lib/stripe-billing", () => ({ cancelSubscriptionNow: stripe.cancel, stripeConfigured: () => true }));
+const stripeOn = vi.hoisted(() => ({ value: true }));
+vi.mock("@/lib/stripe-billing", () => ({ cancelSubscriptionNow: stripe.cancel, stripeConfigured: () => stripeOn.value }));
 
 import { purgeLimitBytes, purgePaused } from "@/lib/purge";
 
@@ -169,6 +170,31 @@ describe("wiping paused salons", () => {
     const r = await purgePaused("https://app", NOW);
     expect(r.deleted).toEqual([]);
     expect(r.warned).toEqual(["quiet"]);
+  });
+
+  it("leaves a salon put back on a trial since it was warned", async () => {
+    db.orgs = [salon("again", 200, { purgeWarnedAt: daysAgo(20) })];
+    const { prisma } = await import("@/lib/prisma");
+    (prisma.organization.findFirst as unknown as { mockImplementationOnce: (f: () => Promise<unknown>) => void }).mockImplementationOnce(
+      async () => ({ ...db.orgs[0], trialEndsAt: new Date(NOW.getTime() + 5 * 864e5) })
+    );
+    expect((await purgePaused("https://app", NOW)).deleted).toEqual([]);
+  });
+
+  it("never deletes a salon whose subscription it cannot cancel", async () => {
+    db.orgs = [salon("unpaid", 200, { billingStatus: "restricted", stripeSubscriptionId: "sub_1", purgeWarnedAt: daysAgo(20) })];
+    stripeOn.value = false;
+    const r = await purgePaused("https://app", NOW);
+    expect(r.deleted).toEqual([]);
+    expect(r.errors[0]).toContain("Stripe is not set up");
+    stripeOn.value = true;
+  });
+
+  it("warns past salons it cannot reach, so they never hold up the rest", async () => {
+    db.orgs = [salon("noone", 300, { users: [] }), salon("reachable", 200)];
+    const r = await purgePaused("https://app", NOW);
+    expect(r.warned).toEqual(["reachable"]);
+    expect(r.errors.join(" ")).toContain("noone");
   });
 
   it("leaves a salon used or paid for during the run", async () => {

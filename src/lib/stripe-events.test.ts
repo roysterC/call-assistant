@@ -45,7 +45,10 @@ const handlers = vi.hoisted(() => ({
   checkoutDone: vi.fn(async () => "org1"),
   invoiceFailed: vi.fn(async () => "org1"),
   invoicePaid: vi.fn(async () => "org1"),
-  recordInvoice: vi.fn(async () => "org1"),
+  recordInvoice: vi.fn(async (): Promise<{ organizationId: string; invoice: Record<string, unknown> } | null> => ({
+    organizationId: "org1",
+    invoice: { status: "open", amount_remaining: 900 },
+  })),
   retrieve: vi.fn(),
 }));
 vi.mock("@/lib/stripe-billing", () => ({
@@ -106,6 +109,12 @@ describe("a Stripe notice", () => {
     await processEvent(event("invoice.payment_failed"));
     expect(handlers.recordInvoice).toHaveBeenCalledWith(expect.anything(), { fresh: true });
     expect(handlers.invoiceFailed).toHaveBeenCalled();
+  });
+
+  it("that a payment failed, arriving after the invoice was paid, brings no warning back", async () => {
+    handlers.recordInvoice.mockResolvedValueOnce({ organizationId: "org1", invoice: { status: "paid", amount_remaining: 0 } });
+    await processEvent(event("invoice.payment_failed"));
+    expect(handlers.invoiceFailed).not.toHaveBeenCalled();
   });
 
   it("that a payment went through clears the warning, unless another invoice is still owed", async () => {

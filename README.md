@@ -253,7 +253,9 @@ website chat), booking by message (needs chat replies) and rebooking texts
 
 **Price**: £9 a month, the owner included, plus £5 for every other person on
 the team, whether they sign in, take bookings or neither (each person
-counted once: team members, and logins not on the team). Kikai is not
+counted once: team members, and logins not on the team; an unlinked team
+entry with a login's email or name is that login, so an owner who adds
+themselves to the team is not charged for themselves). Kikai is not
 VAT registered, so prices carry no VAT and nothing mentions it. Kikai changes them, and sets each add-on's price, under Admin →
 Prices; an add-on with no price is "coming soon". A changed price is for
 salons that subscribe from then on: those already paying keep the price
@@ -278,8 +280,13 @@ this in **Settings → Plan & billing**, and a banner on every page in the
 trial's last three days, after a failed payment and while restricted.
 
 The old plan tier (starter, pro, custom) is gone: every salon's chat runs
-on the standard model, and shows "Powered by Kikai"; a salon Kikai does not
-bill may pick the better model, or hide the line, in its chat's settings. (The `planTier`
+on the standard model and shows "Powered by Kikai". **Premium chat**, a
+switch on a salon's Plan and billing card in Admin, lets its chat pick the
+better (dearer) model and hide the line, if the chat's settings ask; it is
+off for every salon until Kikai turns it on (turn it on for Kikai's own).
+
+Two AI features stay free on the base plan, by choice: the staff's voice
+assistant and reading a price list from a photo or file. (The `planTier`
 column is no longer read; drop it by hand some day.)
 
 **Cancelling** is the owner's own: "Cancel my plan" on Plan & billing (or
@@ -325,6 +332,10 @@ name (`mai-nails`, else `mai-nails-2`, …). Kikai is emailed at
 `NOTIFY_EMAIL`, and the owner is sent the "confirm your email" link.
 A field only bots fill in turns scripts away (`src/lib/signup.ts`). Inviting an owner from Admin still works as before.
 
+**Deleting a salon** in Admin cancels its Stripe subscription first (with
+no part-month charged), so a card is never charged for a salon that no
+longer exists; if Stripe refuses, the salon is not deleted.
+
 **In Admin**, each salon's page has a Plan and billing card: its state, its
 people, its add-ons (tick to add to its plan; a salon with a card is billed
 at once), its month's bill, the add-ons it has asked for (the receptionist
@@ -364,8 +375,10 @@ To switch it on (once, in the Stripe dashboard, then on the server):
    end of the billing period** (never immediately). Leave "switch plans"
    off; the plan follows the app.
 4. **Failed payments**: Settings → Billing → Subscriptions and emails →
-   retry for about two weeks, then **mark the subscription as unpaid**
-   (the salon is then restricted; paying unpauses it at once). Turn on the
+   retry for about two weeks, then **mark the subscription as unpaid**.
+   The app then ends that subscription and writes off what it owed, so a
+   salon is never charged for months it spends paused; the salon is
+   restricted, and adding a card again starts a fresh month. Turn on the
    emails for failed payments and for trials ending.
 5. **VAT**: none; Kikai is not VAT registered. If it registers, turn on
    Stripe Tax and add the VAT wording back to the screens.
@@ -411,7 +424,7 @@ every invoice, payment and refund. We keep each salon's state (above), and:
 
 Calls to Stripe are made safe to retry by Stripe's library, which puts an
 idempotency key on each one. Our own repeats are stopped in our code: a
-salon's subscription changes run one at a time (a Postgres advisory lock), a
+salon's subscription changes run one at a time (a short lease on its row), a
 second subscription for a salon is cancelled, and a Stripe customer is only
 recorded if the salon has none.
 

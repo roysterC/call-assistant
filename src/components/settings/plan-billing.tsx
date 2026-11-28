@@ -139,7 +139,7 @@ export function PlanBilling() {
         body: JSON.stringify({ addon: a, on }),
       });
       const d = await res.json();
-      if (!res.ok) return notify(d.code === "card_needed" ? t("plan.cardFirst") : t("plan.addonFailed"));
+      if (!res.ok) return notify(d.code === "card_needed" ? t("plan.cardFirst") : d.code === "busy" ? t("plan.busy") : t("plan.addonFailed"));
       setB({ ...b!, ...d });
       notify(d.requested ? t("plan.requested") : on ? t("plan.added") : t("plan.removed"), "success");
     } finally {
@@ -289,7 +289,7 @@ export function PlanBilling() {
                     <p className="text-xs text-muted-foreground">{t(`plan.addon.${a}.does`)}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {price == null ? (
+                    {price == null || !addonsWith(a).every((x) => b.prices[x] != null) ? (
                       <span className="text-xs text-muted-foreground">{t("plan.soon")}</span>
                     ) : (
                       <span className="text-sm font-semibold tabular-nums">{t("plan.perMonth", { price: money(price) })}</span>
@@ -305,7 +305,7 @@ export function PlanBilling() {
                       </>
                     ) : asked ? (
                       <Pill muted>{t("plan.asked")}</Pill>
-                    ) : price != null && plan.access === "full" ? (
+                    ) : addonsWith(a).every((x) => b.prices[x] != null) && plan.access === "full" ? (
                       <Button
                         size="sm"
                         variant={selfServe ? "default" : "outline"}

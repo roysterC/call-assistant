@@ -84,6 +84,13 @@ model Organization {
   // When the owner was told a paused salon will be wiped; cleared when it
   // pays or is used again (src/lib/purge.ts).
   purgeWarnedAt           DateTime?
+  // Held while the salon's Stripe subscription is being changed, so two
+  // changes never run at once (src/lib/stripe-billing.ts): a short lease on
+  // the row, not a held database connection. Null, or past, when free.
+  billingLockUntil        DateTime?
+  // Kikai's switch, in Admin: the salon's chat may use the better model and
+  // hide "Powered by Kikai". Off for everyone until Kikai turns it on.
+  premiumChat             Boolean  @default(false)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 

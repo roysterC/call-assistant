@@ -68,6 +68,7 @@ export default function OnboardingPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [answersCustomers, setAnswersCustomers] = useState(false);
   const [ownerName, setOwnerName] = useState<string | null>(null);
+  const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [step, setStep] = useState<OnboardingStep>("salon");
   const [done, setDone] = useState(false);
@@ -106,6 +107,7 @@ export default function OnboardingPage() {
         setDraft(d);
         setAnswersCustomers(answers);
         setOwnerName(o.ownerName);
+        setOwnerUserId(o.ownerUserId ?? null);
         setVoiceEnabled(Boolean(o.voiceEnabled));
         // Back where they left off: the furthest step they reached, but never
         // past one still to do. A first visit starts at the name.
@@ -352,7 +354,12 @@ export default function OnboardingPage() {
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      set({ teamMembers: [{ name: ownerName, role: "", workingDays: [], services: [] }, ...d.teamMembers] })
+                      set({
+                        teamMembers: [
+                          { name: ownerName, role: "", workingDays: [], services: [], ...(ownerUserId ? { userId: ownerUserId } : {}) },
+                          ...d.teamMembers,
+                        ],
+                      })
                     }
                   >
                     <UserPlus className="mr-1.5 h-4 w-4" />

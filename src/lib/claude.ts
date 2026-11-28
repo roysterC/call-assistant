@@ -459,26 +459,26 @@ export const CHAT_MODEL_NAMES = Object.keys(CHAT_MODELS) as ChatModelName[];
 const DEFAULT_CHAT_MODEL: ChatModelName = "claude-haiku-5-5";
 
 /**
- * Which models a salon's chat may use, cheapest first. Billed salons have
- * the standard model; salons Kikai does not bill (its own, testers) may pick
- * any. This is the cost lever: without it a salon simply selects the
- * expensive model in its own site settings. Re-clamped on every request, so
- * a salon that starts being billed is moved back at once.
+ * Which models a salon's chat may use, cheapest first: the standard model,
+ * and the better one only where Kikai has switched on premium chat for the
+ * salon in Admin (Organization.premiumChat). This is the cost lever: without
+ * it a salon simply selects the expensive model in its own site settings.
+ * Re-clamped on every request, so switching it off moves the salon back at
+ * once.
  */
-export function modelsForSalon(billingStatus: string | null | undefined): ChatModelName[] {
-  return billingStatus === "free" ? ["claude-haiku-5-5", "claude-sonnet-5"] : ["claude-haiku-5-5"];
+export function modelsForSalon(premiumChat: boolean | null | undefined): ChatModelName[] {
+  return premiumChat ? ["claude-haiku-5-5", "claude-sonnet-5"] : ["claude-haiku-5-5"];
 }
 
 /**
  * The model for a request: the site's choice where the salon may have it,
- * else the standard one. Never upgraded without a choice: a salon from
- * before billing ("free") stays on the standard model unless its site picks.
+ * else the standard one. Never upgraded without a choice.
  */
 export function resolveModelForSite(
-  billingStatus: string | null | undefined,
+  premiumChat: boolean | null | undefined,
   requested: string | null | undefined
 ): ChatModelName {
-  const allowed = modelsForSalon(billingStatus);
+  const allowed = modelsForSalon(premiumChat);
   requested = currentModelName(requested);
   if (requested && (allowed as string[]).includes(requested)) {
     return requested as ChatModelName;

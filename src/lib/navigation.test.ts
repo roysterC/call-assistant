@@ -40,17 +40,18 @@ describe("the diary", () => {
     expect(featureFlags({ diaryEnabled: false }).diaryEnabled).toBe(true);
   });
 
-  it("hides the add-ons' pages when they are not on the plan", () => {
+  it("hides the receptionist's pages when it is not on the plan, and keeps the inbox for staff", () => {
     const set = { voiceEnabled: true, chatbotEnabled: true, whatsappEnabled: true };
     expect(featureFlags(set, { receptionist: false, chatReplies: false })).toMatchObject({
       voiceEnabled: false,
-      chatbotEnabled: false,
-      whatsappEnabled: false,
+      chatbotEnabled: true,
+      whatsappEnabled: true,
       diaryEnabled: true,
     });
     expect(featureFlags(set, { receptionist: true, chatReplies: true })).toMatchObject({ voiceEnabled: true, whatsappEnabled: true });
     // Not switched on is off, on the plan or not.
     expect(featureFlags({}, { chatReplies: true }).chatbotEnabled).toBe(false);
+    expect(featureFlags({}, { receptionist: true }).voiceEnabled).toBe(false);
   });
 
   it("shows the diary, clients, sales and callbacks to a salon booking only by Instagram", () => {

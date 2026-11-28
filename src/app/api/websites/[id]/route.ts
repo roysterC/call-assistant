@@ -48,8 +48,8 @@ export async function GET(
       where: { id },
       include: {
         _count: { select: { conversations: true } },
-        // Whether white-label is available to this org (not billed only).
-        organization: { select: { billingStatus: true } },
+        // Whether white-label is available to this org (premium chat, set by Kikai).
+        organization: { select: { premiumChat: true } },
       },
     });
     if (!site || site.organizationId !== ctx.organizationId) {

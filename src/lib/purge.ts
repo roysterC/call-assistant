@@ -115,28 +115,38 @@ export async function purgePaused(origin: string, now: Date = new Date(), opts: 
     report.cleared = cleared.count;
   }
   if (!report.over) return report;
+  // What was just withdrawn reads as withdrawn below, so a stale warning is
+  // given again this run (its claim expects none).
+  for (const o of paused) if (o.purgeWarnedAt && o.purgeWarnedAt < stale) o.purgeWarnedAt = null;
 
   const due = new Date(now.getTime() - WARN_DAYS * DAY);
   const toDelete = paused.filter((o) => o.purgeWarnedAt && o.purgeWarnedAt <= due && o.purgeWarnedAt >= stale).slice(0, PER_RUN);
-  const toWarn = paused.filter((o) => !o.purgeWarnedAt || o.purgeWarnedAt < stale).slice(0, PER_RUN);
+  // Every unwarned candidate, in order: the run warns up to PER_RUN of them,
+  // passing over any it cannot reach, so those never hold up the rest.
+  const toWarn = paused.filter((o) => !o.purgeWarnedAt);
   if (opts.dryRun) {
     report.wouldDelete = toDelete.map((o) => o.name);
-    report.wouldWarn = toWarn.map((o) => o.name);
+    report.wouldWarn = toWarn.filter((o) => o.users.length).slice(0, PER_RUN).map((o) => o.name);
     return report;
   }
 
   for (const org of toDelete) {
     try {
       // Still as it was when read: warned then, unused since, nothing booked.
+      // And still paused: a salon back on a trial, or paying, is not wiped.
       const still = await prisma.organization.findFirst({
         where: { id: org.id, purgeWarnedAt: org.purgeWarnedAt, ...notInUse },
-        select: { id: true },
+        select: { billingStatus: true, trialEndsAt: true, stripeSubscriptionId: true, addons: true },
       });
-      if (!still) continue;
+      if (!still || planState(still, now).access !== "restricted") continue;
       // Stripe first, so nothing is ever charged for a salon that no longer
       // exists; ours is left alone until the delete, so a failure leaves the
-      // salon paused, never free.
-      if (org.stripeSubscriptionId && stripeConfigured()) await cancelSubscriptionNow(org.stripeSubscriptionId);
+      // salon paused, never free. A live subscription we cannot cancel (Stripe
+      // not set up here) keeps the salon.
+      if (still.stripeSubscriptionId) {
+        if (!stripeConfigured()) throw new Error("it has a Stripe subscription and Stripe is not set up here; left alone");
+        await cancelSubscriptionNow(still.stripeSubscriptionId);
+      }
       await prisma.$transaction([
         prisma.user.deleteMany({ where: { organizationId: org.id, role: { not: "superAdmin" } } }),
         prisma.organization.delete({ where: { id: org.id } }),
@@ -152,9 +162,11 @@ export async function purgePaused(origin: string, now: Date = new Date(), opts: 
     if (toWarn.length) report.errors.push(`Email is not set up: ${toWarn.length} salon(s) not warned, so none will be deleted.`);
     return report;
   }
+  const unreachable: string[] = [];
   for (const org of toWarn) {
+    if (report.warned.length >= PER_RUN) break;
     if (!org.users.length) {
-      report.errors.push(`${org.name}: no owner login to warn; left alone.`);
+      unreachable.push(org.name);
       continue;
     }
     const claimed = await prisma.organization.updateMany({
@@ -186,6 +198,9 @@ export async function purgePaused(origin: string, now: Date = new Date(), opts: 
     if (sentAny) report.warned.push(org.name);
     // Nobody told, nobody warned: tried again next run.
     else await prisma.organization.update({ where: { id: org.id }, data: { purgeWarnedAt: null } });
+  }
+  if (unreachable.length) {
+    report.errors.push(`No owner login to warn, so left alone: ${unreachable.slice(0, 10).join(", ")}${unreachable.length > 10 ? ` and ${unreachable.length - 10} more` : ""}.`);
   }
   return report;
 }

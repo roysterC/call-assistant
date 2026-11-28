@@ -18,32 +18,32 @@ describe("chat models after the move to Haiku 5.5", () => {
   });
 
   it("offers Haiku 5.5 to every salon, and no longer Haiku 4.5", () => {
-    for (const status of ["free", "trialing", "active", "restricted", "no-such-state"]) {
+    for (const status of [true, false, null]) {
       expect(modelsForSalon(status)).toContain("claude-haiku-5-5");
       expect(modelsForSalon(status)).not.toContain("claude-haiku-4-5");
     }
   });
 
   it("moves a site that picked Haiku 4.5 across to Haiku 5.5, not up to Sonnet", () => {
-    expect(resolveModelForSite("free", "claude-haiku-4-5")).toBe("claude-haiku-5-5");
-    expect(resolveModelForSite("active", "claude-haiku-4-5")).toBe("claude-haiku-5-5");
+    expect(resolveModelForSite(true, "claude-haiku-4-5")).toBe("claude-haiku-5-5");
+    expect(resolveModelForSite(false, "claude-haiku-4-5")).toBe("claude-haiku-5-5");
   });
 
-  it("gives everyone the standard model unless a salon Kikai does not bill picks another", () => {
-    expect(resolveModelForSite("active", null)).toBe("claude-haiku-5-5");
-    expect(resolveModelForSite("active", "claude-sonnet-5")).toBe("claude-haiku-5-5");
-    expect(resolveModelForSite("free", null)).toBe("claude-haiku-5-5");
-    expect(resolveModelForSite("free", "claude-sonnet-5")).toBe("claude-sonnet-5");
-    expect(resolveModelForSite("free", "claude-haiku-5-5")).toBe("claude-haiku-5-5");
+  it("gives everyone the standard model, and the better one only to premium chat that picks it", () => {
+    expect(resolveModelForSite(false, null)).toBe("claude-haiku-5-5");
+    expect(resolveModelForSite(false, "claude-sonnet-5")).toBe("claude-haiku-5-5");
+    expect(resolveModelForSite(true, null)).toBe("claude-haiku-5-5");
+    expect(resolveModelForSite(true, "claude-sonnet-5")).toBe("claude-sonnet-5");
+    expect(resolveModelForSite(true, "claude-haiku-5-5")).toBe("claude-haiku-5-5");
   });
 });
 
 describe("the 'Powered by Kikai' line", () => {
-  it("shows on every billed salon's chat, and hides only where Kikai does not bill and the site asks", async () => {
+  it("shows on every chat, and hides only with premium chat when the site asks", async () => {
     const { shouldShowBranding } = await import("./branding");
-    expect(shouldShowBranding("active", true)).toBe(true);
-    expect(shouldShowBranding("trialing", true)).toBe(true);
-    expect(shouldShowBranding("free", false)).toBe(true);
-    expect(shouldShowBranding("free", true)).toBe(false);
+    expect(shouldShowBranding(false, true)).toBe(true);
+    expect(shouldShowBranding(null, true)).toBe(true);
+    expect(shouldShowBranding(true, false)).toBe(true);
+    expect(shouldShowBranding(true, true)).toBe(false);
   });
 });

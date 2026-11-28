@@ -36,6 +36,7 @@ async function main() {
         name: "Kikai",
         slug: "doai",
         billingStatus: "free",
+        premiumChat: true,
       },
     });
     console.log("  ✓ Organization:", org.name);

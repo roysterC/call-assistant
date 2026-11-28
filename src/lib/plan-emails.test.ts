@@ -89,6 +89,18 @@ describe("sending", () => {
     expect(db.sent[1].subject).toContain("3 ngày");
   });
 
+  it("tries again next run when no owner could be reached", async () => {
+    const { sendEmail } = await import("@/lib/email");
+    vi.mocked(sendEmail).mockResolvedValue({ ok: false, error: "down" });
+    expect(await sendTrialReminders("https://app.example", NOW)).toEqual({ sent: 0, failed: 2 });
+    expect(db.orgs[0].trialReminderSent).toBeNull();
+    vi.mocked(sendEmail).mockImplementation(async (e) => {
+      db.sent.push(e as never);
+      return { ok: true, id: "1" };
+    });
+    expect((await sendTrialReminders("https://app.example", NOW)).sent).toBe(2);
+  });
+
   it("sends it once, however often it runs", async () => {
     await sendTrialReminders("https://app.example", NOW);
     expect(await sendTrialReminders("https://app.example", NOW)).toEqual({ sent: 0, failed: 0 });

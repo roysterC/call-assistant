@@ -12,6 +12,18 @@ const db = vi.hoisted(() => {
   const prices: Array<{ key: string; pence: number; stripePriceId: string | null }> = [];
   const team: Array<{ userId: string | null }> = [];
   const logins: Array<{ id: string; role: string }> = [];
+  // A where clause, as Prisma reads it, against the one salon: equality,
+  // null, { lt }, and OR.
+  const matches = (where: Record<string, unknown>): boolean =>
+    Object.entries(where).every(([k, v]) => {
+      if (k === "id") return true;
+      if (k === "OR") return (v as Array<Record<string, unknown>>).some(matches);
+      if (v && typeof v === "object" && "lt" in (v as object)) {
+        const cur = org[k] as Date | null | undefined;
+        return Boolean(cur && cur < (v as { lt: Date }).lt);
+      }
+      return org[k] === v || (v === null && org[k] == null);
+    });
   const match = (where: Record<string, unknown>) => {
     const ors = (where.OR as Array<Record<string, unknown>>) ?? [where];
     return ors.some((w) => Object.entries(w).every(([k, v]) => k === "id" ? v === "org1" : org[k] === v));
@@ -27,7 +39,7 @@ const db = vi.hoisted(() => {
         findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => (match(where) ? { id: "org1", ...org } : null)),
         update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => Object.assign(org, data)),
         updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
-          const ok = Object.entries(where).every(([k, v]) => k === "id" || org[k] === v || (v === null && org[k] == null));
+          const ok = matches(where);
           if (ok) Object.assign(org, data);
           return { count: ok ? 1 : 0 };
         }),
@@ -66,6 +78,7 @@ import {
   setStripeClient,
   stopBillingForFree,
   syncSubscription,
+  withBillingLock,
 } from "@/lib/stripe-billing";
 import { verifyStripeEvent } from "@/lib/stripe-webhook";
 
@@ -332,5 +345,66 @@ describe("the owner cancelling", () => {
   it("needs a card to cancel", async () => {
     db.org.stripeSubscriptionId = null;
     expect(await setCancelAtPeriodEnd("org1", true)).toEqual({ ok: false, error: "No card on file." });
+  });
+});
+
+describe("one billing change at a time", () => {
+  it("takes the salon's lease and gives it back, even when the change fails", async () => {
+    let held: unknown;
+    await withBillingLock("org1", async () => {
+      held = db.org.billingLockUntil;
+    });
+    expect(held).toBeInstanceOf(Date);
+    expect(db.org.billingLockUntil).toBeNull();
+    await expect(
+      withBillingLock("org1", async () => {
+        throw new Error("Stripe is down");
+      })
+    ).rejects.toThrow("Stripe is down");
+    expect(db.org.billingLockUntil).toBeNull();
+  });
+
+  it("takes over a lease left by a crash once it runs out", async () => {
+    db.org.billingLockUntil = new Date(Date.now() - 1000);
+    expect(await withBillingLock("org1", async () => "ran")).toBe("ran");
+  });
+});
+
+describe("two Checkout pages finished at the same moment", () => {
+  it("keeps the one taken first and cancels the other", async () => {
+    db.org.stripeSubscriptionId = null;
+    db.org.billingStatus = "trialing";
+    const { prisma } = await import("@/lib/prisma");
+    // Both read "none"; the other got there first.
+    (prisma.organization.findFirst as unknown as { mockImplementationOnce: (f: () => Promise<unknown>) => void }).mockImplementationOnce(
+      async () => {
+        const seen = { id: "org1", ...db.org, stripeSubscriptionId: null };
+        db.org.stripeSubscriptionId = "sub_other";
+        return seen;
+      }
+    );
+    await applySubscription(sub("trialing"));
+    expect(fake.subscriptions.cancel).toHaveBeenCalledWith("sub_1");
+    expect(db.org.stripeSubscriptionId).toBe("sub_other");
+  });
+});
+
+describe("an add-on with no price", () => {
+  it("never stops the card or a change: it waits for a price", async () => {
+    db.org.addons = ["receptionist"];
+    db.team.push({ userId: null }, { userId: null });
+    await syncSubscription("org1");
+    expect(fake.prices.create).not.toHaveBeenCalled();
+    expect(updateItems()).toEqual([{ price: "price_seat", quantity: 1 }]);
+  });
+});
+
+describe("Stripe giving up on a payment", () => {
+  it("ends the subscription and writes off what it owes, so paused months are never charged", async () => {
+    fake.invoices.list.mockResolvedValueOnce({ data: [{ id: "in_owed" }] });
+    await applySubscription(sub("unpaid"));
+    expect(fake.subscriptions.cancel).toHaveBeenCalledWith("sub_1", { invoice_now: false, prorate: false });
+    expect(fake.invoices.voidInvoice).toHaveBeenCalledWith("in_owed");
+    expect(db.org).toMatchObject({ billingStatus: "restricted", stripeSubscriptionId: null });
   });
 });

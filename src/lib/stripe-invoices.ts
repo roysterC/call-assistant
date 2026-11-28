@@ -36,9 +36,13 @@ export function invoiceRow(inv: Stripe.Invoice) {
 /**
  * Keep our copy of one invoice. With `fresh`, as Stripe has it now: its
  * notices come late and out of order, and an old "open" must not overwrite
- * "paid". Returns the salon's id, or null for an invoice that is no salon's.
+ * "paid". Returns the salon's id and the invoice as kept, or null for an
+ * invoice that is no salon's.
  */
-export async function recordInvoice(inv: Stripe.Invoice, opts: { fresh?: boolean; organizationId?: string } = {}): Promise<string | null> {
+export async function recordInvoice(
+  inv: Stripe.Invoice,
+  opts: { fresh?: boolean; organizationId?: string } = {}
+): Promise<{ organizationId: string; invoice: Stripe.Invoice } | null> {
   if (opts.fresh && inv.id) inv = await stripe().invoices.retrieve(inv.id);
   if (!inv.id) return null;
   const customer = typeof inv.customer === "string" ? inv.customer : (inv.customer?.id ?? null);
@@ -54,7 +58,7 @@ export async function recordInvoice(inv: Stripe.Invoice, opts: { fresh?: boolean
     create: { id: inv.id, organizationId, ...row },
     update: row,
   });
-  return organizationId;
+  return { organizationId, invoice: inv };
 }
 
 /** Every invoice of a salon's Stripe customer, newest first, kept: the nightly check, or a salon's first look. */

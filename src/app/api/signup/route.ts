@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid request", code: "invalid" }, { status: 400 });
   // The hidden field: a person never sees it, a bot fills everything.
-  if (typeof body.website === "string" && body.website.trim()) {
+  if (typeof body.kk_hp === "string" && body.kk_hp.trim()) {
     return NextResponse.json({ error: "Invalid request", code: "invalid" }, { status: 400 });
   }
   const input = { salon: body.salon, name: body.name, email: body.email, password: body.password, language: body.language };

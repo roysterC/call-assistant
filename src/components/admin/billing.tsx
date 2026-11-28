@@ -42,7 +42,7 @@ interface EventRow {
   receivedAt: string;
 }
 
-type AdminBilling = BillingSummary & { invoices: InvoiceRow[]; events: EventRow[] };
+type AdminBilling = BillingSummary & { invoices: InvoiceRow[]; events: EventRow[]; premiumChat: boolean };
 
 const INVOICE_STATUS: Record<string, string> = {
   draft: "Draft",
@@ -345,6 +345,23 @@ export function OrgBilling({ orgId }: { orgId: string }) {
           </div>
         )}
 
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-primary"
+            checked={b.premiumChat}
+            disabled={busy}
+            onChange={(e) => void put({ premiumChat: e.target.checked })}
+          />
+          <span>
+            <span className="font-medium">Premium chat</span>
+            <span className="block text-xs text-muted-foreground">
+              Its chat may use the better (dearer) model and hide &ldquo;Powered by Kikai&rdquo;, if its chat&apos;s settings ask.
+              Off: the standard model, and the line always shows. For Kikai&apos;s own salons and arrangements you agree.
+            </span>
+          </span>
+        </label>
+
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Add-ons on the plan</p>
           {ADDONS.map((a) => {
@@ -356,7 +373,8 @@ export function OrgBilling({ orgId }: { orgId: string }) {
                   type="checkbox"
                   className="h-4 w-4 accent-primary"
                   checked={on}
-                  disabled={busy}
+                  // Nothing to bill a new one at until it has a price.
+                  disabled={busy || (!on && price == null)}
                   onChange={(e) => void toggle(a, e.target.checked)}
                 />
                 <span className="flex-1">{PRICE_LABEL[a]}</span>

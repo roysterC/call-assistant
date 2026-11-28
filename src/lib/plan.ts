@@ -207,11 +207,33 @@ export function seatsFor(people: number): number {
 
 /**
  * Count each person once: everyone on the team (taking bookings or not) and
- * every login that is not one of them. Kikai's own logins are not the salon's.
+ * every login that is not one of them. A login is one of them when a team
+ * entry is linked to it, or, unlinked, has its email or its name: the owner
+ * who adds themselves in onboarding, or a member of staff invited by email,
+ * is one person, not two. Kikai's own logins, and withdrawn ones, are nobody.
  */
-export function countPeople(team: Array<{ userId: string | null }>, logins: Array<{ id: string; role: string }>): number {
-  const onTeam = new Set(team.map((t) => t.userId).filter(Boolean));
-  const others = logins.filter((u) => u.role !== "superAdmin" && !onTeam.has(u.id));
+export function countPeople(
+  team: Array<{ userId: string | null; email?: string | null; name?: string | null }>,
+  logins: Array<{ id: string; role: string; email?: string | null; name?: string | null }>
+): number {
+  const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
+  const linked = new Set(team.map((t) => t.userId).filter(Boolean));
+  // Unlinked entries each stand for at most one login.
+  const free = team.filter((t) => !t.userId);
+  const others = logins.filter((u) => {
+    if (u.role !== "admin" && u.role !== "member") return false;
+    if (linked.has(u.id)) return false;
+    // By email for anyone; by name only for the owner (onboarding's "Add me"
+    // from before it linked the entry), since two members of staff may share one.
+    const i = free.findIndex(
+      (t) =>
+        (norm(t.email) && norm(t.email) === norm(u.email)) ||
+        (u.role === "admin" && norm(t.name) && norm(t.name) === norm(u.name))
+    );
+    if (i < 0) return true;
+    free.splice(i, 1);
+    return false;
+  });
   return team.length + others.length;
 }
 

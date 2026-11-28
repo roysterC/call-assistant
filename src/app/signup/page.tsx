@@ -29,7 +29,7 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [website, setWebsite] = useState("");
+  const [trap, setTrap] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [taken, setTaken] = useState(false);
@@ -43,7 +43,7 @@ export default function SignupPage() {
       const res = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ salon, name, email, password, website, language: lang }),
+        body: JSON.stringify({ salon, name, email, password, kk_hp: trap, language: lang }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -91,7 +91,8 @@ export default function SignupPage() {
         </div>
         {/* Only bots fill this in. */}
         <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
-          <input id="website" name="website" aria-label="website" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
+          {/* A name no browser or password manager fills in by itself. */}
+          <input id="kk_hp" name="kk_hp" aria-label="kk" tabIndex={-1} autoComplete="new-password" value={trap} onChange={(e) => setTrap(e.target.value)} />
         </div>
 
         {error && (

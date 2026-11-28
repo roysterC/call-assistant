@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin, isErrorResponse } from "@/lib/tenant";
 import { smsConfigured } from "@/lib/sms";
+import { cancelSubscriptionNow, stripeConfigured } from "@/lib/stripe-billing";
 
 export async function GET(
   _req: NextRequest,
@@ -98,6 +99,26 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    // A salon paying by card has its subscription cancelled first, so the
+    // card is never charged for a salon that no longer exists. If Stripe
+    // refuses, the salon stays.
+    const org = await prisma.organization.findUnique({ where: { id }, select: { stripeSubscriptionId: true } });
+    if (org?.stripeSubscriptionId) {
+      if (!stripeConfigured()) {
+        return NextResponse.json(
+          { error: "This salon pays by card, but Stripe is not set up here: cancel its subscription in Stripe first." },
+          { status: 409 }
+        );
+      }
+      try {
+        await cancelSubscriptionNow(org.stripeSubscriptionId);
+      } catch (e) {
+        return NextResponse.json(
+          { error: `Stripe would not cancel its subscription, so the salon was not deleted: ${e instanceof Error ? e.message : String(e)}` },
+          { status: 502 }
+        );
+      }
+    }
     // Its logins go with it (their sign-ins and devices with them): kept, they
     // belonged to no salon and their addresses could never be invited again.
     // Kikai's own super-admin logins are only detached.

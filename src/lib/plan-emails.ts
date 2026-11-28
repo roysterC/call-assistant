@@ -67,6 +67,7 @@ export async function sendTrialReminders(origin: string, now: Date = new Date())
       data: { trialReminderSent: stage },
     });
     if (claimed.count !== 1) continue;
+    let reached = false;
     for (const owner of org.users) {
       const lang: Lang = isLang(owner.language) ? owner.language : DEFAULT_LANG;
       const date = org.trialEndsAt!.toLocaleDateString(INTL_LOCALE[lang], { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/London" });
@@ -84,11 +85,20 @@ export async function sendTrialReminders(origin: string, now: Date = new Date())
           lang,
         })
       );
-      if (r.ok) sent++;
-      else {
+      if (r.ok) {
+        sent++;
+        reached = true;
+      } else {
         failed++;
         console.error(`[TRIAL REMINDER] ${org.id} to an owner failed: ${r.error}`);
       }
+    }
+    // Nobody reached: not sent, so the next run tries again.
+    if (!reached) {
+      await prisma.organization.updateMany({
+        where: { id: org.id, trialReminderSent: stage },
+        data: { trialReminderSent: org.trialReminderSent },
+      });
     }
   }
   return { sent, failed };

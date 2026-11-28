@@ -22,11 +22,11 @@ export function brandingIdentity() {
 
 /**
  * Whether the widget should render attribution: always, unless the site asks
- * to hide it and the salon is one Kikai does not bill (its own, testers).
- * Re-evaluated per request rather than trusted from the stored flag, so a
- * salon that starts being billed gets it back at once.
+ * to hide it and Kikai has switched on premium chat for the salon in Admin
+ * (Organization.premiumChat). Re-evaluated per request rather than trusted
+ * from the stored flag, so switching it off brings the line back at once.
  */
-export function shouldShowBranding(billingStatus: string | null | undefined, hideBranding: boolean | null | undefined): boolean {
+export function shouldShowBranding(premiumChat: boolean | null | undefined, hideBranding: boolean | null | undefined): boolean {
   if (!hideBranding) return true;
-  return billingStatus !== "free";
+  return !premiumChat;
 }
