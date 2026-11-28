@@ -28,6 +28,7 @@ export function WeekView({
   tones,
   timeZone,
   closed,
+  nobodyIn = () => false,
   priceOf,
   onOpenDay,
 }: {
@@ -39,6 +40,8 @@ export function WeekView({
   tones: Map<string, ServiceTone>;
   timeZone: string;
   closed: (date: string) => boolean;
+  /** A day open but with nobody on the rota. */
+  nobodyIn?: (date: string) => boolean;
   /** What a booking comes to: its own price, else the price list's. */
   priceOf: (a: CalendarAppointment) => number | null;
   onOpenDay: (date: string) => void;
@@ -105,7 +108,9 @@ export function WeekView({
               {shut && list.length === 0 ? (
                 <span className="m-auto text-[13px] text-muted-foreground">{t("diary.closedDay")}</span>
               ) : list.length === 0 ? (
-                <span className="m-auto text-[13px] text-muted-foreground">{t("diary.nothingBooked")}</span>
+                <span className="m-auto text-[13px] text-muted-foreground">
+                  {nobodyIn(date) ? t("grid.nobodyIn") : t("diary.nothingBooked")}
+                </span>
               ) : (
                 <span className="flex min-h-0 flex-col gap-1 overflow-y-auto">
                   {list.map((a) => {
@@ -114,11 +119,15 @@ export function WeekView({
                       <span
                         key={a.id}
                         className={cn(
-                          "flex flex-col rounded-md border-l-[3px] px-1.5 py-1 text-xs leading-tight",
-                          a.status === "completed" && "opacity-75",
-                          a.status === "no_show" && "line-through opacity-60"
+                          "flex flex-col rounded-[10px] border-[1.5px] px-2 py-1.5 text-xs leading-tight",
+                          // The day view's marks: a dashed edge for a no-show, a
+                          // quieter fill for one that is done, and the word.
+                          a.status === "no_show" && "border-dashed"
                         )}
-                        style={{ background: tone.fill, borderLeftColor: tone.border }}
+                        style={{
+                          background: a.status === "completed" ? "var(--secondary)" : tone.fill,
+                          borderColor: tone.border,
+                        }}
                         title={`${a.serviceText} · ${a.stylistName}`}
                       >
                         <span className="flex items-center gap-1.5">
@@ -130,6 +139,21 @@ export function WeekView({
                           )}
                         </span>
                         <span className="truncate">{clientLabel(a.lead, t)}</span>
+                        {/* The day view's chips, smaller. */}
+                        {(a.status === "completed" || a.status === "no_show") && (
+                          <span className="mt-0.5 flex flex-wrap gap-1">
+                            {(a.status === "completed" || a.status === "no_show") && (
+                              <span
+                                className={cn(
+                                  "rounded-full px-1.5 py-px text-[10.5px] font-bold",
+                                  a.status === "no_show" ? "bg-red-50 text-red-800" : "bg-tea-green-700 text-tea-green-100"
+                                )}
+                              >
+                                {t(a.status === "no_show" ? "grid.noShow" : "grid.done")}
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </span>
                     );
                   })}

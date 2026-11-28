@@ -623,6 +623,10 @@ export default function CalendarPage() {
     return () => window.removeEventListener(DIARY_CHANGED, onChanged);
   });
 
+  // A day nobody works, by the team's working days (the day view's rule).
+  const nobodyInOn = (date: string) =>
+    stylists.length > 0 &&
+    stylists.every((s) => (s.workingDays?.length ?? 0) > 0 && !(s.workingDays ?? []).includes(weekdayOf(date)));
   // A day the salon is shut, by its opening hours.
   const closedOn = (date: string) => {
     const row = hours.find((h) => h.day === weekdayOf(date));
@@ -660,6 +664,9 @@ export default function CalendarPage() {
   };
 
   const firstQuote = quotes[0];
+  // A phone has no room for "Today, " before the date (the Today button
+  // already says it), and Vietnamese runs long enough to cut the month off.
+  const phoneTitle = mode === "week" ? title : shortDate(selected);
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden p-4 md:p-6 phone:pt-2.5">
@@ -746,18 +753,29 @@ export default function CalendarPage() {
             onClick={() => setShowMonth((v) => !v)}
             aria-expanded={showMonth}
             aria-label={t("diary.month")}
-            className="flex min-w-0 items-center gap-1 py-1 font-heading text-[19px] font-extrabold tracking-tight"
+            className="flex min-h-11 min-w-0 items-center gap-1 font-heading text-[19px] font-extrabold tracking-tight"
           >
-            <span suppressHydrationWarning className="truncate">{title}</span>
+            <span suppressHydrationWarning className="truncate">{phoneTitle}</span>
             <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showMonth ? "rotate-180" : ""}`} />
           </button>
           <button
             type="button"
             onClick={() => pickDay(today)}
             disabled={selected === today}
-            className="ml-auto h-8 shrink-0 rounded-full border border-input bg-card px-3.5 text-[13px] font-bold disabled:bg-muted disabled:text-muted-foreground"
+            className="ml-auto h-11 shrink-0 rounded-full border border-input bg-card px-4 text-[13px] font-bold active:bg-accent disabled:bg-muted disabled:text-muted-foreground"
           >
             {t("diary.today")}
+          </button>
+          {/* The same New booking as a wide screen's, in reach of a thumb's
+              first glance; tapping empty time still works too. */}
+          <button
+            type="button"
+            onClick={newBooking}
+            disabled={columns.length === 0}
+            aria-label={t("diary.newBooking")}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_1px_2px_0_rgb(45_51_26/0.18)] active:translate-y-px disabled:opacity-50"
+          >
+            <Plus className="h-5 w-5" strokeWidth={2.25} aria-hidden="true" />
           </button>
         </div>
         <WeekStrip selected={selected} today={today} busy={weekBusy} closed={closedOn} onSelect={pickDay} />
@@ -765,8 +783,8 @@ export default function CalendarPage() {
           <div
             role="tablist"
             aria-label={t("diary.stylist")}
-            className={columns.length <= 4 ? "grid gap-0.5 rounded-xl bg-muted p-[3px]" : "flex gap-0.5 overflow-x-auto rounded-xl bg-muted p-[3px]"}
-            style={columns.length <= 4 ? { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` } : undefined}
+            className={columns.length <= 5 ? "grid gap-0.5 rounded-xl bg-muted p-[3px]" : "flex gap-0.5 overflow-x-auto rounded-xl bg-muted p-[3px]"}
+            style={columns.length <= 5 ? { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` } : undefined}
           >
             {columns.map((c) => {
               const on = c.name === phoneColumn?.name;
@@ -778,11 +796,12 @@ export default function CalendarPage() {
                   aria-selected={on}
                   aria-label={c.name}
                   onClick={() => setPhonePick(c.name)}
-                  className={`flex h-[34px] min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[9px] px-2 text-[13.5px] font-semibold transition-colors ${
-                    on ? "bg-card shadow-sm" : "text-muted-foreground"
-                  } ${c.worksToday ? "" : "opacity-60"}`}
+                  className={`flex h-11 min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-[9px] px-1.5 text-[13.5px] font-semibold transition-colors ${
+                    on ? "bg-card shadow-sm" : "text-muted-foreground active:bg-card/60"
+                  } ${c.worksToday ? "" : "italic"}`}
                 >
-                  <StylistBadge stylist={{ ...c, worksToday: true }} size="sm" />
+                  {/* Five across leaves room for the name alone. */}
+                  {columns.length <= 4 && <StylistBadge stylist={{ ...c, worksToday: true }} size="sm" />}
                   <span className="truncate">{c.name.split(/\s+/)[0]}</span>
                 </button>
               );
@@ -817,6 +836,7 @@ export default function CalendarPage() {
           tones={tones}
           timeZone={timeZone}
           closed={closedOn}
+          nobodyIn={nobodyInOn}
           priceOf={(a) => a.amountMinor ?? listPriceFor(a.serviceText, services)}
           onOpenDay={pickDay}
         />

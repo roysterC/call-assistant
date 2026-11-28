@@ -39,6 +39,13 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
   --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-strong: var(--sidebar-strong);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-icon: var(--sidebar-icon);
+  --color-sidebar-icon-strong: var(--sidebar-icon-strong);
+  --color-sidebar-accent-icon: var(--sidebar-accent-icon);
+  --color-sidebar-chip: var(--sidebar-chip);
+  --color-sidebar-chip-ring: var(--sidebar-chip-ring);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -166,7 +173,7 @@
   --chart-3: #b3c146;
   --chart-4: #a57b10;
   --chart-5: #88994f;
-  --radius: 0.75rem;
+  --radius: 1rem;
   --scrollbar-thumb: rgb(45 51 26 / 18%);
   --scrollbar-thumb-hover: rgb(45 51 26 / 32%);
   /* The menu: dark. */
@@ -179,12 +186,48 @@
   --sidebar-muted: #acbb7b; /* tea green 400: headings, second lines */
   --sidebar-border: rgb(225 230 207 / 14%);
   --sidebar-ring: #acbb7b;
+  /* What the menu draws on itself: names, the hover wash, icons, the chip
+     behind the chosen language. Dark here; .sidebar-light swaps them. */
+  --sidebar-strong: #fefae0; /* cornsilk 500 */
+  --sidebar-hover: rgb(255 255 255 / 8%);
+  --sidebar-icon: #d6debe; /* tea green 600 */
+  --sidebar-icon-strong: #e1e6cf;
+  --sidebar-accent-icon: #e1e6cf;
+  --sidebar-chip: rgb(255 255 255 / 12%);
+  --sidebar-chip-ring: rgb(255 255 255 / 30%);
+  /* The diary's current-time line and its pill (ink on it is 5.0:1). */
+  --now: #e5894b;
+  /* A free stretch of a diary column. */
+  --diary-lane: #f7f8f1;
   /* Surfaces lift off the canvas with a hairline and the faintest shadow.
      Anything heavier looks like a 2014 dashboard. */
   --elev-surface: 0 1px 2px 0 rgb(45 51 26 / 0.04),
     0 1px 3px 0 rgb(45 51 26 / 0.04);
   --elev-raised: 0 4px 6px -2px rgb(45 51 26 / 0.05),
     0 12px 24px -6px rgb(45 51 26 / 0.1);
+}
+
+/*
+ * The menu, light: sage on the page's own ground, the page itself a raised
+ * panel beside it, the current page a dark pill. Put on the menu, the phone's
+ * header and its tab bar; dark surfaces elsewhere (the snackbar) keep :root's.
+ * Contrast on #f5f7ef: text 12.4:1, muted 5.9:1; pill text 13.6:1.
+ */
+.sidebar-light {
+  --sidebar: #f5f7ef; /* tea green 900 */
+  --sidebar-foreground: #2d331a;
+  --sidebar-strong: #2d331a;
+  --sidebar-muted: #5b6635;
+  --sidebar-hover: rgb(45 51 26 / 7%);
+  --sidebar-icon: #5b6635;
+  --sidebar-icon-strong: #2d331a;
+  --sidebar-accent: #2d331a;
+  --sidebar-accent-foreground: #fefae0;
+  --sidebar-accent-icon: #e1e6cf;
+  --sidebar-border: #e1e6cf;
+  --sidebar-ring: #5b6635;
+  --sidebar-chip: #ffffff;
+  --sidebar-chip-ring: #d6debe;
 }
 
 @layer base {

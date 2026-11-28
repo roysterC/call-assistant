@@ -94,11 +94,11 @@ export function LanguageFlags({
             title={on ? LANGUAGES[l] : t("lang.switchTo", { name: LANGUAGES[l] })}
             data-testid={`lang-${l}`}
             className={cn(
-              "flex h-7 w-9 items-center justify-center rounded-md transition-[opacity,box-shadow] outline-none focus-visible:ring-2",
+              "flex h-7 w-9 phone:h-11 phone:w-11 items-center justify-center rounded-md transition-[opacity,box-shadow] outline-none focus-visible:ring-2",
               tone === "dark" ? "focus-visible:ring-sidebar-ring" : "focus-visible:ring-ring",
               on
                 ? tone === "dark"
-                  ? "bg-white/12 ring-1 ring-white/30"
+                  ? "bg-sidebar-chip ring-1 ring-sidebar-chip-ring"
                   : "bg-card ring-1 ring-border shadow-sm"
                 : "opacity-55 hover:opacity-100"
             )}

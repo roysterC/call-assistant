@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-28T14:00:00Z",
+  "title": "Design System: Kikai",
+  "extensions": {
+    "colorMeta": {
+      "sage-ink": { "role": "primary", "displayName": "Sage Ink", "tonalRamp": ["#2d331a", "#5b6635", "#88994f", "#acbb7b", "#ccd5ae", "#d6debe", "#e1e6cf", "#f5f7ef"] },
+      "sage-deep": { "role": "primary", "displayName": "Sage Deep", "tonalRamp": ["#2d331a", "#5b6635", "#88994f", "#acbb7b", "#ccd5ae", "#d6debe", "#e1e6cf", "#f5f7ef"] },
+      "bronze": { "role": "secondary", "displayName": "Waiting Bronze", "tonalRamp": ["#32210f", "#64411f", "#96622e", "#c58341", "#d4a373", "#dcb68f", "#e5c8ab", "#f6ede3"] },
+      "now-orange": { "role": "tertiary", "displayName": "Now Orange" },
+      "paper": { "role": "neutral", "displayName": "Paper" },
+      "sage-ground": { "role": "neutral", "displayName": "Sage Ground" },
+      "diary-lane": { "role": "neutral", "displayName": "Diary Lane" },
+      "salon-ink": { "role": "neutral", "displayName": "Salon Ink (salon pages only)" },
+      "salon-cream": { "role": "neutral", "displayName": "Salon Cream (salon pages only)" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Page title", "purpose": "One per page, in PageHeader." },
+      "diary-time": { "displayName": "Diary time", "purpose": "A booking's start time, read from a step back." },
+      "salon-display": { "displayName": "Salon display", "purpose": "Headings on a salon's own pages only." }
+    },
+    "shadows": [
+      { "name": "surface", "value": "0 1px 2px 0 rgb(45 51 26 / 0.04), 0 1px 3px 0 rgb(45 51 26 / 0.04)", "purpose": "Cards and the diary grid at rest." },
+      { "name": "raised", "value": "0 4px 6px -2px rgb(45 51 26 / 0.05), 0 12px 24px -6px rgb(45 51 26 / 0.1)", "purpose": "The page panel, popovers, sheets, alerts." },
+      { "name": "booking", "value": "0 1px 2px 0 rgb(45 51 26 / 0.06), 0 4px 10px -4px rgb(45 51 26 / 0.1)", "purpose": "A booking card in the diary." }
+    ],
+    "motion": [
+      { "name": "press-salon", "value": "scale 70ms in, 200ms cubic-bezier(0.22, 1, 0.36, 1) out", "purpose": "Pressed state on the salon pages." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "below 768px wide or 500px tall" },
+      { "name": "md", "value": "768px wide and 500px tall" },
+      { "name": "xl", "value": "1280px: the menu starts open" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action on a screen: New booking, Save.",
+      "html": "<button class=\"ds-btn-primary\">New booking</button>",
+      "css": ".ds-btn-primary{height:32px;padding:0 10px;border:0;border-radius:16px;background:#5b6635;color:#fffef9;font:500 14px Inter,sans-serif;box-shadow:0 1px 2px 0 rgb(45 51 26/.18);cursor:pointer;transition:background .15s}.ds-btn-primary:hover{background:rgb(91 102 53/.9)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 3px rgb(136 153 79/.5)}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary actions beside a primary one.",
+      "html": "<button class=\"ds-btn-outline\">Today</button>",
+      "css": ".ds-btn-outline{height:32px;padding:0 10px;border:1px solid #d6debe;border-radius:16px;background:#fff;color:#2d331a;font:500 14px Inter,sans-serif;box-shadow:0 1px 2px 0 rgb(45 51 26/.05);cursor:pointer}.ds-btn-outline:hover{background:#ebeedf}.ds-btn-outline:focus-visible{outline:none;box-shadow:0 0 0 3px rgb(136 153 79/.5)}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Every text field.",
+      "html": "<input class=\"ds-input\" placeholder=\"Search by name, number or email\">",
+      "css": ".ds-input{height:32px;width:280px;padding:4px 10px;border:1px solid #d6debe;border-radius:16px;background:#fff;color:#2d331a;font:14px Inter,sans-serif;box-shadow:0 1px 2px 0 rgb(45 51 26/.05)}.ds-input::placeholder{color:#5b6635}.ds-input:focus-visible{outline:none;border-color:#88994f;box-shadow:0 0 0 3px rgb(136 153 79/.5)}"
+    },
+    {
+      "name": "Menu Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "The light menu: the current page a dark pill, a count in bronze.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-on\" href=\"#\">Diary</a><a class=\"ds-nav-item\" href=\"#\">Callbacks<span class=\"ds-count\">1</span></a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:4px;width:220px;padding:10px;background:#f5f7ef;border-radius:28px}.ds-nav-item{display:flex;align-items:center;height:40px;padding:0 18px;border-radius:14px;color:#2d331a;font:500 14px Inter,sans-serif;text-decoration:none}.ds-nav-item:hover{background:rgb(45 51 26/.07)}.ds-on{background:#2d331a;color:#fefae0}.ds-count{margin-left:auto;min-width:20px;height:20px;border-radius:10px;background:#d4a373;color:#32210f;font:700 11px/20px Inter,sans-serif;text-align:center}"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "description": "Filters on lists, with their counts.",
+      "html": "<span class=\"ds-chip ds-chip-on\">All 16</span> <span class=\"ds-chip\">Due back 0</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;height:32px;padding:0 12px;border:1px solid #e1e6cf;border-radius:999px;background:#fff;color:#2d331a;font:500 14px Inter,sans-serif}.ds-chip-on{background:#2d331a;border-color:#2d331a;color:#fff}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A settings section, a callback, a panel.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Salon details</div><div class=\"ds-card-text\">How the salon is named to clients.</div></div>",
+      "css": ".ds-card{width:320px;padding:16px;border-radius:22.4px;background:#fff;box-shadow:0 0 0 1px #e1e6cf,0 1px 2px rgb(45 51 26/.04),0 1px 3px rgb(45 51 26/.04)}.ds-card-title{font:600 15px 'Plus Jakarta Sans',Inter,sans-serif;color:#2d331a}.ds-card-text{margin-top:4px;font:14px Inter,sans-serif;color:#5b6635}"
+    },
+    {
+      "name": "Diary Booking",
+      "kind": "custom",
+      "refersTo": "diary-booking",
+      "description": "A booking in a technician's lane, tinted by its treatment family.",
+      "html": "<div class=\"ds-lane\"><button class=\"ds-booking\"><span class=\"ds-time\">12:00 <small>– 12:45</small></span><span class=\"ds-who\">Grace Okafor</span><span class=\"ds-what\">Gel polish, hands</span></button></div>",
+      "css": ".ds-lane{width:200px;height:120px;padding:8px;background:#f7f8f1}.ds-booking{display:flex;flex-direction:column;align-items:flex-start;width:100%;height:96px;padding:6px 8px;border:1.5px solid rgb(63 136 212/.7);border-radius:12px;background:#e3eefa;color:#2d331a;font:12px Inter,sans-serif;text-align:left;box-shadow:0 1px 2px rgb(45 51 26/.06),0 4px 10px -4px rgb(45 51 26/.1);cursor:pointer}.ds-booking:hover{box-shadow:0 2px 4px rgb(45 51 26/.08),0 10px 20px -8px rgb(45 51 26/.18)}.ds-time{font:800 20px/1.1 Inter,sans-serif;font-variant-numeric:tabular-nums}.ds-time small{font-size:12.5px;font-weight:600;color:rgb(45 51 26/.8)}.ds-who{margin-top:2px;font-weight:600;font-size:13px}.ds-what{color:rgb(45 51 26/.8)}"
+    },
+    {
+      "name": "Salon Page Button",
+      "kind": "button",
+      "refersTo": "salon-button",
+      "description": "Salon pages only: Book an appointment.",
+      "html": "<a class=\"ds-salon-btn\" href=\"#\">Book an appointment</a>",
+      "css": ".ds-salon-btn{display:inline-flex;align-items:center;height:52px;padding:0 24px;border-radius:999px;background:#16121A;color:#FFF4E8;font:600 16px 'Instrument Sans',Inter,sans-serif;text-decoration:none;transition:scale .2s cubic-bezier(.22,1,.36,1)}.ds-salon-btn:active{scale:.96}.ds-salon-btn:focus-visible{outline:3px solid #16121A;outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Sage Studio",
+    "overview": "A soft, natural workspace that a nail technician can glance at between clients and understand at once. Sage greens on a pale ground, rounded and unshowy: it should feel like the calm back room of a good salon, not a dashboard. The page sits on a raised, rounded panel beside a light sage menu; the page you are on is the one dark thing in the menu, a pill.\n\nCalm is the method, not a mood board. Contrast is spent on what a busy person needs right now (the time a client is due, who is free, what is waiting) and withheld from everything else. Surfaces are separated by tone and hairlines, with the faintest shadows. Colour carries meaning (a treatment family, something waiting, the current time) and is never decoration.\n\nDensity is moderate: real working screens, not airy marketing layouts. They hold a day of five technicians, a client list, a settings page with many sections. The diary is the heart of the product and is designed to be read from a step back.",
+    "keyCharacteristics": [
+      "Light sage menu with a dark pill for the current page; content on a raised, rounded panel.",
+      "Plus Jakarta Sans for titles, Inter for everything read; tabular figures for every time and price.",
+      "Soft-and-calm components: hairline borders, faint shadows, gentle hovers, rounded corners from one radius token.",
+      "The diary: one lane per technician, bookings as rounded cards tinted by treatment family.",
+      "Works in English and Vietnamese; every face carries Vietnamese diacritics."
+    ],
+    "rules": [
+      { "name": "The One Warm Thing Rule", "body": "Bronze means \"a person is waiting\". If it isn't a count or dot of things waiting, it isn't bronze.", "section": "colors" },
+      { "name": "The Colour Is Data Rule", "body": "Treatment hues appear only on bookings and their legend. A treatment's colour never decorates a heading, a button or a chart.", "section": "colors" },
+      { "name": "The Red Is Stop Rule", "body": "The palette has no colour that reads as \"stop\", so errors and destructive actions use the one red (oklch(0.55 0.21 27)). Waiting-too-long text uses it too, sparingly.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Every time, price, count and booking number uses tabular figures.", "section": "typography" },
+      { "name": "The One Title Rule", "body": "A page has one display-size title. Sections below it use Title size.", "section": "typography" },
+      { "name": "The Nothing Heavier Rule", "body": "No shadow darker than the Raised one. Anything heavier looks like a 2014 dashboard.", "section": "elevation" },
+      { "name": "The Whole Border Rule", "body": "Colour goes round the whole shape or fills it. Never a stripe down one side of a rounded box.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do take colours from the tokens in src/app/globals.css; a new value goes there first.",
+      "Do keep times, prices and counts tabular.",
+      "Do give every control a hover, focus, pressed and disabled state, and 44px targets on phones.",
+      "Do check every new string in Vietnamese, which runs longer."
+    ],
+    "donts": [
+      "Don't put a coloured stripe down one side of a card, alert or booking.",
+      "Don't use bronze for anything but \"waiting\", or a treatment hue outside the diary.",
+      "Don't use a shadow heavier than Raised, or a grey or black one.",
+      "Don't bring the salon pages' fonts, cream or salon colour into the staff app, or the sage into a salon's pages."
+    ]
+  }
+}

@@ -116,11 +116,11 @@ export function BookingAlerts() {
         <article
           key={n.id}
           className={cn(
-            "rounded-xl border border-border border-l-4 bg-card px-2.5 py-2 shadow-raised animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none md:p-3",
+            "rounded-xl border-[1.5px] bg-card px-2.5 py-2 shadow-raised animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none md:p-3",
             // A phone shows the newest only; the rest are counted below it.
             i > 0 && "hidden md:block"
           )}
-          style={{ borderLeftColor: NEW_BOOKING.border }}
+          style={{ borderColor: NEW_BOOKING.border }}
         >
           <div className="flex items-center gap-2 md:items-start">
             <CalendarPlus className="h-4 w-4 shrink-0 md:mt-0.5" style={{ color: NEW_BOOKING.border }} aria-hidden />

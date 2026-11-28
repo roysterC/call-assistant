@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { columnBackground } from "./day-grid";
 
 describe("columnBackground", () => {
-  it("is plain card white with nothing closed or blocked", () => {
-    expect(columnBackground([])).toBe("var(--card)");
+  it("is the plain lane colour with nothing closed or blocked", () => {
+    expect(columnBackground([])).toBe("var(--diary-lane)");
   });
 
   it("leaves a see-through hole for each closed or blocked stretch, overlaps merged", () => {
@@ -14,7 +14,7 @@ describe("columnBackground", () => {
         { topPct: 45, heightPct: 10 },
       ])
     ).toBe(
-      "linear-gradient(to bottom, transparent 0% 10%, var(--card) 10% 40%, transparent 40% 55%, var(--card) 55% 100%)"
+      "linear-gradient(to bottom, transparent 0% 10%, var(--diary-lane) 10% 40%, transparent 40% 55%, var(--diary-lane) 55% 100%)"
     );
   });
 });
