@@ -913,23 +913,22 @@ function StylistColumn({
         // Two bookings at once for one person: flagged in words and red, the
         // start time kept whole (the end time goes first when it is narrow).
         const doubled = b.lanes > 1;
-        // Doubled bookings cascade rather than split the lane in half: each
-        // keeps the whole width less a step per lane, so its start time,
-        // name and status all still read; the later one sits on top.
-        const inset = doubled ? b.lane * 14 : 0;
+        // Doubled bookings share the column side by side, across its whole
+        // width (the overbook strip gives way to them there), and each sizes
+        // its time to its own width rather than cutting it.
         const done = a.status === "completed";
         const noShow = a.status === "no_show";
         const statusWord = done ? t("grid.done") : noShow ? t("grid.noShow") : null;
         const statusChip = statusWord && (
           <span
             className={cn(
-              "inline-flex w-fit max-w-full shrink-0 items-center gap-0.5 truncate rounded-full px-1.5 py-px text-[10.5px] font-bold",
-              doubled ? "my-px leading-tight" : "mt-0.5",
+              "mt-0.5 inline-flex w-fit max-w-full shrink-0 items-center gap-0.5 truncate rounded-full px-1.5 py-px text-[10.5px] font-bold",
               noShow ? "bg-red-50 text-red-800" : "bg-tea-green-700 text-tea-green-100"
             )}
           >
             {done && <Check className="h-3 w-3 shrink-0" strokeWidth={3} aria-hidden="true" />}
-            {statusWord}
+            {/* A half-width booking keeps the tick; the word is in its name. */}
+            <span className={cn(done && "@max-[4.5rem]:sr-only")}>{statusWord}</span>
           </span>
         );
         // Only a booking still to come can be moved; judged by the same
@@ -974,7 +973,7 @@ function StylistColumn({
               .filter(Boolean)
               .join(", ")}
             className={cn(
-              doubled && "py-1",
+              doubled && "px-1.5",
               // Content from the top, where the booking starts: a button
               // centres it otherwise, putting a long booking's time halfway down.
               // Lines keep their height and the card clips at the bottom, rather
@@ -997,8 +996,12 @@ function StylistColumn({
               height: `${b.heightPct}%`,
               // Every block sits inside the column minus the overbook strip,
               // so there is always bare column left to click on.
-              left: `${inset + 2}px`,
-              width: `calc(100% - ${OVERBOOK_GUTTER_PX}px - ${inset + 4}px)`,
+              left: doubled
+                ? `calc(100% * ${b.lane / b.lanes} + 2px)`
+                : "2px",
+              width: doubled
+                ? `calc(100% / ${b.lanes} - 4px)`
+                : `calc(100% - ${OVERBOOK_GUTTER_PX}px - 4px)`,
               // Above the now line, which shows only in the gaps.
               zIndex: 6 + b.lane,
             }}
@@ -1009,26 +1012,17 @@ function StylistColumn({
                 bookings put it before the name, a little smaller. */}
             {roomy && (
               <span className="flex flex-wrap items-baseline gap-x-1.5 min-w-0">
-                {/* A doubled booking sets its lines tighter: the one on top
-                    leaves it about half an hour of card for time, status and name. */}
-                <span
-                  className={cn(
-                    "shrink-0 font-extrabold tracking-[-0.01em] tabular-nums text-tea-green-100",
-                    doubled ? "text-[18px] leading-none" : "text-[20px] leading-[1.1]"
-                  )}
-                >
+                {/* Smaller on a narrow (shared) booking, never cut mid-number. */}
+                <span className="shrink-0 text-[20px] font-extrabold leading-[1.1] tracking-[-0.01em] tabular-nums text-tea-green-100 @max-[6rem]:text-[16px] @max-[3.5rem]:text-[13px]">
                   {shortTime(startMin, clock)}
                 </span>
                 {/* Dropped, not cut mid-number, when the booking is too narrow. */}
                 <span className="whitespace-nowrap text-[12.5px] font-semibold tabular-nums text-foreground/80 @max-[8.75rem]:hidden">
                   – {shortTime(endMin, clock)}
                 </span>
-                {/* On a doubled booking the status rides on the time line: the
-                    later booking covers the rest of the card. */}
-                {doubled && statusChip}
               </span>
             )}
-            <span className={cn("flex items-baseline gap-1.5 font-semibold min-w-0 text-[13px]", roomy && !doubled && "mt-0.5", doubled && "leading-tight")}>
+            <span className={cn("flex items-baseline gap-1.5 font-semibold min-w-0 text-[13px]", roomy && "mt-0.5")}>
               {!roomy && (
                 <span
                   className={cn(
@@ -1039,7 +1033,7 @@ function StylistColumn({
                   {shortTime(startMin, clock)}
                 </span>
               )}
-              {doubled && <TriangleAlert className="h-3.5 w-3.5 shrink-0 self-center text-destructive" aria-hidden="true" />}
+              {doubled && <TriangleAlert className="h-3.5 w-3.5 shrink-0 self-center text-destructive @max-[3.5rem]:hidden" aria-hidden="true" />}
               {a.unseen && (
                 <span
                   className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-white"
@@ -1050,11 +1044,11 @@ function StylistColumn({
               )}
               <span className="truncate">{clientLabel(a.lead, t)}</span>
             </span>
-            {length > 15 && !doubled && <span className="block truncate text-foreground/80">{a.serviceText}</span>}
-            {statusWord && !(doubled && roomy) && statusChip}
+            {length > 15 && <span className="block truncate text-foreground/80">{a.serviceText}</span>}
+            {statusChip}
             {/* The word where it fits; the red border, the mark and the lane's
-                header say it on a narrow lane. */}
-            {doubled && b.lane === b.lanes - 1 && length > 45 && (
+                header say it on a narrow one. */}
+            {doubled && length > 45 && (
               <span className="mt-0.5 inline-flex w-fit max-w-full items-center truncate rounded-full bg-red-50 px-1.5 py-px text-[10.5px] font-bold text-red-800 @max-[6.5rem]:hidden">
                 {t("grid.doubleBookedTitle")}
               </span>
