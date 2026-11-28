@@ -407,4 +407,19 @@ describe("Stripe giving up on a payment", () => {
     expect(fake.invoices.voidInvoice).toHaveBeenCalledWith("in_owed");
     expect(db.org).toMatchObject({ billingStatus: "restricted", stripeSubscriptionId: null });
   });
+
+  it("writes off what it owes when Stripe cancels it instead (or someone does, in Stripe)", async () => {
+    fake.invoices.list.mockResolvedValueOnce({ data: [{ id: "in_owed" }] });
+    await applySubscription(sub("canceled"));
+    expect(fake.subscriptions.cancel).not.toHaveBeenCalled();
+    expect(fake.invoices.voidInvoice).toHaveBeenCalledWith("in_owed");
+    expect(db.org).toMatchObject({ billingStatus: "restricted", stripeSubscriptionId: null });
+  });
+
+  it("leaves an old subscription's invoices alone", async () => {
+    db.org.stripeSubscriptionId = "sub_new";
+    await applySubscription(sub("canceled"));
+    expect(fake.invoices.list).not.toHaveBeenCalled();
+    expect(fake.invoices.voidInvoice).not.toHaveBeenCalled();
+  });
 });

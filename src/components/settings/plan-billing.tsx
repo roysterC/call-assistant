@@ -95,7 +95,7 @@ export function PlanBilling() {
     if (cancel) {
       const ok = await confirm({
         title: t("plan.cancelTitle"),
-        body: t("plan.cancelBody"),
+        body: t(plan.status === "trialing" ? "plan.cancelBodyTrial" : "plan.cancelBody"),
         confirmLabel: t("plan.cancelConfirm"),
         destructive: true,
       });

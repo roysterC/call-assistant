@@ -1872,6 +1872,7 @@
     "cancelPlan": "Huỷ gói của tôi",
     "cancelTitle": "Huỷ gói của bạn?",
     "cancelBody": "Gói của bạn vẫn dùng được đến hết tháng đã trả tiền, và bạn sẽ không bị trừ tiền nữa. Sau đó gói sẽ tạm dừng: lịch hẹn vẫn an toàn và trang web vẫn nhận đặt lịch, nhưng bạn không thể đặt lịch mới từ sổ hẹn, thay đổi nhóm hay cài đặt, hoặc dùng công cụ AI. Bạn có thể thêm thẻ lại bất cứ lúc nào.",
+    "cancelBodyTrial": "Bản dùng thử miễn phí vẫn dùng được đến khi hết hạn, và bạn sẽ không bị trừ tiền. Sau đó gói sẽ tạm dừng: lịch hẹn vẫn an toàn và trang web vẫn nhận đặt lịch, nhưng bạn không thể đặt lịch mới từ sổ hẹn, thay đổi nhóm hay cài đặt, hoặc dùng công cụ AI. Bạn có thể thêm thẻ lại bất cứ lúc nào.",
     "cancelConfirm": "Huỷ vào cuối tháng",
     "cancelFailed": "Không đổi được gói. Hãy thử lại sau một phút.",
     "cancelled": "Đã huỷ. Gói của bạn vẫn dùng được đến {date}.",

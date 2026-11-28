@@ -1872,6 +1872,7 @@
     "cancelPlan": "Cancel my plan",
     "cancelTitle": "Cancel your plan?",
     "cancelBody": "Your plan carries on until the end of the month you've paid for, and you won't be charged again. After that it's paused: your bookings stay safe and your website keeps taking bookings, but you can't make new bookings from the diary, change your team or setup, or use AI tools. You can add your card again any time.",
+    "cancelBodyTrial": "Your free trial carries on until it ends, and you won't be charged. After that it's paused: your bookings stay safe and your website keeps taking bookings, but you can't make new bookings from the diary, change your team or setup, or use AI tools. You can add your card again any time.",
     "cancelConfirm": "Cancel at the end of the month",
     "cancelFailed": "Could not change your plan. Try again in a minute.",
     "cancelled": "Cancelled. Your plan carries on until {date}.",

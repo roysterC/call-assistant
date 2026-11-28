@@ -378,11 +378,12 @@ To switch it on (once, in the Stripe dashboard, then on the server):
    end of the billing period** (never immediately). Leave "switch plans"
    off; the plan follows the app.
 4. **Failed payments**: Settings → Billing → Subscriptions and emails →
-   retry for about two weeks, then **mark the subscription as unpaid**.
-   The app then ends that subscription and writes off what it owed, so a
-   salon is never charged for months it spends paused; the salon is
-   restricted, and adding a card again starts a fresh month. Turn on the
-   emails for failed payments and for trials ending.
+   retry for about two weeks, then **mark the subscription as unpaid**
+   (cancelling it works too). Either way the app ends that subscription and
+   writes off what it owed, so a salon is never charged for months it
+   spends paused; the salon is restricted, and adding a card again starts
+   a fresh month. The same happens to a subscription cancelled by hand in
+   Stripe. Turn on the emails for failed payments and for trials ending.
 5. **VAT**: none; Kikai is not VAT registered. If it registers, turn on
    Stripe Tax and add the VAT wording back to the screens.
 

@@ -426,6 +426,11 @@ export async function applySubscription(sub: Stripe.Subscription, opts: { fresh?
   if (sub.status === "unpaid" && org.stripeSubscriptionId === sub.id) {
     await cancelSubscriptionNow(sub.id);
     sub = { ...sub, status: "canceled" };
+  } else if (sub.status === "canceled" && org.stripeSubscriptionId === sub.id) {
+    // Ended in Stripe: its retries ran out on an account set to cancel
+    // rather than mark unpaid, or someone cancelled it there by hand. What
+    // it still owes is written off just the same.
+    await voidOpenInvoices(sub.id);
   }
   const status = fromStripeStatus(sub.status);
   const ended = sub.status === "canceled" || sub.status === "incomplete_expired";
@@ -615,6 +620,12 @@ export async function cancelSubscriptionNow(subscriptionId: string): Promise<voi
   if (sub.status !== "canceled" && sub.status !== "incomplete_expired") {
     await s.subscriptions.cancel(subscriptionId, { invoice_now: false, prorate: false });
   }
+  await voidOpenInvoices(subscriptionId);
+}
+
+/** Void what a subscription still owes, so its card is never charged for it. */
+async function voidOpenInvoices(subscriptionId: string): Promise<void> {
+  const s = stripe();
   const open = await s.invoices.list({ subscription: subscriptionId, status: "open", limit: 100 });
   for (const inv of open.data) if (inv.id) await s.invoices.voidInvoice(inv.id);
 }
