@@ -31,6 +31,8 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
     "/data-deletion",
     // An owner's invite link, and setting the salon up (src/app/onboarding).
     "/invite/",
+    // A salon signing itself up.
+    "/signup",
     "/onboarding",
     "/forgot-password",
     "/reset-password/",

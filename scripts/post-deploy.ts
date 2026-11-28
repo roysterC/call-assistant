@@ -113,6 +113,13 @@ async function main() {
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
   });
   try {
+    // The old plan tier is gone (src/lib/plan.ts): a salon that was "pro" or
+    // "custom" (Kikai's own among them) keeps the better chat model and its
+    // white-label as premium chat. Once: the tier is cleared as it moves.
+    const premium = await prisma.$executeRaw`
+      UPDATE ca_organizations SET "premiumChat" = true, "planTier" = 'starter'
+      WHERE "planTier" IN ('pro', 'custom')`;
+    console.log(`  ✓ Premium chat carried over from the old pro/custom tier: ${premium}`);
     const names = await splitLeadNames(prisma);
     console.log(`  ✓ Client names split: ${names}`);
     const numbers = await numberAppointments(prisma);

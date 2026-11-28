@@ -61,7 +61,7 @@ function stored(over: Record<string, unknown> = {}) {
     expiresAt: LATER,
     delivery: "link",
     language: "en",
-    organization: { name: "Salon", enabled: true },
+    organization: { name: "Salon", enabled: true, billingStatus: "free", trialEndsAt: null, stripeSubscriptionId: null, addons: [] },
     ...over,
   };
 }
@@ -170,6 +170,18 @@ describe("readInvitation", () => {
 });
 
 describe("acceptInvitation", () => {
+  it("takes no new staff into a paused salon, but lets its owner in to put it right", async () => {
+    const paused = { name: "Salon", enabled: true, billingStatus: "restricted", trialEndsAt: null, stripeSubscriptionId: null, addons: [] };
+    db.tx.invitation.findUnique.mockResolvedValueOnce(stored({ role: "member", organization: paused }));
+    expect(await acceptInvitation({ token: TOKEN, name: "Kim", password: "longenough", now: NOW })).toMatchObject({
+      ok: false,
+      code: "paused",
+    });
+    expect(db.tx.user.create).not.toHaveBeenCalled();
+    db.tx.invitation.findUnique.mockResolvedValueOnce(stored({ organization: paused }));
+    expect(await acceptInvitation({ token: TOKEN, name: "Sam", password: "longenough", now: NOW })).toMatchObject({ ok: true });
+  });
+
   it("makes the login in the salon with the invited role, and uses the link up", async () => {
     expect(await acceptInvitation({ token: TOKEN, name: " Sam ", password: "longenough", now: NOW })).toEqual({
       ok: true,

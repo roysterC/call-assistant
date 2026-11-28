@@ -6,7 +6,7 @@ import { requireTenant, isErrorResponse } from "@/lib/tenant";
 import { billingSummary } from "@/lib/billing";
 import { loadPlan, loadPrices } from "@/lib/plan-access";
 import { addonsWith, changedAddons, isAddon, SELF_SERVE_ADDONS, type Addon } from "@/lib/plan";
-import { syncSubscription } from "@/lib/stripe-billing";
+import { BillingBusyError, syncLinesNow, withBillingLock } from "@/lib/stripe-billing";
 
 const ADDON_NAME: Record<Addon, string> = {
   receptionist: "the phone receptionist",
@@ -70,18 +70,40 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const next = changedAddons(plan.addons, addon, on);
-  await prisma.organization.update({
-    where: { id: ctx.organizationId },
-    data: {
-      addons: next,
-      ...(on ? {} : { addonRequests: org.addonRequests.filter((a) => a !== addon) }),
-    },
-  });
-  const synced = await syncSubscription(ctx.organizationId);
-  if (!synced.ok) {
-    // Put it back: the plan never says what Stripe is not charging for.
-    await prisma.organization.update({ where: { id: ctx.organizationId }, data: { addons: plan.addons } });
+  // Read, change and bill as one, holding the salon's billing lease: no
+  // other change (Admin, the team, another tab) can come between, so an undo
+  // puts back exactly what this one changed.
+  try {
+    await withBillingLock(ctx.organizationId, async () => {
+      const now = await prisma.organization.findUnique({
+        where: { id: ctx.organizationId },
+        select: { addons: true, addonRequests: true },
+      });
+      if (!now) throw new Error("No such salon");
+      const before = now.addons.filter(isAddon);
+      await prisma.organization.update({
+        where: { id: ctx.organizationId },
+        data: {
+          addons: changedAddons(before, addon, on),
+          ...(on ? {} : { addonRequests: now.addonRequests.filter((a) => a !== addon) }),
+        },
+      });
+      try {
+        await syncLinesNow(ctx.organizationId);
+      } catch (e) {
+        // Put it back: the plan never says what Stripe is not charging for.
+        await prisma.organization.update({
+          where: { id: ctx.organizationId },
+          data: { addons: now.addons, addonRequests: now.addonRequests },
+        });
+        throw e;
+      }
+    });
+  } catch (e) {
+    if (e instanceof BillingBusyError) {
+      return NextResponse.json({ error: "Another change to your plan is still being made, so nothing changed. Try again in a moment.", code: "busy" }, { status: 409 });
+    }
+    console.error("[BILLING] add-on change:", e);
     return NextResponse.json({ error: "Could not reach Stripe, so nothing changed. Try again in a minute." }, { status: 502 });
   }
   return NextResponse.json(await billingSummary(ctx.organizationId));

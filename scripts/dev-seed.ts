@@ -35,7 +35,8 @@ async function main() {
         id: DOAI_ORG_ID,
         name: "Kikai",
         slug: "doai",
-        planTier: "custom",
+        billingStatus: "free",
+        premiumChat: true,
       },
     });
     console.log("  ✓ Organization:", org.name);

@@ -89,6 +89,9 @@ export async function proxy(req: NextRequest) {
     // no login yet (src/lib/invitations.ts).
     "/invite/",
     "/api/invite",
+    // A salon signing itself up (src/lib/signup.ts): no login yet.
+    "/signup",
+    "/api/signup",
     // "Forgot password?" and confirming an email from its link: someone
     // who cannot sign in, or a phone that never has (src/lib/auth-tokens.ts).
     "/forgot-password",

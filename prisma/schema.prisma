@@ -15,7 +15,11 @@ model Organization {
   id                      String   @id @default(cuid())
   name                    String
   slug                    String   @unique
-  planTier                String   @default("starter")
+  // Withdrawn: the old starter/pro/custom tier. Billing (src/lib/plan.ts)
+  // decides everything it did. @ignore keeps it out of the Prisma client
+  // while the column stays until dropped by hand (README, schema-change
+  // policy).
+  planTier                String   @default("starter") @ignore
   // What kind of business it is (src/lib/business-types.ts): "hair",
   // "nails", "beauty" or "barber". Set by Kikai, not the salon. Changes what
   // the receptionist and chat bots know about the trade, never the diary.
@@ -66,6 +70,27 @@ model Organization {
   billedSeats             Int?
   // The first failed payment of the current run of failures; null once paid.
   paymentFailedAt         DateTime?
+  // The last "your trial is ending" email sent to the owner of a trial with
+  // no card (src/lib/plan-emails.ts): "3" or "1" days before. Cleared when
+  // the trial's end moves.
+  trialReminderSent       String?
+  // When the owner's cancelled plan ends: the end of the month (or trial)
+  // already paid for, from Stripe. Null while it carries on.
+  cancelAt                DateTime?
+  // When someone at the salon last used the app (signed in, opened a page):
+  // updated at most hourly (src/lib/tenant.ts). Paused salons are wiped
+  // least recently used first (src/lib/purge.ts).
+  lastActiveAt            DateTime @default(now())
+  // When the owner was told a paused salon will be wiped; cleared when it
+  // pays or is used again (src/lib/purge.ts).
+  purgeWarnedAt           DateTime?
+  // Held while the salon's Stripe subscription is being changed, so two
+  // changes never run at once (src/lib/stripe-billing.ts): a short lease on
+  // the row, not a held database connection. Null, or past, when free.
+  billingLockUntil        DateTime?
+  // Kikai's switch, in Admin: the salon's chat may use the better model and
+  // hide "Powered by Kikai". Off for everyone until Kikai turns it on.
+  premiumChat             Boolean  @default(false)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -1169,7 +1194,7 @@ model Technician {
   @@map("ca_technicians")
 }
 
-/// What Kikai charges, in pence a month, VAT included: "base" (the plan,
+/// What Kikai charges, in pence a month (Kikai is not VAT registered): "base" (the plan,
 /// owner included), "seat" (each other team member) and each add-on
 /// (src/lib/plan.ts). A missing base or seat row is the founder price; an
 /// add-on with no row is not for sale yet. stripePriceId is the Stripe Price

@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     // a downgrade takes effect immediately.
     const site = await prisma.websiteConfig.findUnique({
       where: { siteId },
-      include: { organization: { select: { planTier: true } } },
+      include: { organization: { select: { premiumChat: true } } },
     });
 
     if (!site || !site.enabled) {
@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
     const rawResponse = await getChatResponse(chatMessages, systemPrompt, {
       organizationId: site.organizationId,
       chatModel: resolveModelForSite(
-        site.organization?.planTier,
+        site.organization?.premiumChat,
         site.chatModel
       ),
       allowCLI: true,

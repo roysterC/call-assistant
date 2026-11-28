@@ -85,7 +85,7 @@ beforeEach(() => {
 
 describe("our copy of an invoice", () => {
   it("keeps what was billed, paid and when", async () => {
-    expect(await recordInvoice(inv())).toBe("org1");
+    expect(await recordInvoice(inv())).toMatchObject({ organizationId: "org1" });
     expect(db.invoices.get("in_1")).toMatchObject({
       organizationId: "org1",
       status: "paid",

@@ -35,9 +35,10 @@ export function hasDiary(_s?: unknown): boolean {
 
 /**
  * The features a salon's settings switch on, as the menu reads them. With the
- * plan's add-ons (PlanState.addonActive), a switch whose add-on is not on the
- * plan reads as off: the receptionist's pages go with "receptionist", the
- * inbox with "chatReplies".
+ * plan's add-ons (PlanState.addonActive), the receptionist's pages go when
+ * "receptionist" is not on the plan. The inbox stays wherever a chat channel
+ * is set up, add-on or not: "chatReplies" is only the AI answering in it
+ * (gated in the webhooks), and staff still read and reply by hand.
  */
 export function featureFlags(s: {
   chatbotEnabled?: boolean | null;
@@ -48,15 +49,14 @@ export function featureFlags(s: {
   instagramEnabled?: boolean | null;
   facebookEnabled?: boolean | null;
 }, active?: Partial<Record<Addon, boolean>> | null): FeatureFlags {
-  const chats = !active || Boolean(active.chatReplies);
   const voice = !active || Boolean(active.receptionist);
   return {
-    chatbotEnabled: chats && Boolean(s.chatbotEnabled),
-    whatsappEnabled: chats && Boolean(s.whatsappEnabled),
+    chatbotEnabled: Boolean(s.chatbotEnabled),
+    whatsappEnabled: Boolean(s.whatsappEnabled),
     voiceEnabled: voice && Boolean(s.voiceEnabled),
     diaryEnabled: true,
-    instagramEnabled: chats && Boolean(s.instagramEnabled),
-    facebookEnabled: chats && Boolean(s.facebookEnabled),
+    instagramEnabled: Boolean(s.instagramEnabled),
+    facebookEnabled: Boolean(s.facebookEnabled),
   };
 }
 

@@ -52,7 +52,7 @@
     "forgot": "Forgot password?",
     "signIn": "Sign in",
     "signingIn": "Signing in…",
-    "noAccount": "Don't have an account? Your administrator will invite you.",
+    "noAccount": "Work at a salon on Kikai? Your salon's owner invites you.",
     "legal": "Legal",
     "privacy": "Privacy",
     "terms": "Terms",
@@ -1098,7 +1098,8 @@
       "expired": "This link has expired.",
       "inactive": "This salon is not active.",
       "taken": "That email already has a login. Sign in instead.",
-      "name": "Enter your name."
+      "name": "Enter your name.",
+      "paused": "This salon's plan is paused, so it can't take new people right now. Ask the owner to update their card, then use this link again."
     }
   },
   "auth": {
@@ -1265,6 +1266,22 @@
       "line": "Confirm this is your address, so you can reset your password with it if you ever forget it.",
       "button": "Confirm my email",
       "footer": "This link works once, for a day. If you don't use Kikai, ignore this email."
+    },
+    "trial": {
+      "subject": "{days, plural, =0 {Your Kikai free trial ends today} =1 {Your Kikai free trial ends tomorrow} other {Your Kikai free trial ends in # days}}",
+      "heading": "{days, plural, =0 {Your free trial ends today} =1 {Your free trial ends tomorrow} other {# days left of your free trial}}",
+      "line": "Your free trial for {salon} ends on {date}. Add a card to carry on: nothing is charged until then.",
+      "lineAfter": "Without a card, your plan is paused after that: your bookings stay safe and your website keeps taking bookings, but you can't make new bookings from the diary or change your setup until you add one.",
+      "button": "Add a card",
+      "footer": "You're getting this because you own {salon} on Kikai."
+    },
+    "purge": {
+      "subject": "Your Kikai salon will be deleted on {date}",
+      "heading": "{salon} will be deleted on {date}",
+      "line": "Your plan for {salon} has been paused for a while and nobody has used it, so we will delete the salon and everything in it (diary, clients, sales and website) on {date}.",
+      "lineKeep": "To keep it, sign in or add a card before then.",
+      "button": "Keep my salon",
+      "footer": "You're getting this because you own {salon} on Kikai. Once deleted, it cannot be brought back."
     }
   },
   "insights": {
@@ -1637,7 +1654,8 @@
       "websiteDoes": "A chat on your booking page or your own website, set up in",
       "chatBooks": "Answers messages and books into the diary",
       "chatNumber": "Answers questions, and gives your number or takes a call-back request to book",
-      "chatAnswers": "Answers questions"
+      "chatAnswers": "Answers questions",
+      "chatStaffOnly": "Messages come into your inbox for you to answer. Add AI chat replies in Plan & billing to have them answered for you."
     },
     "on": "On",
     "off": "Off",
@@ -1806,7 +1824,7 @@
       "seats": "{n, plural, one {# more team member} other {# more team members}} × {each}"
     },
     "wouldBe": "Would be, a month",
-    "aMonth": "A month, VAT included",
+    "aMonth": "A month",
     "teamNote": "{people, plural, one {# person on your team.} other {# people on your team.}} Everyone counts, whether or not they sign in or take bookings. Add or remove someone and your bill follows, worked out to the day.",
     "tools": "AI tools",
     "toolsHint": "Add one any time, and take it off any time.",
@@ -1838,6 +1856,44 @@
       "failed": "Your last payment didn't go through. Update your card so nothing pauses.",
       "paused": "Your plan is paused: you can see and check out bookings, but not make new ones.",
       "action": "Plan and billing"
+    },
+    "cancelPlan": "Cancel my plan",
+    "cancelTitle": "Cancel your plan?",
+    "cancelBody": "Your plan carries on until the end of the month you've paid for, and you won't be charged again. After that it's paused: your bookings stay safe and your website keeps taking bookings, but you can't make new bookings from the diary, change your team or setup, or use AI tools. You can add your card again any time.",
+    "cancelConfirm": "Cancel at the end of the month",
+    "cancelFailed": "Could not change your plan. Try again in a minute.",
+    "cancelled": "Cancelled. Your plan carries on until {date}.",
+    "kept": "Your plan carries on as before.",
+    "keep": "Keep my plan",
+    "ending": {
+      "title": "Your plan ends on {date}",
+      "text": "You cancelled it. Everything works until then, and you won't be charged again. Changed your mind? Keep your plan."
+    },
+    "busy": "Another change to your plan is still being made. Try again in a moment."
+  },
+  "signup": {
+    "title": "Start your free trial",
+    "intro": "14 days free, no card needed. Your diary, online booking and your own website, ready in a few minutes.",
+    "salon": "Your salon's name",
+    "name": "Your name",
+    "email": "Your email",
+    "password": "Choose a password",
+    "submit": "Start my free trial",
+    "submitting": "Setting up…",
+    "failed": "Could not sign you up. Try again.",
+    "terms": "By signing up you agree to our",
+    "termsLink": "terms",
+    "privacyLink": "and privacy policy.",
+    "haveLogin": "Already have a login?",
+    "signIn": "Sign in",
+    "newHere": "New to Kikai?",
+    "start": "Start a free trial",
+    "err": {
+      "salon": "Enter your salon's name.",
+      "name": "Enter your name.",
+      "email": "That email address doesn't look right.",
+      "taken": "That email already has a login.",
+      "tooMany": "Too many tries. Wait a while and try again."
     }
   }
 }

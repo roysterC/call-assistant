@@ -90,6 +90,33 @@ export function PlanBilling() {
     }
   }
 
+  /** Cancel at the end of the paid month, or keep the plan after all. */
+  async function setCancel(cancel: boolean) {
+    if (cancel) {
+      const ok = await confirm({
+        title: t("plan.cancelTitle"),
+        body: t("plan.cancelBody"),
+        confirmLabel: t("plan.cancelConfirm"),
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+    setBusy("cancel");
+    try {
+      const res = await apiFetch("/api/billing/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancel }),
+      });
+      const d = await res.json();
+      if (!res.ok) return notify(t("plan.cancelFailed"));
+      setB({ ...b!, ...d });
+      notify(cancel ? t("plan.cancelled", { date: d.plan?.endsAt ? day(d.plan.endsAt) : "" }) : t("plan.kept"), "success");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function setAddon(a: Addon, on: boolean) {
     const others = on
       ? addonsWith(a).filter((x) => x !== a && !plan.addons.includes(x))
@@ -112,7 +139,7 @@ export function PlanBilling() {
         body: JSON.stringify({ addon: a, on }),
       });
       const d = await res.json();
-      if (!res.ok) return notify(d.code === "card_needed" ? t("plan.cardFirst") : t("plan.addonFailed"));
+      if (!res.ok) return notify(d.code === "card_needed" ? t("plan.cardFirst") : d.code === "busy" ? t("plan.busy") : t("plan.addonFailed"));
       setB({ ...b!, ...d });
       notify(d.requested ? t("plan.requested") : on ? t("plan.added") : t("plan.removed"), "success");
     } finally {
@@ -132,6 +159,17 @@ export function PlanBilling() {
         };
       case "paymentFailed":
         return { tone: "warn" as const, title: t("plan.failed.title"), text: t("plan.failed.text"), actions: ["portal", "retry"] as const };
+    }
+    // Cancelled by the owner: it carries on to the end of the paid month.
+    if (plan.endsAt) {
+      return {
+        tone: "info" as const,
+        title: t("plan.ending.title", { date: day(plan.endsAt) }),
+        text: t("plan.ending.text"),
+        actions: ["keep"] as const,
+      };
+    }
+    switch (plan.warning) {
       case "trialEnding":
       case "trialNoCard":
         return {
@@ -158,7 +196,8 @@ export function PlanBilling() {
     };
   })();
 
-  const label: Record<"checkout" | "portal" | "retry", string> = {
+  const label: Record<"checkout" | "portal" | "retry" | "keep", string> = {
+    keep: t("plan.keep"),
     checkout: t("plan.addCard"),
     portal: plan.warning ? t("plan.updateCard") : t("plan.cardInvoices"),
     retry: t("plan.tryAgain"),
@@ -190,7 +229,7 @@ export function PlanBilling() {
                 className={cn("h-11", head.actions.length === 1 && "col-span-2")}
                 variant={i === 0 ? "default" : "outline"}
                 disabled={busy !== null}
-                onClick={() => void (a === "retry" ? retry() : goTo(a))}
+                onClick={() => void (a === "retry" ? retry() : a === "keep" ? setCancel(false) : goTo(a))}
               >
                 {label[a]}
               </Button>
@@ -250,7 +289,7 @@ export function PlanBilling() {
                     <p className="text-xs text-muted-foreground">{t(`plan.addon.${a}.does`)}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {price == null ? (
+                    {price == null || !addonsWith(a).every((x) => b.prices[x] != null) ? (
                       <span className="text-xs text-muted-foreground">{t("plan.soon")}</span>
                     ) : (
                       <span className="text-sm font-semibold tabular-nums">{t("plan.perMonth", { price: money(price) })}</span>
@@ -266,7 +305,7 @@ export function PlanBilling() {
                       </>
                     ) : asked ? (
                       <Pill muted>{t("plan.asked")}</Pill>
-                    ) : price != null && plan.access === "full" ? (
+                    ) : addonsWith(a).every((x) => b.prices[x] != null) && plan.access === "full" ? (
                       <Button
                         size="sm"
                         variant={selfServe ? "default" : "outline"}
@@ -285,6 +324,14 @@ export function PlanBilling() {
           {plan.access === "restricted" && <p className="pt-2 text-xs text-muted-foreground">{t("plan.toolsPaused")}</p>}
         </SettingsSection>
       </div>
+      {/* Cancelling: the owner's own, at the end of the paid month. */}
+      {b.cardPayments && plan.hasCard && plan.billed && !plan.endsAt && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={busy !== null} onClick={() => void setCancel(true)}>
+            {t("plan.cancelPlan")}
+          </Button>
+        </div>
+      )}
       {!b.cardPayments && plan.billed && (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <Bot className="h-3.5 w-3.5" aria-hidden="true" />

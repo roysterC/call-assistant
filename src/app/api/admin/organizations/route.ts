@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, slug, planTier } = body;
+    const { name, slug } = body;
     // Every salon is a nail salon (business-types.ts).
     const types = businessTypesOf("nails");
 
@@ -98,7 +98,6 @@ export async function POST(req: NextRequest) {
         name,
         needsOnboarding: Boolean(ownerEmail),
         slug,
-        planTier: planTier || "starter",
         // The 14-day free trial (src/lib/plan.ts). With an owner invite it
         // starts when the owner first signs in (acceptInvitation); a salon
         // Kikai sets up by hand starts it now. "free" for one Kikai does not

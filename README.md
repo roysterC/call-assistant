@@ -253,8 +253,10 @@ website chat), booking by message (needs chat replies) and rebooking texts
 
 **Price**: £9 a month, the owner included, plus £5 for every other person on
 the team, whether they sign in, take bookings or neither (each person
-counted once: team members, and logins not on the team). Prices include
-VAT. Kikai changes them, and sets each add-on's price, under Admin →
+counted once: team members, and logins not on the team; an unlinked team
+entry with a login's email or name is that login, so an owner who adds
+themselves to the team is not charged for themselves). Kikai is not
+VAT registered, so prices carry no VAT and nothing mentions it. Kikai changes them, and sets each add-on's price, under Admin →
 Prices; an add-on with no price is "coming soon". A changed price is for
 salons that subscribe from then on: those already paying keep the price
 they joined on.
@@ -267,12 +269,72 @@ they joined on.
 | `trialing` | The 14-day free trial, from the owner's first sign-in | Base plan; add-ons once a card is on file |
 | `active` | Paying | Base plan and its add-ons |
 | `past_due` | A payment failed and Stripe is retrying | The same, with a warning |
-| `restricted` | The trial ended with no card, or Stripe gave up | Bookings stay: seeing them, checking out, cancelling and notes. No new or moved bookings (desk, assistant, online, where the site says to ring), no new team members or logins, no settings changes, no add-ons |
+| `restricted` | The trial ended with no card, Stripe gave up, or the owner cancelled and the paid month ran out | Bookings stay: seeing them, checking out, cancelling and notes, adding clients and blocking out time. The website stays up and still takes online bookings. No new or moved bookings from the desk or the assistant, no new team members or logins, no settings changes, no add-ons |
 
 A trial with no card turns restricted by itself at its end; nothing runs at
-midnight. Super-admins viewing a salon are never refused. The owner sees all
+midnight. Its owner is emailed three days before and the day before
+(`src/lib/plan-emails.ts`, by the reminders timer through
+`/api/cron/trial-reminders`; Stripe's own trial emails only reach salons
+with a card). Super-admins viewing a salon are never refused. The owner sees all
 this in **Settings → Plan & billing**, and a banner on every page in the
 trial's last three days, after a failed payment and while restricted.
+
+The old plan tier (starter, pro, custom) is gone: every salon's chat runs
+on the standard model and shows "Powered by Kikai". **Premium chat**, a
+switch on a salon's Plan and billing card in Admin, lets its chat pick the
+better (dearer) model and hide the line, if the chat's settings ask; it is
+off for every salon until Kikai turns it on (turn it on for Kikai's own).
+
+Two AI features stay free on the base plan, by choice: the staff's voice
+assistant and reading a price list from a photo or file. (The `planTier`
+column is no longer read; drop it by hand some day.)
+
+**Cancelling** is the owner's own: "Cancel my plan" on Plan & billing (or
+Stripe's billing page). The plan carries on to the end of the month (or the
+trial) already paid for, with no further charge, then ends and the salon is
+paused as above. Until then the page says when it ends, with "Keep my
+plan" to undo it. Adding a card again later starts a new subscription,
+charged at once.
+
+**Wiping paused salons** (`src/lib/purge.ts`). A salon that stays paused
+and that nobody uses is wiped once the database grows past
+`PURGE_WHEN_DB_OVER_GB` (in `.env`, e.g. `PURGE_WHEN_DB_OVER_GB=20`; unset,
+nothing is ever wiped). "Nobody uses" means no sign-in or page opened by
+its own people for 90 days (Kikai viewing it does not count), no bookings
+made in that time (its website stays open while paused) and none to come.
+On each run of the reminders timer (twice a day), least recently used
+first, at most five of each:
+
+- the owner is emailed that the salon will be deleted in 14 days unless
+  they sign in or add a card (either withdraws it). A warning counts only
+  if an email reached an owner: with email not set up, nobody is warned and
+  nothing is deleted;
+- a salon warned 14–28 days ago, still unused, is deleted with its logins,
+  after any Stripe subscription it still has is cancelled (if Stripe
+  refuses, it stays, still paused). An older warning is given again first.
+
+Back under the limit, every warning is withdrawn. Kikai is emailed what was
+warned and deleted. Salons Kikai does not bill, or has switched off, are
+never wiped. To see the candidates and what the next run would do:
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  "http://127.0.0.1:3000/api/cron/purge-paused?dryRun=1"
+```
+
+**Signing up** needs no one at Kikai: a salon owner opens `/signup`
+(link it from getkikai.com as `https://app.getkikai.com/signup`; the login
+page links it too), gives the salon's name, their name, email and a
+password, and is signed straight in and taken through onboarding. The trial
+starts at once, with no card. A few mistyped tries never lock anyone out;
+only salons actually made are limited, to three an hour per address. The salon's web address is made from its
+name (`mai-nails`, else `mai-nails-2`, …). Kikai is emailed at
+`NOTIFY_EMAIL`, and the owner is sent the "confirm your email" link.
+A field only bots fill in turns scripts away (`src/lib/signup.ts`). Inviting an owner from Admin still works as before.
+
+**Deleting a salon** in Admin cancels its Stripe subscription first (with
+no part-month charged), so a card is never charged for a salon that no
+longer exists; if Stripe refuses, the salon is not deleted.
 
 **In Admin**, each salon's page has a Plan and billing card: its state, its
 people, its add-ons (tick to add to its plan; a salon with a card is billed
@@ -309,14 +371,17 @@ To switch it on (once, in the Stripe dashboard, then on the server):
    `invoice.marked_uncollectible`. Put its signing secret in
    `.env` as `STRIPE_WEBHOOK_SECRET=whsec_…` and restart.
 3. **Customer portal**: Settings → Billing → Customer portal: allow
-   updating payment methods and viewing invoices. Leave "switch plans" off;
-   the plan follows the app.
+   updating payment methods and viewing invoices, and cancelling **at the
+   end of the billing period** (never immediately). Leave "switch plans"
+   off; the plan follows the app.
 4. **Failed payments**: Settings → Billing → Subscriptions and emails →
-   retry for about two weeks, then **mark the subscription as unpaid**
-   (the salon is then restricted; paying unpauses it at once). Turn on the
+   retry for about two weeks, then **mark the subscription as unpaid**.
+   The app then ends that subscription and writes off what it owed, so a
+   salon is never charged for months it spends paused; the salon is
+   restricted, and adding a card again starts a fresh month. Turn on the
    emails for failed payments and for trials ending.
-5. **VAT**: prices are sent as VAT-inclusive. If Kikai registers for VAT,
-   turn on Stripe Tax; nothing in the app changes.
+5. **VAT**: none; Kikai is not VAT registered. If it registers, turn on
+   Stripe Tax and add the VAT wording back to the screens.
 
 Products are made in Stripe on first use with fixed ids (`kikai_base`,
 `kikai_seat`, `kikai_receptionist`, …), and a Price for each amount. A line
@@ -359,7 +424,7 @@ every invoice, payment and refund. We keep each salon's state (above), and:
 
 Calls to Stripe are made safe to retry by Stripe's library, which puts an
 idempotency key on each one. Our own repeats are stopped in our code: a
-salon's subscription changes run one at a time (a Postgres advisory lock), a
+salon's subscription changes run one at a time (a short lease on its row), a
 second subscription for a salon is cancelled, and a Stripe customer is only
 recorded if the salon has none.
 

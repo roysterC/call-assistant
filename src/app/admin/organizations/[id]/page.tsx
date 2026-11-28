@@ -59,7 +59,6 @@ interface Org {
   id: string;
   name: string;
   slug: string;
-  planTier: string;
   businessType: string;
   alsoOffers: string[];
   anthropicApiKeyOverride: string | null;
@@ -129,7 +128,6 @@ interface Org {
 function orgBody(o: Org) {
   return {
     name: o.name,
-    planTier: o.planTier,
     anthropicApiKeyOverride: o.anthropicApiKeyOverride,
     usageMarkupPercent: o.usageMarkupPercent,
     enabled: o.enabled,
@@ -439,14 +437,15 @@ export default function OrganizationDetailPage() {
     if (!org) return;
     const yes = await confirm({
       title: `Delete "${org.name}" and all its data?`,
-      body: "Every booking, client, call and login goes with it. This cannot be undone.",
+      body: "Every booking, client, call and login goes with it, and a card subscription is cancelled in Stripe. This cannot be undone.",
       confirmLabel: "Delete organisation",
       destructive: true,
     });
     if (!yes) return;
     const res = await fetch(`/api/admin/organizations/${org.id}`, { method: "DELETE" });
     if (!res.ok) {
-      notify("Couldn't delete the organisation. Try again.");
+      const d = await res.json().catch(() => ({}));
+      notify(d.error || "Couldn't delete the organisation. Try again.");
       return;
     }
     router.push("/admin/organizations");
@@ -627,9 +626,6 @@ export default function OrganizationDetailPage() {
         <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
           {org.slug}
         </code>
-        <span>
-          <span className="capitalize">{org.planTier}</span> plan
-        </span>
         <span>{plural(org._count.leads, "lead")}</span>
         <span>{plural(org._count.calls, "call")}</span>
         <span className={org.enabled ? "text-tea-green-200" : "text-red-600"}>
@@ -647,14 +643,6 @@ export default function OrganizationDetailPage() {
             <Input
               value={org.name}
               onChange={(e) => setOrg({ ...org, name: e.target.value })}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Plan tier</label>
-            <Input
-              value={org.planTier}
-              onChange={(e) => setOrg({ ...org, planTier: e.target.value })}
               className="mt-1"
             />
           </div>

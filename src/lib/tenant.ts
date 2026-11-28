@@ -121,12 +121,39 @@ export async function requireTenant(
     );
   }
 
+  // Someone at the salon used it (not Kikai viewing it): for wiping paused
+  // salons least recently used first (src/lib/purge.ts).
+  if (role !== "superAdmin") noteActivity(orgId);
+
   return {
     userId: session.user.id,
     organizationId: orgId,
     role,
     isSuperAdmin: role === "superAdmin",
   };
+}
+
+const ACTIVITY_EVERY_MS = 60 * 60 * 1000;
+const lastNoted = new Map<string, number>();
+
+/**
+ * Record that the salon is in use: at most hourly per salon per server, and
+ * never holding up the request. Using it again also withdraws a warning that
+ * it is about to be wiped.
+ */
+export function noteActivity(organizationId: string, now: number = Date.now()): void {
+  if (now - (lastNoted.get(organizationId) ?? 0) < ACTIVITY_EVERY_MS) return;
+  lastNoted.set(organizationId, now);
+  try {
+    void prisma.organization
+      .updateMany({
+        where: { id: organizationId, lastActiveAt: { lt: new Date(now - ACTIVITY_EVERY_MS) } },
+        data: { lastActiveAt: new Date(now), purgeWarnedAt: null },
+      })
+      .catch(() => {});
+  } catch {
+    // Never in the request's way.
+  }
 }
 
 export function isErrorResponse(x: unknown): x is NextResponse {

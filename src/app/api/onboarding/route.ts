@@ -36,6 +36,8 @@ export async function GET(req: NextRequest) {
     isOwner: ctx.role !== "member",
     /** Theirs, to offer adding themselves to the team. */
     ownerName: user?.name ?? null,
+    /** Their login, so the team entry "Add me" makes is linked to it (one person, billed once). */
+    ownerUserId: ctx.userId === "dev-user" ? null : ctx.userId,
     /** The last step they reached, to come back to. */
     step: org.onboardingStep,
     /** Whether the phone receptionist is already on, for "what's next". */
