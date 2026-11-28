@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { loadOnlineSalon } from "@/lib/online-booking";
 import { CREAM } from "@/components/online-booking/fonts";
 import { SalonSite } from "@/components/online-booking/salon-site";
-import { salonUrlsHere } from "@/lib/booking-host-server";
+import { salonUrlsHere, sendToOwnAddress } from "@/lib/booking-host-server";
 import { salonChatSiteId } from "@/lib/salon-chat";
 import { designChatsFor } from "@/lib/receptionist/design-chats";
 import { designMessageLink } from "@/lib/online-booking/salon-page";
@@ -36,6 +36,7 @@ export default async function SalonPage({ params }: Props) {
   const { slug } = await params;
   const online = await loadOnlineSalon(slug);
   if (!online) notFound();
+  await sendToOwnAddress(online.salon.slug, "/");
 
   const [urls, chat, designChats] = await Promise.all([
     salonUrlsHere(online.salon.slug),

@@ -45,15 +45,16 @@ export async function proxy(req: NextRequest) {
     const { pathname, search } = req.nextUrl;
     const hostname = requestHostname(req.headers, req.nextUrl.host);
     if (booking && isBookingHost(hostname, booking)) {
-      return applyHostRoute(routeOnBookingHost(pathname, search, booking, domain), req);
+      return applyHostRoute(routeOnBookingHost(pathname, search, booking), req);
     }
     const salon = salonFromHost(hostname, domain);
     if (salon && domain) return applyHostRoute(routeOnSalonHost(pathname, search, salon, domain), req);
     // A salon page asked for on the app's address. Not for the app's own
     // in-page navigation (an RSC fetch), which cannot follow a redirect to
     // another address.
-    if (!req.headers.get("rsc")) {
-      const to = redirectToBookingHost(pathname, search, booking, domain);
+    // (A salon with its own address is sent on from its page: salonUrlsHere.)
+    if (booking && !req.headers.get("rsc")) {
+      const to = redirectToBookingHost(pathname, search, booking);
       if (to) return NextResponse.redirect(to, 308);
     }
   }
