@@ -82,8 +82,8 @@ export interface CalendarAppointment {
 }
 
 /** The line, and the pill on the clock, at the time it is now. */
-// Light enough for ink on its pill to clear 4.5:1 (5.0:1).
-const NOW_COLOUR = "#e5894b";
+// The --now token (globals.css): light enough for ink on its pill to clear 4.5:1.
+const NOW_COLOUR = "var(--now)";
 
 /**
  * A time inside the diary, on the reader's clock: "10:45", "2:15" or "14:15".
@@ -102,6 +102,27 @@ function lengthLabel(min: number, t: Translate): string {
 }
 
 /** Who a booking is for, as the diary names them. */
+/**
+ * The bookings that overlap another of the same person's that day:
+ * double-booked. Cancelled ones hold no time, so never count.
+ */
+export function doubleBookedIds(appointments: CalendarAppointment[]): Set<string> {
+  const live = appointments
+    .filter((a) => a.status !== "cancelled")
+    .map((a) => ({ id: a.id, who: a.stylistName.toLowerCase(), from: Date.parse(a.startsAt), to: Date.parse(a.endsAt) }))
+    .sort((x, y) => x.from - y.from);
+  const out = new Set<string>();
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length && live[j].from < live[i].to; j++) {
+      if (live[j].who === live[i].who) {
+        out.add(live[i].id);
+        out.add(live[j].id);
+      }
+    }
+  }
+  return out;
+}
+
 export function clientLabel(lead: CalendarAppointment["lead"], t: Translate): string {
   if (lead.anonymisedAt) return t("grid.deletedClient");
   return lead.name ?? t("grid.client");
@@ -361,6 +382,11 @@ export function DayGrid({
   const nearNow = (min: number) => nowShown && Math.abs(min - nowMinutes!) < 14;
   // Nobody to book all day: closed, or everyone off. Said once, across the grid.
   const nobodyToday = stylists.length > 0 && (!open || stylists.every((s) => !s.worksToday));
+  // Whose lane holds two bookings at once, flagged in its header too.
+  const doubled = doubleBookedIds(appointments.filter((a) => isOnDate(new Date(a.startsAt), date, timeZone)));
+  const doubledLanes = new Set(
+    stylists.filter((s) => appointments.some((a) => doubled.has(a.id) && isTechnicians(a, s))).map((s) => s.name)
+  );
 
   return (
     <div ref={scroller} className="flex-1 min-w-0 min-h-0 overflow-auto rounded-xl border border-border bg-card shadow-surface">
@@ -393,6 +419,12 @@ export function DayGrid({
                         ? null
                         : t("grid.notIn")}
                 </div>
+                {doubledLanes.has(s.name) && (
+                  <span className="mt-0.5 inline-flex max-w-full items-center gap-1 overflow-hidden whitespace-nowrap rounded-full bg-red-50 px-1.5 py-px text-[11px] font-bold text-red-800">
+                    <TriangleAlert className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{t("grid.doubleBookedTitle")}</span>
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -531,7 +563,7 @@ function MoreHours({ label, up = false, onClick }: { label: string; up?: boolean
     <button
       type="button"
       onClick={onClick}
-      className="flex h-8 w-full items-center justify-center gap-1.5 bg-muted/60 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="flex h-8 phone:h-11 w-full items-center justify-center gap-1.5 bg-muted/60 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
       {label}
@@ -728,7 +760,8 @@ function StylistColumn({
       {/* A day off is hatched like closed time (the stripes behind the grid)
           and says so in the lane, not only in small type under the name. */}
       {dayOffLabel && !stylist.worksToday && !stylist.former && (
-        <span className="pointer-events-none absolute inset-x-0 top-3 z-[6] mx-auto w-fit max-w-[90%] truncate rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground ring-1 ring-border">
+        // Pinned under the sticky lane headers as the day scrolls.
+        <span className="pointer-events-none sticky top-16 z-[6] mx-auto mt-3 block w-fit max-w-[90%] truncate rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground ring-1 ring-border">
           {t("grid.dayOff")}
         </span>
       )}
@@ -801,7 +834,7 @@ function StylistColumn({
       {gaps.map(([from, to]) => (
         <span
           key={from}
-          className="pointer-events-none absolute left-0 px-2 pt-1 text-[11.5px] font-medium leading-tight text-tea-green-200"
+          className="pointer-events-none absolute left-0 max-w-full truncate whitespace-nowrap px-2 pt-1 text-[11.5px] font-medium leading-tight text-tea-green-200"
           style={{ top: `${minutePct(from, win)}%` }}
         >
           {t("grid.free", { len: lengthLabel(to - from, t) })}
@@ -831,6 +864,8 @@ function StylistColumn({
           const s0 = minutesOfDay(new Date(a.startsAt), timeZone);
           const e0 = minutesOfDay(new Date(a.endsAt), timeZone);
           const label = `${shortTime(s0, clock)}–${shortTime(e0, clock)}, ${clientLabel(a.lead, t)}, ${a.serviceText}, ${t("grid.cancelled")}`;
+          // One line at its start time, on the right so a "free" note at the
+          // left still reads; only the line takes clicks, so its time books.
           return (
             <button
               key={a.id}
@@ -841,9 +876,15 @@ function StylistColumn({
               }}
               aria-label={label}
               title={label}
-              className="absolute right-0.5 z-[7] rounded-[8px] border border-dashed border-tea-green-300 bg-card/90 hover:bg-card focus-visible:ring-2"
-              style={{ top: `${g.topPct}%`, height: `${g.heightPct}%`, width: `${OVERBOOK_GUTTER_PX - 4}px` }}
-            />
+              className="@container absolute z-[6] flex h-[22px] max-w-[calc(100%-6px)] items-center gap-1 truncate rounded-full border border-tea-green-600 bg-card px-2 text-[11px] font-medium leading-none text-muted-foreground hover:text-foreground focus-visible:ring-2"
+              style={{ top: `calc(${g.topPct}% + 2px)`, right: `${OVERBOOK_GUTTER_PX + 2}px` }}
+            >
+              <span className="shrink-0 tabular-nums">{shortTime(s0, clock)}</span>
+              <span className="min-w-[3ch] truncate line-through">{clientLabel(a.lead, t)}</span>
+              {/* The word goes before the name on a narrow lane; the strike
+                  and the name, its label and its sheet still say it. */}
+              <span className="hidden shrink-0 @min-[9rem]:inline">· {t("grid.cancelled")}</span>
+            </button>
           );
         })}
 
@@ -860,9 +901,24 @@ function StylistColumn({
         // Two bookings at once for one person: flagged in words and red, the
         // start time kept whole (the end time goes first when it is narrow).
         const doubled = b.lanes > 1;
+        // Doubled bookings cascade rather than split the lane in half: each
+        // keeps the whole width less a step per lane, so its start time,
+        // name and status all still read; the later one sits on top.
+        const inset = doubled ? b.lane * 14 : 0;
         const done = a.status === "completed";
         const noShow = a.status === "no_show";
         const statusWord = done ? t("grid.done") : noShow ? t("grid.noShow") : null;
+        const statusChip = statusWord && (
+          <span
+            className={cn(
+              "mt-0.5 inline-flex w-fit max-w-full shrink-0 items-center gap-0.5 truncate rounded-full px-1.5 py-px text-[10.5px] font-bold",
+              noShow ? "bg-red-50 text-red-800" : "bg-tea-green-700 text-tea-green-100"
+            )}
+          >
+            {done && <Check className="h-3 w-3 shrink-0" strokeWidth={3} aria-hidden="true" />}
+            {statusWord}
+          </span>
+        );
         // Only a booking still to come can be moved; judged by the same
         // "now" the grid greys the past with.
         const draggable =
@@ -907,7 +963,9 @@ function StylistColumn({
             className={cn(
               // Content from the top, where the booking starts: a button
               // centres it otherwise, putting a long booking's time halfway down.
-              "absolute flex flex-col justify-start rounded-[12px] border-[1.5px] px-2 py-1.5 text-left overflow-hidden text-foreground",
+              // Lines keep their height and the card clips at the bottom, rather
+              // than squeezing a chip on top of the line above it.
+              "@container absolute flex flex-col justify-start rounded-[12px] border-[1.5px] px-2 py-1.5 text-left overflow-hidden text-foreground [&>*]:shrink-0",
               "text-[12px] leading-tight shadow-[0_1px_2px_0_rgb(45_51_26/0.06),0_4px_10px_-4px_rgb(45_51_26/0.10)] transition-shadow hover:shadow-[0_2px_4px_0_rgb(45_51_26/0.08),0_10px_20px_-8px_rgb(45_51_26/0.18)] focus-visible:ring-2",
               // Colour carries the service, so status has its own channel:
               // a word on the booking, and a quieter fill for one that is done
@@ -925,8 +983,10 @@ function StylistColumn({
               height: `${b.heightPct}%`,
               // Every block sits inside the column minus the overbook strip,
               // so there is always bare column left to click on.
-              left: `calc((100% - ${OVERBOOK_GUTTER_PX}px) * ${b.lane / b.lanes} + 2px)`,
-              width: `calc((100% - ${OVERBOOK_GUTTER_PX}px) / ${b.lanes} - 4px)`,
+              left: `${inset + 2}px`,
+              width: `calc(100% - ${OVERBOOK_GUTTER_PX}px - ${inset + 4}px)`,
+              // Above the now line, which shows only in the gaps.
+              zIndex: 6 + b.lane,
             }}
           >
             {/* The start time is the headline, the largest thing on the
@@ -938,16 +998,18 @@ function StylistColumn({
                 <span
                   className={cn(
                     "shrink-0 font-extrabold leading-[1.1] tracking-[-0.01em] tabular-nums text-tea-green-100",
-                    doubled ? "text-[16px]" : "text-[20px]"
+                    "text-[20px]"
                   )}
                 >
                   {shortTime(startMin, clock)}
                 </span>
-                {!doubled && (
-                  <span className="whitespace-nowrap text-[12.5px] font-semibold tabular-nums text-foreground/80">
-                    – {shortTime(endMin, clock)}
-                  </span>
-                )}
+                {/* Dropped, not cut mid-number, when the booking is too narrow. */}
+                <span className="whitespace-nowrap text-[12.5px] font-semibold tabular-nums text-foreground/80 @max-[8.75rem]:hidden">
+                  – {shortTime(endMin, clock)}
+                </span>
+                {/* On a doubled booking the status rides on the time line: the
+                    later booking covers the rest of the card. */}
+                {doubled && statusChip}
               </span>
             )}
             <span className={cn("flex items-baseline gap-1.5 font-semibold min-w-0 text-[13px]", roomy && "mt-0.5")}>
@@ -973,17 +1035,12 @@ function StylistColumn({
               <span className="truncate">{clientLabel(a.lead, t)}</span>
             </span>
             {length > 15 && <span className="block truncate text-foreground/80">{a.serviceText}</span>}
-            {statusWord && (
-              <span
-                className={cn(
-                  "mt-0.5 inline-flex w-fit max-w-full items-center gap-0.5 truncate rounded-full px-1.5 py-px text-[10.5px] font-bold",
-                  noShow ? "bg-red-50 text-red-800" : "bg-tea-green-700 text-tea-green-100"
-                )}
-              >
-                {done && <Check className="h-3 w-3 shrink-0" strokeWidth={3} aria-hidden="true" />}
-                {/* A narrow, doubled booking keeps the tick and drops the word
-                    (still in its name for a screen reader). */}
-                {!(doubled && done) && statusWord}
+            {statusWord && !(doubled && roomy) && statusChip}
+            {/* The word where it fits; the red border, the mark and the lane's
+                header say it on a narrow lane. */}
+            {doubled && length > 45 && (
+              <span className="mt-0.5 inline-flex w-fit max-w-full items-center truncate rounded-full bg-red-50 px-1.5 py-px text-[10.5px] font-bold text-red-800 @max-[6.5rem]:hidden">
+                {t("grid.doubleBookedTitle")}
               </span>
             )}
             {a.patchTestRequired && (

@@ -306,8 +306,9 @@
     "cancelled": "Cancelled",
     "doubleBooked": "double-booked",
     "dayOff": "Day off",
-    "closedDay": "Closed today",
-    "nobodyIn": "Nobody's in today"
+    "closedDay": "Closed",
+    "nobodyIn": "Nobody's in",
+    "doubleBookedTitle": "Double-booked"
   },
   "month": {
     "prevMonth": "Previous month",

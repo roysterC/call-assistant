@@ -17,7 +17,7 @@ colors:
   cornsilk: "#fefae0"
   bronze: "#d4a373"
   bronze-deep: "#64411f"
-  now-orange: "#e07b39"
+  now-orange: "#e5894b"
   family-manicure: "#3f88d4"
   family-sets: "#8a6fd4"
   family-pedicure: "#c47726"
@@ -163,7 +163,7 @@ One sage family from ink to ground, a single warm bronze for "something is waiti
 - **Waiting Bronze** (bronze): counts and dots for things waiting on a person (callbacks, notifications), always with dark bronze text (`#32210f`). Nothing else is this colour.
 
 ### Tertiary
-- **Now Orange** (now-orange): the current-time line and its pill in the diary. Only that.
+- **Now Orange** (now-orange, the `--now` token): the current-time line and its pill in the diary, with ink text on the pill (5.0:1). Only that.
 - **Treatment families** (family-manicure, family-sets, family-pedicure, family-art, plus a grey for "other"): a booking's border; its fill is a light solid tint of the same hue (`src/lib/service-colours.ts`, which validates them). Services within a family step through four shades of its hue.
 
 ### Neutral
@@ -194,6 +194,7 @@ One sage family from ink to ground, a single warm bronze for "something is waiti
 - **Display** (600, 1.65rem, 1.25): the page title in PageHeader, one per page. No subtitle restating what the page is.
 - **Title** (600, 0.95rem, 1.375): card and section titles.
 - **Body** (400, 0.875rem, 1.5): everything read. 16px on iOS in text boxes, so the phone never zooms.
+- **Small** (500 to 700, 13px): compact controls and list detail (filter chips, toggles, secondary lines in dense rows). The size between Label and Body.
 - **Label** (500, 0.75rem): field labels, the second line of list rows, captions. Muted labels are Sage Deep, never grey.
 - **Diary time** (800, 20px, tabular): a booking's start time, the largest thing on it, so the day can be read from a step back. The end time sits beside it at 12.5px.
 
@@ -252,8 +253,11 @@ Rounded and soft, from one token: `--radius` is 16px, and the scale steps from i
 - **Filter chips** (clients, callbacks): full pills, white with a hairline; the selected one Sage Ink with white text and its count.
 
 ### The Diary (signature component)
-- **Columns:** one lane per technician, separated by a 6px white gap, on the Diary Lane tint. Closed hours and blocked time show diagonal stripes; a technician not in is dimmed and says so.
-- **Bookings:** rounded 12px cards, filled with their treatment's light tint and bordered 1.5px in its colour. The start time leads in Diary-time type. Finished bookings fade to 75%, cancelled ones to 50% and struck through, no-shows take a dashed border. A booking made by the receptionist and not yet seen has a 2px border and a NEW chip.
+- **Columns:** one lane per technician, separated by a 6px white gap, on the Diary Lane tint. Closed hours and blocked time show diagonal stripes; a technician's day off is hatched the same way with "Day off" in the lane. A day nobody can be booked says so once across the grid ("Closed", "Nobody's in").
+- **Bookings:** rounded 12px cards, filled with their treatment's light tint and bordered 1.5px in its colour, above the now line. The start time leads in Diary-time type; the end time beside it is dropped, never cut mid-number, when the card is narrow. A booking made by the receptionist and not yet seen has a 2px border and a NEW chip.
+- **Status, in words** (the same in Day and Week): a finished booking takes a "Done" chip and a quieter Sage Ground fill; a no-show a red "No-show" chip and a dashed edge. Never opacity, which takes the text below 4.5:1. Each booking's accessible name carries its technician and status.
+- **Double bookings:** two bookings at once for one person cascade (the later one on top, inset 14px) rather than splitting the lane, so both keep their start time, name and status; each takes a 2px red border and a "Double-booked" chip, and the lane's header (a red dot on the phone's tab) says so too.
+- **Cancelled bookings** hold no time: a one-line pill at the start time ("4:30 Evie Clarke · Cancelled", name struck through) that opens it; the time around it books like any free time.
 - **Time:** hours large and bold in the gutter, half hours small; the current time is a Now Orange line with a pill on the clock.
 - **Free time:** "1 h free" labels in Sage Deep under each gap.
 

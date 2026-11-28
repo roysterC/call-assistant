@@ -306,8 +306,9 @@
     "cancelled": "Đã hủy",
     "doubleBooked": "trùng lịch",
     "dayOff": "Nghỉ",
-    "closedDay": "Hôm nay tiệm nghỉ",
-    "nobodyIn": "Hôm nay không ai làm"
+    "closedDay": "Tiệm nghỉ",
+    "nobodyIn": "Không ai làm",
+    "doubleBookedTitle": "Trùng lịch"
   },
   "month": {
     "prevMonth": "Tháng trước",
