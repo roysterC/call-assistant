@@ -284,7 +284,7 @@ function Sidebar({
       className={cn(
         // A panel floating beside the content, inset from the page's edges.
         // Phones have the tabs instead (MobileTabs).
-        "hidden md:flex m-3 mr-0 bg-sidebar text-sidebar-foreground flex-col shrink-0 rounded-[28px] shadow-raised transition-[width]",
+        "sidebar-light hidden md:flex m-3 mr-0 bg-sidebar text-sidebar-foreground flex-col shrink-0 rounded-[28px] transition-[width]",
         navWidth(collapsed, openedNarrow),
         // The menu scrolls on its own between the logo and the account, so
         // those two never leave the panel on a short screen.
@@ -303,7 +303,7 @@ function Sidebar({
           <BrandMark />
           <div className={cn("min-w-0 flex-1", wide)}>
             {/* Held blank, at full height, until the name and role are known. */}
-            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate text-cornsilk-500">
+            <h1 className="font-semibold text-[0.95rem] leading-tight tracking-tight truncate text-sidebar-strong">
               {orgName ?? <span className="invisible">{t("nav.loading")}</span>}
             </h1>
             <p className="text-xs text-sidebar-muted mt-0.5">
@@ -355,7 +355,7 @@ function Sidebar({
                     ? t("nav.more")
                     : undefined
               }
-              className="group relative flex h-11 w-full items-center gap-3 px-[18px] rounded-[14px] text-sm font-medium whitespace-nowrap text-tea-green-400 transition-colors hover:text-cornsilk-500 hover:bg-white/8"
+              className="group relative flex h-11 w-full items-center gap-3 px-[18px] rounded-[14px] text-sm font-medium whitespace-nowrap text-sidebar-muted transition-colors hover:text-sidebar-strong hover:bg-sidebar-hover"
             >
               <span className="relative shrink-0">
                 <Ellipsis className="h-5 w-5" strokeWidth={1.75} />
@@ -399,12 +399,12 @@ function Sidebar({
             onClick={onToggleCollapsed}
             aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
             title={collapsed ? t("nav.expand") : t("nav.collapse")}
-            className="group flex h-11 w-full items-center gap-3 whitespace-nowrap rounded-[14px] px-[18px] text-sm font-medium text-tea-green-400 transition-colors hover:bg-white/8 hover:text-cornsilk-500"
+            className="group flex h-11 w-full items-center gap-3 whitespace-nowrap rounded-[14px] px-[18px] text-sm font-medium text-sidebar-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-strong"
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-5 w-5 shrink-0 text-tea-green-400 group-hover:text-tea-green-700" strokeWidth={1.75} />
+              <PanelLeftOpen className="h-5 w-5 shrink-0 text-sidebar-muted group-hover:text-sidebar-icon-strong" strokeWidth={1.75} />
             ) : (
-              <PanelLeftClose className="h-5 w-5 shrink-0 text-tea-green-400 group-hover:text-tea-green-700" strokeWidth={1.75} />
+              <PanelLeftClose className="h-5 w-5 shrink-0 text-sidebar-muted group-hover:text-sidebar-icon-strong" strokeWidth={1.75} />
             )}
             <span className={wide}>{t("nav.collapse")}</span>
           </button>
@@ -421,13 +421,13 @@ function Sidebar({
           <DropdownMenu>
             <DropdownMenuTrigger
               title={collapsed ? user.name || user.email || undefined : undefined}
-              className="w-full flex h-[52px] items-center gap-2.5 px-3 rounded-[14px] transition-colors hover:bg-white/8"
+              className="w-full flex h-[52px] items-center gap-2.5 px-3 rounded-[14px] transition-colors hover:bg-sidebar-hover"
             >
               <div className="w-8 h-8 shrink-0 rounded-full bg-tea-green-200 text-cornsilk-500 flex items-center justify-center text-xs font-semibold">
                 {(user.name || user.email || "?")[0].toUpperCase()}
               </div>
               <div className={cn("flex-1 min-w-0 text-left", wide)}>
-                <p className="text-sm font-medium truncate text-cornsilk-500">{user.name || user.email}</p>
+                <p className="text-sm font-medium truncate text-sidebar-strong">{user.name || user.email}</p>
                 <p className="text-[11px] text-sidebar-muted truncate">
                   {user.email}
                 </p>
@@ -499,14 +499,14 @@ function NavLink({
         big ? "h-[52px] px-[17px] text-[15px] font-semibold" : "h-10 px-[18px] text-sm font-medium",
         active
           ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : cn(big ? "text-cornsilk-500" : "text-sidebar-foreground", "hover:text-cornsilk-500 hover:bg-white/8")
+          : cn(big ? "text-sidebar-strong" : "text-sidebar-foreground", "hover:text-sidebar-strong hover:bg-sidebar-hover")
       )}
     >
       <span className="relative shrink-0">
         <item.icon
           className={cn(
             big ? "w-[22px] h-[22px]" : "w-5 h-5",
-            active ? "text-tea-green-700" : big ? "text-tea-green-600" : "text-tea-green-400 group-hover:text-tea-green-700"
+            active ? "text-sidebar-accent-icon" : big ? "text-sidebar-icon" : "text-sidebar-muted group-hover:text-sidebar-icon-strong"
           )}
           strokeWidth={big ? 2 : 1.75}
         />
@@ -534,7 +534,7 @@ function OrgSwitcher({
   const { t } = useT();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs text-sidebar-foreground bg-white/5 hover:bg-white/10 hover:text-cornsilk-500 transition-colors">
+      <DropdownMenuTrigger className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs text-sidebar-foreground bg-sidebar-hover hover:bg-sidebar-chip hover:text-sidebar-strong transition-colors">
         <span className="flex items-center gap-1.5">
           <Building2 className="w-3 h-3" />
           {t("nav.switchOrg")}
@@ -678,7 +678,7 @@ function MobileTabs({ model }: { model: NavModel }) {
       {/* A pill floating clear of the screen's edges, over the page. */}
       <nav
         aria-label={t("nav.menu")}
-        className="fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex h-[68px] items-center gap-0.5 rounded-[34px] bg-sidebar p-1.5 text-sidebar-foreground shadow-[0_14px_34px_rgb(45_51_26/0.32),0_2px_6px_rgb(45_51_26/0.2)]"
+        className="sidebar-light fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex h-[68px] items-center gap-0.5 rounded-[34px] bg-sidebar p-1.5 text-sidebar-foreground shadow-[0_14px_34px_rgb(45_51_26/0.18),0_2px_6px_rgb(45_51_26/0.12)] ring-1 ring-sidebar-border"
       >
         {tabs.map((item) => (
           <Tab
@@ -760,7 +760,7 @@ function Tab({
   // The page you are on sits in a bubble of its own inside the pill.
   const className = cn(
     "flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-[3px] rounded-[28px] transition-colors",
-    active ? "bg-sidebar-accent text-cornsilk-500" : "text-tea-green-400 active:bg-white/8"
+    active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-muted active:bg-sidebar-hover"
   );
   return href ? (
     <Link href={href} replace aria-current={active ? "page" : undefined} className={className}>

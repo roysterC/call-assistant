@@ -49,13 +49,13 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
     pathname?.startsWith("/clients");
 
   return (
-    <div className="h-full flex flex-col w-full">
+    <div className="h-full flex flex-col w-full md:bg-tea-green-900">
       <OnboardingGate />
       {/* A phone's header: who this is. The menu is the tab bar along the
           bottom (Navigation). */}
-      <header className="md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <header className="sidebar-light md:hidden shrink-0 h-14 flex items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <BrandMark size="sm" alt="" />
-        <span className="flex-1 font-heading font-semibold text-[0.95rem] tracking-tight truncate text-cornsilk-500">Kikai</span>
+        <span className="flex-1 font-heading font-semibold text-[0.95rem] tracking-tight truncate text-sidebar-strong">Kikai</span>
         <NotificationsBell variant="header" />
         <LanguageFlags tone="dark" />
       </header>
@@ -81,7 +81,7 @@ export function MainWrapper({ children }: { children: React.ReactNode }) {
         <NotificationsRuntime />
 
         {/* On a phone, clear of the tab bar along the bottom. */}
-        <main className="flex flex-1 flex-col overflow-auto min-w-0 phone:pb-[calc(68px+1.5rem+max(0.75rem,env(safe-area-inset-bottom)))]">
+        <main className="flex flex-1 flex-col overflow-auto min-w-0 bg-background md:m-3 md:rounded-[28px] md:shadow-raised phone:pb-[calc(68px+1.5rem+max(0.75rem,env(safe-area-inset-bottom)))]">
           {/* The trial ending, a failed payment, or the plan paused (src/lib/plan.ts). */}
           <PlanBanner />
           {isFullWidth ? (

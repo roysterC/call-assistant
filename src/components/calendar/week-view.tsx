@@ -114,11 +114,11 @@ export function WeekView({
                       <span
                         key={a.id}
                         className={cn(
-                          "flex flex-col rounded-md border-l-[3px] px-1.5 py-1 text-xs leading-tight",
+                          "flex flex-col rounded-[10px] border-[1.5px] px-2 py-1.5 text-xs leading-tight",
                           a.status === "completed" && "opacity-75",
                           a.status === "no_show" && "line-through opacity-60"
                         )}
-                        style={{ background: tone.fill, borderLeftColor: tone.border }}
+                        style={{ background: tone.fill, borderColor: tone.border }}
                         title={`${a.serviceText} · ${a.stylistName}`}
                       >
                         <span className="flex items-center gap-1.5">

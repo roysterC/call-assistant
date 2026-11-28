@@ -137,15 +137,15 @@ export function columnBackground(spans: Array<{ topPct: number; heightPct: numbe
     if (last && a <= last[1]) last[1] = Math.max(last[1], b);
     else merged.push([a, b]);
   }
-  if (merged.length === 0) return "var(--card)";
+  if (merged.length === 0) return "var(--diary-lane)";
   const stops: string[] = [];
   let at = 0;
   for (const [a, b] of merged) {
-    if (a > at) stops.push(`var(--card) ${at}% ${a}%`);
+    if (a > at) stops.push(`var(--diary-lane) ${at}% ${a}%`);
     stops.push(`transparent ${a}% ${b}%`);
     at = b;
   }
-  if (at < 100) stops.push(`var(--card) ${at}% 100%`);
+  if (at < 100) stops.push(`var(--diary-lane) ${at}% 100%`);
   return `linear-gradient(to bottom, ${stops.join(", ")})`;
 }
 
@@ -211,7 +211,7 @@ function EdgeStrip({ count }: { count: number }) {
     <div className="flex h-2.5" aria-hidden="true">
       <div className="w-16 shrink-0" />
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="flex-1 min-w-0 border-l border-border" />
+        <div key={i} className="flex-1 min-w-0 border-l-[6px] border-card" />
       ))}
     </div>
   );
@@ -371,7 +371,7 @@ export function DayGrid({
           {stylists.map((s) => (
             <div
               key={s.name}
-              className="flex-1 min-w-0 px-2 py-2 border-l border-border flex items-center justify-center gap-2"
+              className="flex-1 min-w-0 px-2 py-2 border-l-[6px] border-card flex items-center justify-center gap-2"
             >
               <StylistBadge stylist={s} />
               <div className="min-w-0 text-left">
@@ -700,7 +700,7 @@ function StylistColumn({
         else onDragEnd();
       }}
       className={cn(
-        "flex-1 min-w-0 relative border-l border-border",
+        "flex-1 min-w-0 relative border-l-[6px] border-card",
         bookable ? "cursor-copy" : "cursor-not-allowed"
       )}
       // Closed hours look like blocked time: either way, nobody can be
@@ -845,8 +845,8 @@ function StylistColumn({
             className={cn(
               // Content from the top, where the booking starts: a button
               // centres it otherwise, putting a long booking's time halfway down.
-              "absolute flex flex-col justify-start rounded-md border border-l-[3px] px-1.5 py-1 text-left overflow-hidden text-foreground",
-              "text-[12px] leading-tight shadow-[0_1px_2px_0_rgb(21_27_44/0.06)] transition-shadow hover:shadow-md focus-visible:ring-2",
+              "absolute flex flex-col justify-start rounded-[12px] border-[1.5px] px-2 py-1.5 text-left overflow-hidden text-foreground",
+              "text-[12px] leading-tight shadow-[0_1px_2px_0_rgb(45_51_26/0.06),0_4px_10px_-4px_rgb(45_51_26/0.10)] transition-shadow hover:shadow-[0_2px_4px_0_rgb(45_51_26/0.08),0_10px_20px_-8px_rgb(45_51_26/0.18)] focus-visible:ring-2",
               // Colour now carries the service, so status needs its own
               // channel rather than competing for the fill.
               a.status === "cancelled" && "opacity-50 line-through",
@@ -854,7 +854,7 @@ function StylistColumn({
               a.status === "no_show" && "border-dashed",
               b.clippedStart && "rounded-t-none",
               b.clippedEnd && "rounded-b-none",
-              a.unseen && "border-2 border-l-[3px]"
+              a.unseen && "border-2"
             )}
             style={{
               background: tone.fill,

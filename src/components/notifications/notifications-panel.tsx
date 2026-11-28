@@ -46,10 +46,10 @@ export function NotificationsBell({ variant, collapsed = false }: { variant: "me
           onClick={() => setOpen(true)}
           title={collapsed ? label : undefined}
           aria-label={aria}
-          className="group relative flex h-[52px] w-full items-center gap-3 rounded-[14px] px-[17px] text-[15px] font-semibold whitespace-nowrap text-cornsilk-500 transition-colors hover:bg-white/8"
+          className="group relative flex h-[52px] w-full items-center gap-3 rounded-[14px] px-[17px] text-[15px] font-semibold whitespace-nowrap text-sidebar-strong transition-colors hover:bg-sidebar-hover"
         >
           <span className="relative shrink-0">
-            <Bell className="h-[22px] w-[22px] text-tea-green-600" strokeWidth={2} />
+            <Bell className="h-[22px] w-[22px] text-sidebar-icon" strokeWidth={2} />
             {total > 0 && collapsed && (
               <span aria-hidden className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-light-bronze-500 ring-2 ring-sidebar" />
             )}
@@ -69,7 +69,7 @@ export function NotificationsBell({ variant, collapsed = false }: { variant: "me
           type="button"
           onClick={() => setOpen(true)}
           aria-label={aria}
-          className="relative flex h-10 w-10 items-center justify-center rounded-full text-cornsilk-500 transition-colors hover:bg-white/8"
+          className="relative flex h-10 w-10 items-center justify-center rounded-full text-sidebar-strong transition-colors hover:bg-sidebar-hover"
         >
           <Bell className="h-5 w-5" strokeWidth={1.75} />
           {total > 0 && (
