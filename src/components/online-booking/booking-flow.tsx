@@ -16,12 +16,22 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Calendar, Check, ChevronRight, Info, MapPin, Search, X } from "lucide-react";
+import { ArrowLeft, Calendar, Check, ChevronRight, Info, LoaderCircle, MapPin, Search, X } from "lucide-react";
 import { formatMoneyShort } from "@/lib/money";
 import type { PublicSalon, PublicService } from "@/lib/online-booking/catalogue";
 import type { DaySlots, PublicSlot } from "@/lib/online-booking/slots";
 import { CREAM, INK, TEXT, displayStyle, salonFontVars } from "./fonts";
 import { brandStyle, durationText, periodOf, PERIODS, timeText, dayLabel, longDay, icsFor } from "./format";
+import styles from "./salon.module.css";
+
+/** Pressed in, and filled ink, under the finger (salon.module.css). */
+const PRESS = styles.press;
+const PRESS_WIDE = styles.pressWide;
+const PRESS_FILL = `${styles.press} active:bg-[#16121A] active:text-[#FFF4E8]`;
+/** A round icon button in the header and the day strip. */
+const ICON_BUTTON = `${styles.press} flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-[#F2E8DC] active:bg-[#E9DCCB]`;
+/** "Change", "See other times": text buttons, still a thumb's width tall. */
+const TEXT_BUTTON = `${styles.press} inline-flex min-h-11 items-center px-1 text-sm font-semibold active:opacity-60`;
 
 type Step = "service" | "colour" | "time" | "details" | "done";
 export type FlowMode = "page" | "popup" | "inline";
@@ -185,11 +195,12 @@ export function BookingFlow({
 
   const stepNumber = step === "service" ? 1 : step === "colour" || step === "time" ? 2 : 3;
 
-  const root = `${salonFontVars} antialiased ${mode === "inline" ? "" : "h-dvh overflow-y-auto"}`;
+  const root = `${salonFontVars} ${styles.root} antialiased ${mode === "inline" ? "" : "h-dvh overflow-y-auto"}`;
 
   return (
     <div
       ref={rootRef}
+      data-salon-root=""
       className={root}
       style={{ ...brandStyle(salon.brandColor), background: CREAM, color: INK, fontFamily: TEXT }}
     >
@@ -204,7 +215,7 @@ export function BookingFlow({
                   type="button"
                   onClick={back}
                   aria-label={step === "service" ? (mode === "popup" ? "Close" : `Back to ${salon.name}`) : "Back"}
-                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#F2E8DC]"
+                  className={ICON_BUTTON}
                 >
                   {step === "service" && mode === "popup" ? <X className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
                 </button>
@@ -216,7 +227,7 @@ export function BookingFlow({
                   type="button"
                   onClick={() => tellHost({ type: "close" })}
                   aria-label="Close"
-                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#F2E8DC]"
+                  className={ICON_BUTTON}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -364,7 +375,7 @@ function ServiceStep({
             </li>
           ))}
         </ul>
-        <button type="button" onClick={onAll} className="min-h-11 text-[15px] font-semibold text-[var(--brand-ink)] underline-offset-4 hover:underline">
+        <button type="button" onClick={onAll} className={`${TEXT_BUTTON} text-[15px] text-[var(--brand-ink)] underline-offset-4 hover:underline`}>
           See all treatments
         </button>
       </div>
@@ -420,7 +431,7 @@ function ServiceButton({ service: s, onPick }: { service: PublicService; onPick:
     <button
       type="button"
       onClick={() => onPick(s)}
-      className="flex min-h-[68px] w-full items-center gap-3 rounded-[20px] border-[1.5px] border-[#D9CCE3] bg-white py-3 pl-4 pr-3.5 text-left transition duration-200 hover:-translate-y-px hover:border-[#16121A] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#16121A]"
+      className={`${PRESS_WIDE} flex min-h-[68px] w-full items-center gap-3 rounded-[20px] border-[1.5px] border-[#D9CCE3] bg-white py-3 pl-4 pr-3.5 text-left hover:-translate-y-px hover:border-[#16121A] active:border-[#16121A] active:bg-[#FBF3EA]`}
     >
       <span className="flex flex-1 flex-col gap-0.5">
         <span className="font-semibold">{s.name}</span>
@@ -447,7 +458,7 @@ function ColourStep({ service, onAnswer }: { service: PublicService; onAnswer: (
       <button
         type="button"
         onClick={() => onAnswer(false)}
-        className="flex h-16 w-full items-center justify-between rounded-2xl border-2 px-5 text-lg font-semibold"
+        className={`${PRESS_WIDE} flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl border-2 bg-white px-5 py-3 text-left text-lg font-semibold active:bg-[#FBF3EA]`}
         style={{ borderColor: "var(--brand)" }}
       >
         Yes, I&rsquo;ve been before <ChevronRight className="h-5 w-5" aria-hidden="true" />
@@ -455,7 +466,7 @@ function ColourStep({ service, onAnswer }: { service: PublicService; onAnswer: (
       <button
         type="button"
         onClick={() => onAnswer(true)}
-        className="flex h-16 w-full items-center justify-between rounded-2xl border-2 border-[#16121A] px-5 text-lg font-semibold"
+        className={`${PRESS_WIDE} flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl border-2 border-[#16121A] bg-white px-5 py-3 text-left text-lg font-semibold active:bg-[#FBF3EA]`}
       >
         No, it&rsquo;s my first time <ChevronRight className="h-5 w-5" aria-hidden="true" />
       </button>
@@ -539,7 +550,7 @@ function TimeStep({
             {service.priceMinor !== null ? ` · ${formatMoneyShort(service.priceMinor)}` : ""}
           </span>
         </span>
-        <button type="button" onClick={onChangeService} className="min-h-11 px-2 text-sm font-bold underline underline-offset-4">
+        <button type="button" onClick={onChangeService} className={`${TEXT_BUTTON} px-2 font-bold underline underline-offset-4 [--ring:var(--brand-fg)]`}>
           Change
         </button>
       </div>
@@ -547,7 +558,7 @@ function TimeStep({
       <h1 className="m-0 text-[40px]" style={displayStyle}>When suits you?</h1>
 
       {salon.stylistChoice && service.stylists.length > 1 && (
-        <div role="group" aria-label="Who with" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        <div role="group" aria-label="Who with" className="-mx-4 flex gap-2 overflow-x-auto px-4 py-1.5">
           {[null, ...service.stylists].map((s) => {
             const on = stylist === s;
             return (
@@ -556,8 +567,8 @@ function TimeStep({
                 type="button"
                 aria-pressed={on}
                 onClick={() => onStylist(s)}
-                className={`h-11 shrink-0 rounded-full border-[1.5px] border-[#16121A] px-4 text-[15px] font-semibold ${
-                  on ? "bg-[#16121A] text-[#FFF4E8]" : "bg-transparent"
+                className={`${PRESS} h-11 shrink-0 rounded-full border-[1.5px] border-[#16121A] px-4 text-[15px] font-semibold ${
+                  on ? "bg-[#16121A] text-[#FFF4E8]" : "bg-transparent active:bg-[#E9DCCB]"
                 }`}
               >
                 {s ?? "Anyone"}
@@ -585,12 +596,12 @@ function TimeStep({
                   setHistory(history.slice(0, -1));
                   setFrom(prev);
                 }}
-                className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-[#F2E8DC]"
+                className={`${ICON_BUTTON} -mx-1.5`}
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-5 w-5" />
               </button>
             )}
-            <div role="group" aria-label="Day" className="-mx-1 flex flex-1 gap-2 overflow-x-auto px-1 pb-1">
+            <div role="group" aria-label="Day" className="-mx-1 -my-1.5 flex flex-1 gap-2 overflow-x-auto px-1.5 py-1.5">
               {data.days.map((d) => {
                 const on = d.date === day;
                 const shut = d.slots.length === 0;
@@ -600,12 +611,12 @@ function TimeStep({
                     type="button"
                     aria-pressed={on}
                     onClick={() => setDay(d.date)}
-                    className={`flex h-[4.75rem] w-[3.9rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[18px] border-[1.5px] tabular-nums ${
+                    className={`${PRESS} flex h-[4.75rem] w-[3.9rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[18px] border-[1.5px] tabular-nums ${
                       on
                         ? "border-[#16121A] bg-[#16121A] text-[#FFF4E8]"
                         : shut
-                          ? "border-dashed border-[#A89BB4] text-[#7A6E85]"
-                          : "border-[#16121A] bg-transparent"
+                          ? "border-dashed border-[#A89BB4] text-[#7A6E85] active:bg-[#F2E8DC]"
+                          : "border-[#16121A] bg-transparent active:bg-[#E9DCCB]"
                     }`}
                   >
                     <span className="text-xs font-medium">{dayLabel(d.date, salon.timeZone).dow}</span>
@@ -625,9 +636,9 @@ function TimeStep({
                   setHistory([...history, data.from]);
                   setFrom(data.next);
                 }}
-                className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-[#F2E8DC]"
+                className={`${ICON_BUTTON} -mx-1.5`}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
               </button>
             )}
           </div>
@@ -645,7 +656,7 @@ function TimeStep({
                       setHistory([...history, data.from]);
                       setFrom(data.next);
                     }}
-                    className="h-11 rounded-full border-[1.5px] border-[#16121A] px-4 text-sm font-semibold"
+                    className={`${PRESS_FILL} h-11 rounded-full border-[1.5px] border-[#16121A] px-4 text-sm font-semibold`}
                   >
                     Try the next week
                   </button>
@@ -654,7 +665,7 @@ function TimeStep({
                   <button
                     type="button"
                     onClick={() => onStylist(null)}
-                    className="h-11 rounded-full border-[1.5px] border-[#16121A] px-4 text-sm font-semibold"
+                    className={`${PRESS_FILL} h-11 rounded-full border-[1.5px] border-[#16121A] px-4 text-sm font-semibold`}
                   >
                     Anyone available
                   </button>
@@ -676,7 +687,7 @@ function TimeStep({
                           key={s.start}
                           type="button"
                           onClick={() => onPick(s)}
-                          className="h-[50px] rounded-[14px] border-[1.5px] border-[#16121A] bg-white text-base font-semibold tabular-nums transition-colors duration-150 hover:bg-[#16121A] hover:text-[#FFF4E8] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#16121A]"
+                          className={`${PRESS_FILL} h-[50px] rounded-[14px] border-[1.5px] border-[#16121A] bg-white text-base font-semibold tabular-nums hover:bg-[#16121A] hover:text-[#FFF4E8]`}
                         >
                           {timeText(s.start, salon.timeZone)}
                         </button>
@@ -790,10 +801,17 @@ function DetailsStep({
   const who = stylist ?? slot.stylist;
   const timeGone = problem && (problem.code === "taken" || problem.code === "too_soon");
 
+  // The time going is told at the top of the form, which a phone has
+  // usually scrolled past by the time they tap Confirm: bring it back.
+  const gone = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (timeGone) gone.current?.scrollIntoView({ block: "nearest" });
+  }, [timeGone]);
+
   return (
     <form onSubmit={submit} className="flex flex-col gap-5">
       {timeGone ? (
-        <div role="alert" className="space-y-3 rounded-2xl border border-orange-300 bg-orange-50 p-4">
+        <div ref={gone} role="alert" className="scroll-mt-24 space-y-3 rounded-2xl border border-orange-300 bg-orange-50 p-4">
           <p className="font-bold">{problem.error}</p>
           {problem.alternatives && problem.alternatives.length > 0 ? (
             <>
@@ -807,16 +825,16 @@ function DetailsStep({
                       onSlot(a);
                       setProblem(null);
                     }}
-                    className="flex h-14 flex-col items-center justify-center rounded-xl border-2 border-[#16121A] bg-white"
+                    className={`${PRESS_FILL} group flex h-14 flex-col items-center justify-center rounded-xl border-2 border-[#16121A] bg-white`}
                   >
                     <span className="font-bold">{timeText(a.start, salon.timeZone)}</span>
-                    <span className="text-xs text-[#5A4F63]">{shortDay(a.start, slot.start, salon.timeZone)}</span>
+                    <span className="text-xs text-[#5A4F63] group-active:text-current">{shortDay(a.start, slot.start, salon.timeZone)}</span>
                   </button>
                 ))}
               </div>
             </>
           ) : null}
-          <button type="button" onClick={onChangeTime} className="text-sm font-semibold underline">
+          <button type="button" onClick={onChangeTime} className={`${TEXT_BUTTON} underline underline-offset-4`}>
             See other times
           </button>
         </div>
@@ -830,7 +848,7 @@ function DetailsStep({
                 · {timeText(slot.start, salon.timeZone)}
               </span>
             </span>
-            <button type="button" onClick={onChangeTime} className="px-1 py-2.5 text-sm font-semibold text-[var(--brand-ink)]">
+            <button type="button" onClick={onChangeTime} className={`${TEXT_BUTTON} text-[var(--brand-ink)]`}>
               Change
             </button>
           </div>
@@ -846,7 +864,7 @@ function DetailsStep({
                 {service.priceMinor !== null ? ` · ${formatMoneyShort(service.priceMinor)}, paid at the salon` : ""}
               </span>
             </span>
-            <button type="button" onClick={onChangeService} className="px-1 py-2.5 text-sm font-semibold text-[var(--brand-ink)]">
+            <button type="button" onClick={onChangeService} className={`${TEXT_BUTTON} text-[var(--brand-ink)]`}>
               Change
             </button>
           </div>
@@ -901,25 +919,29 @@ function DetailsStep({
         <button
           type="button"
           onClick={() => setShowNotes(true)}
-          className="self-start py-2 text-[0.95rem] font-semibold text-[var(--brand-ink)]"
+          className={`${TEXT_BUTTON} self-start text-[0.95rem] text-[var(--brand-ink)]`}
         >
           + Add a note for the salon
         </button>
       )}
 
-      {problem && !timeGone && (
-        <p role="alert" className="rounded-xl border border-orange-300 bg-orange-50 p-3 text-sm">
-          {problem.error}
-        </p>
-      )}
-
-      <div className="sticky bottom-0 -mx-4 space-y-2 border-t-[1.5px] border-[#16121A] bg-[#FFF4E8] px-4 pb-4 pt-3">
+      <div className="sticky bottom-0 -mx-4 space-y-2 border-t-[1.5px] border-[#16121A] bg-[#FFF4E8] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+        {/* Next to the button, where the eye is: lower down the form, a phone would hide it under this bar. */}
+        {problem && !timeGone && (
+          <p role="alert" className="rounded-xl border border-orange-300 bg-orange-50 p-3 text-sm">
+            {problem.error}
+          </p>
+        )}
         <button
           type="submit"
           disabled={sending || Boolean(timeGone)}
-          className="flex h-14 w-full items-center justify-center rounded-full text-[1.05rem] font-semibold disabled:opacity-60"
+          aria-busy={sending}
+          className={`${PRESS} flex h-14 w-full items-center justify-center gap-2.5 rounded-full text-[1.05rem] font-semibold disabled:cursor-not-allowed ${
+            sending ? "" : "disabled:opacity-50"
+          }`}
           style={{ background: INK, color: CREAM }}
         >
+          {sending && <LoaderCircle className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true" />}
           {sending ? "Booking…" : "Confirm booking"}
         </button>
         <p className="text-center text-xs text-[#5A4F63]">No account needed. You&rsquo;ll get a text to confirm.</p>
@@ -1003,7 +1025,7 @@ function DoneStep({
           <a
             href={`data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`}
             download="appointment.ics"
-            className="flex h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold"
+            className={`${PRESS_FILL} flex h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold`}
           >
             <Calendar className="h-4 w-4" aria-hidden="true" /> Add to calendar
           </a>
@@ -1012,14 +1034,14 @@ function DoneStep({
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${salon.name}, ${salon.address}`)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold"
+              className={`${PRESS_FILL} flex h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold`}
             >
               <MapPin className="h-4 w-4" aria-hidden="true" /> Directions
             </a>
           ) : salon.phone ? (
             <a
               href={`tel:${salon.phone}`}
-              className="flex h-12 items-center justify-center rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold"
+              className={`${PRESS_FILL} flex h-12 items-center justify-center rounded-xl border-[1.5px] border-[#16121A] text-[0.95rem] font-semibold`}
             >
               Call the salon
             </a>
@@ -1041,12 +1063,12 @@ function DoneStep({
         <button
           type="button"
           onClick={onAgain}
-          className="h-12 rounded-full border-[1.5px] border-[#16121A] font-semibold"
+          className={`${PRESS_FILL} h-12 rounded-full border-[1.5px] border-[#16121A] font-semibold`}
         >
           Book someone else
         </button>
         {onClose && (
-          <button type="button" onClick={onClose} className="h-12 rounded-full font-semibold text-[#3D3447]">
+          <button type="button" onClick={onClose} className={`${PRESS} h-12 rounded-full font-semibold text-[#3D3447] active:bg-[#F2E8DC]`}>
             Close
           </button>
         )}
