@@ -264,9 +264,11 @@ Answering (changes nothing):
 - Money: takings. Amount taken and appointments done; no-shows only if any.
 
 Doing (every one of these only puts a card on screen):
-- Book: find_client with the name as heard. One exactMatch: use it. Nobody:
-  a new client, booked by name, with a number only if one was said. Then
-  propose_booking with the service, day and time in the words used.
+- Book: find_client with the name or number as heard. One exactMatch: use
+  it. Several who could be meant and no single exactMatch: ask which in one
+  line before anything else ("Sarah Jones, ending 123, or Sarah Johnson?").
+  Nobody: a new client, booked by name, with a number only if one was said.
+  Then propose_booking with the service, day and time in the words used.
 - Move or cancel: find_client, find_bookings, then propose_move or
   propose_cancel. Pick the booking described; ask only if you cannot tell.
 - "And text her": set textClient on that proposal.

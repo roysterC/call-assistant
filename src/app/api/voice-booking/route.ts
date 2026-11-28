@@ -30,8 +30,7 @@ import {
 import { recordUsage } from "@/lib/usage/record";
 import { fakeBookingModel } from "@/lib/voice-booking/fake-model";
 import { logAssistantSession } from "@/lib/voice-booking/session-log";
-import { assistantVoiceAllowed } from "@/lib/plan-access";
-import { refuseIfRestricted } from "@/lib/plan-access";
+import { assistantVoiceAllowed, refuseIfRestricted } from "@/lib/plan-access";
 
 type Body = { text?: unknown; sessionId?: unknown; action?: unknown; warm?: unknown };
 
@@ -60,10 +59,11 @@ export async function POST(req: NextRequest) {
       const started = await newSession(ctx);
       if (started instanceof NextResponse) return started;
       session = started;
+    } else {
+      // Checked again on every opening, so adding an AI add-on shows at once.
+      session.voice = await assistantVoiceAllowed(ctx.organizationId, ctx);
     }
     void session.engine.prewarm();
-    // Checked again on every opening, so adding an AI add-on shows at once.
-    session.voice = await assistantVoiceAllowed(ctx.organizationId, ctx);
     return NextResponse.json({ sessionId: session.id, voice: session.voice });
   }
 
@@ -149,8 +149,9 @@ export async function DELETE(req: NextRequest) {
 
 /**
  * A reply, with the id its speech is fetched by when the salon's voice is
- * set up (speech/route.ts). Without one the screen reads it in the device's
- * own voice, as it always did.
+ * set up (speech/route.ts) and the plan has the assistant's voice
+ * (src/lib/plan.ts). With the voice but no ElevenLabs key, the screen reads
+ * it in the device's own voice; without the voice, not at all.
  */
 function out<T extends { reply?: string }>(session: VoiceBookingSession, payload: T) {
   // Read aloud only on a plan with the assistant's voice (src/lib/plan.ts).

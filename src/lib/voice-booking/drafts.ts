@@ -150,39 +150,73 @@ const PAST_GRACE_MS = 15 * 60_000;
 
 // --- Finding things ------------------------------------------------------------------
 
+const DIGIT_WORDS: Record<string, string> = {
+  zero: "0", oh: "0", nought: "0", one: "1", two: "2", three: "3", four: "4",
+  five: "5", six: "6", seven: "7", eight: "8", nine: "9",
+};
+
 /**
- * Clients whose name matches what was heard, best first. The name comes
- * through speech recognition, so each word is matched on its own and a
- * near miss on one ("Jon" for "John") still finds the other.
+ * A number as dictation may give it, in digits: "oh seven seven double oh"
+ * is 07700. Words that aren't digits are left as they are.
  */
+export function spokenDigits(heard: string): string {
+  const out: string[] = [];
+  const words = heard.toLowerCase().split(/\s+/);
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i].replace(/[^a-z0-9]/g, "");
+    const next = DIGIT_WORDS[(words[i + 1] ?? "").replace(/[^a-z]/g, "")];
+    if ((w === "double" || w === "triple") && next) {
+      out.push(next.repeat(w === "double" ? 2 : 3));
+      i++;
+    } else out.push(DIGIT_WORDS[w] ?? words[i]);
+  }
+  return out.join(" ");
+}
+
 /**
- * The digits of a number said or typed ("07700 900123", "ending 123"), as
- * a search: the whole number matched on its last nine digits, so 07700… and
- * +447700… are the same client; three to five digits, the number's ending.
- * Null when there is no number in it.
+ * The digits of a number said or typed ("07700 900123", "ending 123",
+ * "oh seven seven…"), as a search: the whole number matched on its last
+ * nine digits, so 07700… and +447700… are the same client; three to five
+ * digits, the number's ending. Null when there is no number in it.
  */
 export function phoneSearch(heard: string): { endsWith: string } | null {
-  const digits = heard.replace(/\D/g, "");
+  const digits = spokenDigits(heard).replace(/\D/g, "");
   if (digits.length < 3) return null;
   return { endsWith: digits.slice(-9) };
 }
 
+/** Words in a lookup that are about the number, not the name. */
+const NOT_NAME = new Set(["ending", "number", "phone", "mobile", "on", "in", "double", "triple", ...Object.keys(DIGIT_WORDS)]);
+
+/**
+ * Clients matching what was heard, best first: by name, by phone number,
+ * or both. The name comes through speech recognition, so each word is
+ * matched on its own and a near miss on one ("Jon" for "John") still finds
+ * the other; a number said with a name also finds the name, so one misheard
+ * digit doesn't lose the client.
+ *
+ * exactMatch is the assistant's licence to go ahead without asking: the
+ * whole name matched, or the whole number is this client's own and nobody
+ * else's (a child booked through a parent's number shares it, so then it
+ * asks).
+ */
 export async function findClients(organizationId: string, heard: string) {
   const byPhone = phoneSearch(heard);
   const words = heard
     .toLowerCase()
     .replace(/[^\p{L}' -]+/gu, " ")
     .split(/\s+/)
-    .filter((w) => w.length >= 2 && !["ending", "number", "phone", "mobile", "on", "in"].includes(w))
+    .filter((w) => w.length >= 2 && !NOT_NAME.has(w))
     .slice(0, 4);
   if (words.length === 0 && !byPhone) return [];
   const rows = await prisma.lead.findMany({
     where: {
       organizationId,
       anonymisedAt: null,
-      OR: byPhone
-        ? [{ phone: byPhone }, { contactLead: { phone: byPhone } }]
-        : words.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })),
+      OR: [
+        ...words.map((w) => ({ name: { contains: w, mode: "insensitive" as const } })),
+        ...(byPhone ? [{ phone: byPhone }, { contactLead: { phone: byPhone } }] : []),
+      ],
     },
     select: {
       id: true,
@@ -199,18 +233,24 @@ export async function findClients(organizationId: string, heard: string) {
     },
     take: 25,
   });
-  const score = (name: string | null) => {
-    if (byPhone) return words.filter((w) => (name ?? "").toLowerCase().includes(w)).length;
-    if (namesMatch(name, heard)) return 100;
-    const have = (name ?? "").toLowerCase();
-    return words.filter((w) => have.includes(w)).length;
+  const ownNumber = (r: { phone: string | null }) => Boolean(byPhone && r.phone?.endsWith(byPhone.endsWith));
+  const viaContact = (r: { contactLead: { phone: string | null } | null }) =>
+    Boolean(byPhone && r.contactLead?.phone?.endsWith(byPhone.endsWith));
+  const nameWords = (name: string | null) => words.filter((w) => (name ?? "").toLowerCase().includes(w)).length;
+  const score = (r: (typeof rows)[number]) => {
+    const number = ownNumber(r) ? 60 : viaContact(r) ? 40 : 0;
+    const name = words.length && namesMatch(r.name, heard.replace(/[\d+()-]/g, " ")) ? 100 : nameWords(r.name);
+    return number + name;
   };
+  const wholeNumber = Boolean(byPhone && byPhone.endsWith.length >= 9);
+  const onThisNumber = rows.filter((r) => r.name && (ownNumber(r) || viaContact(r)));
   return rows
     .filter((r) => r.name)
-    .sort((a, b) => score(b.name) - score(a.name))
+    .sort((a, b) => score(b) - score(a))
     .slice(0, 5)
     .map((r) => {
       const phone = r.phone ?? r.contactLead?.phone ?? null;
+      const numberIsTheirs = wholeNumber && ownNumber(r) && onThisNumber.length === 1;
       return {
         clientId: r.id,
         name: r.name!,
@@ -218,8 +258,10 @@ export async function findClients(organizationId: string, heard: string) {
         reachedThrough: r.contactLead?.name ?? null,
         lastVisit: r.appointments[0]?.startsAt.toISOString().slice(0, 10) ?? null,
         patchTest: r.patchTestAt ? spokenPatchTest(r.patchTestAt) : null,
-        // A whole number is one client; a name must match in full.
-        exactMatch: byPhone ? byPhone.endsWith.length >= 9 : namesMatch(r.name, heard),
+        // With a name said as well, the number alone isn't enough: both must agree.
+        exactMatch: byPhone
+          ? numberIsTheirs && (words.length === 0 || nameWords(r.name) > 0)
+          : namesMatch(r.name, heard),
       };
     });
 }
